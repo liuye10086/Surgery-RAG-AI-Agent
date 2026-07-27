@@ -78,7 +78,7 @@ review_handoff: generated
 ```yaml
 task_id: development-baseline-001
 title: 建立开发与测试环境基线
-status: review
+status: completed
 risk: normal
 owner: Codex
 client: Codex-Desktop
@@ -148,7 +148,9 @@ review_handoff: generated
 - 两次无安装基线的 18 个组件状态完全一致：13 项 `PASS`，5 项按安全策略 `SKIP`。
 - 跳过项：外部 LLM、模型下载、OCR/GPU、文档重新索引、数据库写入测试。
 - Claude Code 评审通过；非阻塞建议要求记录 `psql` 自定义安装目录的发现限制，已在提交 `ab003ff` 中处理并重新验证。
-- 分支仅存在于本地，尚未推送或合并。
+- 项目所有者已分别授权推送和合并；任务分支已推送，合并提交为 `92a3b1d`。
+- 合并后的 `main` 已重新通过后端 41 项测试、PowerShell 合同测试、前端构建和 PostgreSQL 只读检查。
+- 当前状态：任务已完成。
 
 #### 评审交接信息
 
