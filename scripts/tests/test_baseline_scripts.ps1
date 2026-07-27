@@ -26,7 +26,10 @@ foreach ($required in @('InstallDependencies', 'unittest discover', 'npm ci', 'c
 
 foreach ($required in @(
     "`$ErrorActionPreference = 'Continue'",
-    '$environmentResults = $environmentOutput | ConvertFrom-Json'
+    '$environmentResults = $environmentOutput | ConvertFrom-Json',
+    'Known Environment Limitations',
+    'custom PostgreSQL installation directory',
+    'no personal paths, connection strings, or secret values'
 )) {
     if (-not $verifySource.Contains($required)) {
         throw "Baseline verifier missing PowerShell 5.1 behavior contract: $required"

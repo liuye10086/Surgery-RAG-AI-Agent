@@ -120,7 +120,11 @@ $lines.Add('| Component | Status | Evidence |')
 $lines.Add('|---|---|---|')
 foreach ($result in $results) { $lines.Add("| $($result.component) | $($result.status) | $($result.evidence) |") }
 $lines.Add('')
-$lines.Add('This report contains no absolute paths, connection strings, or secret values.')
+$lines.Add('## Known Environment Limitations')
+$lines.Add('')
+$lines.Add('- `psql` discovery checks `PATH` and the default `C:\Program Files\PostgreSQL\*\bin` layout. Add `psql` to `PATH` when PostgreSQL uses a custom PostgreSQL installation directory.')
+$lines.Add('')
+$lines.Add('This report contains no personal paths, connection strings, or secret values.')
 [IO.File]::WriteAllLines($reportFile, $lines, [Text.UTF8Encoding]::new($false))
 
 $hasFailure = @($results | Where-Object { $_.status -in @('FAIL', 'BLOCKED') }).Count -gt 0

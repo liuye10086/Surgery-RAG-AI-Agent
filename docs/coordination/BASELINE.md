@@ -1,7 +1,7 @@
 # Development And Test Baseline
 
 - Task-ID: `development-baseline-001`
-- Executed at: `2026-07-27 14:50:11 +08:00`
+- Executed at: `2026-07-27 16:01:25 +08:00`
 - Python: `3.11.4`
 - Node.js: `22.15.0`
 - npm: `10.9.2`
@@ -27,4 +27,8 @@
 | document-reindex | SKIP | excluded by baseline safety policy |
 | database-write-tests | SKIP | excluded by baseline safety policy |
 
-This report contains no absolute paths, connection strings, or secret values.
+## Known Environment Limitations
+
+- `psql` discovery checks `PATH` and the default `C:\Program Files\PostgreSQL\*\bin` layout. Add `psql` to `PATH` when PostgreSQL uses a custom PostgreSQL installation directory.
+
+This report contains no personal paths, connection strings, or secret values.
