@@ -73,6 +73,78 @@ review_handoff: generated
 - 项目所有者已授权推送并合并到 `main`，合并提交为 `ba13272`。
 - 当前状态：任务已完成。
 
+### development-baseline-001
+
+```yaml
+task_id: development-baseline-001
+title: 建立开发与测试环境基线
+status: in-progress
+risk: normal
+owner: Codex
+client: Codex-Desktop
+branch: codex/development-baseline-001
+worktree: .worktrees/development-baseline-001
+planner: Codex
+implementer: Codex
+reviewer: Claude-Code
+database_change: false
+plan: docs/superpowers/plans/2026-07-27-development-baseline-implementation.md
+review_handoff: pending
+```
+
+#### 目标
+
+建立可重复执行的 Windows 开发与测试环境基线，覆盖运行时发现、项目依赖恢复、后端测试、前端构建、数据库只读检查和非敏感结果报告。
+
+#### 实现说明
+
+按照已批准的设计与实施计划，在独立 worktree 中以测试先行方式实现检查脚本和开发指南，并使用现有本地 PostgreSQL 执行只读验证。
+
+#### 范围
+
+##### Exact files
+
+- `scripts/check_database_readonly.py`
+- `backend/tests/test_database_baseline.py`
+- `scripts/check_dev_environment.ps1`
+- `scripts/verify_baseline.ps1`
+- `scripts/tests/test_baseline_scripts.ps1`
+- `docs/DEVELOPMENT.md`
+- `docs/coordination/BASELINE.md`
+- `docs/coordination/ACTIVE_TASKS.md`
+
+##### Path patterns
+
+- 无。
+
+##### Symbols
+
+- 无。
+
+##### Shared resources
+
+- `backend/.venv`（Git 忽略）。
+- `frontend/node_modules`（Git 忽略）。
+- `backend/.env`（只读，Git 忽略）。
+- 当前 PostgreSQL 数据库（只读）。
+
+#### 验收条件
+
+- 不安装新的系统级 Python、Node.js、PostgreSQL 或 pgvector。
+- 不执行数据库写入、迁移、重建、删除、清空或索引操作。
+- 不调用外部 AI 服务，不下载 BGE-M3、PaddleOCR 等模型。
+- 所有检查明确输出 `PASS`、`FAIL`、`SKIP` 或 `BLOCKED`。
+- 后端单元测试、PowerShell 合同测试、前端构建和基线重复性检查具有可复现结果。
+- 已提交文件不包含密钥、数据库连接串或个人绝对路径。
+
+#### 阻塞记录
+
+- 无。
+
+#### 评审记录
+
+- 尚未评审。实施完成后由 Claude Code 按标准评审交接信息进行跨客户端评审。
+
 ## 终止状态归档规则
 
 - 合并完成后将任务状态改为 `completed`，保留到下一次协调整理时再移入项目历史记录或删除。
