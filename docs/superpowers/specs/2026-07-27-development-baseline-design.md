@@ -61,6 +61,11 @@
 - 后端测试、Alembic 状态检查和服务启动命令。
 - 数据库安全边界。
 - 基线脚本的使用方式和结果解释。
+- Windows PowerShell 执行策略可能阻止 `.ps1` 脚本时，使用仅对当前进程生效的命令运行，不修改系统或用户执行策略：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify_baseline.ps1
+```
 
 该文档不得包含用户名、个人绝对路径、密码、API 密钥或完整数据库连接串。
 
@@ -84,7 +89,11 @@
 - 发现 Python 3.11、Node.js 22.15.0、npm、PostgreSQL 客户端和 Git。
 - 检查 `backend/.venv` 是否存在及其解释器版本。
 - 检查 `frontend/node_modules` 的关键包和命令是否完整。
-- 检查 `backend/.env` 是否存在，并只报告缺失的必需变量名称。
+- 检查 `backend/.env` 是否存在，并按以下分类验证配置，但不输出任何值：
+  - 连接必需：`DATABASE_URL` 必须存在，且不能保留 `.env.example` 的示例连接串。
+  - 安全必需：`JWT_SECRET` 必须存在，且不能是 `change-me-in-production`、`your_jwt_secret_here` 等默认或示例值。
+  - 基线可选：`DEEPSEEK_API_KEY`、`LANGCHAIN_API_KEY`、`HF_ENDPOINT` 和 `VECTOR_STORE_CONNECTION_STRING` 可以为空，因为外部服务与模型能力默认跳过，向量连接可复用 `DATABASE_URL`。
+  - 其他配置：由 `Settings` 默认值和 Pydantic 类型加载验证，不要求全部显式写入 `.env`。
 - 检查 PostgreSQL 服务和 pgvector 扩展可用性，但不输出连接凭据。
 - 使用清晰退出码区分通过与失败。
 
@@ -103,8 +112,8 @@
 
 1. 调用环境检查脚本。
 2. 使用 `backend/.venv` 运行后端测试。
-3. 使用 Node.js 22 和 npm 执行前端构建。
-4. 对当前数据库执行安全检查。
+3. 使用 Node.js 22.15.0 和 npm 10.9.2 执行前端构建。
+4. 对当前数据库执行第 5.1 节规定的只读检查；只有实施计划明确需要且能够证明回滚有效时，才附加第 5.2 节的可回滚事务测试。
 5. 汇总通过、失败、跳过和阻塞项。
 
 脚本默认不自动安装依赖。只有显式参数允许时，才可以在项目目录中执行 `backend/.venv` 创建、Python 依赖安装和 `npm ci`；即使允许，也不能安装新的系统运行时。
@@ -170,6 +179,8 @@
 Agent 不得把 `SKIP` 描述成通过，也不得在依赖未安装或命令未执行时宣称基线成功。
 
 ## 8. 标准执行流程
+
+> 本节流程遵循 `AI_COLLABORATION.md` 的多角色协作规范，任务登记使用 `docs/coordination/TASK_TEMPLATE.md` 模板。
 
 1. 在协调工作区登记 `development-baseline-001`，标记为普通风险文档与环境任务。
 2. 从最新 `main` 创建 `codex/development-baseline-001` 独立 worktree。
