@@ -1,0 +1,70 @@
+import importlib.util
+import unittest
+from pathlib import Path
+
+from app.db.models import AuditLog, Chunk, Message, Session
+
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_revision(filename: str, module_name: str):
+    path = BACKEND_ROOT / "alembic/versions" / filename
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"无法加载迁移文件: {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class AlembicContractTests(unittest.TestCase):
+    def test_alembic_files_exist(self):
+        for relative_path in [
+            "alembic.ini",
+            "alembic/env.py",
+            "alembic/script.py.mako",
+            "alembic/versions/0001_current_business_schema.py",
+            "alembic/versions/0002_enforce_foreign_keys_and_indexes.py",
+        ]:
+            self.assertTrue((BACKEND_ROOT / relative_path).is_file(), relative_path)
+
+    def test_revision_chain_is_linear(self):
+        baseline = _load_revision(
+            "0001_current_business_schema.py", "migration_0001"
+        )
+        hardening = _load_revision(
+            "0002_enforce_foreign_keys_and_indexes.py", "migration_0002"
+        )
+        self.assertEqual(baseline.revision, "0001")
+        self.assertIsNone(baseline.down_revision)
+        self.assertEqual(hardening.revision, "0002")
+        self.assertEqual(hardening.down_revision, "0001")
+
+    def test_env_excludes_langchain_internal_tables(self):
+        env_source = (BACKEND_ROOT / "alembic/env.py").read_text(encoding="utf-8")
+        self.assertIn('name.startswith("langchain_pg_")', env_source)
+
+    def test_foreign_key_indexes_are_declared_in_orm(self):
+        expected = {
+            "ix_chunks_document_id",
+            "ix_sessions_user_id",
+            "ix_messages_session_id",
+            "ix_audit_logs_user_id",
+            "ix_audit_logs_session_id",
+        }
+        actual = {
+            index.name
+            for table in (
+                Chunk.__table__,
+                Session.__table__,
+                Message.__table__,
+                AuditLog.__table__,
+            )
+            for index in table.indexes
+        }
+        self.assertTrue(expected.issubset(actual))
+
+
+if __name__ == "__main__":
+    unittest.main()
