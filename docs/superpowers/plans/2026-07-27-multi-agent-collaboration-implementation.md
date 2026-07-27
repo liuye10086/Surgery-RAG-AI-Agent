@@ -13,6 +13,8 @@
 - 本次任务编号为 `collaboration-setup-001`，实施者为 Codex；这只是单次任务分配，不构成永久职责。
 - 当前主工作区只用于协调、审核和最终合并；执行本计划时应使用 `codex/collaboration-setup-001` 独立分支和 worktree。
 - Agent 可以创建本地提交，但不得自行推送远程或合并到 `main`。
+- 跨客户端交叉评审由项目所有者在另一个客户端发起；实现 Agent 必须主动提醒并生成标准交接信息。
+- 实现 Agent 在本地任务满足评审和验证要求后必须主动请求推送授权；推送与合并分别授权。
 - 不 amend 已有提交，不强制重置，不改写共享历史。
 - `AGENTS.md` 与 `CLAUDE.md` 必须保留现有项目概述、UI 规则和通用规则。
 - 两个入口文件中的 UI 规范路径统一为 `docs/DESIGN_SPEC.md`。
@@ -80,6 +82,7 @@ Create `AI_COLLABORATION.md` with this content:
 - 跨模块、数据库、认证、安全、RAG 核心链路和架构修改：先编写方案并取得项目所有者明确批准。
 - 普通文档和微小配置可由项目所有者直接审核；功能、Bug、数据库、认证、安全和 RAG 核心逻辑必须由另一个 Agent 交叉评审。
 - 评审者只报告问题、证据、风险和测试缺口。需要修复时，由原实现者创建新提交，不改写已有提交。
+- Codex Desktop 与 VS Code 中的 Claude Code 默认不能互相唤起。需要跨客户端评审时，实现 Agent 主动提醒项目所有者，并生成包含任务编号、分支、提交范围、方案、验收条件和重点检查项的交接信息，由项目所有者粘贴到另一个客户端发起评审。
 
 ## 4. 分支与 Worktree
 
@@ -121,7 +124,9 @@ Agent 提交时使用单次命令参数设置 Git 身份，不反复修改共享
 
 ## 8. 所有者批准
 
-推送和合并必须获得项目所有者明确批准。单人项目中，一条清晰指令即可完成授权，例如“允许推送 `retrieval-001`”；不要求额外审批系统。
+任务满足评审和验证要求后，实现 Agent 必须主动报告分支、提交、变更范围和验证结果，明确说明“尚未推送”，并请求项目所有者授权。
+
+推送和合并必须分别获得项目所有者明确批准。单人项目中，一条清晰指令即可完成一次授权，例如“允许推送 `retrieval-001`”或“允许合并 `retrieval-001` 到 `main`”；不要求额外审批系统。“实现完成”“检查通过”或“可以了”不自动视为推送或合并授权。
 ````
 
 - [ ] **Step 3: Verify required policy clauses**
@@ -129,7 +134,7 @@ Agent 提交时使用单次命令参数设置 Git 身份，不反复修改共享
 Run:
 
 ```powershell
-rg -n '不得自行推送|ACTIVE_TASKS.md|git pull --ff-only|交叉评审|blocked|Alembic|docs/DESIGN_SPEC.md' AI_COLLABORATION.md
+rg -n '不得自行推送|ACTIVE_TASKS.md|git pull --ff-only|跨客户端评审|主动报告|分别获得|blocked|Alembic|docs/DESIGN_SPEC.md' AI_COLLABORATION.md
 ```
 
 Expected: 每个关键词至少匹配一次，命令退出码为 `0`。
@@ -219,6 +224,7 @@ implementer: Codex
 reviewer: Claude-Code
 database_change: false
 plan: docs/plans/retrieval-001.md
+review_handoff: pending
 ```
 
 ## 目标
@@ -260,6 +266,23 @@ plan: docs/plans/retrieval-001.md
 ## 评审记录
 
 - 尚未评审。评审者只记录问题、证据、风险和测试缺口，不直接改写实现者提交。
+
+## 评审交接信息
+
+```text
+请评审任务 retrieval-001。
+
+实现者：Codex
+评审者：Claude Code
+分支：codex/retrieval-001
+基线：main
+提交：<first-commit>..<last-commit>
+方案或登记：docs/coordination/ACTIVE_TASKS.md
+验收条件：见本任务“验收条件”部分
+重点检查：行为回归、安全风险、缺失测试
+
+只输出评审意见，不直接修改实现提交。
+```
 ```
 
 Allowed status values:
@@ -286,7 +309,7 @@ Run:
 
 ```powershell
 rg -n '唯一登记源|当前没有活动任务|不得删除仍处于非终止状态' docs/coordination/ACTIVE_TASKS.md
-rg -n 'task_id:|Exact files|Path patterns|Symbols|Shared resources|database_change|blocked|completed|cancelled' docs/coordination/TASK_TEMPLATE.md
+rg -n 'task_id:|Exact files|Path patterns|Symbols|Shared resources|database_change|review_handoff|评审交接信息|blocked|completed|cancelled' docs/coordination/TASK_TEMPLATE.md
 ```
 
 Expected: 所有字段和状态均有匹配，两个命令退出码均为 `0`。
@@ -427,8 +450,8 @@ docs/coordination/TASK_TEMPLATE.md
 Run:
 
 ```powershell
-rg -n '不得自行推送|独立 worktree|git pull --ff-only|交叉评审|数据库|blocked|项目所有者明确批准' AI_COLLABORATION.md
-rg -n 'Exact files|Path patterns|Symbols|Shared resources|database_change' docs/coordination/TASK_TEMPLATE.md
+rg -n '不得自行推送|独立 worktree|git pull --ff-only|跨客户端评审|主动报告|分别获得|数据库|blocked' AI_COLLABORATION.md
+rg -n 'Exact files|Path patterns|Symbols|Shared resources|database_change|review_handoff|评审交接信息' docs/coordination/TASK_TEMPLATE.md
 rg -n 'AI_COLLABORATION.md|docs/DESIGN_SPEC.md' AGENTS.md CLAUDE.md
 ```
 
@@ -468,6 +491,31 @@ AI-Client: Codex-Desktop
 Task-ID: collaboration-setup-001
 ```
 
-- [ ] **Step 5: Stop for project-owner authorization**
+- [ ] **Step 5: Prepare cross-client review handoff if required**
 
-Report the branch name, worktree path, commit hashes, changed files and verification results. Do not run `git push`, merge into `main`, remove the worktree or delete the branch until the project owner gives an explicit instruction.
+For this documentation-only collaboration setup, project-owner review is sufficient. For future normal or high-risk code tasks, output this completed handoff block before requesting review:
+
+```text
+请评审任务 <task-id>。
+
+实现者：<Codex 或 Claude Code>
+评审者：<Claude Code 或 Codex>
+分支：<task-branch>
+基线：main
+提交：<first-commit>..<last-commit>
+方案或登记：<plan-or-task-path>
+验收条件：<acceptance-location>
+重点检查：行为回归、安全风险、缺失测试
+
+只输出评审意见，不直接修改实现提交。
+```
+
+Expected: 实现 Agent 明确提醒项目所有者需要在另一个客户端发起评审，不声称已自动唤起跨客户端 Agent。
+
+- [ ] **Step 6: Stop for project-owner push authorization**
+
+Report the branch name, worktree path, commit hashes, changed files and verification results. Explicitly state `尚未推送` and ask whether to allow pushing `collaboration-setup-001`. Do not run `git push` until the project owner gives an explicit instruction containing the task ID.
+
+- [ ] **Step 7: Stop separately for merge authorization after push**
+
+After an authorized push succeeds, report the remote branch and commit, then separately ask whether to merge `collaboration-setup-001` into `main`. Do not treat push authorization as merge authorization, and do not remove the worktree or delete the branch before the merge decision.
