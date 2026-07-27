@@ -15,7 +15,7 @@ planner: Codex
 implementer: Codex
 reviewer: Claude-Code
 database_change: false
-plan: docs/plans/retrieval-001.md
+plan: docs/superpowers/plans/retrieval-001.md
 review_handoff: pending
 ```
 
@@ -86,6 +86,12 @@ Allowed status values:
 - `blocked`
 - `completed`
 - `cancelled`
+
+Review handoff values:
+
+- `pending`: 需要跨客户端评审，但尚未生成交接信息。
+- `not-required`: 按风险规则不需要跨客户端评审。
+- `generated`: 已生成交接信息，内容见本任务“评审交接信息”部分。
 
 Risk guidance:
 
