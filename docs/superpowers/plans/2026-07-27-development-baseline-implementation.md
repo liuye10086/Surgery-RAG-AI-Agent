@@ -194,7 +194,7 @@ class _FakeConnection:
                 {"extname": "vector", "extversion": "0.8.3"},
             ])
         if "alembic_version" in sql:
-            return _FakeResult(["0002"])
+            return _FakeResult(["test-head"])
         if "information_schema.columns" in sql:
             return _FakeResult([
                 {"table_name": table_name, "column_name": column_name}
@@ -208,7 +208,7 @@ class DatabaseBaselineTests(unittest.TestCase):
     def test_checker_forces_read_only_transaction(self):
         checker = _load_checker()
         connection = _FakeConnection()
-        report = checker.collect_checks(connection)
+        report = checker.collect_checks(connection, {"test-head"})
         self.assertIn("SET TRANSACTION READ ONLY", connection.statements[0])
         self.assertEqual(report["status"], "PASS")
 
@@ -219,9 +219,11 @@ class DatabaseBaselineTests(unittest.TestCase):
             {"vector", "uuid-ossp", "pg_trgm"},
         )
 
-    def test_checker_requires_current_alembic_head(self):
+    def test_checker_fails_when_database_revision_is_not_a_code_head(self):
         checker = _load_checker()
-        self.assertEqual(checker.EXPECTED_ALEMBIC_HEAD, "0002")
+        report = checker.collect_checks(_FakeConnection(), {"future-head"})
+        self.assertFalse(report["revision_matches"])
+        self.assertEqual(report["status"], "FAIL")
 
     def test_checker_source_contains_no_mutating_sql(self):
         source = SCRIPT_PATH.read_text(encoding="utf-8").upper()
@@ -252,6 +254,8 @@ import json
 import sys
 from pathlib import Path
 
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 
 
@@ -263,7 +267,6 @@ from app.core.config import settings  # noqa: E402
 
 
 REQUIRED_EXTENSIONS = {"vector", "uuid-ossp", "pg_trgm"}
-EXPECTED_ALEMBIC_HEAD = "0002"
 REQUIRED_COLUMNS = {
     "users": {"id", "username", "email", "hashed_password", "role"},
     "documents": {"id", "filename", "status", "active_generation"},
@@ -274,7 +277,13 @@ REQUIRED_COLUMNS = {
 }
 
 
-def collect_checks(connection):
+def get_code_heads():
+    config = Config(str(BACKEND_ROOT / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
+    return set(ScriptDirectory.from_config(config).get_heads())
+
+
+def collect_checks(connection, code_heads):
     connection.execute(text("SET TRANSACTION READ ONLY"))
     server_version = connection.execute(text("SHOW server_version")).scalar_one_or_none()
     extension_rows = connection.execute(
@@ -303,14 +312,14 @@ def collect_checks(connection):
         for table_name, columns in REQUIRED_COLUMNS.items()
         if columns - actual_columns.get(table_name, set())
     }
-    revision_matches = revision == EXPECTED_ALEMBIC_HEAD
+    revision_matches = revision in code_heads and len(code_heads) == 1
     status = "PASS" if not missing_extensions and not missing_columns and revision_matches else "FAIL"
     return {
         "status": status,
         "server_version": server_version,
         "extensions": extensions,
         "alembic_revision": revision,
-        "expected_alembic_head": EXPECTED_ALEMBIC_HEAD,
+        "code_heads": sorted(code_heads),
         "revision_matches": revision_matches,
         "missing_extensions": missing_extensions,
         "missing_columns": missing_columns,
@@ -324,7 +333,7 @@ def main():
         with engine.connect() as connection:
             transaction = connection.begin()
             try:
-                report = collect_checks(connection)
+                report = collect_checks(connection, get_code_heads())
             finally:
                 transaction.rollback()
     except Exception as exc:
@@ -558,9 +567,10 @@ function Resolve-Node22 {
 
 function Invoke-Recorded([string]$Name, [scriptblock]$Command) {
     try {
-        $output = (& $Command 2>&1 | Out-String).Trim()
+        $outputLines = & $Command 2>&1
         $exitCode = $LASTEXITCODE
         if ($null -eq $exitCode) { $exitCode = 0 }
+        $output = ($outputLines | Out-String).Trim()
         Add-Result $Name $(if ($exitCode -eq 0) { 'PASS' } else { 'FAIL' }) "exit code $exitCode"
         return [pscustomobject]@{ exit_code = $exitCode; output = $output }
     } catch {
@@ -589,8 +599,9 @@ if ($InstallDependencies -and $python -and $npm) {
     finally { Pop-Location }
 }
 
-$environmentOutput = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $projectRoot 'scripts\check_dev_environment.ps1') -AsJson 2>&1 | Out-String).Trim()
+$environmentLines = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $projectRoot 'scripts\check_dev_environment.ps1') -AsJson 2>&1
 $environmentExit = $LASTEXITCODE
+$environmentOutput = ($environmentLines | Out-String).Trim()
 try {
     $environmentResults = @($environmentOutput | ConvertFrom-Json)
     foreach ($item in $environmentResults) { Add-Result $item.name $item.status $item.detail }
@@ -810,6 +821,17 @@ Expected behavior:
 - Database checker executes only read-only SQL and rolls back its transaction.
 - `docs/coordination/BASELINE.md` is generated even if a component fails, with exact non-sensitive evidence.
 
+Capture the first-run component states for the repeatability check:
+
+```powershell
+$firstRunStates = @(Get-Content -Encoding UTF8 docs/coordination/BASELINE.md |
+    Where-Object { $_ -match '^\| [^|]+ \| (PASS|FAIL|SKIP|BLOCKED) \|' } |
+    ForEach-Object {
+        $cells = $_.Split('|')
+        '{0}={1}' -f $cells[1].Trim(), $cells[2].Trim()
+    } | Sort-Object)
+```
+
 - [ ] **Step 3: Inspect the generated report and runtime status**
 
 ```powershell
@@ -826,7 +848,20 @@ Expected: only `docs/coordination/BASELINE.md` is new among runtime outputs; ign
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify_baseline.ps1
 ```
 
-Expected: no dependency installation occurs; results are reproducible. If required checks fail, record the exact `FAIL` or `BLOCKED` evidence and stop before marking the task approved.
+Compare the second-run states with the first run:
+
+```powershell
+$secondRunStates = @(Get-Content -Encoding UTF8 docs/coordination/BASELINE.md |
+    Where-Object { $_ -match '^\| [^|]+ \| (PASS|FAIL|SKIP|BLOCKED) \|' } |
+    ForEach-Object {
+        $cells = $_.Split('|')
+        '{0}={1}' -f $cells[1].Trim(), $cells[2].Trim()
+    } | Sort-Object)
+$differences = Compare-Object $firstRunStates $secondRunStates
+if ($differences) { $differences; throw 'Baseline component states are not reproducible' }
+```
+
+Expected: no dependency installation occurs, and every component has the same `PASS`/`FAIL`/`SKIP`/`BLOCKED` state as Step 2. Timestamp and other run metadata may differ. Any state difference means the baseline is unstable and must be investigated before the task can move to `review` or `approved`. If both runs consistently contain a required `FAIL` or `BLOCKED`, record the evidence and stop before approval.
 
 - [ ] **Step 5: Update the active task to review state**
 
