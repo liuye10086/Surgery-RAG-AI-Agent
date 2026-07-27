@@ -143,7 +143,7 @@ review_handoff: generated
 
 #### 评审记录
 
-- 实现提交：`d28077e`、`1edeebe`、`c4d22d3`、`45c6b56`、`dadbdc2`。
+- 实现提交：`d28077e`、`1edeebe`、`c4d22d3`、`45c6b56`、`dadbdc2`、`ca706c9`。
 - 后端 41 项单元测试、PowerShell 合同测试、前端构建和 PostgreSQL 只读检查均通过。
 - 两次无安装基线的 18 个组件状态完全一致：13 项 `PASS`，5 项按安全策略 `SKIP`。
 - 跳过项：外部 LLM、模型下载、OCR/GPU、文档重新索引、数据库写入测试。
@@ -158,7 +158,7 @@ review_handoff: generated
 评审者：Claude Code
 分支：codex/development-baseline-001
 基线：main
-提交：d28077e0656b320326c8985ed31303a6850b6198..dadbdc2d6d3f44c6de0c0b9ec6a8222493f24e6b
+提交：d28077e0656b320326c8985ed31303a6850b6198..ca706c9bffe607e60db614eabe8de5c368ebd18d
 方案：docs/superpowers/specs/2026-07-27-development-baseline-design.md
 实施计划：docs/superpowers/plans/2026-07-27-development-baseline-implementation.md
 验收结果：docs/coordination/BASELINE.md
