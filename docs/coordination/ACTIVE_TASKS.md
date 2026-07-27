@@ -11,7 +11,7 @@
 ```yaml
 task_id: collaboration-setup-001
 title: 建立 Codex 与 Claude Code 多角色协作规范
-status: in-progress
+status: review
 risk: low
 owner: Codex
 client: Codex-Desktop
@@ -66,6 +66,9 @@ review_handoff: not-required
 #### 评审记录
 
 - 本任务只修改协作文档，按低风险规则由项目所有者直接审核。
+- 实施提交：`5f58fd2`、`b1985e0`、`985bbc1`。
+- 已验证变更范围、共享规范关键条款、任务模板字段、两个入口文件一致性、占位符和尾随空白。
+- 当前状态：本地实现完成，尚未推送，等待项目所有者审核。
 
 ## 终止状态归档规则
 
