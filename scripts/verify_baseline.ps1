@@ -4,7 +4,7 @@ param(
     [string]$ReportPath = 'docs/coordination/BASELINE.md'
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $results = [System.Collections.Generic.List[object]]::new()
 $backendTestLabel = 'unittest discover'
@@ -73,7 +73,7 @@ $environmentLines = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (J
 $environmentExit = $LASTEXITCODE
 $environmentOutput = ($environmentLines | Out-String).Trim()
 try {
-    $environmentResults = @($environmentOutput | ConvertFrom-Json)
+    $environmentResults = $environmentOutput | ConvertFrom-Json
     foreach ($item in $environmentResults) { Add-Result $item.name $item.status $item.detail }
 } catch {
     Add-Result 'environment' 'BLOCKED' 'environment JSON could not be parsed'

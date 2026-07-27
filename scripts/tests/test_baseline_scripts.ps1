@@ -24,6 +24,15 @@ foreach ($required in @('InstallDependencies', 'unittest discover', 'npm ci', 'c
     }
 }
 
+foreach ($required in @(
+    "`$ErrorActionPreference = 'Continue'",
+    '$environmentResults = $environmentOutput | ConvertFrom-Json'
+)) {
+    if (-not $verifySource.Contains($required)) {
+        throw "Baseline verifier missing PowerShell 5.1 behavior contract: $required"
+    }
+}
+
 foreach ($forbidden in @('DROP ', 'TRUNCATE ', 'DELETE ', 'alembic upgrade', 'DEEPSEEK_API_KEY=')) {
     if ($checkSource.ToUpperInvariant().Contains($forbidden.ToUpperInvariant()) -or
         $verifySource.ToUpperInvariant().Contains($forbidden.ToUpperInvariant())) {
