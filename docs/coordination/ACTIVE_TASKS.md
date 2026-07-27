@@ -143,10 +143,11 @@ review_handoff: generated
 
 #### 评审记录
 
-- 实现提交：`d28077e`、`1edeebe`、`c4d22d3`、`45c6b56`、`dadbdc2`、`ca706c9`。
+- 实现提交：`d28077e`、`1edeebe`、`c4d22d3`、`45c6b56`、`dadbdc2`、`ca706c9`、`ab003ff`。
 - 后端 41 项单元测试、PowerShell 合同测试、前端构建和 PostgreSQL 只读检查均通过。
 - 两次无安装基线的 18 个组件状态完全一致：13 项 `PASS`，5 项按安全策略 `SKIP`。
 - 跳过项：外部 LLM、模型下载、OCR/GPU、文档重新索引、数据库写入测试。
+- Claude Code 评审通过；非阻塞建议要求记录 `psql` 自定义安装目录的发现限制，已在提交 `ab003ff` 中处理并重新验证。
 - 分支仅存在于本地，尚未推送或合并。
 
 #### 评审交接信息
@@ -158,7 +159,7 @@ review_handoff: generated
 评审者：Claude Code
 分支：codex/development-baseline-001
 基线：main
-提交：d28077e0656b320326c8985ed31303a6850b6198..ca706c9bffe607e60db614eabe8de5c368ebd18d
+提交：d28077e0656b320326c8985ed31303a6850b6198..ab003ff23924c220b8d295cce754e13edd1acf31
 方案：docs/superpowers/specs/2026-07-27-development-baseline-design.md
 实施计划：docs/superpowers/plans/2026-07-27-development-baseline-implementation.md
 验收结果：docs/coordination/BASELINE.md
