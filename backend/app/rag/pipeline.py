@@ -32,9 +32,15 @@ class SurgeryRetriever(BaseRetriever):
 
     db: Session
     top_k: int = settings.RETRIEVER_FINAL_TOP_K
+    department_id: Optional[int] = None
 
     def _get_relevant_documents(self, query: str) -> List[Document]:
-        results = hybrid_search(self.db, query, top_k=self.top_k)
+        results = hybrid_search(
+            self.db,
+            query,
+            top_k=self.top_k,
+            department_id=self.department_id,
+        )
         return [
             Document(
                 page_content=rc.chunk.content,
@@ -54,11 +60,17 @@ class SurgeryRetriever(BaseRetriever):
         ]
 
 
-def _vector_search(db: Session, query: str, top_k: int) -> List[RetrievedChunk]:
+def _vector_search(
+    db: Session,
+    query: str,
+    top_k: int,
+    department_id: Optional[int] = None,
+) -> List[RetrievedChunk]:
     """基于 pgvector 的余弦相似度检索。
 
     查询 LangChain PGVector 的 langchain_pg_embedding 表，
     通过 id 关联回业务 chunks 表。
+    当 department_id 不为 None 时，仅检索该科室文档。
     """
     embeddings = embed_texts([query])
     if not embeddings or not embeddings[0]:
@@ -81,6 +93,7 @@ def _vector_search(db: Session, query: str, top_k: int) -> List[RetrievedChunk]:
           AND business_chunk.is_current IS TRUE
           AND business_chunk.generation = business_document.active_generation
           AND business_document.is_current IS TRUE
+          AND (:dept_id IS NULL OR business_document.department_id = :dept_id)
         ORDER BY distance ASC
         LIMIT :top_k
         """
@@ -91,6 +104,7 @@ def _vector_search(db: Session, query: str, top_k: int) -> List[RetrievedChunk]:
             "embedding": embedding_str,
             "coll_name": settings.VECTOR_COLLECTION_NAME,
             "top_k": top_k,
+            "dept_id": department_id,
         },
     ).fetchall()
     if not rows:
@@ -126,11 +140,17 @@ def _vector_search(db: Session, query: str, top_k: int) -> List[RetrievedChunk]:
     ]
 
 
-def _fulltext_search(db: Session, query: str, top_k: int) -> List[RetrievedChunk]:
+def _fulltext_search(
+    db: Session,
+    query: str,
+    top_k: int,
+    department_id: Optional[int] = None,
+) -> List[RetrievedChunk]:
     """基于 pg_trgm 相似度检索 langchain_pg_embedding.document 列。
 
     使用 pg_trgm 的 similarity() 函数替代 tsvector/tsquery，
     以支持中文等无空格分隔语言。GIN 索引使用 gin_trgm_ops。
+    当 department_id 不为 None 时，仅检索该科室文档。
     """
     if not query or not query.strip():
         return []
@@ -153,6 +173,7 @@ def _fulltext_search(db: Session, query: str, top_k: int) -> List[RetrievedChunk
           AND business_chunk.is_current IS TRUE
           AND business_chunk.generation = business_document.active_generation
           AND business_document.is_current IS TRUE
+          AND (:dept_id IS NULL OR business_document.department_id = :dept_id)
           AND GREATEST(
                 similarity(e.document, :query),
                 similarity(COALESCE(e.cmetadata->>'document_title', ''), :query)
@@ -167,6 +188,7 @@ def _fulltext_search(db: Session, query: str, top_k: int) -> List[RetrievedChunk
             "query": query,
             "coll_name": settings.VECTOR_COLLECTION_NAME,
             "top_k": top_k,
+            "dept_id": department_id,
         },
     ).fetchall()
     if not rows:
@@ -243,6 +265,7 @@ def hybrid_search(
     db: Session,
     query: str,
     top_k: int = settings.RETRIEVER_FINAL_TOP_K,
+    department_id: Optional[int] = None,
 ) -> List[RetrievedChunk]:
     """混合检索入口：向量 + 全文 + RRF 融合。
 
@@ -250,6 +273,7 @@ def hybrid_search(
         db: SQLAlchemy Session。
         query: 用户查询。
         top_k: 最终返回片段数。
+        department_id: 可选科室筛选，为 None 时搜索全部文档。
 
     Returns:
         按 RRF 得分降序排列的 RetrievedChunk 列表。
@@ -265,7 +289,7 @@ def hybrid_search(
 
     try:
         vector_results = _vector_search(
-            db, query, settings.RETRIEVER_TOP_K_VECTOR
+            db, query, settings.RETRIEVER_TOP_K_VECTOR, department_id=department_id,
         )
     except Exception:
         vector_failed = True
@@ -273,7 +297,7 @@ def hybrid_search(
 
     try:
         fulltext_results = _fulltext_search(
-            db, query, settings.RETRIEVER_TOP_K_FULLTEXT
+            db, query, settings.RETRIEVER_TOP_K_FULLTEXT, department_id=department_id,
         )
     except Exception:
         fulltext_failed = True

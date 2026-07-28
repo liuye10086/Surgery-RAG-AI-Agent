@@ -1,14 +1,16 @@
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
-from app.db.models import Chunk, Document
+from app.db.models import Chunk, Department, Document
 from app.db.session import get_db
 from app.ingestion.chunker import chunk_pages
 from app.ingestion.parser import parse_file
+from app.schemas.department import DepartmentCreate, DepartmentOut, DepartmentUpdate
 from app.schemas.document import (
     DocumentListOut,
     DocumentOut,
+    DocumentUpdateIn,
     DocumentUploadResponse,
     DocumentWithChunksOut,
 )
@@ -23,6 +25,24 @@ from app.services.document_indexing import (
 )
 
 router = APIRouter(prefix="", tags=["admin"])
+
+
+def _validate_department(db: Session, department_id: int | None) -> Department | None:
+    """校验科室 ID 有效且未停用，返回 Department 或 raise HTTPException。"""
+    if department_id is None:
+        return None
+    dept = db.query(Department).filter(Department.id == department_id).first()
+    if not dept:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"科室 {department_id} 不存在",
+        )
+    if not dept.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"科室「{dept.name}」已停用，不允许新归属",
+        )
+    return dept
 
 
 def _save_extracted_images(doc_id: int, generation: int, pages: list) -> list:
@@ -58,6 +78,8 @@ def _document_to_out(doc: Document) -> DocumentOut:
         version=doc.version,
         is_current=doc.is_current,
         chunk_count=len(doc.chunks),
+        department_id=doc.department_id,
+        department_name=doc.department.name if doc.department else None,
         created_at=doc.created_at,
         updated_at=doc.updated_at,
     )
@@ -67,9 +89,12 @@ def _document_to_out(doc: Document) -> DocumentOut:
 def upload_document(
     file: UploadFile = File(...),
     title: str | None = Form(None),
+    department_id: int | None = Form(None),
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    _validate_department(db, department_id)
+
     try:
         file_path = file_storage.save_upload(file)
     except ValueError as e:
@@ -90,6 +115,7 @@ def upload_document(
         file_type=file_storage.validate_extension(file.filename),
         file_size=file_size,
         status="pending",
+        department_id=department_id,
     )
     db.add(doc)
     db.commit()
@@ -100,6 +126,7 @@ def upload_document(
         filename=doc.filename,
         title=doc.title,
         status=doc.status,
+        department_id=doc.department_id,
     )
 
 
@@ -108,6 +135,7 @@ def list_documents(
     skip: int = 0,
     limit: int = 100,
     search: str | None = None,
+    department_id: int | None = Query(None),
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -117,6 +145,8 @@ def list_documents(
         q = q.filter(
             Document.title.ilike(pattern) | Document.filename.ilike(pattern)
         )
+    if department_id is not None:
+        q = q.filter(Document.department_id == department_id)
     total = q.count()
     docs = (
         q.order_by(Document.created_at.desc())
@@ -377,6 +407,132 @@ def delete_chunk(
             doc.status = "chunked"
             db.commit()
 
+    return None
+
+
+@router.put("/documents/{document_id}", response_model=DocumentOut)
+def update_document(
+    document_id: int,
+    payload: DocumentUpdateIn,
+    admin=Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """修改文档的科室归属。"""
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="文档不存在")
+
+    if payload.department_id is not None:
+        _validate_department(db, payload.department_id)
+    doc.department_id = payload.department_id
+    db.commit()
+    db.refresh(doc)
+    return _document_to_out(doc)
+
+
+# ---------------------------------------------------------------------------
+# 科室管理
+# ---------------------------------------------------------------------------
+
+
+@router.get("/departments", response_model=list[DepartmentOut])
+def list_departments(
+    active_only: bool = Query(False),
+    admin=Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    q = db.query(Department)
+    if active_only:
+        q = q.filter(Department.is_active.is_(True))
+    return q.order_by(Department.id).all()
+
+
+@router.post("/departments", response_model=DepartmentOut)
+def create_department(
+    payload: DepartmentCreate,
+    admin=Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="科室名称不能为空",
+        )
+    if db.query(Department).filter(Department.name == name).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"科室「{name}」已存在",
+        )
+    dept = Department(name=name, description=payload.description)
+    db.add(dept)
+    db.commit()
+    db.refresh(dept)
+    return dept
+
+
+@router.put("/departments/{dept_id}", response_model=DepartmentOut)
+def update_department(
+    dept_id: int,
+    payload: DepartmentUpdate,
+    admin=Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    dept = db.query(Department).filter(Department.id == dept_id).first()
+    if not dept:
+        raise HTTPException(status_code=404, detail="科室不存在")
+
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="科室名称不能为空",
+            )
+        existing = (
+            db.query(Department)
+            .filter(Department.name == name, Department.id != dept_id)
+            .first()
+        )
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"科室「{name}」已存在",
+            )
+        dept.name = name
+    if payload.description is not None:
+        dept.description = payload.description
+    if payload.is_active is not None:
+        dept.is_active = payload.is_active
+
+    db.commit()
+    db.refresh(dept)
+    return dept
+
+
+@router.delete("/departments/{dept_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_department(
+    dept_id: int,
+    admin=Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    dept = db.query(Department).filter(Department.id == dept_id).first()
+    if not dept:
+        raise HTTPException(status_code=404, detail="科室不存在")
+
+    doc_count = (
+        db.query(Document)
+        .filter(Document.department_id == dept_id)
+        .count()
+    )
+    if doc_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"科室「{dept.name}」下存在 {doc_count} 篇文档，请先迁移文档或停用科室",
+        )
+
+    db.delete(dept)
+    db.commit()
     return None
 
 

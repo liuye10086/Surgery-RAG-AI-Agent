@@ -9,6 +9,7 @@ class DocumentUploadResponse(BaseModel):
     filename: str
     title: Optional[str]
     status: str
+    department_id: Optional[int] = None
 
 
 class DocumentOut(BaseModel):
@@ -24,6 +25,8 @@ class DocumentOut(BaseModel):
     version: int
     is_current: bool
     chunk_count: int = 0
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -47,3 +50,7 @@ class DocumentWithChunksOut(DocumentOut):
 class DocumentListOut(BaseModel):
     total: int
     items: List[DocumentOut]
+
+
+class DocumentUpdateIn(BaseModel):
+    department_id: Optional[int] = None
