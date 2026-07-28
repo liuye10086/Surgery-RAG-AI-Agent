@@ -81,6 +81,11 @@ export function listDepartments(activeOnly?: boolean): Promise<DepartmentOut[]> 
   return request.get('/v1/admin/departments', { params: { active_only: activeOnly } })
 }
 
+// 用户侧公开科室列表（无需管理员权限）
+export function listPublicDepartments(): Promise<DepartmentOut[]> {
+  return request.get('/v1/departments', { params: { active_only: true } })
+}
+
 export function getDocument(id: number): Promise<DocumentWithChunksOut> {
   return request.get(`/v1/admin/documents/${id}`)
 }

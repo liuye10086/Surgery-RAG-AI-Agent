@@ -30,14 +30,15 @@ export const useChatStore = defineStore('chat', () => {
   const dangerByMessageId = ref<Record<number, { level: string; advice: string }>>(loadDangerFromStorage())
 
   // 科室筛选：持久化到 localStorage
-  const selectedDepartmentId = ref<number | null>(() => {
+  function _loadDepartmentId(): number | null {
     try {
       const raw = localStorage.getItem(DEPARTMENT_STORAGE_KEY)
       return raw ? Number(raw) : null
     } catch {
       return null
     }
-  })
+  }
+  const selectedDepartmentId = ref<number | null>(_loadDepartmentId())
 
   function setSelectedDepartmentId(id: number | null) {
     selectedDepartmentId.value = id

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.api import admin, auth, chat, files, user
 from app.api.deps import get_current_user
 from app.core.config import settings
-from app.db.models import Chunk, Document, User
+from app.db.models import Chunk, Department, Document, User
 from app.db.session import get_db
 from app.rag.vectorstore import ensure_vectorstore_tables
 from app.services.embedder import warmup_embedder
@@ -45,6 +45,19 @@ async def startup_event():
     await asyncio.to_thread(warmup_embedder)
     # 触发 PGVector 建表，确保 langchain_pg_* 表和 GIN 索引存在
     await asyncio.to_thread(ensure_vectorstore_tables)
+
+
+@app.get("/api/v1/departments")
+def list_public_departments(
+    active_only: bool = True,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """列出可用科室（所有登录用户可访问，仅用于前端筛选器）。"""
+    q = db.query(Department)
+    if active_only:
+        q = q.filter(Department.is_active.is_(True))
+    return q.order_by(Department.id).all()
 
 
 @app.get("/health")

@@ -1,5 +1,6 @@
 -- 009: 科室分类筛选
 -- 新增 departments 表 + documents 表 department_id 外键 + 种子数据
+-- 注意：正式部署应使用 Alembic（backend/alembic/versions/0003_add_departments.py）
 
 -- 1. 科室表
 CREATE TABLE IF NOT EXISTS departments (
@@ -15,7 +16,9 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'documents' AND column_name = 'department_id'
+        WHERE table_schema = current_schema()
+          AND table_name = 'documents'
+          AND column_name = 'department_id'
     ) THEN
         ALTER TABLE documents ADD COLUMN department_id INTEGER
             REFERENCES departments(id) ON DELETE RESTRICT;

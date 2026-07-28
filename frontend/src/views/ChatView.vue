@@ -144,7 +144,7 @@ import { useChatStore } from '@/stores/chat'
 import ChatSidebar from '@/components/ChatSidebar.vue'
 import ChatMessage from '@/components/ChatMessage.vue'
 import InfoPanel from '@/components/InfoPanel.vue'
-import { listDepartments, type DepartmentOut } from '@/api/admin'
+import { listPublicDepartments, type DepartmentOut } from '@/api/admin'
 import type { Message } from '@/api/chat'
 
 const authStore = useAuthStore()
@@ -343,7 +343,7 @@ function handleVisibilityChange() {
 
 async function loadDepartments() {
   try {
-    departments.value = await listDepartments(true)
+    departments.value = await listPublicDepartments()
   } catch {
     // 科室加载失败不影响主流程
   }
