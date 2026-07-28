@@ -249,6 +249,8 @@ review_handoff: generated
 - Codex 评审（第一轮）：发现 3 个问题 — ref 初始值类型错误、科室 API 权限隔离缺失、缺少 Alembic migration + schema 限定。
 - 修复提交 `5c2943f`：修正 ref 类型、新增公开 GET /api/v1/departments、创建 Alembic revision 0003、raw SQL 限定 current_schema()。
 - 验证：vue-tsc 通过、前端 Vite build 通过、后端 40 项测试通过。
+- Codex 评审（第二轮）：1 个迁移回退问题 — Alembic 外键和唯一约束使用匿名名称，downgrade 无法可靠执行；schema.sql 未同步。
+- 修复提交 `1946ccd`：外键和唯一约束显式命名为 `documents_department_id_fkey` / `departments_name_key`，同步 database/schema.sql。
 
 #### 评审交接信息
 
@@ -259,7 +261,7 @@ review_handoff: generated
 评审者：Codex
 分支：claude/department-filter-001
 基线：main
-提交：bb4a18f..5c2943f
+提交：bb4a18f..1946ccd
 方案：docs/superpowers/specs/2026-07-28-department-filter-design.md
 验收条件：见本任务"验收条件"部分
 重点检查：数据库迁移安全性、检索过滤正确性、向后兼容性（不选科室=全库检索）、校验边界（停用/不存在科室的处理）
