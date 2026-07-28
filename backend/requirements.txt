@@ -24,3 +24,7 @@ langchain-postgres>=0.0.10
 langchain-text-splitters>=0.2.0
 langsmith>=0.1.0
 python-dotenv
+markdown
+playwright
+bleach
+Jinja2
