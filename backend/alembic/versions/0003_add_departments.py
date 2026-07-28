@@ -32,7 +32,7 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
-    op.create_unique_constraint(None, "departments", ["name"])
+    op.create_unique_constraint("departments_name_key", "departments", ["name"])
 
     # 2. 文档表新增科室外键
     op.add_column(
@@ -40,7 +40,7 @@ def upgrade() -> None:
         sa.Column("department_id", sa.Integer(), nullable=True),
     )
     op.create_foreign_key(
-        None,
+        "documents_department_id_fkey",
         "documents",
         "departments",
         ["department_id"],
@@ -78,7 +78,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("idx_documents_department_id", table_name="documents")
     op.drop_constraint(
-        None, "documents", type_="foreignkey"
+        "documents_department_id_fkey", "documents", type_="foreignkey"
     )
     op.drop_column("documents", "department_id")
     op.drop_table("departments")

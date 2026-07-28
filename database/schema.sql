@@ -18,7 +18,16 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 3. 文档表
+-- 3. 科室表
+CREATE TABLE IF NOT EXISTS departments (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 4. 文档表
 CREATE TABLE IF NOT EXISTS documents (
     id SERIAL PRIMARY KEY,
     title VARCHAR(500),
@@ -31,11 +40,14 @@ CREATE TABLE IF NOT EXISTS documents (
     version INTEGER DEFAULT 1,
     active_generation INTEGER NOT NULL DEFAULT 1,
     is_current BOOLEAN DEFAULT TRUE,
+    department_id INTEGER REFERENCES departments(id) ON DELETE RESTRICT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. 文档片段表（仅保留内容和元数据，embedding 交给 LangChain PGVector）
+CREATE INDEX IF NOT EXISTS idx_documents_department_id ON documents(department_id);
+
+-- 5. 文档片段表（仅保留内容和元数据，embedding 交给 LangChain PGVector）
 CREATE TABLE IF NOT EXISTS chunks (
     id SERIAL PRIMARY KEY,
     document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
@@ -48,7 +60,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 5. 会话表
+-- 6. 会话表
 CREATE TABLE IF NOT EXISTS sessions (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -57,7 +69,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 6. 消息表（新增 lc_message JSONB 用于 LangChain 标准消息格式）
+-- 7. 消息表（新增 lc_message JSONB 用于 LangChain 标准消息格式）
 CREATE TABLE IF NOT EXISTS messages (
     id SERIAL PRIMARY KEY,
     session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -82,7 +94,7 @@ CREATE INDEX IF NOT EXISTS ix_chunks_document_id ON chunks(document_id);
 CREATE INDEX IF NOT EXISTS ix_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS ix_messages_session_id ON messages(session_id);
 
--- 7. 审计日志表
+-- 8. 审计日志表
 CREATE TABLE IF NOT EXISTS audit_logs (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -99,7 +111,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS ix_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS ix_audit_logs_session_id ON audit_logs(session_id);
 
--- 8. 全文检索索引
+-- 9. 全文检索索引
 --    langchain-postgres 自动管理 langchain_pg_collection 和 langchain_pg_embedding 表。
 --    启动时由 ensure_vectorstore_tables() 在 langchain_pg_embedding.document 列上
 --    创建 pg_trgm GIN 索引（idx_langchain_embedding_document_trgm），
