@@ -170,6 +170,101 @@ review_handoff: generated
 只输出评审意见，不直接修改实现提交。
 ```
 
+### department-filter-001
+
+```yaml
+task_id: department-filter-001
+title: 文档科室分类筛选与定向检索
+status: planned
+risk: high
+owner: Claude-Code
+client: VS-Code
+branch: claude/department-filter-001
+worktree: .worktrees/department-filter-001
+planner: Claude-Code
+implementer: Claude-Code
+reviewer: Codex
+database_change: true
+plan: docs/superpowers/specs/2026-07-28-department-filter-design.md
+review_handoff: pending
+```
+
+#### 目标
+
+管理员上传文档时可选择所属科室（如肝胆外科、神经外科等），用户提问时可选择科室范围进行定向检索，避免全库检索，提高检索精度和回答相关性。
+
+#### 实现说明
+
+跨模块改动：数据库新增 departments 表 + documents.department_id 外键；后端新增科室 CRUD API + 检索管线科室过滤；前端管理后台增加科室选择器 + 聊天界面增加科室筛选。方案已按评审意见修订，详见 plan 链接。
+
+#### 范围
+
+##### Exact files
+
+- `database/migrations/009_add_departments.sql`
+- `backend/app/db/models.py`
+- `backend/app/schemas/department.py`
+- `backend/app/schemas/document.py`
+- `backend/app/api/admin.py`
+- `backend/app/api/chat.py`
+- `backend/app/rag/pipeline.py`
+- `frontend/src/api/admin.ts`
+- `frontend/src/api/chat.ts`
+- `frontend/src/stores/chat.ts`
+- `frontend/src/views/AdminView.vue`
+- `frontend/src/views/ChatView.vue`
+
+##### Path patterns
+
+- 无。
+
+##### Symbols
+
+- `backend/app/rag/pipeline.py`: `SurgeryRetriever`, `_vector_search()`, `_fulltext_search()`, `hybrid_search()`
+- `backend/app/db/models.py`: `Document`, 新增 `Department`
+- `backend/app/api/admin.py`: `upload_document()`, `list_documents()`
+- `backend/app/api/chat.py`: `ask()`, `AskRequest`
+
+##### Shared resources
+
+- `documents` 表：新增 `department_id` 列（FK → departments）。
+- `departments` 表：新表。
+- PostgreSQL 迁移链：新增 009 号迁移。
+
+#### 验收条件
+
+- 管理员上传文档时可选择科室（含"未分类"选项），上传后文档列表显示科室列，支持按科室筛选。
+- 科室 CRUD API 通过校验：重名/不存在/已停用/有关联文档时返回正确错误码。
+- 用户在聊天界面选择科室后，RAG 检索只返回该科室文档的分块；选择"全部科室"时保持全库检索行为。
+- 后端 41 项存量单元测试继续通过。
+- 前端构建通过。
+- 迁移脚本可在本地 PostgreSQL 执行且幂等（使用 IF NOT EXISTS / IF EXISTS）。
+
+#### 阻塞记录
+
+- 无。
+
+#### 评审记录
+
+- 尚未评审。
+
+#### 评审交接信息
+
+```text
+请评审任务 department-filter-001。
+
+实现者：Claude-Code
+评审者：Codex
+分支：claude/department-filter-001
+基线：main
+提交：待实现后填写
+方案：docs/superpowers/specs/2026-07-28-department-filter-design.md
+验收条件：见本任务"验收条件"部分
+重点检查：数据库迁移安全性、检索过滤正确性、向后兼容性（不选科室=全库检索）、校验边界（停用/不存在科室的处理）
+
+只输出评审意见，不直接修改实现提交。
+```
+
 ## 终止状态归档规则
 
 - 合并完成后将任务状态改为 `completed`，保留到下一次协调整理时再移入项目历史记录或删除。
