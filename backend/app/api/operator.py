@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 import time as _time
+import urllib.parse
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -282,12 +283,17 @@ def download_report_pdf(
     report.download_count = (report.download_count or 0) + 1
     db.commit()
 
+    # 构建安全 Content-Disposition（RFC 5987：ASCII fallback + UTF-8 编码文件名）
+    safe_filename = f"report-{report_id}.pdf"
+    clean_title = title.replace("\r", "").replace("\n", "").replace('"', "").strip()
+    encoded_title = urllib.parse.quote(f"{clean_title}.pdf", safe="")
+    content_disposition = (
+        f'attachment; filename="{safe_filename}"; '
+        f"filename*=UTF-8''{encoded_title}"
+    )
+
     return StreamingResponse(
         iter([pdf_bytes]),
         media_type="application/pdf",
-        headers={
-            "Content-Disposition": (
-                f'attachment; filename="{title}.pdf"'
-            ),
-        },
+        headers={"Content-Disposition": content_disposition},
     )
