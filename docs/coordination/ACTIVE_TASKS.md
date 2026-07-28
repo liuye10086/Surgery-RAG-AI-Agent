@@ -175,7 +175,7 @@ review_handoff: generated
 ```yaml
 task_id: department-filter-001
 title: 文档科室分类筛选与定向检索
-status: planned
+status: in-progress
 risk: high
 owner: Claude-Code
 client: VS-Code
@@ -186,7 +186,7 @@ implementer: Claude-Code
 reviewer: Codex
 database_change: true
 plan: docs/superpowers/specs/2026-07-28-department-filter-design.md
-review_handoff: pending
+review_handoff: generated
 ```
 
 #### 目标
@@ -257,7 +257,7 @@ review_handoff: pending
 评审者：Codex
 分支：claude/department-filter-001
 基线：main
-提交：待实现后填写
+提交：bb4a18f
 方案：docs/superpowers/specs/2026-07-28-department-filter-design.md
 验收条件：见本任务"验收条件"部分
 重点检查：数据库迁移安全性、检索过滤正确性、向后兼容性（不选科室=全库检索）、校验边界（停用/不存在科室的处理）
