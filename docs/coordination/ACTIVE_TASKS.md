@@ -6,6 +6,104 @@
 
 ## 活动任务
 
+### ai-operator-001
+
+```yaml
+task_id: ai-operator-001
+title: AI 操作者模块 — 第三端报告分析系统
+status: planned
+risk: high
+owner: Claude-Code
+client: VS-Code
+branch: claude/ai-operator-001
+worktree: .worktrees/ai-operator-001
+planner: Claude-Code
+implementer: Claude-Code
+reviewer: Codex
+database_change: true
+plan: docs/superpowers/plans/2026-07-28-ai-operator-implementation.md
+review_handoff: pending
+```
+
+#### 目标
+
+在现有医生/患者端和管理员端之外，新增第三端 AI 操作者（ai_operator）模块。该角色可检索全库病例数据，通过 LLM 分析生成结构化研究报告（固定 7 章模板），支持 SSE 流式渲染和 PDF 下载。
+
+#### 范围
+
+##### Exact files
+
+- `database/migrations/010_add_ai_operator_reports.sql`
+- `backend/alembic/versions/0004_add_ai_reports.py`
+- `backend/app/db/models.py`
+- `backend/app/api/deps.py`
+- `backend/app/schemas/operator.py`
+- `backend/app/services/report_generator.py`
+- `backend/app/services/pdf_generator.py`
+- `backend/app/templates/report_pdf.html`
+- `backend/app/api/operator.py`
+- `backend/app/api/chat.py`
+- `backend/app/main.py`
+- `scripts/create_ai_operator.py`
+- `frontend/src/stores/auth.ts`
+- `frontend/src/api/operator.ts`
+- `frontend/src/stores/operator.ts`
+- `frontend/src/components/OperatorSidebar.vue`
+- `frontend/src/views/OperatorView.vue`
+- `frontend/src/router/index.ts`
+- `frontend/src/views/ChatView.vue`
+- `frontend/src/views/AdminView.vue`
+- `backend/tests/test_report_generator.py`
+- `backend/tests/test_operator_api.py`
+- `backend/tests/test_operator_permissions.py`
+- `backend/tests/test_operator_state_machine.py`
+- `backend/tests/test_pdf_generation.py`
+
+##### Symbols
+
+- `backend/app/api/deps.py`: `require_ai_operator()`（新增）
+- `backend/app/db/models.py`: `AIReport`（新增）
+- `backend/app/services/report_generator.py`: `generate_report()`（新增）
+- `backend/app/services/pdf_generator.py`: `generate_pdf()`（新增）
+- `backend/app/rag/pipeline.py`: `hybrid_search()`（复用，多科室调用）
+- `frontend/src/stores/auth.ts`: `isAiOperator`、`canAccessOperator`（新增）
+- `frontend/src/router/index.ts`: `/operator` 路由守卫（修改）
+
+##### Shared resources
+
+- `ai_reports` 表：新表，13 个字段 + 3 个索引。
+- `users.role`：新增 `"ai_operator"` 值（已有列，无需迁移）。
+- `hybrid_search`：复用现有检索管线，通过 `department_id` 参数实现多科室检索合并。
+- Alembic 迁移链：新增 `0004_add_ai_reports`（head = `0003_add_departments`）。
+- 前端 `marked` + `DOMPurify`：复用现有依赖做 Markdown 安全渲染。
+
+#### 验收条件
+
+1. `role=ai_operator` 登录自动跳转 `/operator`；admin 可从聊天页导航进入
+2. ai_operator 无法访问 `/` 和 `/admin`——前端路由 + 后端 API 双重拦截
+3. admin 在 ChatView 和 AdminView 中可见"AI 操作者"导航入口
+4. `/operator` 支持科室多选 + 输入问题 + 流式生成报告
+5. 报告流式 SSE 渲染，遵循固定 7 章模板（含 DOMPurify 安全渲染）
+6. 第 5 章标题为"检索样本中的观察性特征"，明确标注非全量统计
+7. 报告仅创建者可查看/下载/删除
+8. 生成中可取消，状态标记为 `cancelled`，不残留 `generating`
+9. PDF 下载含中文正常渲染（A4 格式 + 页眉页脚 + 页码）
+10. `analysis_backend` 参数预留预测模型切换能力
+11. 多科室检索正确去重、排序、截断
+12. 禁用 operator 模块后，现有功能回归测试通过
+13. 输入安全过滤正常
+14. 目标环境可生成中文 PDF
+15. 审计日志记录报告生成操作
+16. 后端全部测试通过，前端构建通过
+
+#### 阻塞记录
+
+- 无。
+
+#### 评审记录
+
+- 尚未评审。
+
 ### collaboration-setup-001
 
 ```yaml

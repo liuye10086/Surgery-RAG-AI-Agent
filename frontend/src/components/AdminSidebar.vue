@@ -43,6 +43,15 @@
               <el-icon :size="14"><ArrowLeft /></el-icon>
               <span>返回会话</span>
             </el-button>
+            <el-button
+              v-if="authStore.canAccessOperator"
+              text
+              size="small"
+              @click="$router.push('/operator')"
+            >
+              <el-icon :size="14"><DataAnalysis /></el-icon>
+              <span>AI 操作者</span>
+            </el-button>
           </div>
           <div class="user-info">
             <el-avatar :size="32" :style="{ background: 'var(--color-primary)' }">
@@ -110,7 +119,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Setting, Fold, Expand, ArrowLeft, Document, Folder, FolderAdd, Picture, VideoCamera, MoreFilled, SwitchButton } from '@element-plus/icons-vue'
+import { Setting, Fold, Expand, ArrowLeft, Document, Folder, FolderAdd, Picture, VideoCamera, MoreFilled, SwitchButton, DataAnalysis } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
 defineProps<{

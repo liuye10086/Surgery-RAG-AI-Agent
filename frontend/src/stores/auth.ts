@@ -7,6 +7,10 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserInfo | null>(null)
   const isAuthenticated = computed(() => !!token.value && !!user.value)
   const isAdmin = computed(() => user.value?.role === 'admin')
+  const isAiOperator = computed(() => user.value?.role === 'ai_operator')
+  const canAccessOperator = computed(
+    () => user.value?.role === 'ai_operator' || user.value?.role === 'admin'
+  )
   const displayName = computed(() => {
     if (!user.value) return ''
     return user.value.real_name || user.value.username
@@ -53,6 +57,8 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     isAuthenticated,
     isAdmin,
+    isAiOperator,
+    canAccessOperator,
     displayName,
     setToken,
     clearAuth,

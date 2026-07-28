@@ -18,6 +18,7 @@ class User(Base):
 
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user")
+    reports = relationship("AIReport", back_populates="user", cascade="all, delete-orphan")
 
 
 class Department(Base):
@@ -118,6 +119,35 @@ class Message(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     session = relationship("Session", back_populates="messages")
+
+
+class AIReport(Base):
+    __tablename__ = "ai_reports"
+    __table_args__ = (
+        Index("ix_ai_reports_user_id", "user_id"),
+        Index("ix_ai_reports_created_at", "created_at"),
+        Index("ix_ai_reports_status", "status"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    title = Column(String(500))
+    query = Column(Text, nullable=False)
+    department_ids = Column(JSONB, default=list)
+    content = Column(Text, nullable=False, default="")
+    sources = Column(JSONB, default=list)
+    retrieval_meta = Column(JSONB, default=dict)
+    status = Column(String(50), default="generating")
+    error_message = Column(Text)
+    download_count = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user = relationship("User", back_populates="reports")
 
 
 class AuditLog(Base):
