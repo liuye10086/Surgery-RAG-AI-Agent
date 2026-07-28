@@ -175,7 +175,7 @@ review_handoff: generated
 ```yaml
 task_id: department-filter-001
 title: 文档科室分类筛选与定向检索
-status: in-progress
+status: approved
 risk: high
 owner: Claude-Code
 client: VS-Code
@@ -251,6 +251,8 @@ review_handoff: generated
 - 验证：vue-tsc 通过、前端 Vite build 通过、后端 40 项测试通过。
 - Codex 评审（第二轮）：1 个迁移回退问题 — Alembic 外键和唯一约束使用匿名名称，downgrade 无法可靠执行；schema.sql 未同步。
 - 修复提交 `1946ccd`：外键和唯一约束显式命名为 `documents_department_id_fkey` / `departments_name_key`，同步 database/schema.sql。
+- Codex 评审（第三轮）：未发现新阻断问题，代码审查通过，可以进入合并前环境验证。
+- 环境验证（Claude Code VS Code）：vue-tsc 通过、Vite build 通过、后端 40/40 测试通过、Alembic upgrade → downgrade → re-upgrade 完整周期通过、种子数据 11 个科室正确载入。
 
 #### 评审交接信息
 
