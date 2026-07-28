@@ -11,7 +11,7 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_openai import ChatOpenAI
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_not_ai_operator
 from app.core.config import settings
 from app.db.models import Department, Message, Session as ChatSession, User
 from app.db.session import get_db
@@ -29,7 +29,11 @@ from app.services.content_filter import detect_dangerous_symptoms, filter_input
 from app.services.llm_client import build_full_chain
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/chat", tags=["chat"])
+router = APIRouter(
+    prefix="/chat",
+    tags=["chat"],
+    dependencies=[Depends(require_not_ai_operator)],
+)
 
 
 def persist_user_message(

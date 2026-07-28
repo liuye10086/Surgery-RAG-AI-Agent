@@ -23,6 +23,7 @@
               @click="togglePanel"
             />
           </el-tooltip>
+          <el-button v-if="authStore.canAccessOperator" @click="$router.push('/operator')" size="small">AI 操作者</el-button>
           <el-button v-if="authStore.isAdmin" @click="$router.push('/admin')" size="small">管理后台</el-button>
         </div>
       </div>
