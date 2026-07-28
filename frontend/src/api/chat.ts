@@ -113,9 +113,19 @@ export function askStream(
   callbacks: AskCallbacks,
   retryMessageId?: number,
   clientRequestId?: string,
+  departmentId?: number | null,
 ): () => void {
   const abortController = new AbortController()
   const token = localStorage.getItem('token')
+
+  const body: Record<string, unknown> = {
+    content,
+    retry_message_id: retryMessageId,
+    client_request_id: clientRequestId,
+  }
+  if (departmentId !== undefined && departmentId !== null) {
+    body.department_id = departmentId
+  }
 
   fetch(`/api/v1/chat/sessions/${sessionId}/ask`, {
     method: 'POST',
@@ -123,11 +133,7 @@ export function askStream(
       'Content-Type': 'application/json',
       Authorization: token ? `Bearer ${token}` : '',
     },
-    body: JSON.stringify({
-      content,
-      retry_message_id: retryMessageId,
-      client_request_id: clientRequestId,
-    }),
+    body: JSON.stringify(body),
     signal: abortController.signal,
   })
     .then(async (response) => {

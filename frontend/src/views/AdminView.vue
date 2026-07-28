@@ -35,6 +35,20 @@
                   <el-icon><Search /></el-icon>
                 </template>
               </el-input>
+              <el-select
+                v-model="filterDepartmentId"
+                placeholder="全部科室"
+                clearable
+                @change="handleDeptFilterChange"
+                class="dept-filter-select"
+              >
+                <el-option
+                  v-for="d in departments"
+                  :key="d.id"
+                  :label="d.name"
+                  :value="d.id"
+                />
+              </el-select>
               <el-button type="primary" @click="handleSearch">
                 <el-icon :size="16"><Search /></el-icon>
                 <span>搜索</span>
@@ -47,6 +61,19 @@
                 placeholder="修改当前上传文档标题（可选）"
                 class="upload-title-input"
               />
+              <el-select
+                v-model="uploadDepartmentId"
+                placeholder="选择科室（可选）"
+                clearable
+                class="upload-dept-select"
+              >
+                <el-option
+                  v-for="d in departments"
+                  :key="d.id"
+                  :label="d.name"
+                  :value="d.id"
+                />
+              </el-select>
               <el-upload
                 ref="uploadRef"
                 action="#"
@@ -91,6 +118,13 @@
                 <el-tag :type="statusType(row.status)" size="small">
                   {{ statusLabel(row.status) }}
                 </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="科室" width="120">
+              <template #default="{ row }">
+                <span :class="{ 'dept-empty': !row.department_name }">
+                  {{ row.department_name || '未分类' }}
+                </span>
               </template>
             </el-table-column>
             <el-table-column prop="chunk_count" label="分块数" width="90" />
@@ -226,9 +260,11 @@ import {
   indexDocument,
   deleteChunk,
   getDocument,
+  listDepartments,
   type DocumentOut,
   type DocumentWithChunksOut,
   type ChunkOut,
+  type DepartmentOut,
 } from '@/api/admin'
 
 // ===== 侧边栏 =====
@@ -256,6 +292,9 @@ const documents = ref<DocumentOut[]>([])
 const chunkingId = ref<number | null>(null)
 const indexingId = ref<number | null>(null)
 const searchKeyword = ref('')
+const uploadDepartmentId = ref<number | null>(null)
+const filterDepartmentId = ref<number | null>(null)
+const departments = ref<DepartmentOut[]>([])
 
 const previewVisible = ref(false)
 const previewLoading = ref(false)
@@ -318,7 +357,7 @@ function formatTime(iso: string) {
 async function loadDocuments(search?: string) {
   loading.value = true
   try {
-    const res = await listDocuments(0, 100, search || undefined)
+    const res = await listDocuments(0, 100, search || undefined, filterDepartmentId.value || undefined)
     documents.value = res.items
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.detail || '加载文档列表失败')
@@ -327,7 +366,19 @@ async function loadDocuments(search?: string) {
   }
 }
 
+async function loadDepartments() {
+  try {
+    departments.value = await listDepartments(true)
+  } catch {
+    // 静默处理，科室下拉仅显示空列表
+  }
+}
+
 function handleSearch() {
+  loadDocuments(searchKeyword.value.trim() || undefined)
+}
+
+function handleDeptFilterChange() {
   loadDocuments(searchKeyword.value.trim() || undefined)
 }
 
@@ -339,9 +390,10 @@ async function submitUpload() {
   if (!selectedFile.value) return
   uploading.value = true
   try {
-    await uploadDocument(selectedFile.value, uploadTitle.value)
+    await uploadDocument(selectedFile.value, uploadTitle.value, uploadDepartmentId.value || undefined)
     ElMessage.success('上传成功')
     uploadTitle.value = ''
+    uploadDepartmentId.value = null
     selectedFile.value = null
     uploadRef.value?.clearFiles()
     await loadDocuments()
@@ -438,6 +490,7 @@ async function handleDelete(row: DocumentOut) {
 
 onMounted(() => {
   loadDocuments()
+  loadDepartments()
 })
 </script>
 
@@ -517,6 +570,19 @@ onMounted(() => {
 
 .upload-title-input {
   width: 260px;
+}
+
+.upload-dept-select {
+  width: 160px;
+}
+
+.dept-filter-select {
+  width: 150px;
+}
+
+.dept-empty {
+  color: var(--text-disabled);
+  font-size: var(--text-xs);
 }
 
 .selected-file {

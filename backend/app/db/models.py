@@ -20,6 +20,18 @@ class User(Base):
     audit_logs = relationship("AuditLog", back_populates="user")
 
 
+class Department(Base):
+    __tablename__ = "departments"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), unique=True, nullable=False)
+    description = Column(Text)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    documents = relationship("Document", back_populates="department")
+
+
 class Document(Base):
     __tablename__ = "documents"
 
@@ -34,9 +46,11 @@ class Document(Base):
     version = Column(Integer, default=1)
     active_generation = Column(Integer, nullable=False, default=1, server_default="1")
     is_current = Column(Boolean, default=True)
+    department_id = Column(Integer, ForeignKey("departments.id", ondelete="RESTRICT"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    department = relationship("Department", back_populates="documents")
     chunks = relationship("Chunk", back_populates="document", cascade="all, delete-orphan", order_by="Chunk.chunk_index")
 
 

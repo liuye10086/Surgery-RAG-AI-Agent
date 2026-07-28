@@ -18,6 +18,10 @@ class AskRequest(BaseModel):
     )
     retry_message_id: Optional[int] = None
     client_request_id: Optional[str] = Field(default=None, max_length=64)
+    department_id: Optional[int] = Field(
+        default=None,
+        description="可选科室筛选，为 None 时全库检索",
+    )
 
     @field_validator("content", mode="before")
     @classmethod

@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue'
 import { askStream, createSession, deleteSession, getSession, listSessions, type Message, type Session, type SessionDetail } from '@/api/chat'
 
 const DANGER_STORAGE_KEY = 'surgery_rag_danger_state'
+const DEPARTMENT_STORAGE_KEY = 'surgery_rag_selected_department_id'
 
 function loadDangerFromStorage(): Record<number, { level: string; advice: string }> {
   try {
@@ -27,6 +28,27 @@ export const useChatStore = defineStore('chat', () => {
   const dangerState = ref<{ level: string; advice: string } | null>(null)
   // 持久化：messageId → danger 映射，会话历史回访时可恢复
   const dangerByMessageId = ref<Record<number, { level: string; advice: string }>>(loadDangerFromStorage())
+
+  // 科室筛选：持久化到 localStorage
+  const selectedDepartmentId = ref<number | null>(() => {
+    try {
+      const raw = localStorage.getItem(DEPARTMENT_STORAGE_KEY)
+      return raw ? Number(raw) : null
+    } catch {
+      return null
+    }
+  })
+
+  function setSelectedDepartmentId(id: number | null) {
+    selectedDepartmentId.value = id
+    try {
+      if (id === null) {
+        localStorage.removeItem(DEPARTMENT_STORAGE_KEY)
+      } else {
+        localStorage.setItem(DEPARTMENT_STORAGE_KEY, String(id))
+      }
+    } catch { /* 忽略 */ }
+  }
 
   async function loadSessions() {
     sessions.value = await listSessions()
@@ -84,6 +106,7 @@ export const useChatStore = defineStore('chat', () => {
       buildCallbacks(assistantMessage, sessionId, userMessage),
       undefined,
       clientRequestId,
+      selectedDepartmentId.value,
     )
 
     // 会话标题由后端 LLM 自动生成，通过 SSE done 事件回传更新
@@ -101,7 +124,14 @@ export const useChatStore = defineStore('chat', () => {
 
     // 取消上一个正在进行的 SSE 流（如果有）
     currentAbort.value?.()
-    currentAbort.value = askStream(currentSession.value.id, userContent, buildCallbacks(assistantMessage, currentSession.value.id), assistantMessage.id)
+    currentAbort.value = askStream(
+      currentSession.value.id,
+      userContent,
+      buildCallbacks(assistantMessage, currentSession.value.id),
+      assistantMessage.id,
+      undefined,
+      selectedDepartmentId.value,
+    )
   }
 
   function abort() {
@@ -198,6 +228,8 @@ export const useChatStore = defineStore('chat', () => {
     loading,
     dangerState,
     dangerByMessageId,
+    selectedDepartmentId,
+    setSelectedDepartmentId,
     loadSessions,
     loadSession,
     newSession,

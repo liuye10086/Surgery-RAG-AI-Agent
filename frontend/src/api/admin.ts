@@ -1,10 +1,19 @@
 import request from './request'
 
+export interface DepartmentOut {
+  id: number
+  name: string
+  description: string | null
+  is_active: boolean
+  created_at: string
+}
+
 export interface DocumentUploadResponse {
   id: number
   filename: string
   title: string | null
   status: string
+  department_id: number | null
 }
 
 export interface DocumentOut {
@@ -18,6 +27,8 @@ export interface DocumentOut {
   version: number
   is_current: boolean
   chunk_count: number
+  department_id: number | null
+  department_name: string | null
   created_at: string
   updated_at: string
 }
@@ -41,11 +52,14 @@ export interface DocumentWithChunksOut extends DocumentOut {
   chunks: ChunkOut[]
 }
 
-export function uploadDocument(file: File, title?: string): Promise<DocumentUploadResponse> {
+export function uploadDocument(file: File, title?: string, department_id?: number): Promise<DocumentUploadResponse> {
   const formData = new FormData()
   formData.append('file', file)
   if (title) {
     formData.append('title', title)
+  }
+  if (department_id !== undefined && department_id !== null) {
+    formData.append('department_id', String(department_id))
   }
   return request.post('/v1/admin/documents/upload', formData, {
     headers: {
@@ -54,8 +68,17 @@ export function uploadDocument(file: File, title?: string): Promise<DocumentUplo
   })
 }
 
-export function listDocuments(skip = 0, limit = 100, search?: string): Promise<DocumentListOut> {
-  return request.get('/v1/admin/documents', { params: { skip, limit, search } })
+export function listDocuments(skip = 0, limit = 100, search?: string, department_id?: number): Promise<DocumentListOut> {
+  return request.get('/v1/admin/documents', { params: { skip, limit, search, department_id } })
+}
+
+export function updateDocument(id: number, department_id: number | null): Promise<DocumentOut> {
+  return request.put(`/v1/admin/documents/${id}`, { department_id })
+}
+
+// 科室 API
+export function listDepartments(activeOnly?: boolean): Promise<DepartmentOut[]> {
+  return request.get('/v1/admin/departments', { params: { active_only: activeOnly } })
 }
 
 export function getDocument(id: number): Promise<DocumentWithChunksOut> {

@@ -79,6 +79,27 @@
 
           <div class="chat-input-area">
             <div class="input-gradient"></div>
+            <!-- 科室筛选 -->
+            <div class="dept-filter-row">
+              <el-select
+                :model-value="chatStore.selectedDepartmentId"
+                @update:model-value="chatStore.setSelectedDepartmentId"
+                placeholder="全部科室"
+                clearable
+                size="small"
+                class="dept-select"
+              >
+                <el-option
+                  v-for="d in departments"
+                  :key="d.id"
+                  :label="d.name"
+                  :value="d.id"
+                />
+              </el-select>
+              <span v-if="chatStore.selectedDepartmentId" class="dept-filter-tag">
+                当前检索范围：{{ departments.find(d => d.id === chatStore.selectedDepartmentId)?.name }}
+              </span>
+            </div>
             <div class="input-wrapper">
               <el-input
                 v-model="input"
@@ -123,6 +144,7 @@ import { useChatStore } from '@/stores/chat'
 import ChatSidebar from '@/components/ChatSidebar.vue'
 import ChatMessage from '@/components/ChatMessage.vue'
 import InfoPanel from '@/components/InfoPanel.vue'
+import { listDepartments, type DepartmentOut } from '@/api/admin'
 import type { Message } from '@/api/chat'
 
 const authStore = useAuthStore()
@@ -131,6 +153,7 @@ const chatStore = useChatStore()
 const input = ref('')
 const messageListRef = ref<HTMLDivElement | null>(null)
 const pageHidden = ref(false)
+const departments = ref<DepartmentOut[]>([])
 
 // 侧边栏折叠状态（持久化到 localStorage）
 const sidebarCollapsed = ref(localStorage.getItem('sidebar_collapsed') === 'true')
@@ -318,8 +341,17 @@ function handleVisibilityChange() {
   pageHidden.value = document.hidden
 }
 
+async function loadDepartments() {
+  try {
+    departments.value = await listDepartments(true)
+  } catch {
+    // 科室加载失败不影响主流程
+  }
+}
+
 onMounted(async () => {
   await chatStore.loadSessions()
+  loadDepartments()
   window.addEventListener('keydown', handleKeydown)
   document.addEventListener('visibilitychange', handleVisibilityChange)
   pageHidden.value = document.hidden
@@ -639,7 +671,28 @@ async function handleDeleteSession(sessionId: number) {
   flex-shrink: 0;
   position: relative;
   padding: 0 var(--space-6) var(--space-6);
-  background: var(--bg-canvas);
+}
+
+/* 科室筛选行 */
+.dept-filter-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  padding-left: var(--space-1);
+}
+
+.dept-select {
+  width: 150px;
+}
+
+.dept-filter-tag {
+  font-size: var(--text-xs);
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  padding: 1px 10px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
 }
 
 .input-gradient {

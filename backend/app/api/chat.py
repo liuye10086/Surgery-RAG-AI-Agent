@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.config import settings
-from app.db.models import Message, Session as ChatSession, User
+from app.db.models import Department, Message, Session as ChatSession, User
 from app.db.session import get_db
 from app.rag.adapters import AuditCallbackHandler, SurgeryChatMessageHistory
 from app.rag.pipeline import SurgeryRetriever
@@ -212,6 +212,24 @@ async def ask(
     user_id = current_user.id
     is_first_message = session.title == "新会话" or not session.title
 
+    # --- 科室校验 ---
+    if req.department_id is not None:
+        dept = (
+            db.query(Department)
+            .filter(Department.id == req.department_id)
+            .first()
+        )
+        if not dept:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"科室 {req.department_id} 不存在",
+            )
+        if not dept.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"科室「{dept.name}」已停用",
+            )
+
     # --- M5：输入安全过滤 + 危险症状检测 ---
     safety_flags: dict = {}
 
@@ -277,7 +295,9 @@ async def ask(
 
             # 2. 创建检索器
             retriever = SurgeryRetriever(
-                db=db, top_k=settings.RETRIEVER_FINAL_TOP_K
+                db=db,
+                top_k=settings.RETRIEVER_FINAL_TOP_K,
+                department_id=req.department_id,
             )
 
             # 3. 构建完整链并挂载消息历史
@@ -423,6 +443,7 @@ async def ask(
                 request_body={
                     "question": req.content,
                     "rewritten": rewritten,
+                    "department_id": req.department_id,
                 },
                 retrieved_chunk_ids=audit_cb.retrieved_chunk_ids,
                 response_text=full_answer,
