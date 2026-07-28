@@ -63,7 +63,24 @@ async def create_and_generate_report(
     """
     start_time = _time.monotonic()
 
-    # 1. 创建 ai_reports 记录（status=generating）
+    # 1. 前置校验：analysis_backend
+    if request.analysis_backend not in ("llm",):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"未知的 analysis_backend: {request.analysis_backend}",
+        )
+
+    # 2. 前置校验：department_ids（避免创建记录后才发现无效科室）
+    from app.services.report_generator import _validate_department_ids
+    try:
+        _validate_department_ids(db, request.department_ids)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+
+    # 3. 创建 ai_reports 记录（status=generating）
     report = AIReport(
         user_id=current_user.id,
         query=request.query,

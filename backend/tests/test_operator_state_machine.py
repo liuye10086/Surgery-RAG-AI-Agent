@@ -153,5 +153,81 @@ class TestReportLifecycle(unittest.TestCase):
         self.assertEqual(report.download_count, 2)
 
 
+class TestPersistFunctionsGuard(unittest.TestCase):
+    """验证 _persist_completed / _persist_failed 的终态保护。"""
+
+    def setUp(self):
+        from unittest.mock import MagicMock
+        self.mock_db = MagicMock()
+        self.mock_report = MagicMock()
+        self.mock_report.id = 1
+        self.mock_report.content = ""
+        self.mock_report.sources = []
+        self.mock_report.retrieval_meta = {}
+        self.mock_report.error_message = None
+        self.mock_db.query.return_value.filter.return_value.first.return_value = self.mock_report
+
+    def test_persist_completed_allows_generating(self):
+        """generating 状态可转为 completed。"""
+        from app.services.report_generator import _persist_completed
+
+        self.mock_report.status = "generating"
+        _persist_completed(self.mock_db, 1, "done", [], {}, "Test")
+        self.assertEqual(self.mock_report.status, "completed")
+        self.mock_db.commit.assert_called_once()
+
+    def test_persist_completed_skips_non_generating(self):
+        """非 generating 状态（completed）不会被 _persist_completed 覆盖。"""
+        from app.services.report_generator import _persist_completed
+
+        self.mock_report.status = "completed"
+        _persist_completed(self.mock_db, 1, "new", [], {}, "New")
+        self.assertEqual(self.mock_report.status, "completed")
+        # commit 不应被调用（guard 拦截）
+        self.mock_db.commit.assert_not_called()
+
+    def test_persist_completed_skips_failed(self):
+        """非 generating 状态（failed）不会被 _persist_completed 覆盖。"""
+        from app.services.report_generator import _persist_completed
+
+        self.mock_report.status = "failed"
+        _persist_completed(self.mock_db, 1, "new", [], {}, "New")
+        self.assertEqual(self.mock_report.status, "failed")
+
+    def test_persist_completed_skips_cancelled(self):
+        """非 generating 状态（cancelled）不会被 _persist_completed 覆盖。"""
+        from app.services.report_generator import _persist_completed
+
+        self.mock_report.status = "cancelled"
+        _persist_completed(self.mock_db, 1, "new", [], {}, "New")
+        self.assertEqual(self.mock_report.status, "cancelled")
+
+    def test_persist_failed_allows_generating(self):
+        """generating 状态可转为 failed。"""
+        from app.services.report_generator import _persist_failed
+
+        self.mock_report.status = "generating"
+        _persist_failed(self.mock_db, 1, "partial", "LLM error")
+        self.assertEqual(self.mock_report.status, "failed")
+        self.assertEqual(self.mock_report.error_message, "LLM error")
+        self.mock_db.commit.assert_called_once()
+
+    def test_persist_failed_skips_completed(self):
+        """非 generating 状态（completed）不会被 _persist_failed 覆盖。"""
+        from app.services.report_generator import _persist_failed
+
+        self.mock_report.status = "completed"
+        _persist_failed(self.mock_db, 1, "partial", "error")
+        self.assertEqual(self.mock_report.status, "completed")
+
+    def test_persist_failed_skips_cancelled(self):
+        """非 generating 状态（cancelled）不会被 _persist_failed 覆盖。"""
+        from app.services.report_generator import _persist_failed
+
+        self.mock_report.status = "cancelled"
+        _persist_failed(self.mock_db, 1, "", "error")
+        self.assertEqual(self.mock_report.status, "cancelled")
+
+
 if __name__ == "__main__":
     unittest.main()

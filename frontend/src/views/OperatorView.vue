@@ -190,7 +190,7 @@ import DOMPurify from 'dompurify'
 import OperatorSidebar from '@/components/OperatorSidebar.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useOperatorStore } from '@/stores/operator'
-import { getReportDownloadUrl } from '@/api/operator'
+import { downloadReport } from '@/api/operator'
 import { listDepartments, type DepartmentOut } from '@/api/admin'
 
 const authStore = useAuthStore()
@@ -236,9 +236,13 @@ function handleCancel() {
   operatorStore.cancelGeneration()
 }
 
-function handleDownload() {
-  if (operatorStore.currentReport) {
-    window.open(getReportDownloadUrl(operatorStore.currentReport.id), '_blank')
+async function handleDownload() {
+  if (!operatorStore.currentReport) return
+  try {
+    const filename = `${operatorStore.currentReport.title || '分析报告'}.pdf`
+    await downloadReport(operatorStore.currentReport.id, filename)
+  } catch (e: any) {
+    ElMessage.error(e.message || '下载失败')
   }
 }
 

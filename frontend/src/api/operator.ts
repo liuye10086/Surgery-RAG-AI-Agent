@@ -44,9 +44,26 @@ export function deleteReport(reportId: number): Promise<void> {
   return request.delete(`/v1/operator/reports/${reportId}`)
 }
 
-export function getReportDownloadUrl(reportId: number): string {
+export async function downloadReport(reportId: number, filename?: string): Promise<void> {
   const token = localStorage.getItem('token')
-  return `/api/v1/operator/reports/${reportId}/download?token=${token || ''}`
+  const response = await fetch(`/api/v1/operator/reports/${reportId}/download`, {
+    headers: {
+      Authorization: token ? `Bearer ${token}` : '',
+    },
+  })
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.detail || `下载失败 (${response.status})`)
+  }
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename || `report-${reportId}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 /**

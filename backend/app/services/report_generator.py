@@ -257,6 +257,7 @@ async def generate_report(
         SSE 格式字符串（stage / delta / sources / done / error 事件）。
     """
     if analysis_backend != "llm":
+        _persist_failed(db, report_id, "", f"未知的 analysis_backend: {analysis_backend}")
         yield _sse("error", {"error": f"未知的 analysis_backend: {analysis_backend}"})
         return
 
@@ -264,6 +265,7 @@ async def generate_report(
     try:
         valid_dept_ids = _validate_department_ids(db, department_ids)
     except ValueError as e:
+        _persist_failed(db, report_id, "", str(e))
         yield _sse("error", {"error": str(e)})
         return
 
@@ -398,9 +400,9 @@ def _persist_completed(
     retrieval_meta: dict,
     title: Optional[str] = None,
 ) -> None:
-    """标记报告为完成。"""
+    """标记报告为完成（仅 generating → completed）。"""
     report = db.query(AIReport).filter(AIReport.id == report_id).first()
-    if report:
+    if report and report.status == "generating":
         report.content = content
         report.sources = sources
         report.retrieval_meta = retrieval_meta
@@ -413,9 +415,9 @@ def _persist_completed(
 def _persist_failed(
     db: Session, report_id: int, partial_content: str, error: str
 ) -> None:
-    """标记报告为失败，保留已生成内容。"""
+    """标记报告为失败，保留已生成内容（仅 generating → failed）。"""
     report = db.query(AIReport).filter(AIReport.id == report_id).first()
-    if report:
+    if report and report.status == "generating":
         if partial_content:
             report.content = partial_content
         report.status = "failed"

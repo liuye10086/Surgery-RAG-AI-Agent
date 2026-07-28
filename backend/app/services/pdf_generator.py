@@ -7,6 +7,7 @@
   4. Playwright（无头 Chromium）→ PDF bytes
 """
 
+import html as _html
 import logging
 from pathlib import Path
 
@@ -108,7 +109,7 @@ def generate_pdf(markdown_content: str, title: str = "分析报告") -> bytes:
                 display_header_footer=True,
                 header_template=(
                     f'<div style="font-size:9pt;color:#666;font-family:SimSun,Microsoft YaHei,sans-serif;'
-                    f'text-align:center;width:100%;padding:0 22mm">{title}</div>'
+                    f'text-align:center;width:100%;padding:0 22mm">{_html.escape(title)}</div>'
                 ),
                 footer_template=(
                     '<div style="font-size:9pt;color:#666;font-family:SimSun,Microsoft YaHei,sans-serif;'

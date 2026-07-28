@@ -20,7 +20,6 @@ def upgrade() -> None:
         sa.Column(
             "user_id",
             sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
             nullable=False,
         ),
         sa.Column("title", sa.String(length=500), nullable=True),
@@ -84,9 +83,18 @@ def upgrade() -> None:
         postgresql_ops={"created_at": "DESC"},
     )
     op.create_index("ix_ai_reports_status", "ai_reports", ["status"])
+    op.create_foreign_key(
+        "ai_reports_user_id_fkey",
+        "ai_reports",
+        "users",
+        ["user_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
 
 
 def downgrade() -> None:
+    op.drop_constraint("ai_reports_user_id_fkey", "ai_reports", type_="foreignkey")
     op.drop_index("ix_ai_reports_status", table_name="ai_reports")
     op.drop_index("ix_ai_reports_created_at", table_name="ai_reports")
     op.drop_index("ix_ai_reports_user_id", table_name="ai_reports")
