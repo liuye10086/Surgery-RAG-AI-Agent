@@ -92,13 +92,14 @@ async def create_and_generate_report(
     db.commit()
     db.refresh(report)
     report_id = report.id
+    current_user_id = current_user.id  # 捕获 int，避免 ORM 对象在生成器内 expire 后 detached
 
     async def _stream_and_cleanup():
         """流式生成 + finally 块处理取消/异常的状态标记。"""
         try:
             async for sse_event in generate_report(
                 db=db,
-                user_id=current_user.id,
+                user_id=current_user_id,
                 report_id=report_id,
                 query=request.query,
                 department_ids=request.department_ids,
@@ -133,7 +134,7 @@ async def create_and_generate_report(
                         final_report.retrieval_meta.get("retrieved_chunk_ids", [])
                     )
                 audit = AuditLog(
-                    user_id=current_user.id,
+                    user_id=current_user_id,
                     session_id=None,
                     request_body={
                         "feature": "operator_report",

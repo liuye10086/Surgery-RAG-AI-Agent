@@ -7,13 +7,19 @@
   4. Playwright（无头 Chromium）→ PDF bytes
 """
 
+import asyncio
 import html as _html
 import logging
+import sys
 from pathlib import Path
 
 import bleach
 import markdown
 from jinja2 import Environment, FileSystemLoader
+
+# Windows 上 Playwright 需要 ProactorEventLoop 才能生成子进程
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +75,7 @@ def generate_pdf(markdown_content: str, title: str = "分析报告") -> bytes:
     # 1. Markdown → HTML
     html_body = markdown.markdown(
         markdown_content,
-        extensions=["tables", "fenced_code", "codehilite", "nl2br"],
+        extensions=["tables", "fenced_code"],
     )
 
     # 2. 安全过滤

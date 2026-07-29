@@ -79,11 +79,14 @@ export const useOperatorStore = defineStore('operator', () => {
         onSources(sources) {
           currentSources.value = sources
         },
-        onDone(_reportId) {
+        onDone(reportId) {
           generating.value = false
           currentStage.value = 'done'
-          // 刷新报告列表
+          // 清空流式缓存，切换到完整报告视图
+          generatedContent.value = ''
+          // 拉取完整报告（含 sources），刷新列表
           fetchReports()
+          fetchReport(reportId)
         },
         onError(_error) {
           generating.value = false
