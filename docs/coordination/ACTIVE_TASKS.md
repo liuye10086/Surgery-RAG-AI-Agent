@@ -6,6 +6,469 @@
 
 ## 活动任务
 
+### qa-scroll-follow-001
+
+```yaml
+task_id: qa-scroll-follow-001
+title: 修正问答流式输出时无法上滑
+status: in-progress
+risk: normal
+owner: Codex
+client: Codex-Desktop
+branch: codex/qa-scroll-follow-001
+worktree: .worktrees/qa-scroll-follow-001
+planner: Codex
+implementer: Codex
+reviewer: Claude-Code
+database_change: false
+plan: docs/coordination/ACTIVE_TASKS.md
+review_handoff: pending
+```
+
+#### 目标
+
+问答类页面在流式输出回答时，用户手动上滑查看前文后不再被自动拉回底部；用户仍在底部附近时继续跟随最新内容。
+
+#### 实现说明
+
+为聊天页和 AI 操作者报告页的滚动容器增加“是否跟随底部”的状态：滚动位置接近底部时允许自动滚动；用户离开底部后暂停自动滚动。发送新问题或打开历史内容时保留原有滚到底部行为。
+
+#### 范围
+
+##### Exact files
+
+- `frontend/src/views/ChatView.vue`
+- `frontend/src/views/OperatorView.vue`
+
+##### Path patterns
+
+- 无。
+
+##### Symbols
+
+- `ChatView.vue`: `messageListRef`、消息变化 watch、发送/提示点击流程
+- `OperatorView.vue`: `reportAreaRef`、生成内容变化 watch、生成流程
+
+##### Shared resources
+
+- 无。
+
+#### 验收条件
+
+- 聊天页回答流式输出时，用户上滑后不会被下一段内容自动拉回底部。
+- AI 操作者报告流式输出时，用户上滑后不会被下一段内容自动拉回底部。
+- 用户停留在底部附近时，流式输出仍会自动跟随到底部。
+- 前端类型检查通过。
+
+#### 阻塞记录
+
+- 无。
+
+#### 评审记录
+
+- 尚未评审。
+
+#### 评审交接信息
+
+```text
+请评审任务 qa-scroll-follow-001。
+
+实现者：Codex
+评审者：Claude Code
+分支：codex/qa-scroll-follow-001
+基线：main
+提交：<first-commit>..<last-commit>
+方案或登记：docs/coordination/ACTIVE_TASKS.md
+验收条件：见本任务“验收条件”部分
+重点检查：聊天页和 AI 操作者页流式输出时自动滚动是否尊重用户手动上滑。
+
+只输出评审意见，不直接修改实现提交。
+```
+
+### admin-table-scroll-001
+
+```yaml
+task_id: admin-table-scroll-001
+title: 优化管理后台文档表格滚动与对齐
+status: in-progress
+risk: normal
+owner: Codex
+client: Codex-Desktop
+branch: codex/admin-table-scroll-001
+worktree: .worktrees/admin-table-scroll-001
+planner: Codex
+implementer: Codex
+reviewer: Claude-Code
+database_change: false
+plan: docs/coordination/ACTIVE_TASKS.md
+review_handoff: pending
+```
+
+#### 目标
+
+管理后台文档表格表头/内容居中显示，操作列固定在右侧，横向滚动条在当前页面表格区域内可用。
+
+#### 实现说明
+
+为文档表格设置固定视口高度，使滚动发生在表格内部；统一列对齐；保持操作列 `fixed="right"`。
+
+#### 范围
+
+##### Exact files
+
+- `frontend/src/views/AdminView.vue`
+
+##### Path patterns
+
+- 无。
+
+##### Symbols
+
+- `AdminView.vue`: 文档 `el-table`、文档表格列、`.table-card`
+
+##### Shared resources
+
+- 无。
+
+#### 验收条件
+
+- 文档表格列标题和单元格居中。
+- 操作列在横向滚动时固定在右侧。
+- 横向滚动条显示在表格区域内，不需要滚到页面底部才能左右滚动。
+- 前端类型检查通过。
+
+#### 阻塞记录
+
+- 无。
+
+#### 评审记录
+
+- 尚未评审。
+
+#### 评审交接信息
+
+```text
+请评审任务 admin-table-scroll-001。
+
+实现者：Codex
+评审者：Claude Code
+分支：codex/admin-table-scroll-001
+基线：main
+提交：<first-commit>..<last-commit>
+方案或登记：docs/coordination/ACTIVE_TASKS.md
+验收条件：见本任务“验收条件”部分
+重点检查：文档表格对齐、操作列固定、横向滚动条位置是否符合预期。
+
+只输出评审意见，不直接修改实现提交。
+```
+
+### collapsed-avatar-menu-001
+
+```yaml
+task_id: collapsed-avatar-menu-001
+title: 修正折叠侧边栏头像点击行为
+status: in-progress
+risk: normal
+owner: Codex
+client: Codex-Desktop
+branch: codex/collapsed-avatar-menu-001
+worktree: .worktrees/collapsed-avatar-menu-001
+planner: Codex
+implementer: Codex
+reviewer: Claude-Code
+database_change: false
+plan: docs/coordination/ACTIVE_TASKS.md
+review_handoff: pending
+```
+
+#### 目标
+
+折叠侧边栏时点击用户头像应打开用户菜单，行为与展开态点击 `...` 一致，不应直接退出登录。
+
+#### 实现说明
+
+将折叠态头像包裹为 `el-popover` 触发器，复用展开态菜单项；聊天侧边栏提供设置和退出，AI 操作者侧边栏提供退出。
+
+#### 范围
+
+##### Exact files
+
+- `frontend/src/components/ChatSidebar.vue`
+- `frontend/src/components/OperatorSidebar.vue`
+
+##### Path patterns
+
+- 无。
+
+##### Symbols
+
+- `ChatSidebar.vue`: 折叠态 `.cs-bot` 用户头像
+- `OperatorSidebar.vue`: 折叠态 `.cs-bot` 用户头像
+
+##### Shared resources
+
+- 无。
+
+#### 验收条件
+
+- 聊天侧边栏折叠态点击头像打开包含“设置 / 退出登录”的菜单。
+- AI 操作者侧边栏折叠态点击头像打开包含“退出登录”的菜单。
+- 折叠态头像不再直接触发退出登录。
+- 前端类型检查通过。
+
+#### 阻塞记录
+
+- 无。
+
+#### 评审记录
+
+- 尚未评审。
+
+#### 评审交接信息
+
+```text
+请评审任务 collapsed-avatar-menu-001。
+
+实现者：Codex
+评审者：Claude Code
+分支：codex/collapsed-avatar-menu-001
+基线：main
+提交：<first-commit>..<last-commit>
+方案或登记：docs/coordination/ACTIVE_TASKS.md
+验收条件：见本任务“验收条件”部分
+重点检查：折叠态头像点击是否打开菜单而非退出，菜单项是否与展开态一致。
+
+只输出评审意见，不直接修改实现提交。
+```
+
+### chat-dept-nan-001
+
+```yaml
+task_id: chat-dept-nan-001
+title: 修正聊天页默认科室显示 NaN
+status: in-progress
+risk: normal
+owner: Codex
+client: Codex-Desktop
+branch: codex/chat-dept-nan-001
+worktree: .worktrees/chat-dept-nan-001
+planner: Codex
+implementer: Codex
+reviewer: Claude-Code
+database_change: false
+plan: docs/coordination/ACTIVE_TASKS.md
+review_handoff: pending
+```
+
+#### 目标
+
+未选择科室或本地缓存为空/非法时，聊天页科室选择器显示“全部科室”，不显示 `NaN`。
+
+#### 实现说明
+
+在聊天 store 中归一化科室 ID：只接受有限数字 ID，其余空值、`NaN`、非法字符串统一视为 `null` 并清理本地缓存。
+
+#### 范围
+
+##### Exact files
+
+- `frontend/src/stores/chat.ts`
+
+##### Path patterns
+
+- 无。
+
+##### Symbols
+
+- `chat.ts`: `_loadDepartmentId()`、`setSelectedDepartmentId()`
+
+##### Shared resources
+
+- `localStorage.surgery_rag_selected_department_id`
+
+#### 验收条件
+
+- 本地缓存为 `NaN` 时初始化为未选择科室。
+- 清空选择器时写入 `null` 状态并移除缓存。
+- 前端类型检查通过。
+
+#### 阻塞记录
+
+- 无。
+
+#### 评审记录
+
+- 尚未评审。
+
+#### 评审交接信息
+
+```text
+请评审任务 chat-dept-nan-001。
+
+实现者：Codex
+评审者：Claude Code
+分支：codex/chat-dept-nan-001
+基线：main
+提交：<first-commit>..<last-commit>
+方案或登记：docs/coordination/ACTIVE_TASKS.md
+验收条件：见本任务“验收条件”部分
+重点检查：科室筛选 localStorage 归一化是否正确，是否影响正常科室选择和发送问题。
+
+只输出评审意见，不直接修改实现提交。
+```
+
+### case-image-preview-001
+
+```yaml
+task_id: case-image-preview-001
+title: 放大完整病例图片预览
+status: in-progress
+risk: normal
+owner: Codex
+client: Codex-Desktop
+branch: codex/case-image-preview-001
+worktree: .worktrees/case-image-preview-001
+planner: Codex
+implementer: Codex
+reviewer: Claude-Code
+database_change: false
+plan: docs/coordination/ACTIVE_TASKS.md
+review_handoff: pending
+```
+
+#### 目标
+
+点击完整病例弹窗中的病例图片时，图片预览应以更大的可视区域显示，避免被病例弹窗尺寸限制。
+
+#### 实现说明
+
+调整 `InfoPanel.vue` 中 `el-image` 预览配置，将预览层挂载到页面 body，并提高缩放参数；保留现有缩略图网格。
+
+#### 范围
+
+##### Exact files
+
+- `frontend/src/components/InfoPanel.vue`
+
+##### Path patterns
+
+- 无。
+
+##### Symbols
+
+- `InfoPanel.vue`: `.case-image-thumb`、病例图片 `el-image`
+
+##### Shared resources
+
+- 无。
+
+#### 验收条件
+
+- 病例图片点击后预览层脱离完整病例弹窗容器限制。
+- 图片预览支持更大的缩放范围。
+- 前端类型检查通过。
+
+#### 阻塞记录
+
+- 无。
+
+#### 评审记录
+
+- 尚未评审。
+
+#### 评审交接信息
+
+```text
+请评审任务 case-image-preview-001。
+
+实现者：Codex
+评审者：Claude Code
+分支：codex/case-image-preview-001
+基线：main
+提交：<first-commit>..<last-commit>
+方案或登记：docs/coordination/ACTIVE_TASKS.md
+验收条件：见本任务“验收条件”部分
+重点检查：完整病例弹窗内病例图片预览是否足够大，是否影响现有病例弹窗内容布局。
+
+只输出评审意见，不直接修改实现提交。
+```
+
+### chat-dept-layout-001
+
+```yaml
+task_id: chat-dept-layout-001
+title: 修正聊天页科室选择器底部布局
+status: in-progress
+risk: normal
+owner: Codex
+client: Codex-Desktop
+branch: codex/chat-dept-layout-001
+worktree: .worktrees/chat-dept-layout-001
+planner: Codex
+implementer: Codex
+reviewer: Claude-Code
+database_change: false
+plan: docs/coordination/ACTIVE_TASKS.md
+review_handoff: pending
+```
+
+#### 目标
+
+修正登录后聊天界面科室选择器位置，使其位于输入框下方并与输入框同宽居中，避免在大屏下贴近左侧底部。
+
+#### 实现说明
+
+在 `ChatView.vue` 内调整输入区 DOM 顺序和样式约束：输入框先渲染，科室筛选行后渲染；科室筛选行复用输入框最大宽度并水平居中。通过静态布局检查和前端构建验证。
+
+#### 范围
+
+##### Exact files
+
+- `frontend/src/views/ChatView.vue`
+
+##### Path patterns
+
+- 无。
+
+##### Symbols
+
+- `ChatView.vue`: `.chat-input-area`、`.input-wrapper`、`.dept-filter-row`
+
+##### Shared resources
+
+- 无。
+
+#### 验收条件
+
+- 科室选择器显示在聊天输入框下方。
+- 科室选择器与输入框同一最大宽度容器内居中对齐，不再贴近主内容区左侧。
+- `npm run build` 在 `frontend` 目录通过。
+
+#### 阻塞记录
+
+- 无。
+
+#### 评审记录
+
+- 尚未评审。
+
+#### 评审交接信息
+
+```text
+请评审任务 chat-dept-layout-001。
+
+实现者：Codex
+评审者：Claude Code
+分支：codex/chat-dept-layout-001
+基线：main
+提交：<first-commit>..<last-commit>
+方案或登记：docs/coordination/ACTIVE_TASKS.md
+验收条件：见本任务“验收条件”部分
+重点检查：聊天页底部输入区布局是否符合 docs/DESIGN_SPEC.md，是否引入移动端或构建回归。
+
+只输出评审意见，不直接修改实现提交。
+```
+
 ### ai-operator-001
 
 ```yaml

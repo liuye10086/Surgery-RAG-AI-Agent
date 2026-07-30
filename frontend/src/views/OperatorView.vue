@@ -31,7 +31,7 @@
         <div class="report-area" ref="reportAreaRef">
           <div class="report-area-inner">
             <!-- 状态栏 -->
-            <div v-if="operatorStore.currentStage" class="status-bar">
+            <div v-if="showStatusBar" class="status-bar">
               <template v-if="operatorStore.currentStage === 'retrieving'">
                 <el-icon class="is-loading"><Loading /></el-icon>
                 <span>{{ operatorStore.stageMessage }}</span>
@@ -43,19 +43,6 @@
               <template v-else-if="operatorStore.currentStage === 'generating'">
                 <el-icon class="is-loading"><Loading /></el-icon>
                 <span>{{ operatorStore.stageMessage }}</span>
-              </template>
-              <template v-else-if="operatorStore.currentStage === 'done'">
-                <el-icon><CircleCheck /></el-icon>
-                <span>报告生成完成</span>
-                <el-button
-                  v-if="operatorStore.currentReport"
-                  size="small"
-                  type="primary"
-                  style="margin-left: auto"
-                  @click="handleDownload"
-                >
-                  下载 PDF
-                </el-button>
               </template>
               <template v-else-if="operatorStore.currentStage === 'error'">
                 <el-icon><WarningFilled /></el-icon>
@@ -203,7 +190,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Loading, CircleCheck, WarningFilled, InfoFilled, DataAnalysis } from '@element-plus/icons-vue'
 import { marked } from 'marked'
@@ -222,9 +209,15 @@ const query = ref('')
 const selectedDepartmentIds = ref<number[]>([])
 const departments = ref<DepartmentOut[]>([])
 const reportAreaRef = ref<HTMLDivElement | null>(null)
+const shouldFollowReport = ref(true)
+const scrollBottomThreshold = 72
 
 const renderedContent = computed(() =>
   renderMarkdown(operatorStore.generatedContent || operatorStore.currentReport?.content || '')
+)
+
+const showStatusBar = computed(() =>
+  Boolean(operatorStore.currentStage && operatorStore.currentStage !== 'done')
 )
 
 const suggestedPrompts = [
@@ -254,6 +247,7 @@ function renderMarkdown(md: string): string {
 
 function handleGenerate() {
   if (!query.value.trim()) return
+  shouldFollowReport.value = true
   operatorStore.clearCurrent()
   operatorStore.generateReport(
     query.value.trim(),
@@ -308,6 +302,22 @@ function handlePromptClick(prompt: string) {
   query.value = prompt
 }
 
+function isNearReportBottom() {
+  const el = reportAreaRef.value
+  if (!el) return true
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= scrollBottomThreshold
+}
+
+function handleReportScroll() {
+  shouldFollowReport.value = isNearReportBottom()
+}
+
+function scrollReportToBottom(behavior: ScrollBehavior = 'smooth') {
+  const el = reportAreaRef.value
+  if (!el) return
+  el.scrollTo({ top: el.scrollHeight, behavior })
+}
+
 function statusLabel(status: string): string {
   const map: Record<string, string> = {
     pending: '等待中',
@@ -340,11 +350,9 @@ function formatTime(iso: string): string {
 watch(
   () => operatorStore.generatedContent?.length ?? 0,
   () => {
-    if (operatorStore.generating) {
+    if (operatorStore.generating && shouldFollowReport.value) {
       nextTick(() => {
-        if (reportAreaRef.value) {
-          reportAreaRef.value.scrollTo({ top: reportAreaRef.value.scrollHeight, behavior: 'smooth' })
-        }
+        scrollReportToBottom('auto')
       })
     }
   },
@@ -352,11 +360,16 @@ watch(
 
 onMounted(async () => {
   operatorStore.fetchReports()
+  reportAreaRef.value?.addEventListener('scroll', handleReportScroll, { passive: true })
   try {
     departments.value = await listPublicDepartments()
   } catch {
     // 科室加载非关键
   }
+})
+
+onUnmounted(() => {
+  reportAreaRef.value?.removeEventListener('scroll', handleReportScroll)
 })
 </script>
 

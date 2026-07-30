@@ -20,6 +20,11 @@ function saveDangerToStorage(data: Record<number, { level: string; advice: strin
   } catch { /* 忽略存储满等异常 */ }
 }
 
+function normalizeDepartmentId(id: unknown): number | null {
+  const normalized = Number(id)
+  return Number.isFinite(normalized) ? normalized : null
+}
+
 export const useChatStore = defineStore('chat', () => {
   const sessions = ref<Session[]>([])
   const currentSession = ref<SessionDetail | null>(null)
@@ -33,20 +38,25 @@ export const useChatStore = defineStore('chat', () => {
   function _loadDepartmentId(): number | null {
     try {
       const raw = localStorage.getItem(DEPARTMENT_STORAGE_KEY)
-      return raw ? Number(raw) : null
+      const id = raw ? normalizeDepartmentId(raw) : null
+      if (raw && id === null) {
+        localStorage.removeItem(DEPARTMENT_STORAGE_KEY)
+      }
+      return id
     } catch {
       return null
     }
   }
   const selectedDepartmentId = ref<number | null>(_loadDepartmentId())
 
-  function setSelectedDepartmentId(id: number | null) {
-    selectedDepartmentId.value = id
+  function setSelectedDepartmentId(id: number | null | undefined) {
+    const normalizedId = normalizeDepartmentId(id)
+    selectedDepartmentId.value = normalizedId
     try {
-      if (id === null) {
+      if (normalizedId === null) {
         localStorage.removeItem(DEPARTMENT_STORAGE_KEY)
       } else {
-        localStorage.setItem(DEPARTMENT_STORAGE_KEY, String(id))
+        localStorage.setItem(DEPARTMENT_STORAGE_KEY, String(normalizedId))
       }
     } catch { /* 忽略 */ }
   }

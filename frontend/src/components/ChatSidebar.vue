@@ -102,11 +102,29 @@
         </div>
         <div class="cs-mid" />
         <div class="cs-bot">
-          <el-tooltip :content="authStore.displayName" placement="left" :show-after="300">
-            <el-avatar :size="32" :style="{ background: 'var(--color-primary)', cursor: 'pointer' }" @click="handleLogout">
-              {{ (authStore.user?.username || '?')[0] }}
-            </el-avatar>
-          </el-tooltip>
+          <el-popover
+            placement="right-end"
+            trigger="click"
+            :width="140"
+            :offset="8"
+            :show-arrow="false"
+          >
+            <template #reference>
+              <el-avatar :size="32" :style="{ background: 'var(--color-primary)', cursor: 'pointer' }">
+                {{ (authStore.user?.username || '?')[0] }}
+              </el-avatar>
+            </template>
+            <div class="popover-menu">
+              <div class="popover-item" @click="$router.push('/settings')">
+                <el-icon :size="15"><Setting /></el-icon>
+                <span>设置</span>
+              </div>
+              <div class="popover-item" @click="handleLogout">
+                <el-icon :size="15"><SwitchButton /></el-icon>
+                <span>退出登录</span>
+              </div>
+            </div>
+          </el-popover>
         </div>
       </div>
     </div>

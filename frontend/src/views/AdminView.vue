@@ -25,7 +25,7 @@
             <div class="toolbar-left">
               <el-input
                 v-model="searchKeyword"
-                placeholder="搜索文档标题或文件名..."
+                placeholder="搜索文档标题或文件名"
                 clearable
                 @keydown.enter="handleSearch"
                 @clear="handleSearch"
@@ -63,7 +63,7 @@
               />
               <el-select
                 v-model="uploadDepartmentId"
-                placeholder="选择科室（可选）"
+                placeholder="选择科室"
                 clearable
                 class="upload-dept-select"
               >
@@ -84,7 +84,19 @@
               >
                 <el-button type="primary">选择文件</el-button>
               </el-upload>
-              <span v-if="selectedFile" class="selected-file">{{ selectedFile.name }}</span>
+              <span v-if="selectedFile" class="selected-file-pill" :title="selectedFile.name">
+                <span class="selected-file">{{ selectedFile.name }}</span>
+                <el-button
+                  class="clear-file-btn"
+                  :icon="Close"
+                  text
+                  circle
+                  size="small"
+                  aria-label="取消已选文件"
+                  title="重新选择文件"
+                  @click="clearSelectedFile"
+                />
+              </span>
               <el-button
                 type="success"
                 :loading="uploading"
@@ -99,41 +111,47 @@
 
         <!-- 文档表格 -->
         <div class="table-card">
-          <el-table :data="documents" v-loading="loading" stripe>
-            <el-table-column prop="id" label="ID" width="60" />
-            <el-table-column label="文件名 / 标题" min-width="200">
+          <el-table
+            :data="documents"
+            v-loading="loading"
+            stripe
+            height="calc(100vh - 240px)"
+            header-cell-class-name="admin-table-header-cell"
+            cell-class-name="admin-table-cell"
+          >
+            <el-table-column prop="id" label="ID" width="60" align="center" header-align="center" />
+            <el-table-column label="文件名 / 标题" min-width="220" align="center" header-align="center">
               <template #default="{ row }">
-                <div class="doc-title">{{ row.title || row.filename }}</div>
-                <div class="doc-filename">{{ row.filename }}</div>
+                <div class="doc-title" :title="displayDocumentTitle(row)">{{ displayDocumentTitle(row) }}</div>
               </template>
             </el-table-column>
-            <el-table-column prop="file_type" label="类型" width="80" />
-            <el-table-column label="大小" width="100">
+            <el-table-column prop="file_type" label="类型" width="80" align="center" header-align="center" />
+            <el-table-column label="大小" width="100" align="center" header-align="center">
               <template #default="{ row }">
                 {{ formatSize(row.file_size) }}
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="110">
+            <el-table-column label="状态" width="110" align="center" header-align="center">
               <template #default="{ row }">
                 <el-tag :type="statusType(row.status)" size="small">
                   {{ statusLabel(row.status) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="科室" width="120">
+            <el-table-column label="科室" width="120" align="center" header-align="center">
               <template #default="{ row }">
                 <span :class="{ 'dept-empty': !row.department_name }">
                   {{ row.department_name || '未分类' }}
                 </span>
               </template>
             </el-table-column>
-            <el-table-column prop="chunk_count" label="分块数" width="90" />
-            <el-table-column label="上传时间" width="160">
+            <el-table-column prop="chunk_count" label="分块数" width="90" align="center" header-align="center" />
+            <el-table-column label="上传时间" width="160" align="center" header-align="center">
               <template #default="{ row }">
                 {{ formatTime(row.created_at) }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="300" fixed="right">
+            <el-table-column label="操作" width="300" fixed="right" align="center" header-align="center">
               <template #default="{ row }">
                 <el-button
                   v-if="canChunk(row.status)"
@@ -249,7 +267,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Document, FolderOpened, Folder, Search, Picture, VideoCamera } from '@element-plus/icons-vue'
+import { Close, Document, FolderOpened, Folder, Search, Picture, VideoCamera } from '@element-plus/icons-vue'
 import type { UploadInstance, UploadFile } from 'element-plus'
 import AdminSidebar from '@/components/AdminSidebar.vue'
 import {
@@ -354,6 +372,10 @@ function formatTime(iso: string) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+function displayDocumentTitle(row: DocumentOut) {
+  return row.title || row.filename
+}
+
 async function loadDocuments(search?: string) {
   loading.value = true
   try {
@@ -384,6 +406,11 @@ function handleDeptFilterChange() {
 
 function handleFileChange(uploadFile: UploadFile) {
   selectedFile.value = uploadFile.raw || null
+}
+
+function clearSelectedFile() {
+  selectedFile.value = null
+  uploadRef.value?.clearFiles()
 }
 
 async function submitUpload() {
@@ -510,7 +537,7 @@ onMounted(() => {
 
 /* ===== 区块头部 ===== */
 .section-header {
-  padding: var(--space-6) var(--space-8) 0;
+  padding: var(--space-4) var(--space-6) 0;
 }
 
 .section-title {
@@ -527,15 +554,15 @@ onMounted(() => {
 }
 
 .section-desc {
-  margin: var(--space-2) 0 0;
+  margin: var(--space-1) 0 0;
   color: var(--text-secondary);
   font-size: var(--text-sm);
 }
 
 /* ===== 操作栏（搜索 + 上传） ===== */
 .toolbar-card {
-  margin: var(--space-6) var(--space-8);
-  padding: var(--space-5);
+  margin: var(--space-4) var(--space-6);
+  padding: var(--space-3) var(--space-4);
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-card);
@@ -545,13 +572,14 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-6);
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
 .toolbar-left {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   flex: 1;
   min-width: 0;
 }
@@ -559,25 +587,31 @@ onMounted(() => {
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  flex-shrink: 0;
+  gap: var(--space-2);
+  flex: 1 1 560px;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .search-input {
-  width: 280px;
+  width: 220px;
   flex-shrink: 0;
 }
 
 .upload-title-input {
-  width: 260px;
+  width: 230px;
+  flex: 0 1 230px;
+  min-width: 180px;
 }
 
 .upload-dept-select {
-  width: 160px;
+  width: 140px;
+  flex: 0 0 140px;
 }
 
 .dept-filter-select {
-  width: 150px;
+  width: 112px;
+  flex: 0 0 112px;
 }
 
 .dept-empty {
@@ -585,22 +619,73 @@ onMounted(() => {
   font-size: var(--text-xs);
 }
 
+.selected-file-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 180px;
+  min-width: 0;
+  flex: 0 1 180px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  background: var(--bg-canvas);
+}
+
 .selected-file {
   color: var(--text-secondary);
   font-size: var(--text-sm);
-  max-width: 180px;
+  max-width: 136px;
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.clear-file-btn {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  color: var(--text-disabled);
+}
+
+.clear-file-btn:hover {
+  color: var(--color-danger);
+  background: var(--bg-hover);
+}
+
 /* ===== 表格卡片 ===== */
 .table-card {
-  margin: 0 var(--space-8) var(--space-8);
-  padding: var(--space-5);
+  margin: 0 var(--space-6) var(--space-6);
+  padding: var(--space-3);
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.table-card :deep(.el-table) {
+  width: 100%;
+  border-radius: var(--radius-item);
+}
+
+.table-card :deep(.el-table__cell) {
+  padding: 10px 0;
+}
+
+.table-card :deep(.cell) {
+  line-height: 1.5;
+}
+
+.table-card :deep(.admin-table-header-cell),
+.table-card :deep(.admin-table-cell) {
+  text-align: center;
+}
+
+.table-card :deep(.el-table__fixed-right) {
+  box-shadow: -6px 0 12px rgba(0, 0, 0, 0.04);
 }
 
 .empty-tip {
@@ -627,6 +712,12 @@ onMounted(() => {
   font-weight: 600;
   color: var(--text-primary);
   font-size: var(--text-sm);
+  text-align: center;
+  max-width: 280px;
+  margin: 0 auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* 覆盖 Element Plus 表格默认的 break-all，让长标题按自然边界换行 */
@@ -638,6 +729,7 @@ onMounted(() => {
   font-size: var(--text-xs);
   color: var(--text-disabled);
   margin-top: var(--space-1);
+  text-align: center;
 }
 
 /* 操作列按钮更紧凑，留出 loading 动画的扩展空间 */

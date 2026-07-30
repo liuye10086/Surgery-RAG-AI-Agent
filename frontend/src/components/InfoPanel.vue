@@ -97,6 +97,10 @@
               :src="img.url"
               :preview-src-list="caseImages.map(i => i.url)"
               :initial-index="ii"
+              :preview-teleported="true"
+              :zoom-rate="1.35"
+              :min-scale="0.2"
+              :max-scale="12"
               fit="contain"
               class="case-image-thumb"
             >
@@ -221,7 +225,8 @@ onUnmounted(clearImageObjectUrls)
   height: 100%;
   background: var(--bg-surface);
   border-left: 1px solid var(--border-default);
-  transition: max-width var(--duration-normal) var(--ease-standard);
+  transition: max-width var(--duration-normal) var(--ease-standard),
+              border-color var(--duration-normal) var(--ease-standard);
   overflow: hidden;
 }
 
@@ -231,11 +236,18 @@ onUnmounted(clearImageObjectUrls)
 
 /* ===== 内层（填满外层） ===== */
 .panel-inner {
-  width: 100%;
+  width: min(600px, 50vw);
+  min-width: min(600px, 50vw);
   height: 100%;
   display: flex;
   flex-direction: column;
   padding: 0;
+  transform: translateX(100%);
+  transition: transform var(--duration-normal) var(--ease-standard);
+}
+
+.info-panel.visible .panel-inner {
+  transform: translateX(0);
 }
 
 /* ===== 头部 ===== */
@@ -455,9 +467,11 @@ onUnmounted(clearImageObjectUrls)
 
 .case-image-thumb {
   aspect-ratio: 4 / 3;
+  min-height: 220px;
   border-radius: var(--radius-item);
   overflow: hidden;
   cursor: pointer;
+  background: var(--bg-canvas);
   border: 1px solid var(--border-light);
   transition: transform var(--duration-fast) ease-out,
               box-shadow var(--duration-fast) ease-out;

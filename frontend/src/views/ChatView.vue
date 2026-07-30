@@ -80,6 +80,26 @@
 
           <div class="chat-input-area">
             <div class="input-gradient"></div>
+            <div class="input-wrapper">
+              <el-input
+                v-model="input"
+                type="textarea"
+                :rows="1"
+                :autosize="{ minRows: 1, maxRows: 6 }"
+                placeholder="请输入您想咨询的医学问题..."
+                resize="none"
+                @keydown.enter.prevent="handleSend"
+                class="main-input"
+              />
+              <el-button
+                :class="['send-btn', { 'has-text': input.trim() }]"
+                :icon="Promotion"
+                :disabled="!input.trim()"
+                :loading="Boolean(chatStore.loading)"
+                @click="handleSend"
+                circle
+              />
+            </div>
             <!-- 科室筛选 -->
             <div class="dept-filter-row">
               <el-select
@@ -100,26 +120,6 @@
               <span v-if="chatStore.selectedDepartmentId" class="dept-filter-tag">
                 当前检索范围：{{ departments.find(d => d.id === chatStore.selectedDepartmentId)?.name }}
               </span>
-            </div>
-            <div class="input-wrapper">
-              <el-input
-                v-model="input"
-                type="textarea"
-                :rows="1"
-                :autosize="{ minRows: 1, maxRows: 6 }"
-                placeholder="请输入您想咨询的医学问题..."
-                resize="none"
-                @keydown.enter.prevent="handleSend"
-                class="main-input"
-              />
-              <el-button
-                :class="['send-btn', { 'has-text': input.trim() }]"
-                :icon="Promotion"
-                :disabled="!input.trim()"
-                :loading="Boolean(chatStore.loading)"
-                @click="handleSend"
-                circle
-              />
             </div>
           </div>
         </div>
@@ -155,6 +155,8 @@ const input = ref('')
 const messageListRef = ref<HTMLDivElement | null>(null)
 const pageHidden = ref(false)
 const departments = ref<DepartmentOut[]>([])
+const shouldFollowMessages = ref(true)
+const scrollBottomThreshold = 72
 
 // 侧边栏折叠状态（持久化到 localStorage）
 const sidebarCollapsed = ref(localStorage.getItem('sidebar_collapsed') === 'true')
@@ -342,6 +344,22 @@ function handleVisibilityChange() {
   pageHidden.value = document.hidden
 }
 
+function isNearMessageBottom() {
+  const el = messageListRef.value
+  if (!el) return true
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= scrollBottomThreshold
+}
+
+function handleMessageScroll() {
+  shouldFollowMessages.value = isNearMessageBottom()
+}
+
+function scrollMessagesToBottom(behavior: ScrollBehavior = 'smooth') {
+  const el = messageListRef.value
+  if (!el) return
+  el.scrollTo({ top: el.scrollHeight, behavior })
+}
+
 async function loadDepartments() {
   try {
     departments.value = await listPublicDepartments()
@@ -355,12 +373,14 @@ onMounted(async () => {
   loadDepartments()
   window.addEventListener('keydown', handleKeydown)
   document.addEventListener('visibilitychange', handleVisibilityChange)
+  messageListRef.value?.addEventListener('scroll', handleMessageScroll, { passive: true })
   pageHidden.value = document.hidden
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  messageListRef.value?.removeEventListener('scroll', handleMessageScroll)
 })
 
 // ===== 消息操作 =====
@@ -374,11 +394,9 @@ watch(
   },
   () => {
     // 页面隐藏时跳过自动滚动，减少后台渲染压力，避免窗口闪烁
-    if (pageHidden.value) return
+    if (pageHidden.value || !shouldFollowMessages.value) return
     nextTick(() => {
-      if (messageListRef.value) {
-        messageListRef.value.scrollTo({ top: messageListRef.value.scrollHeight, behavior: 'smooth' })
-      }
+      scrollMessagesToBottom('auto')
     })
   }
 )
@@ -387,9 +405,8 @@ async function handleSelect(sessionId: number) {
   await chatStore.loadSession(sessionId)
   // 加载历史会话后瞬间滚到底部，等待 DOM 渲染完成
   await nextTick()
-  if (messageListRef.value) {
-    messageListRef.value.scrollTo({ top: messageListRef.value.scrollHeight, behavior: 'auto' })
-  }
+  shouldFollowMessages.value = true
+  scrollMessagesToBottom('auto')
 }
 
 async function handleNewSession() {
@@ -403,6 +420,9 @@ async function handleSend() {
     await chatStore.newSession()
   }
   input.value = ''
+  shouldFollowMessages.value = true
+  await nextTick()
+  scrollMessagesToBottom('auto')
   await chatStore.sendMessage(content)
 }
 
@@ -412,6 +432,9 @@ async function handlePromptClick(prompt: string) {
     await chatStore.newSession()
   }
   input.value = ''
+  shouldFollowMessages.value = true
+  await nextTick()
+  scrollMessagesToBottom('auto')
   await chatStore.sendMessage(prompt)
 }
 
@@ -678,8 +701,10 @@ async function handleDeleteSession(sessionId: number) {
 .dept-filter-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
-  margin-bottom: var(--space-2);
+  max-width: 760px;
+  margin: var(--space-2) auto 0;
   padding-left: var(--space-1);
 }
 
