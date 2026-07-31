@@ -4,7 +4,7 @@ from unittest.mock import patch
 from langchain_core.documents import Document
 
 from app.rag.pipeline import hybrid_search
-from app.services.llm_client import _has_sufficient_knowledge_for_docs
+from app.services.llm_client import _has_sufficient_knowledge_for_docs, parse_citations
 
 
 def _doc(**metadata):
@@ -29,6 +29,18 @@ class KnowledgeSufficiencyTests(unittest.TestCase):
     def test_strong_fulltext_match_is_sufficient(self):
         docs = [_doc(vector_score=None, fulltext_score=0.3, fulltext_rank=1)]
         self.assertTrue(_has_sufficient_knowledge_for_docs(docs))
+
+
+class CitationParsingTests(unittest.TestCase):
+    def test_parses_merged_citations_with_common_separators(self):
+        text = "step[5, 6] next[7\uff0c8] final[9\u300110]"
+
+        self.assertEqual(parse_citations(text, total=10), [5, 6, 7, 8, 9, 10])
+
+    def test_deduplicates_and_filters_out_of_range_citations(self):
+        text = "step[2][2] other[3, 99] and[0\u30014]"
+
+        self.assertEqual(parse_citations(text, total=4), [2, 3, 4])
 
 
 class HybridSearchTests(unittest.TestCase):
