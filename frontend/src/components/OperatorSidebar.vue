@@ -23,6 +23,14 @@
               新建分析
             </el-button>
           </div>
+          <div class="nav-row">
+            <div :class="['nav-item', { active: activeView === 'predict' }]" @click="$emit('navigate', 'predict')">
+              <el-icon :size="15"><TrendCharts /></el-icon><span>预测分析</span>
+            </div>
+            <div :class="['nav-item', { active: activeView === 'cases' }]" @click="$emit('navigate', 'cases')">
+              <el-icon :size="15"><FolderOpened /></el-icon><span>病例库</span>
+            </div>
+          </div>
         </div>
 
         <!-- 中间滚动：报告列表 -->
@@ -141,7 +149,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Plus, SwitchButton, Fold, Expand, MoreFilled, Delete, DataAnalysis } from '@element-plus/icons-vue'
+import { Plus, SwitchButton, Fold, Expand, MoreFilled, Delete, DataAnalysis, TrendCharts, FolderOpened } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import type { ReportListItem } from '@/api/operator'
 
@@ -151,6 +159,7 @@ defineProps<{
   collapsed: boolean
   loading: boolean
   generating: boolean
+  activeView: 'predict' | 'cases'
 }>()
 
 defineEmits<{
@@ -158,6 +167,7 @@ defineEmits<{
   select: [id: number]
   'new-analysis': []
   delete: [id: number]
+  navigate: [view: 'predict' | 'cases']
 }>()
 
 const authStore = useAuthStore()
@@ -285,6 +295,39 @@ function handleLogout() {
 
 .new-report-row {
   padding: 0 var(--space-3) var(--space-3);
+}
+
+/* ===== 顶部导航（预测分析 / 病例库） ===== */
+.nav-row {
+  display: flex;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  border-radius: var(--radius-item);
+  cursor: pointer;
+  transition: background var(--duration-fast) ease-out,
+              color var(--duration-fast) ease-out;
+  user-select: none;
+}
+
+.nav-item:hover {
+  background: var(--bg-hover);
+}
+
+.nav-item.active {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-weight: 500;
 }
 
 /* 中间滚动 */

@@ -6,10 +6,12 @@
       :collapsed="sidebarCollapsed"
       :loading="operatorStore.loading"
       :generating="operatorStore.generating"
+      :active-view="activeView"
       @toggle="toggleSidebar"
       @select="handleSelect"
       @new-analysis="handleNewAnalysis"
       @delete="handleDelete"
+      @navigate="activeView = $event"
     />
 
     <div class="operator-main">
@@ -27,190 +29,215 @@
       </div>
 
       <div class="operator-body">
-        <!-- 报告内容区（可滚动） -->
-        <div class="report-area" ref="reportAreaRef">
-          <div class="report-area-inner">
-            <!-- 状态栏 -->
-            <div v-if="showStatusBar" class="status-bar">
-              <template v-if="operatorStore.currentStage === 'retrieving'">
-                <el-icon class="is-loading"><Loading /></el-icon>
-                <span>{{ operatorStore.stageMessage }}</span>
-              </template>
-              <template v-else-if="operatorStore.currentStage === 'retrieved'">
-                <el-icon><CircleCheck /></el-icon>
-                <span>{{ operatorStore.stageMessage }}</span>
-              </template>
-              <template v-else-if="operatorStore.currentStage === 'generating'">
-                <el-icon class="is-loading"><Loading /></el-icon>
-                <span>{{ operatorStore.stageMessage }}</span>
-              </template>
-              <template v-else-if="operatorStore.currentStage === 'error'">
-                <el-icon><WarningFilled /></el-icon>
-                <span style="color: var(--color-danger)">生成失败，请重试</span>
-              </template>
-              <template v-else-if="operatorStore.currentStage === 'cancelled'">
-                <el-icon><InfoFilled /></el-icon>
-                <span>生成已取消</span>
-              </template>
-            </div>
-
-            <!-- 流式生成中的实时预览 -->
-            <div v-if="operatorStore.generating || operatorStore.generatedContent" class="report-content">
-              <div
-                class="markdown-body"
-                v-html="renderedContent"
-              />
-            </div>
-
-            <!-- 查看历史报告 -->
-            <div v-else-if="operatorStore.currentReport" class="report-content">
-              <div class="report-head">
-                <h3>{{ operatorStore.currentReport.title || '分析报告' }}</h3>
-                <div class="report-head-meta">
-                  <el-tag
-                    :type="statusTagType(operatorStore.currentReport.status)"
-                    size="small"
-                  >
-                    {{ statusLabel(operatorStore.currentReport.status) }}
-                  </el-tag>
-                  <span class="meta-time">{{ formatTime(operatorStore.currentReport.created_at) }}</span>
-                  <el-button
-                    v-if="operatorStore.currentReport.status === 'completed'"
-                    size="small"
-                    type="primary"
-                    @click="handleDownload"
-                  >
-                    下载 PDF
-                  </el-button>
-                </div>
-              </div>
-              <div
-                class="markdown-body"
-                v-html="renderMarkdown(operatorStore.currentReport.content)"
-              />
-              <!-- 来源 -->
-              <div v-if="operatorStore.currentReport.sources?.length" class="sources-section">
-                <h4>参考来源</h4>
-                <div
-                  v-for="(src, idx) in operatorStore.currentReport.sources"
-                  :key="idx"
-                  class="source-card"
-                >
-                  <span class="source-index">[{{ src.citation_index }}]</span>
-                  <span class="source-title">{{ src.title || '未知文档' }}</span>
-                  <span v-if="src.page_number" class="source-page">第 {{ src.page_number }} 页</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 空状态 -->
-            <div v-else class="empty-state">
-              <div class="welcome-icon">
-                <el-icon :size="28"><DataAnalysis /></el-icon>
-              </div>
-              <h1 class="welcome-title">AI 操作者工作台</h1>
-              <p class="welcome-desc">
-                输入分析问题，AI 将检索全库病例数据并生成结构化研究报告。
-              </p>
-              <div class="welcome-prompts">
-                <span
-                  v-for="prompt in suggestedPrompts"
-                  :key="prompt"
-                  class="prompt-tag"
-                  @click="handlePromptClick(prompt)"
-                >{{ prompt }}</span>
-              </div>
-            </div>
+        <!-- 病例库视图（Task 13 挂载 CaseManageView） -->
+        <div v-if="activeView === 'cases'" class="cases-placeholder">
+          <div class="placeholder-content">
+            <el-icon :size="48"><FolderOpened /></el-icon>
+            <h3>病例库</h3>
+            <p>病例库管理功能正在开发中，完成后可在此管理疾病字典、确诊病例与参考标准。</p>
           </div>
         </div>
 
-        <!-- 输入区（固定底部） -->
-        <div class="input-section">
-          <div class="input-gradient"></div>
-          <div class="input-card">
-            <div class="input-row">
-              <el-input
-                v-model="query"
-                type="textarea"
-                :rows="1"
-                :autosize="{ minRows: 1, maxRows: 4 }"
-                placeholder="输入分析问题，如：所有胆囊结石患者的共同特点有哪些？"
-                resize="none"
-                :maxlength="2000"
-                show-word-limit
-                :disabled="operatorStore.generating"
-                @keydown.enter.exact.prevent="handleGenerate"
-              />
+        <!-- 预测分析视图 -->
+        <template v-else>
+          <!-- 报告内容区（可滚动） -->
+          <div class="report-area" ref="reportAreaRef">
+            <div class="report-area-inner">
+              <!-- 综合匹配度卡片（措辞遵循「概率措辞约定」：主视觉用风险等级 + 匹配度区间） -->
+              <div v-if="operatorStore.predictionResult" class="probability-card">
+                <div class="prob-band">{{ operatorStore.predictionResult.band }}风险</div>
+                <div class="prob-range">
+                  匹配度区间 {{ operatorStore.predictionResult.probability_range[0] }}%-{{ operatorStore.predictionResult.probability_range[1] }}%
+                </div>
+                <div v-if="operatorStore.predictionResult.insufficient_sample" class="prob-warning">样本量不足，匹配度仅供参考</div>
+                <div class="prob-disclaimer">该结果为基于已录入病例的模式匹配参考，非临床确诊概率。</div>
+              </div>
+
+              <!-- 指标分析表（参考范围用共享 formatRange 渲染边界符号，区分 <21 与 ≤21） -->
+              <div v-if="operatorStore.indicatorAnalyses.length" class="analysis-table">
+                <h4>指标偏离分析</h4>
+                <el-table :data="operatorStore.indicatorAnalyses" size="small">
+                  <el-table-column prop="name" label="指标" width="100" />
+                  <el-table-column label="实测值">
+                    <template #default="{ row }">{{ row.value }} {{ row.unit }}</template>
+                  </el-table-column>
+                  <el-table-column label="参考范围">
+                    <template #default="{ row }">{{ formatRange(row) }}</template>
+                  </el-table-column>
+                  <el-table-column label="偏离度">
+                    <template #default="{ row }">{{ row.is_abnormal ? '+' : '' }}{{ row.deviation_pct }}%</template>
+                  </el-table-column>
+                  <el-table-column label="确诊异常率">
+                    <template #default="{ row }">{{ (row.abnormal_rate_in_cases * 100).toFixed(1) }}%</template>
+                  </el-table-column>
+                </el-table>
+              </div>
+
+              <!-- 状态栏 -->
+              <div v-if="showStatusBar" class="status-bar">
+                <template v-if="operatorStore.currentStage === 'analyzing' || operatorStore.currentStage === 'generating'">
+                  <el-icon class="is-loading"><Loading /></el-icon>
+                  <span>{{ operatorStore.stageMessage }}</span>
+                </template>
+                <template v-else-if="operatorStore.currentStage === 'error'">
+                  <el-icon><WarningFilled /></el-icon>
+                  <span style="color: var(--color-danger)">生成失败，请重试</span>
+                </template>
+                <template v-else-if="operatorStore.currentStage === 'cancelled'">
+                  <el-icon><InfoFilled /></el-icon>
+                  <span>生成已取消</span>
+                </template>
+              </div>
+
+              <!-- 流式生成中的实时预览 -->
+              <div v-if="operatorStore.generating || operatorStore.generatedContent" class="report-content">
+                <div
+                  class="markdown-body"
+                  v-html="renderedContent"
+                />
+              </div>
+
+              <!-- 查看历史报告 -->
+              <div v-else-if="operatorStore.currentReport" class="report-content">
+                <div class="report-head">
+                  <h3>{{ operatorStore.currentReport.title || '分析报告' }}</h3>
+                  <div class="report-head-meta">
+                    <el-tag
+                      :type="statusTagType(operatorStore.currentReport.status)"
+                      size="small"
+                    >
+                      {{ statusLabel(operatorStore.currentReport.status) }}
+                    </el-tag>
+                    <span class="meta-time">{{ formatTime(operatorStore.currentReport.created_at) }}</span>
+                    <el-button
+                      v-if="operatorStore.currentReport.status === 'completed'"
+                      size="small"
+                      type="primary"
+                      @click="handleDownload"
+                    >
+                      下载 PDF
+                    </el-button>
+                  </div>
+                </div>
+                <div
+                  class="markdown-body"
+                  v-html="renderMarkdown(operatorStore.currentReport.content)"
+                />
+                <!-- 来源 -->
+                <div v-if="operatorStore.currentReport.sources?.length" class="sources-section">
+                  <h4>参考来源</h4>
+                  <div
+                    v-for="(src, idx) in operatorStore.currentReport.sources"
+                    :key="idx"
+                    class="source-card"
+                  >
+                    <span class="source-index">[{{ src.citation_index }}]</span>
+                    <span class="source-title">{{ src.title || '未知文档' }}</span>
+                    <span v-if="src.page_number" class="source-page">第 {{ src.page_number }} 页</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 空状态 -->
+              <div v-else class="empty-state">
+                <div class="welcome-icon">
+                  <el-icon :size="28"><DataAnalysis /></el-icon>
+                </div>
+                <h1 class="welcome-title">AI 操作者预测分析</h1>
+                <p class="welcome-desc">
+                  选择疾病并输入患者检验指标，AI 将对照参考标准与已录入病例库，生成指标级异常分析与综合匹配度报告。
+                </p>
+              </div>
             </div>
-            <div class="input-actions">
-              <div class="actions-left">
+          </div>
+
+          <!-- 预测输入区（固定底部） -->
+          <div class="input-section">
+            <div class="input-gradient"></div>
+            <div class="input-card">
+              <div class="predict-row">
                 <el-select
-                  v-model="selectedDepartmentIds"
-                  multiple
+                  v-model="selectedDiseaseId"
+                  placeholder="选择疾病"
                   filterable
-                  placeholder="选择科室范围（默认全库）"
+                  style="width: 240px"
                   :disabled="operatorStore.generating"
-                  size="small"
-                  style="width: 260px"
-                  collapse-tags
-                  collapse-tags-tooltip
                 >
                   <el-option
-                    v-for="dept in departments"
-                    :key="dept.id"
-                    :label="dept.name"
-                    :value="dept.id"
+                    v-for="d in operatorStore.diseases"
+                    :key="d.id"
+                    :label="d.name"
+                    :value="d.id"
                   />
                 </el-select>
+                <span class="case-hint" v-if="selectedDisease">{{ selectedDisease.case_count }} 例确诊病例</span>
               </div>
-              <div class="actions-right">
-                <el-button
-                  v-if="operatorStore.generating"
-                  type="danger"
-                  size="small"
-                  @click="handleCancel"
-                >
-                  取消生成
-                </el-button>
-                <el-button
-                  v-else
-                  type="primary"
-                  :disabled="!query.trim()"
-                  @click="handleGenerate"
-                >
-                  开始分析
-                </el-button>
+
+              <div class="indicator-form">
+                <div v-for="(row, idx) in indicatorRows" :key="idx" class="indicator-row">
+                  <el-input v-model="row.name" placeholder="指标名" style="width: 150px" :disabled="operatorStore.generating" />
+                  <el-input v-model.number="row.value" type="number" placeholder="数值" style="width: 120px" :disabled="operatorStore.generating" />
+                  <el-input v-model="row.unit" placeholder="单位" style="width: 100px" :disabled="operatorStore.generating" />
+                  <el-button :icon="Delete" text :disabled="operatorStore.generating" @click="removeIndicator(idx)" />
+                </div>
+                <el-button size="small" :icon="Plus" text :disabled="operatorStore.generating" @click="addIndicator">添加指标</el-button>
+              </div>
+
+              <el-input
+                v-model="patientSummary"
+                type="textarea"
+                :rows="2"
+                placeholder="患者主诉（可选）"
+                maxlength="2000"
+                show-word-limit
+                :disabled="operatorStore.generating"
+              />
+              <div class="predict-actions">
+                <el-button v-if="operatorStore.generating" type="danger" @click="operatorStore.cancelGeneration()">取消</el-button>
+                <el-button v-else type="primary" :disabled="!canPredict" @click="handlePredict">开始分析</el-button>
               </div>
             </div>
           </div>
-        </div>
+        </template>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Loading, CircleCheck, WarningFilled, InfoFilled, DataAnalysis } from '@element-plus/icons-vue'
+import { Loading, WarningFilled, InfoFilled, DataAnalysis, Plus, Delete, FolderOpened } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import OperatorSidebar from '@/components/OperatorSidebar.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useOperatorStore } from '@/stores/operator'
-import { downloadReport } from '@/api/operator'
-import { listPublicDepartments, type DepartmentOut } from '@/api/admin'
+import { downloadReport, type IndicatorInput } from '@/api/operator'
+import { formatRange } from '@/utils/rangeFormat'
 
 const authStore = useAuthStore()
 const operatorStore = useOperatorStore()
 
 const sidebarCollapsed = ref(localStorage.getItem('operator_sidebar_collapsed') === 'true')
-const query = ref('')
-const selectedDepartmentIds = ref<number[]>([])
-const departments = ref<DepartmentOut[]>([])
+const activeView = ref<'predict' | 'cases'>('predict')
+const selectedDiseaseId = ref<number | null>(null)
+const indicatorRows = reactive<IndicatorInput[]>([])
+const patientSummary = ref('')
 const reportAreaRef = ref<HTMLDivElement | null>(null)
 const shouldFollowReport = ref(true)
 const scrollBottomThreshold = 72
+
+const selectedDisease = computed(() =>
+  operatorStore.diseases.find((d) => d.id === selectedDiseaseId.value) || null
+)
+
+const canPredict = computed(() => {
+  if (!selectedDiseaseId.value) return false
+  return indicatorRows.some(
+    (r) => r.name.trim() && r.value !== null && r.value !== undefined && r.unit.trim(),
+  )
+})
 
 const renderedContent = computed(() =>
   renderMarkdown(operatorStore.generatedContent || operatorStore.currentReport?.content || '')
@@ -219,12 +246,6 @@ const renderedContent = computed(() =>
 const showStatusBar = computed(() =>
   Boolean(operatorStore.currentStage && operatorStore.currentStage !== 'done')
 )
-
-const suggestedPrompts = [
-  '所有胆囊结石患者的共同特点有哪些？',
-  '近一年内手术并发症的发生率统计',
-  '不同科室患者的年龄分布对比',
-]
 
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
@@ -245,18 +266,34 @@ function renderMarkdown(md: string): string {
   })
 }
 
-function handleGenerate() {
-  if (!query.value.trim()) return
-  shouldFollowReport.value = true
-  operatorStore.clearCurrent()
-  operatorStore.generateReport(
-    query.value.trim(),
-    selectedDepartmentIds.value.length > 0 ? selectedDepartmentIds.value : null,
-  )
+function addIndicator() {
+  indicatorRows.push({ name: '', value: null as unknown as number, unit: '' })
 }
 
-function handleCancel() {
-  operatorStore.cancelGeneration()
+function removeIndicator(idx: number) {
+  if (indicatorRows.length <= 1) {
+    indicatorRows.splice(0, 1, { name: '', value: null as unknown as number, unit: '' })
+    return
+  }
+  indicatorRows.splice(idx, 1)
+}
+
+function handlePredict() {
+  const validRows = indicatorRows.filter(
+    (r) => r.name.trim() && r.value !== null && r.value !== undefined && r.unit.trim(),
+  )
+  if (!validRows.length || !selectedDiseaseId.value) return
+  shouldFollowReport.value = true
+  operatorStore.clearCurrent()
+  operatorStore.generatePrediction({
+    disease_id: selectedDiseaseId.value,
+    indicators: validRows.map((r) => ({
+      name: r.name.trim(),
+      value: r.value,
+      unit: r.unit.trim(),
+    })),
+    patient_summary: patientSummary.value.trim() || undefined,
+  })
 }
 
 async function handleDownload() {
@@ -294,12 +331,8 @@ function handleNewAnalysis() {
   operatorStore.clearCurrent()
   operatorStore.generatedContent = ''
   operatorStore.currentStage = ''
-  query.value = ''
-}
-
-function handlePromptClick(prompt: string) {
-  if (operatorStore.generating) return
-  query.value = prompt
+  patientSummary.value = ''
+  indicatorRows.splice(0, indicatorRows.length, { name: '', value: null as unknown as number, unit: '' })
 }
 
 function isNearReportBottom() {
@@ -360,12 +393,11 @@ watch(
 
 onMounted(async () => {
   operatorStore.fetchReports()
-  reportAreaRef.value?.addEventListener('scroll', handleReportScroll, { passive: true })
-  try {
-    departments.value = await listPublicDepartments()
-  } catch {
-    // 科室加载非关键
+  operatorStore.fetchDiseases()
+  if (!indicatorRows.length) {
+    indicatorRows.push({ name: '', value: null as unknown as number, unit: '' })
   }
+  reportAreaRef.value?.addEventListener('scroll', handleReportScroll, { passive: true })
 })
 
 onUnmounted(() => {
@@ -428,6 +460,33 @@ onUnmounted(() => {
   min-height: 0;
 }
 
+/* ===== 病例库占位（Task 13 替换为 CaseManageView） ===== */
+.cases-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.placeholder-content {
+  text-align: center;
+  color: var(--text-disabled);
+  max-width: 420px;
+}
+
+.placeholder-content h3 {
+  margin: var(--space-4) 0 var(--space-3);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.placeholder-content p {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-disabled);
+}
+
 /* ===== 报告内容区（可滚动） ===== */
 .report-area {
   flex: 1;
@@ -438,6 +497,59 @@ onUnmounted(() => {
 .report-area-inner {
   max-width: 800px;
   margin: 0 auto;
+}
+
+/* ===== 综合匹配度卡片 ===== */
+.probability-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-card);
+  padding: var(--space-5) var(--space-6);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-sm);
+}
+
+.prob-band {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.prob-range {
+  margin-top: var(--space-1);
+  font-size: var(--text-md);
+  color: var(--text-primary);
+}
+
+.prob-warning {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-warning);
+}
+
+.prob-disclaimer {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-light);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* ===== 指标偏离分析表 ===== */
+.analysis-table {
+  background: var(--bg-surface);
+  border-radius: var(--radius-card);
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-sm);
+}
+
+.analysis-table h4 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 /* ===== 状态栏 ===== */
@@ -485,40 +597,12 @@ onUnmounted(() => {
 }
 
 .welcome-desc {
-  margin: 0 0 var(--space-8);
+  margin: 0;
   font-size: 15px;
   color: var(--text-secondary);
   text-align: center;
   max-width: 480px;
   line-height: 1.6;
-}
-
-.welcome-prompts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  justify-content: center;
-  max-width: 560px;
-}
-
-.prompt-tag {
-  display: inline-block;
-  padding: 8px 18px;
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  transition: border-color var(--duration-fast) ease-out,
-              color var(--duration-fast) ease-out,
-              background var(--duration-fast) ease-out;
-  user-select: none;
-}
-
-.prompt-tag:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  background: var(--color-primary-light);
 }
 
 /* ===== 报告内容卡片 ===== */
@@ -678,7 +762,7 @@ onUnmounted(() => {
   color: var(--text-disabled);
 }
 
-/* ===== 输入区（固定底部） ===== */
+/* ===== 预测输入区（固定底部） ===== */
 .input-section {
   flex-shrink: 0;
   position: relative;
@@ -704,49 +788,42 @@ onUnmounted(() => {
   box-shadow: var(--shadow-sm);
 }
 
-.input-row {
+.predict-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   margin-bottom: var(--space-3);
 }
 
-.input-row :deep(.el-textarea__inner) {
-  border-radius: var(--radius-input);
-  border: 1px solid var(--border-default);
-  background: var(--bg-surface);
-  padding: 12px 16px;
-  font-size: 15px;
-  line-height: 1.5;
-  resize: none;
-  transition: border-color var(--duration-fast) ease-out,
-              box-shadow var(--duration-fast) ease-out;
+.case-hint {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
 }
 
-.input-row :deep(.el-textarea__inner):hover {
-  border-color: var(--text-disabled);
+.indicator-form {
+  margin-bottom: var(--space-3);
 }
 
-.input-row :deep(.el-textarea__inner):focus {
-  border-color: var(--border-focus);
-  box-shadow: var(--focus-ring);
-}
-
-.input-row :deep(.el-textarea__inner)::placeholder {
-  color: var(--text-disabled);
-}
-
-.input-actions {
+.indicator-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.actions-left {
-  flex-shrink: 0;
-}
-
-.actions-right {
-  flex-shrink: 0;
-  display: flex;
   gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.indicator-row :deep(.el-input__wrapper) {
+  border-radius: var(--radius-input);
+}
+
+.predict-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.predict-actions .el-button {
+  min-width: 120px;
 }
 </style>
