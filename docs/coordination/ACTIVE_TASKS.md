@@ -6,6 +6,107 @@
 
 ## 活动任务
 
+### ai-operator-predictive-001
+
+```yaml
+task_id: ai-operator-predictive-001
+title: AI 操作者预测分析模块 — Phase 1 access_scope 文档隔离
+status: planned
+risk: high
+owner: Codex
+client: Codex-Desktop
+branch: codex/ai-operator-predictive-001
+worktree: C:/Users/86182/.codex/worktrees/60c1/Surgery RAG-Agent
+planner: Claude-Code
+implementer: Codex
+reviewer: Claude-Code
+database_change: true
+plan: docs/superpowers/plans/2026-08-03-access-scope-isolation.md
+review_handoff: pending
+```
+
+#### 目标
+
+为 AI 操作者预测分析模块铺平隔离前提：新增 `documents.access_scope` 列，实现检索面（`hybrid_search`）与读取面（全文/图片）的文档访问隔离——聊天端只检索 `chat`/`both` 文档，`operator` 文档（如"正常体征参考标准"）永不被聊天端召回或读取；admin 上传支持选择 scope。对应计划文件 B 的 Task 1-3。
+
+#### 实现说明
+
+按已批准计划（`2026-08-03-access-scope-isolation.md`，Phase 1，Task 1-3）以 TDD 方式执行：
+
+- **Task 1**：Alembic 迁移 `0005_document_access_scope.py`（`documents.access_scope`，upgrade/downgrade 对称）+ ORM + `database/schema.sql` 同步。
+- **Task 2**：`hybrid_search`/`_vector_search`/`_fulltext_search`/`SurgeryRetriever` 增加 `access_scope` 参数，SQL 用 `business_document.access_scope` 过滤；`chat.py` 显式传 `access_scope="chat"`；`source_access.user_can_access_document/image` 检查 scope（operator 文档仅 `ai_operator`/`admin` 可读全文与图片）。
+- **Task 3**：admin 上传/更新接口支持 `access_scope`（`_validate_access_scope` 纯函数校验，非法 422，默认 `chat`），前端 AdminView 上传表单加下拉。
+
+#### 范围
+
+##### Exact files
+
+- `backend/alembic/versions/0005_document_access_scope.py`（新建）
+- `backend/app/db/models.py`（Document 加 `access_scope` 列）
+- `backend/app/rag/pipeline.py`（检索隔离）
+- `backend/app/api/chat.py`（`SurgeryRetriever` 显式 `access_scope="chat"`）
+- `backend/app/services/source_access.py`（读取面隔离）
+- `backend/app/api/admin.py`（上传/更新支持 scope）
+- `backend/app/schemas/document.py`（schema 加 scope）
+- `database/schema.sql`
+- `backend/tests/test_source_access.py`（新建）
+- `backend/tests/test_alembic_contracts.py`、`backend/tests/test_schema_contracts.py`、`backend/tests/test_rag_logic.py`
+- `frontend/src/views/AdminView.vue`、`frontend/src/api/admin.ts`
+
+##### Path patterns
+
+- 无。
+
+##### Symbols
+
+- `backend/app/rag/pipeline.py`: `hybrid_search()`、`_vector_search()`、`_fulltext_search()`、`SurgeryRetriever`（均加 `access_scope` 参数）
+- `backend/app/services/source_access.py`: `user_can_access_document()`、`user_can_access_image()`（加 scope 检查）
+- `backend/app/api/admin.py`: `upload_document()`、`update_document()`、`_validate_access_scope()`（新增）、`_document_to_out()`
+- `frontend/src/views/AdminView.vue`: 上传区 scope 下拉
+
+##### Shared resources
+
+- `documents` 表：新增 `access_scope` 列（`VARCHAR(20) NOT NULL DEFAULT 'chat'`）。
+- Alembic 迁移链：新增 `0005_document_access_scope`（head = `0004_add_ai_reports`）；后续文件 A 的 `0006` 依赖本任务 `0005`。
+- `hybrid_search` 检索管线：聊天端调用面（默认 `chat` 隔离）。
+- `/api/v1/documents/{id}/content` 与 `/api/v1/files/images/...` 读取授权（`source_access`）。
+
+#### 验收条件
+
+- `alembic upgrade head` / `downgrade 0004` / `upgrade head` 往返通过（0005 可回滚，schema.sql 已同步）。
+- 聊天端检索显式 `access_scope="chat"`，两条检索 SQL 均含 `business_document.access_scope` 过滤。
+- `operator` 文档对普通聊天用户不可检索、不可通过全文/图片接口读取；`ai_operator`/`admin` 可读。
+- admin 上传/更新支持 `access_scope`：非法值 422、默认 `chat`、`DocumentOut` 透出该字段。
+- 后端新增/修改测试（`test_rag_logic.py`、`test_source_access.py`、`test_schema_contracts.py`、`test_alembic_contracts.py`）全部通过，存量测试无回归。
+- `frontend` 构建通过；AdminView 上传区 scope 下拉可用。
+
+#### 阻塞记录
+
+- 实施 worktree（`C:/Users/86182/.codex/worktrees/60c1/Surgery RAG-Agent`）已隔离，当前 detached HEAD 于 `5a17c04`；实施开始前需在 Codex App 创建 `codex/ai-operator-predictive-001` 分支并 `git switch`（工作区干净后处理）。
+
+#### 评审记录
+
+- 计划阶段已完成五轮跨客户端评审（共 38 条意见，含本任务相关 P0 隔离测试矛盾、P1 读取面隔离、P2 chat 显式传值/图片授权测试/admin 上传行为测试等），全部核验有效并并入计划文件 B。实施就绪结论：本任务可先开始实施并独立合入。
+- 尚未实施，代码评审待实施后由 Claude-Code 发起。
+
+#### 评审交接信息
+
+```text
+请评审任务 ai-operator-predictive-001。
+
+实现者：Codex
+评审者：Claude Code
+分支：codex/ai-operator-predictive-001
+基线：main
+提交：<first-commit>..<last-commit>
+方案或登记：docs/coordination/ACTIVE_TASKS.md
+计划：docs/superpowers/plans/2026-08-03-access-scope-isolation.md
+验收条件：见本任务"验收条件"部分
+重点检查：0005 迁移可回滚、检索/读取面隔离无绕过路径、聊天端显式 access_scope="chat"、admin 上传 scope 校验、存量聊天检索行为无回归
+
+只输出评审意见，不直接修改实现提交。
+```
+
 ### qa-scroll-follow-001
 
 ```yaml
