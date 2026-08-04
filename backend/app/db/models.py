@@ -48,6 +48,7 @@ class Document(Base):
     active_generation = Column(Integer, nullable=False, default=1, server_default="1")
     is_current = Column(Boolean, default=True)
     department_id = Column(Integer, ForeignKey("departments.id", ondelete="RESTRICT"), nullable=True)
+    access_scope = Column(String(20), nullable=False, default="chat", server_default="chat")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

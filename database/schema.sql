@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS documents (
     active_generation INTEGER NOT NULL DEFAULT 1,
     is_current BOOLEAN DEFAULT TRUE,
     department_id INTEGER REFERENCES departments(id) ON DELETE RESTRICT,
+    access_scope VARCHAR(20) NOT NULL DEFAULT 'chat',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

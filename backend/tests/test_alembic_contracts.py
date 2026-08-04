@@ -41,6 +41,12 @@ class AlembicContractTests(unittest.TestCase):
         self.assertEqual(hardening.revision, "0002")
         self.assertEqual(hardening.down_revision, "0001")
 
+        predictive = _load_revision(
+            "0005_document_access_scope.py", "migration_0005"
+        )
+        self.assertEqual(predictive.revision, "0005")
+        self.assertEqual(predictive.down_revision, "0004")
+
     def test_env_excludes_langchain_internal_tables(self):
         env_source = (BACKEND_ROOT / "alembic/env.py").read_text(encoding="utf-8")
         self.assertIn('name.startswith("langchain_pg_")', env_source)
@@ -64,6 +70,12 @@ class AlembicContractTests(unittest.TestCase):
             for index in table.indexes
         }
         self.assertTrue(expected.issubset(actual))
+
+    def test_document_has_access_scope(self):
+        from app.db.models import Document
+        cols = {c.name: c for c in Document.__table__.columns}
+        self.assertIn("access_scope", cols)
+        self.assertEqual(cols["access_scope"].server_default.arg, "chat")
 
 
 if __name__ == "__main__":
