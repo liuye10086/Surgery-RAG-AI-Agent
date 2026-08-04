@@ -96,7 +96,8 @@ Phase 1 已按文件 B（`2026-08-03-access-scope-isolation.md`，Task 1-3）以
 - 计划阶段已完成五轮跨客户端评审（共 38 条意见），全部核验有效并并入计划文件 B/A。
 - **Phase 1（文件 B，Task 1-3）已实施并交付**：提交 `009b24a`..`2766ab5`（Task 1-3 + 审查修复 `e21d051`/`2a96eb5`/`186fd9b`/`3b162fd`/`2766ab5`），Codex 复核通过，已推送 `origin/main = 2766ab5`；本地库已应用 0005。
 - **Phase 2-5（文件 A，Task 4-14）实施中**：按协调方指示在 main 直接开发，分 4 批实施与审查（Task 4-7 → 8-10 → 11-13 → 14），每批 Codex 审查通过后推送并进入下一批。
-- **第一批（Task 4-7，数据层）已完成**：提交 `8b47425`..`0dd016e`，后端全量 140 passed。待 Codex 审查。
+- **第一批（Task 4-7，数据层）已完成**：提交 `8b47425`..`0dd016e`，后端全量 140 passed。
+- **第一批审查（Codex）**：Task 5/6 通过；Task 4 需修（ai_reports JSON 列缺 server_default，旧行迁移后为 NULL）、Task 7 需修（LLM 返回空结果未纳入失败保护）。修复提交 `f095d9a`（0006 server_default + ORM 同步 + 契约测试）、`d2660dc`（LLM 空结果整体 abort + 回归测试），修复后全量 142 passed。待 Codex 复核。
 
 #### 评审交接信息
 
@@ -107,7 +108,7 @@ Phase 1 已按文件 B（`2026-08-03-access-scope-isolation.md`，Task 1-3）以
 评审者：Codex
 分支：main（协调方指示直接在主分支开发）
 基线：main = 2766ab5
-提交：8b47425..0dd016e
+提交：8b47425..d2660dc（含审查修复 f095d9a / d2660dc）
 方案或登记：docs/coordination/ACTIVE_TASKS.md
 计划：docs/superpowers/plans/2026-08-03-ai-operator-predictive.md（文件 A，Task 4-7）
 验收条件：见计划各 Task 步骤（TDD 红绿、0006 迁移链、schema.sql 同步、离线测试全绿）
