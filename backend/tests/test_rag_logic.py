@@ -55,6 +55,41 @@ class HybridSearchTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             hybrid_search(object(), "检索故障")
 
+    def test_retrieval_sql_contains_access_scope_filter(self):
+        from app.rag.pipeline import _fulltext_search, _vector_search
+        import inspect
+
+        for fn in (_vector_search, _fulltext_search):
+            source = inspect.getsource(fn)
+            self.assertIn("business_document.access_scope", source)
+            self.assertNotIn("d.access_scope", source)
+
+    @patch("app.rag.pipeline._fulltext_search", return_value=[])
+    @patch("app.rag.pipeline._vector_search", return_value=[])
+    def test_hybrid_search_passes_access_scope_to_branches(self, mock_vec, mock_full):
+        from app.rag.pipeline import hybrid_search
+
+        hybrid_search(object(), "q", access_scope="chat")
+        self.assertEqual(mock_vec.call_args.kwargs["access_scope"], "chat")
+        self.assertEqual(mock_full.call_args.kwargs["access_scope"], "chat")
+
+        hybrid_search(object(), "q", access_scope=None)
+        self.assertIsNone(mock_vec.call_args.kwargs["access_scope"])
+
+    def test_chat_passes_access_scope_explicitly(self):
+        import re
+        import pathlib
+        chat_source = (
+            pathlib.Path(__file__).resolve().parents[1]
+            / "app/api/chat.py"
+        ).read_text(encoding="utf-8")
+        # 每个 SurgeryRetriever( 构造都必须在同一调用内显式带 access_scope="chat"
+        calls = re.findall(r"SurgeryRetriever\(([^)]*)\)", chat_source, re.S)
+        self.assertTrue(calls, "chat.py 中未找到 SurgeryRetriever 构造")
+        for call in calls:
+            self.assertIn('access_scope="chat"', call,
+                          f"SurgeryRetriever 构造未显式传 access_scope: {call[:80]}...")
+
 
 if __name__ == "__main__":
     unittest.main()

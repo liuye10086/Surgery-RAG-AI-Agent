@@ -33,6 +33,7 @@ class SurgeryRetriever(BaseRetriever):
     db: Session
     top_k: int = settings.RETRIEVER_FINAL_TOP_K
     department_id: Optional[int] = None
+    access_scope: Optional[str] = "chat"
 
     def _get_relevant_documents(self, query: str) -> List[Document]:
         results = hybrid_search(
@@ -40,6 +41,7 @@ class SurgeryRetriever(BaseRetriever):
             query,
             top_k=self.top_k,
             department_id=self.department_id,
+            access_scope=self.access_scope,
         )
         return [
             Document(
@@ -65,12 +67,14 @@ def _vector_search(
     query: str,
     top_k: int,
     department_id: Optional[int] = None,
+    access_scope: Optional[str] = None,
 ) -> List[RetrievedChunk]:
     """基于 pgvector 的余弦相似度检索。
 
     查询 LangChain PGVector 的 langchain_pg_embedding 表，
     通过 id 关联回业务 chunks 表。
     当 department_id 不为 None 时，仅检索该科室文档。
+    当 access_scope 不为 None 时，仅检索该范围（含 both）的文档。
     """
     embeddings = embed_texts([query])
     if not embeddings or not embeddings[0]:
@@ -94,6 +98,7 @@ def _vector_search(
           AND business_chunk.generation = business_document.active_generation
           AND business_document.is_current IS TRUE
           AND (:dept_id IS NULL OR business_document.department_id = :dept_id)
+          AND (:scope IS NULL OR business_document.access_scope = :scope OR business_document.access_scope = 'both')
         ORDER BY distance ASC
         LIMIT :top_k
         """
@@ -105,6 +110,7 @@ def _vector_search(
             "coll_name": settings.VECTOR_COLLECTION_NAME,
             "top_k": top_k,
             "dept_id": department_id,
+            "scope": access_scope,
         },
     ).fetchall()
     if not rows:
@@ -145,12 +151,14 @@ def _fulltext_search(
     query: str,
     top_k: int,
     department_id: Optional[int] = None,
+    access_scope: Optional[str] = None,
 ) -> List[RetrievedChunk]:
     """基于 pg_trgm 相似度检索 langchain_pg_embedding.document 列。
 
     使用 pg_trgm 的 similarity() 函数替代 tsvector/tsquery，
     以支持中文等无空格分隔语言。GIN 索引使用 gin_trgm_ops。
     当 department_id 不为 None 时，仅检索该科室文档。
+    当 access_scope 不为 None 时，仅检索该范围（含 both）的文档。
     """
     if not query or not query.strip():
         return []
@@ -174,6 +182,7 @@ def _fulltext_search(
           AND business_chunk.generation = business_document.active_generation
           AND business_document.is_current IS TRUE
           AND (:dept_id IS NULL OR business_document.department_id = :dept_id)
+          AND (:scope IS NULL OR business_document.access_scope = :scope OR business_document.access_scope = 'both')
           AND GREATEST(
                 similarity(e.document, :query),
                 similarity(COALESCE(e.cmetadata->>'document_title', ''), :query)
@@ -189,6 +198,7 @@ def _fulltext_search(
             "coll_name": settings.VECTOR_COLLECTION_NAME,
             "top_k": top_k,
             "dept_id": department_id,
+            "scope": access_scope,
         },
     ).fetchall()
     if not rows:
@@ -266,6 +276,7 @@ def hybrid_search(
     query: str,
     top_k: int = settings.RETRIEVER_FINAL_TOP_K,
     department_id: Optional[int] = None,
+    access_scope: Optional[str] = None,
 ) -> List[RetrievedChunk]:
     """混合检索入口：向量 + 全文 + RRF 融合。
 
@@ -274,6 +285,7 @@ def hybrid_search(
         query: 用户查询。
         top_k: 最终返回片段数。
         department_id: 可选科室筛选，为 None 时搜索全部文档。
+        access_scope: 可选访问范围筛选，为 None 时不过滤（按 access_scope 及 both 命中）。
 
     Returns:
         按 RRF 得分降序排列的 RetrievedChunk 列表。
@@ -289,7 +301,8 @@ def hybrid_search(
 
     try:
         vector_results = _vector_search(
-            db, query, settings.RETRIEVER_TOP_K_VECTOR, department_id=department_id,
+            db, query, settings.RETRIEVER_TOP_K_VECTOR,
+            department_id=department_id, access_scope=access_scope,
         )
     except Exception:
         vector_failed = True
@@ -297,7 +310,8 @@ def hybrid_search(
 
     try:
         fulltext_results = _fulltext_search(
-            db, query, settings.RETRIEVER_TOP_K_FULLTEXT, department_id=department_id,
+            db, query, settings.RETRIEVER_TOP_K_FULLTEXT,
+            department_id=department_id, access_scope=access_scope,
         )
     except Exception:
         fulltext_failed = True

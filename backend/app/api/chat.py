@@ -297,11 +297,12 @@ async def ask(
                 retry_message_id=req.retry_message_id,
             )
 
-            # 2. 创建检索器
+            # 2. 创建检索器（聊天端仅检索 chat/both 范围文档）
             retriever = SurgeryRetriever(
                 db=db,
                 top_k=settings.RETRIEVER_FINAL_TOP_K,
                 department_id=req.department_id,
+                access_scope="chat",
             )
 
             # 3. 构建完整链并挂载消息历史

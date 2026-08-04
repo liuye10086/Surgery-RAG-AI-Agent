@@ -1,8 +1,13 @@
-"""基于用户历史引用的病例文档与图片访问控制。"""
+"""基于用户历史引用的病例文档与图片访问控制。
+
+documents.access_scope 取值：chat（默认，聊天可检索/读取）、operator（仅操作者可读）、both（双方可读）。
+operator 文档对普通聊天用户（doctor/patient 等）一律拒绝全文与图片读取，
+仅 ai_operator / admin 可读，防止通过历史引用绕过检索隔离。
+"""
 
 from sqlalchemy.orm import Session
 
-from app.db.models import Message, Session as ChatSession, User
+from app.db.models import Document, Message, Session as ChatSession, User
 
 
 def source_grants_document(source: dict, document_id: int) -> bool:
@@ -55,7 +60,12 @@ def user_can_access_document(
 ) -> bool:
     if user.role == "admin":
         return True
-
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        return False
+    if doc.access_scope == "operator":
+        # operator 专属文档仅 ai_operator/admin 可读，普通聊天用户不可读
+        return user.role == "ai_operator"
     return any(
         source_grants_document(source, document_id)
         for (sources,) in _user_sources(db, user.id)
@@ -73,7 +83,11 @@ def user_can_access_image(
 ) -> bool:
     if user.role == "admin":
         return True
-
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        return False
+    if doc.access_scope == "operator":
+        return user.role == "ai_operator"
     return any(
         source_grants_image(source, document_id, generation, filename)
         for (sources,) in _user_sources(db, user.id)
