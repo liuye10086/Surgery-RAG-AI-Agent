@@ -29,14 +29,8 @@
       </div>
 
       <div class="operator-body">
-        <!-- 病例库视图（Task 13 挂载 CaseManageView） -->
-        <div v-if="activeView === 'cases'" class="cases-placeholder">
-          <div class="placeholder-content">
-            <el-icon :size="48"><FolderOpened /></el-icon>
-            <h3>病例库</h3>
-            <p>病例库管理功能正在开发中，完成后可在此管理疾病字典、确诊病例与参考标准。</p>
-          </div>
-        </div>
+        <!-- 病例库视图 -->
+        <CaseManageView v-if="activeView === 'cases'" />
 
         <!-- 预测分析视图 -->
         <template v-else>
@@ -207,10 +201,11 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Loading, WarningFilled, InfoFilled, DataAnalysis, Plus, Delete, FolderOpened } from '@element-plus/icons-vue'
+import { Loading, WarningFilled, InfoFilled, DataAnalysis, Plus, Delete } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import OperatorSidebar from '@/components/OperatorSidebar.vue'
+import CaseManageView from '@/components/CaseManageView.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useOperatorStore } from '@/stores/operator'
 import { downloadReport, type IndicatorInput } from '@/api/operator'
@@ -458,33 +453,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-}
-
-/* ===== 病例库占位（Task 13 替换为 CaseManageView） ===== */
-.cases-placeholder {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.placeholder-content {
-  text-align: center;
-  color: var(--text-disabled);
-  max-width: 420px;
-}
-
-.placeholder-content h3 {
-  margin: var(--space-4) 0 var(--space-3);
-  font-size: var(--text-md);
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.placeholder-content p {
-  font-size: var(--text-sm);
-  line-height: 1.6;
-  color: var(--text-disabled);
 }
 
 /* ===== 报告内容区（可滚动） ===== */
