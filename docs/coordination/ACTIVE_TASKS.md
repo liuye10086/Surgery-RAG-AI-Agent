@@ -100,7 +100,8 @@ Phase 1 已按文件 B（`2026-08-03-access-scope-isolation.md`，Task 1-3）以
 - **第一批审查（Codex）**：Task 5/6 通过；Task 4 需修（ai_reports JSON 列缺 server_default，旧行迁移后为 NULL）、Task 7 需修（LLM 返回空结果未纳入失败保护）。修复提交 `f095d9a`（0006 server_default + ORM 同步 + 契约测试）、`d2660dc`（LLM 空结果整体 abort + 回归测试），修复后全量 142 passed。Codex 复核通过，第一批已推送（`origin/main = 0cb823a`）。
 - **第二批（Task 8-10，预测引擎 + API）已完成**：提交 `ad5b083`（prediction_engine 纯函数）、`640c5af`（prediction_generator SSE + 持久化）、`9d7eda3`（operator API 重构 + 删除旧流程文件，有效用例迁入）。后端全量 127 passed。Codex 复核通过，第二批已推送（`origin/main = 6beba6f`）。
 - **第三批（Task 11-13，前端）已完成**：提交 `d838c26`（API 层 + store + rangeFormat）、`e51919a`（OperatorView 重写 + Sidebar 导航）、`9af1d57`（CaseManageView 病例库）。前端 build 通过。
-- **第三批审查（Codex）**：Task 11 通过；Task 12 需修（病例库视图下选择历史报告/新建分析未切回预测视图）、Task 13 需修（病例保存后未刷新 diseases case_count）。修复提交 `a8a4d48`，修复后 build 通过。待 Codex 复核。
+- **第三批审查（Codex）**：Task 11 通过；Task 12 需修（病例库视图下选择历史报告/新建分析未切回预测视图）、Task 13 需修（病例保存后未刷新 diseases case_count）。修复提交 `a8a4d48`，修复后 build 通过。Codex 复核通过，第三批已推送（`origin/main = 0455dde`）。
+- **第四批（Task 14，收尾）已完成**：全量后端 127 passed、前端 build 通过、schema.sql 终态核对通过（0001-0006 全链一致）、契约测试 14 passed（0005/0006 链 + access_scope + AIReport 新列）、真实 PG 迁移往返通过（upgrade head → downgrade 0004 → upgrade head，降级后三表/列已删、重放后全部重建）。本地库现为 0006 (head)。待 Codex 终审。
 
 #### 评审交接信息
 
@@ -113,7 +114,8 @@ Phase 1 已按文件 B（`2026-08-03-access-scope-isolation.md`，Task 1-3）以
 基线：main = 2766ab5
 提交（第一批）：8b47425..d2660dc（已推送，含审查修复 f095d9a / d2660dc）
 提交（第二批）：ad5b083..9d7eda3（已推送）
-提交（第三批）：d838c26..a8a4d48（含审查修复 a8a4d48，待复核）
+提交（第三批）：d838c26..a8a4d48（已推送）
+提交（第四批）：终态验收，无代码提交（仅本登记更新）
 方案或登记：docs/coordination/ACTIVE_TASKS.md
 计划：docs/superpowers/plans/2026-08-03-ai-operator-predictive.md（文件 A，Task 4-7）
 验收条件：见计划各 Task 步骤（TDD 红绿、0006 迁移链、schema.sql 同步、离线测试全绿）
