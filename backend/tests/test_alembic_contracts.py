@@ -103,6 +103,19 @@ class AlembicContractTests(unittest.TestCase):
         cols = {c.name for c in AIReport.__table__.columns}
         self.assertTrue({"analysis_type", "disease_id", "indicators", "prediction_result"}.issubset(cols))
 
+    def test_ai_report_json_columns_have_defaults(self):
+        """indicators/prediction_result 必须有 server_default（旧行迁移后不得为 NULL）。"""
+        import inspect
+        from app.db.models import AIReport
+        cols = {c.name: c for c in AIReport.__table__.columns}
+        self.assertIsNotNone(cols["indicators"].server_default)
+        self.assertIsNotNone(cols["prediction_result"].server_default)
+
+        mig = _load_revision("0006_ai_operator_predictive.py", "migration_0006")
+        source = inspect.getsource(mig.upgrade)
+        self.assertIn("'[]'::jsonb", source)
+        self.assertIn("'{}'::jsonb", source)
+
 
 if __name__ == "__main__":
     unittest.main()

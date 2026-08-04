@@ -52,8 +52,10 @@ def upgrade() -> None:
     op.create_index("ix_reference_ranges_indicator", "reference_ranges", ["indicator_name"])
     op.add_column("ai_reports", sa.Column("analysis_type", sa.String(length=50), nullable=False, server_default="retrospective"))
     op.add_column("ai_reports", sa.Column("disease_id", sa.Integer(), sa.ForeignKey("diseases.id", name="fk_ai_reports_disease", ondelete="SET NULL")))
-    op.add_column("ai_reports", sa.Column("indicators", JSONB()))
-    op.add_column("ai_reports", sa.Column("prediction_result", JSONB()))
+    # server_default 使 ADD COLUMN 立即回填既有行为 []::jsonb / {}::jsonb，
+    # 与 ORM 与 schema.sql 保持一致，避免旧报告行这两列为 NULL。
+    op.add_column("ai_reports", sa.Column("indicators", JSONB(), server_default=sa.text("'[]'::jsonb")))
+    op.add_column("ai_reports", sa.Column("prediction_result", JSONB(), server_default=sa.text("'{}'::jsonb")))
 
 
 def downgrade() -> None:

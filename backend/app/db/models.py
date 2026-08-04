@@ -197,8 +197,10 @@ class AIReport(Base):
     # 预测分析新列（旧数据兼容：全部 nullable/default，旧报告以 analysis_type='retrospective' 标记）
     analysis_type = Column(String(50), nullable=False, default="retrospective", server_default="retrospective")
     disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="SET NULL"), nullable=True)
-    indicators = Column(JSONB, default=list)
-    prediction_result = Column(JSONB, default=dict)
+    # server_default 保证 0006 迁移后旧报告行这两列回填为 []/{}，不出现 NULL
+    # （Task 10 按 list[dict]/dict 输出时旧报告才不会被 Pydantic 校验失败）。
+    indicators = Column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    prediction_result = Column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
