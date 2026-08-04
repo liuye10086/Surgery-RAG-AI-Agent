@@ -10,32 +10,38 @@
 
 ```yaml
 task_id: ai-operator-predictive-001
-title: AI 操作者预测分析模块 — Phase 1 access_scope 文档隔离
-status: planned
+title: AI 操作者预测分析模块（Phase 1 access_scope 隔离 + Phase 2-5 预测分析）
+status: in-progress
 risk: high
 owner: Codex
 client: Codex-Desktop
-branch: codex/ai-operator-predictive-001
-worktree: C:/Users/86182/.codex/worktrees/60c1/Surgery RAG-Agent
+branch: main
+worktree: 无（协调方指示直接在 main 开发）
 planner: Claude-Code
-implementer: Codex
-reviewer: Claude-Code
+implementer: Claude-Code
+reviewer: Codex
 database_change: true
-plan: docs/superpowers/plans/2026-08-03-access-scope-isolation.md
+plan: docs/superpowers/plans/2026-08-03-access-scope-isolation.md（Phase 1 已交付）；docs/superpowers/plans/2026-08-03-ai-operator-predictive.md（Phase 2-5 实施中）
 review_handoff: pending
 ```
 
 #### 目标
 
-为 AI 操作者预测分析模块铺平隔离前提：新增 `documents.access_scope` 列，实现检索面（`hybrid_search`）与读取面（全文/图片）的文档访问隔离——聊天端只检索 `chat`/`both` 文档，`operator` 文档（如"正常体征参考标准"）永不被聊天端召回或读取；admin 上传支持选择 scope。对应计划文件 B 的 Task 1-3。
+将 AI 操作者模块从"7 章回顾性报告"重构为"结构化病例 + 指标异常预测分析"：管理员在模块内录入结构化病例和疾病字典，上传并同步"正常体征参考标准"，操作者选择疾病、输入患者指标后获得指标级异常分析 + 综合风险/匹配度等级（基于已录入病例的模式匹配参考，非临床确诊概率）。
+
+- **Phase 1（已交付）**：新增 `documents.access_scope` 列，实现检索面与读取面（全文/图片）文档访问隔离；admin 上传支持选择 scope。对应文件 B 的 Task 1-3。
+- **Phase 2-5（实施中）**：数据层（0006 迁移 + 疾病/病例/参考范围）、预测引擎、operator API 重构、前端重写、收尾验收。对应文件 A 的 Task 4-14。
 
 #### 实现说明
 
-按已批准计划（`2026-08-03-access-scope-isolation.md`，Phase 1，Task 1-3）以 TDD 方式执行：
+Phase 1 已按文件 B（`2026-08-03-access-scope-isolation.md`，Task 1-3）以 TDD 方式实施并交付（见评审记录）。Phase 2-5 按文件 A（`2026-08-03-ai-operator-predictive.md`，Task 4-14）以 TDD 方式分 4 批执行：
 
-- **Task 1**：Alembic 迁移 `0005_document_access_scope.py`（`documents.access_scope`，upgrade/downgrade 对称）+ ORM + `database/schema.sql` 同步。
-- **Task 2**：`hybrid_search`/`_vector_search`/`_fulltext_search`/`SurgeryRetriever` 增加 `access_scope` 参数，SQL 用 `business_document.access_scope` 过滤；`chat.py` 显式传 `access_scope="chat"`；`source_access.user_can_access_document/image` 检查 scope（operator 文档仅 `ai_operator`/`admin` 可读全文与图片）。
-- **Task 3**：admin 上传/更新接口支持 `access_scope`（`_validate_access_scope` 纯函数校验，非法 422，默认 `chat`），前端 AdminView 上传表单加下拉。
+- **第一批（Task 4-7，数据层）**：0006 迁移 + Disease/CaseRecord/ReferenceRange 模型 + AIReport 新列；疾病 CRUD；病例 CRUD；参考标准解析服务 + 同步端点。
+- **第二批（Task 8-10，预测引擎 + API）**：prediction_engine 纯函数；prediction_generator SSE 生成器；operator.py 重构（POST /reports → 预测请求）并删除旧流程文件。
+- **第三批（Task 11-13，前端）**：api/operator.ts + stores/operator.ts + rangeFormat；OperatorView 重写；CaseManageView 病例库。
+- **第四批（Task 14，收尾）**：全量测试、前端构建、schema.sql 终态核对、真实 PG 迁移往返验收、评审交接信息。
+
+每批完成交 Codex 审查，通过前不推送、不进入下一批。
 
 #### 范围
 
@@ -82,27 +88,29 @@ review_handoff: pending
 
 #### 阻塞记录
 
-- 实施 worktree（`C:/Users/86182/.codex/worktrees/60c1/Surgery RAG-Agent`）已隔离，当前 detached HEAD 于 `5a17c04`；实施开始前需在 Codex App 创建 `codex/ai-operator-predictive-001` 分支并 `git switch`（工作区干净后处理）。
+- 按协调方指示：Phase 2-5 直接在 `main` 开发，不使用 worktree/功能分支；Phase 1 的 worktree 记录已过期，不再适用。
+- 本地库已应用 0005（`alembic current` = 0005 head）；Task 14 验收时执行真实 PG 迁移往返（`upgrade head` → `downgrade 0004` → `upgrade head`）。
 
 #### 评审记录
 
-- 计划阶段已完成五轮跨客户端评审（共 38 条意见，含本任务相关 P0 隔离测试矛盾、P1 读取面隔离、P2 chat 显式传值/图片授权测试/admin 上传行为测试等），全部核验有效并并入计划文件 B。实施就绪结论：本任务可先开始实施并独立合入。
-- 尚未实施，代码评审待实施后由 Claude-Code 发起。
+- 计划阶段已完成五轮跨客户端评审（共 38 条意见），全部核验有效并并入计划文件 B/A。
+- **Phase 1（文件 B，Task 1-3）已实施并交付**：提交 `009b24a`..`2766ab5`（Task 1-3 + 审查修复 `e21d051`/`2a96eb5`/`186fd9b`/`3b162fd`/`2766ab5`），Codex 复核通过，已推送 `origin/main = 2766ab5`；本地库已应用 0005。
+- **Phase 2-5（文件 A，Task 4-14）实施中**：按协调方指示在 main 直接开发，分 4 批实施与审查（Task 4-7 → 8-10 → 11-13 → 14），每批 Codex 审查通过后推送并进入下一批。第一批（Task 4-7）已开始。
 
 #### 评审交接信息
 
 ```text
-请评审任务 ai-operator-predictive-001。
+请评审任务 ai-operator-predictive-001（第一批：Task 4-7）。
 
-实现者：Codex
-评审者：Claude Code
-分支：codex/ai-operator-predictive-001
-基线：main
-提交：<first-commit>..<last-commit>
+实现者：Claude-Code
+评审者：Codex
+分支：main（协调方指示直接在主分支开发）
+基线：main = 2766ab5
+提交：<first-commit>..<last-commit>（本批完成后填充）
 方案或登记：docs/coordination/ACTIVE_TASKS.md
-计划：docs/superpowers/plans/2026-08-03-access-scope-isolation.md
-验收条件：见本任务"验收条件"部分
-重点检查：0005 迁移可回滚、检索/读取面隔离无绕过路径、聊天端显式 access_scope="chat"、admin 上传 scope 校验、存量聊天检索行为无回归
+计划：docs/superpowers/plans/2026-08-03-ai-operator-predictive.md（文件 A，Task 4-7）
+验收条件：见计划各 Task 步骤（TDD 红绿、0006 迁移链、schema.sql 同步、离线测试全绿）
+重点检查：0006 迁移 upgrade/downgrade 对称与外键显式命名、case_metadata 保留名处理、inclusive 边界语义贯穿（Task 7）、同步失败保护不破坏旧数据、/operator/documents 的 sync_ready、旧数据兼容（ai_reports 遗留列）
 
 只输出评审意见，不直接修改实现提交。
 ```
