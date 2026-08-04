@@ -128,8 +128,10 @@ class TestMainAppRegistration(unittest.TestCase):
         importlib.reload(main_mod)
 
         app = main_mod.app
+        # 兼容不同 Starlette 版本：app.routes 中可能存在无 path 属性的内部路由对象
         operator_paths = [
-            r.path for r in app.routes if "/operator" in r.path
+            r.path for r in app.routes
+            if getattr(r, "path", None) and "/operator" in r.path
         ]
         self.assertGreaterEqual(
             len(operator_paths), 1,
