@@ -439,15 +439,19 @@ def update_document(
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """修改文档的科室归属与访问范围。"""
+    """修改文档的科室归属与访问范围（仅更新请求体中显式给出的字段）。"""
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
 
-    if payload.department_id is not None:
-        _validate_department(db, payload.department_id)
-    doc.department_id = payload.department_id
-    if payload.access_scope is not None:
+    # model_fields_set 区分“字段省略”与“显式传 null”，避免部分更新误清空其他字段
+    fields = payload.model_fields_set
+
+    if "department_id" in fields:
+        if payload.department_id is not None:
+            _validate_department(db, payload.department_id)
+        doc.department_id = payload.department_id
+    if "access_scope" in fields and payload.access_scope is not None:
         try:
             doc.access_scope = _validate_access_scope(payload.access_scope)
         except ValueError as e:

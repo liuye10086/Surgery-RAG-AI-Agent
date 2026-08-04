@@ -131,6 +131,40 @@ class AccessScopeValidationTests(unittest.TestCase):
         out = _document_to_out(doc)
         self.assertEqual(out.access_scope, "operator")
 
+    def test_update_access_scope_keeps_existing_department(self):
+        """只更新 access_scope 不应清空已有 department_id。"""
+        from datetime import datetime
+        from unittest.mock import MagicMock
+        from app.api.admin import update_document
+        from app.schemas.document import DocumentUpdateIn
+
+        db = MagicMock()
+        doc = MagicMock()
+        doc.id = 42
+        doc.title = "示例文档"
+        doc.filename = "example.pdf"
+        doc.file_type = "pdf"
+        doc.file_size = 1024
+        doc.status = "indexed"
+        doc.error_message = None
+        doc.version = 1
+        doc.is_current = True
+        doc.chunks = []
+        doc.department_id = 7
+        doc.department = None
+        doc.access_scope = "chat"
+        doc.created_at = datetime(2026, 1, 1)
+        doc.updated_at = datetime(2026, 1, 1)
+        db.query.return_value.filter.return_value.first.return_value = doc
+
+        admin = MagicMock()
+        payload = DocumentUpdateIn(access_scope="operator")
+        out = update_document(42, payload, admin, db)
+
+        self.assertEqual(doc.access_scope, "operator")
+        self.assertEqual(doc.department_id, 7)
+        self.assertEqual(out.access_scope, "operator")
+
 
 if __name__ == "__main__":
     unittest.main()
