@@ -74,6 +74,11 @@
                   :value="d.id"
                 />
               </el-select>
+              <el-select v-model="uploadAccessScope" size="small" style="width: 120px">
+                <el-option label="聊天可见" value="chat" />
+                <el-option label="仅操作者" value="operator" />
+                <el-option label="均可" value="both" />
+              </el-select>
               <el-upload
                 ref="uploadRef"
                 action="#"
@@ -143,6 +148,13 @@
                 <span :class="{ 'dept-empty': !row.department_name }">
                   {{ row.department_name || '未分类' }}
                 </span>
+              </template>
+            </el-table-column>
+            <el-table-column label="访问范围" width="110" align="center" header-align="center">
+              <template #default="{ row }">
+                <el-tag :type="accessScopeType(row.access_scope)" size="small">
+                  {{ accessScopeLabel(row.access_scope) }}
+                </el-tag>
               </template>
             </el-table-column>
             <el-table-column prop="chunk_count" label="分块数" width="90" align="center" header-align="center" />
@@ -311,6 +323,7 @@ const chunkingId = ref<number | null>(null)
 const indexingId = ref<number | null>(null)
 const searchKeyword = ref('')
 const uploadDepartmentId = ref<number | null>(null)
+const uploadAccessScope = ref('chat')
 const filterDepartmentId = ref<number | null>(null)
 const departments = ref<DepartmentOut[]>([])
 
@@ -346,6 +359,24 @@ function statusLabel(status: string) {
     failed: '失败',
   }
   return map[status] || status
+}
+
+function accessScopeLabel(scope: string) {
+  const map: Record<string, string> = {
+    chat: '聊天可见',
+    operator: '仅操作者',
+    both: '均可',
+  }
+  return map[scope] || scope || 'chat'
+}
+
+function accessScopeType(scope: string) {
+  const map: Record<string, 'info' | 'warning' | 'success'> = {
+    chat: 'info',
+    operator: 'warning',
+    both: 'success',
+  }
+  return map[scope] || 'info'
 }
 
 function canChunk(status: string) {
@@ -417,10 +448,11 @@ async function submitUpload() {
   if (!selectedFile.value) return
   uploading.value = true
   try {
-    await uploadDocument(selectedFile.value, uploadTitle.value, uploadDepartmentId.value || undefined)
+    await uploadDocument(selectedFile.value, uploadTitle.value, uploadDepartmentId.value || undefined, uploadAccessScope.value)
     ElMessage.success('上传成功')
     uploadTitle.value = ''
     uploadDepartmentId.value = null
+    uploadAccessScope.value = 'chat'
     selectedFile.value = null
     uploadRef.value?.clearFiles()
     await loadDocuments()

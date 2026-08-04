@@ -14,6 +14,7 @@ export interface DocumentUploadResponse {
   title: string | null
   status: string
   department_id: number | null
+  access_scope: string
 }
 
 export interface DocumentOut {
@@ -29,6 +30,7 @@ export interface DocumentOut {
   chunk_count: number
   department_id: number | null
   department_name: string | null
+  access_scope: string
   created_at: string
   updated_at: string
 }
@@ -52,7 +54,7 @@ export interface DocumentWithChunksOut extends DocumentOut {
   chunks: ChunkOut[]
 }
 
-export function uploadDocument(file: File, title?: string, department_id?: number): Promise<DocumentUploadResponse> {
+export function uploadDocument(file: File, title?: string, department_id?: number, access_scope?: string): Promise<DocumentUploadResponse> {
   const formData = new FormData()
   formData.append('file', file)
   if (title) {
@@ -60,6 +62,9 @@ export function uploadDocument(file: File, title?: string, department_id?: numbe
   }
   if (department_id !== undefined && department_id !== null) {
     formData.append('department_id', String(department_id))
+  }
+  if (access_scope) {
+    formData.append('access_scope', access_scope)
   }
   return request.post('/v1/admin/documents/upload', formData, {
     headers: {

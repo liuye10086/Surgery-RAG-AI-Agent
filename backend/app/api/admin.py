@@ -26,6 +26,17 @@ from app.services.document_indexing import (
 
 router = APIRouter(prefix="", tags=["admin"])
 
+_ALLOWED_ACCESS_SCOPES = {"chat", "operator", "both"}
+
+
+def _validate_access_scope(value: str) -> str:
+    """校验并归一化 access_scope；省略/空串 → 'chat'；非法值抛 ValueError。"""
+    if not value:
+        return "chat"
+    if value not in _ALLOWED_ACCESS_SCOPES:
+        raise ValueError(f"非法的 access_scope: {value}")
+    return value
+
 
 def _validate_department(db: Session, department_id: int | None) -> Department | None:
     """校验科室 ID 有效且未停用，返回 Department 或 raise HTTPException。"""
@@ -80,6 +91,7 @@ def _document_to_out(doc: Document) -> DocumentOut:
         chunk_count=len(doc.chunks),
         department_id=doc.department_id,
         department_name=doc.department.name if doc.department else None,
+        access_scope=doc.access_scope,
         created_at=doc.created_at,
         updated_at=doc.updated_at,
     )
@@ -90,10 +102,18 @@ def upload_document(
     file: UploadFile = File(...),
     title: str | None = Form(None),
     department_id: int | None = Form(None),
+    access_scope: str = Form("chat"),
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     _validate_department(db, department_id)
+    try:
+        access_scope = _validate_access_scope(access_scope)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
 
     try:
         file_path = file_storage.save_upload(file)
@@ -116,6 +136,7 @@ def upload_document(
         file_size=file_size,
         status="pending",
         department_id=department_id,
+        access_scope=access_scope,
     )
     db.add(doc)
     db.commit()
@@ -127,6 +148,7 @@ def upload_document(
         title=doc.title,
         status=doc.status,
         department_id=doc.department_id,
+        access_scope=doc.access_scope,
     )
 
 
@@ -417,7 +439,7 @@ def update_document(
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """修改文档的科室归属。"""
+    """修改文档的科室归属与访问范围。"""
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
@@ -425,6 +447,14 @@ def update_document(
     if payload.department_id is not None:
         _validate_department(db, payload.department_id)
     doc.department_id = payload.department_id
+    if payload.access_scope is not None:
+        try:
+            doc.access_scope = _validate_access_scope(payload.access_scope)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(e),
+            )
     db.commit()
     db.refresh(doc)
     return _document_to_out(doc)

@@ -10,6 +10,7 @@ class DocumentUploadResponse(BaseModel):
     title: Optional[str]
     status: str
     department_id: Optional[int] = None
+    access_scope: str = "chat"
 
 
 class DocumentOut(BaseModel):
@@ -27,6 +28,7 @@ class DocumentOut(BaseModel):
     chunk_count: int = 0
     department_id: Optional[int] = None
     department_name: Optional[str] = None
+    access_scope: str = "chat"
     created_at: datetime
     updated_at: datetime
 
@@ -54,3 +56,4 @@ class DocumentListOut(BaseModel):
 
 class DocumentUpdateIn(BaseModel):
     department_id: Optional[int] = None
+    access_scope: Optional[str] = None

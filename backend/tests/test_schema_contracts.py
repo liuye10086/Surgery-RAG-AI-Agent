@@ -22,6 +22,10 @@ class SchemaContractTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             AskRequest(content="术后多久复查？", client_request_id="   ")
 
+    def test_document_out_has_access_scope(self):
+        from app.schemas.document import DocumentOut
+        self.assertIn("access_scope", DocumentOut.model_fields)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -91,5 +91,46 @@ class HybridSearchTests(unittest.TestCase):
                           f"SurgeryRetriever 构造未显式传 access_scope: {call[:80]}...")
 
 
+class AccessScopeValidationTests(unittest.TestCase):
+    def test_validate_accepts_all_three_scopes(self):
+        from app.api.admin import _validate_access_scope
+        for scope in ("chat", "operator", "both"):
+            self.assertEqual(_validate_access_scope(scope), scope)
+
+    def test_validate_rejects_invalid_scope(self):
+        from app.api.admin import _validate_access_scope
+        with self.assertRaises(ValueError):
+            _validate_access_scope("public")
+
+    def test_validate_default_is_chat(self):
+        # 上传接口默认 access_scope="chat"：空字符串或省略按 chat 处理
+        from app.api.admin import _validate_access_scope
+        self.assertEqual(_validate_access_scope(""), "chat")
+
+    def test_document_to_out_exposes_access_scope(self):
+        from datetime import datetime
+        from unittest.mock import MagicMock
+        from app.api.admin import _document_to_out
+        doc = MagicMock()
+        doc.access_scope = "operator"
+        # 补齐 _document_to_out 用到的其余字段，避免 pydantic 校验失败
+        doc.id = 1
+        doc.title = "示例文档"
+        doc.filename = "example.pdf"
+        doc.file_type = "pdf"
+        doc.file_size = 1024
+        doc.status = "indexed"
+        doc.error_message = None
+        doc.version = 1
+        doc.is_current = True
+        doc.chunks = []
+        doc.department_id = None
+        doc.department = None
+        doc.created_at = datetime(2026, 1, 1)
+        doc.updated_at = datetime(2026, 1, 1)
+        out = _document_to_out(doc)
+        self.assertEqual(out.access_scope, "operator")
+
+
 if __name__ == "__main__":
     unittest.main()
