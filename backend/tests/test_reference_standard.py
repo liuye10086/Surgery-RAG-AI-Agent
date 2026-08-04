@@ -114,6 +114,28 @@ class SyncProtectionTests(unittest.TestCase):
         # 即使确定性有部分命中，LLM 失败时也不得 delete 旧行
         db.query.return_value.filter.return_value.delete.assert_not_called()
 
+    @patch("app.services.reference_standard._sync_from_llm", return_value=[])
+    def test_partial_deterministic_plus_empty_llm_result_keeps_old_data(self, _llm):
+        """确定性解析有部分命中 + LLM 返回空（输出非法 JSON/无有效条目）：
+        无法证明空结果合法，仍须整体 abort 保留旧数据，不能以部分结果覆盖。"""
+        from app.services.reference_standard import sync_reference_ranges
+
+        db = MagicMock()
+        doc = MagicMock()
+        doc.id = 1
+        doc.access_scope = "operator"
+        doc.active_generation = 1
+        doc.title = "标准"
+        db.query.return_value.filter.return_value.first.return_value = doc
+        chunk = MagicMock()
+        chunk.content = "- TBIL（总胆红素）：<21 μmol/L\n（此行为补充说明，需 LLM 解析）"
+        db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [chunk]
+
+        with self.assertRaises(ValueError):
+            sync_reference_ranges(db, 1)
+        # LLM 返回空也不得 delete 旧行
+        db.query.return_value.filter.return_value.delete.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

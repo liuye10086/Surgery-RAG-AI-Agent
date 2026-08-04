@@ -223,12 +223,13 @@ def sync_reference_ranges(db: Session, document_id: int) -> dict:
             logger.exception("LLM reference extraction failed for doc %s", document_id)
 
     # 失败不破坏旧数据（两层保护）：
-    # ① 本应有 LLM 解析的片段失败（llm_fragments 非空且 llm_failed）→ 即使确定性解析
-    #    有部分命中，也整体 abort 并保留旧数据——否则参考范围会被静默缩小为部分结果，
+    # ① 本应有 LLM 解析的片段（llm_fragments 非空）但 LLM 失败或产出为空 →
+    #    整体 abort 并保留旧数据。LLM 返回空可能意味着输出非法 JSON 或无有效条目，
+    #    无法证明空结果合法；若放行，参考范围会被静默缩小为部分结果，
     #    同步接口显示成功但后续预测/SSE/PDF 都基于不完整标准。
-    if llm_failed and llm_fragments:
+    if llm_fragments and (llm_failed or not llm_items):
         raise ValueError(
-            "LLM 提取参考范围失败，已保留文档原有解析结果（不替换为部分数据），请检查后重试"
+            "LLM 提取参考范围失败或未产出有效条目，已保留文档原有解析结果（不替换为部分数据），请检查后重试"
         )
 
     items = deterministic + llm_items
