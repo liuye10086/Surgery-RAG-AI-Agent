@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, func, text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
@@ -122,6 +122,57 @@ class Message(Base):
     session = relationship("Session", back_populates="messages")
 
 
+class Disease(Base):
+    __tablename__ = "diseases"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), unique=True, nullable=False)
+    description = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    case_records = relationship("CaseRecord", back_populates="disease", cascade="all, delete-orphan")
+
+
+class CaseRecord(Base):
+    __tablename__ = "case_records"
+    __table_args__ = (Index("ix_case_records_disease_id", "disease_id"),)
+
+    id = Column(Integer, primary_key=True)
+    disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="CASCADE"), nullable=False)
+    patient_label = Column(String(100))
+    indicators = Column(JSONB, nullable=False, default=list)
+    confirmed = Column(Boolean, nullable=False, default=True, server_default="true")
+    # 注意：`metadata` 是 SQLAlchemy declarative 的保留类属性（MetaData），
+    # 不能直接作为 ORM 属性名，否则 models.py 导入即失败。
+    # DB 列名仍为 "metadata"，ORM 属性命名为 case_metadata（与 Chunk.chunk_metadata 同模式）。
+    case_metadata = Column("metadata", JSONB, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    disease = relationship("Disease", back_populates="case_records")
+
+
+class ReferenceRange(Base):
+    __tablename__ = "reference_ranges"
+    __table_args__ = (Index("ix_reference_ranges_indicator", "indicator_name"),)
+
+    id = Column(Integer, primary_key=True)
+    indicator_name = Column(String(100), nullable=False)
+    name_cn = Column(String(200))
+    unit = Column(String(50))
+    lower = Column(Float)
+    upper = Column(Float)
+    # 边界开闭语义：<21 → upper=21, upper_inclusive=False；≤21 → True；
+    # 区间 3.5-9.5 → 两端 True。见 Global Constraints「参考范围边界语义」。
+    lower_inclusive = Column(Boolean, nullable=False, default=True, server_default="true")
+    upper_inclusive = Column(Boolean, nullable=False, default=True, server_default="true")
+    category = Column(String(100))
+    # 删除语义：参考标准文档删除时，其解析出的范围**级联删除**（CASCADE）。
+    # 若用 SET NULL，文档删除后范围变孤儿仍参与预测，会基于已删除标准给出误导结果；
+    # 级联后预测遇缺范围会明确报"缺少参考范围"提示操作者重新同步，行为更安全。
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class AIReport(Base):
     __tablename__ = "ai_reports"
     __table_args__ = (
@@ -143,6 +194,11 @@ class AIReport(Base):
     status = Column(String(50), default="generating")
     error_message = Column(Text)
     download_count = Column(Integer, default=0)
+    # 预测分析新列（旧数据兼容：全部 nullable/default，旧报告以 analysis_type='retrospective' 标记）
+    analysis_type = Column(String(50), nullable=False, default="retrospective", server_default="retrospective")
+    disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="SET NULL"), nullable=True)
+    indicators = Column(JSONB, default=list)
+    prediction_result = Column(JSONB, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

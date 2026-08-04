@@ -47,6 +47,12 @@ class AlembicContractTests(unittest.TestCase):
         self.assertEqual(predictive.revision, "0005")
         self.assertEqual(predictive.down_revision, "0004")
 
+        predictive = _load_revision(
+            "0006_ai_operator_predictive.py", "migration_0006"
+        )
+        self.assertEqual(predictive.revision, "0006")
+        self.assertEqual(predictive.down_revision, "0005")
+
     def test_env_excludes_langchain_internal_tables(self):
         env_source = (BACKEND_ROOT / "alembic/env.py").read_text(encoding="utf-8")
         self.assertIn('name.startswith("langchain_pg_")', env_source)
@@ -76,6 +82,26 @@ class AlembicContractTests(unittest.TestCase):
         cols = {c.name: c for c in Document.__table__.columns}
         self.assertIn("access_scope", cols)
         self.assertEqual(cols["access_scope"].server_default.arg, "chat")
+
+    def test_new_predictive_tables_declared(self):
+        from app.db.models import CaseRecord, Disease, ReferenceRange
+        self.assertIn("id", Disease.__table__.columns)
+        self.assertIn("disease_id", CaseRecord.__table__.columns)
+        self.assertIn("indicator_name", ReferenceRange.__table__.columns)
+
+    def test_reference_range_inclusive_columns(self):
+        from app.db.models import ReferenceRange
+        cols = {c.name: c for c in ReferenceRange.__table__.columns}
+        self.assertIn("lower_inclusive", cols)
+        self.assertIn("upper_inclusive", cols)
+        # 默认含边界（True），与迁移 server_default=true 一致
+        self.assertEqual(cols["lower_inclusive"].server_default.arg, "true")
+        self.assertEqual(cols["upper_inclusive"].server_default.arg, "true")
+
+    def test_ai_report_predictive_columns(self):
+        from app.db.models import AIReport
+        cols = {c.name for c in AIReport.__table__.columns}
+        self.assertTrue({"analysis_type", "disease_id", "indicators", "prediction_result"}.issubset(cols))
 
 
 if __name__ == "__main__":
