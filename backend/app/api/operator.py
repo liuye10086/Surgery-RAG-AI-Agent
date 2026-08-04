@@ -1,11 +1,12 @@
-"""AI 操作者报告 API 路由。
+"""AI 操作者报告/预测 API 路由。
 
-提供 5 个端点：
-  POST   /operator/reports          — 创建并流式生成报告（SSE）
-  GET    /operator/reports          — 列出当前用户报告（分页）
+提供报告端点与预测分析端点：
+  POST   /operator/reports          — 创建并流式生成预测报告（SSE，PredictRequest）
+  GET    /operator/reports          — 列出当前用户报告（分页，可按 analysis_type 过滤）
   GET    /operator/reports/{id}     — 获取单个报告详情
   DELETE /operator/reports/{id}     — 删除报告
   GET    /operator/reports/{id}/download — 下载 PDF
+  POST/GET /operator/diseases、/operator/cases、/operator/reference-ranges（...）、/operator/documents — 预测分析数据层
 """
 
 import asyncio
@@ -35,7 +36,6 @@ from app.db.models import (
 )
 from app.db.session import get_db
 from app.schemas.operator import (
-    ReportGenerateRequest,
     ReportListOut,
     ReportListItem,
     ReportOut,
@@ -46,12 +46,13 @@ from app.schemas.prediction import (
     DiseaseCreate,
     DiseaseOut,
     DiseaseUpdate,
+    PredictRequest,
     ReferenceRangeOut,
     ReferenceRangeSyncIn,
 )
 from app.services.pdf_generator import generate_pdf
+from app.services.prediction_generator import generate_prediction
 from app.services.reference_standard import sync_reference_ranges
-from app.services.report_generator import generate_report
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/operator", tags=["operator"])
@@ -73,11 +74,11 @@ def _verify_report_owner(report: AIReport, current_user: User) -> None:
 
 @router.post("/reports")
 async def create_and_generate_report(
-    request: ReportGenerateRequest,
+    request: PredictRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_operator),
 ):
-    """创建报告记录并流式生成，SSE 响应。
+    """创建预测报告记录并流式生成，SSE 响应。
 
     客户端应使用 fetch + ReadableStream（非 EventSource）读取，
     因为此接口为 POST 且需 JSON body。
@@ -85,28 +86,17 @@ async def create_and_generate_report(
     """
     start_time = _time.monotonic()
 
-    # 1. 前置校验：analysis_backend
-    if request.analysis_backend not in ("llm",):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"未知的 analysis_backend: {request.analysis_backend}",
-        )
+    # 1. 前置校验：疾病存在
+    if not db.query(Disease).filter(Disease.id == request.disease_id).first():
+        raise HTTPException(status_code=422, detail="疾病不存在")
 
-    # 2. 前置校验：department_ids（避免创建记录后才发现无效科室）
-    from app.services.report_generator import _validate_department_ids
-    try:
-        _validate_department_ids(db, request.department_ids)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e),
-        )
-
-    # 3. 创建 ai_reports 记录（status=generating）
+    # 2. 创建 ai_reports 记录（status=generating, analysis_type='predictive'）
     report = AIReport(
         user_id=current_user.id,
-        query=request.query,
-        department_ids=request.department_ids or [],
+        query=request.patient_summary or "",
+        disease_id=request.disease_id,
+        indicators=[i.model_dump() for i in request.indicators],
+        analysis_type="predictive",
         status="generating",
     )
     db.add(report)
@@ -118,19 +108,19 @@ async def create_and_generate_report(
     async def _stream_and_cleanup():
         """流式生成 + finally 块处理取消/异常的状态标记。"""
         try:
-            async for sse_event in generate_report(
+            async for sse_event in generate_prediction(
                 db=db,
                 user_id=current_user_id,
                 report_id=report_id,
-                query=request.query,
-                department_ids=request.department_ids,
-                analysis_backend=request.analysis_backend,
+                disease_id=request.disease_id,
+                indicators=[i.model_dump() for i in request.indicators],
+                patient_summary=request.patient_summary,
             ):
                 yield sse_event
         except (asyncio.CancelledError, GeneratorExit):
             # 客户端断连 → 标记 cancelled（仅 generating → cancelled）
             logger.warning(
-                "Report generation cancelled by client for report_id=%s", report_id
+                "Prediction cancelled by client for report_id=%s", report_id
             )
             try:
                 r = db.query(AIReport).filter(AIReport.id == report_id).first()
@@ -146,27 +136,18 @@ async def create_and_generate_report(
             # 审计日志（非关键路径）
             elapsed_ms = int((_time.monotonic() - start_time) * 1000)
             try:
-                final_report = (
-                    db.query(AIReport).filter(AIReport.id == report_id).first()
-                )
-                retrieved_chunk_ids = []
-                if final_report and final_report.retrieval_meta:
-                    retrieved_chunk_ids = (
-                        final_report.retrieval_meta.get("retrieved_chunk_ids", [])
-                    )
                 audit = AuditLog(
                     user_id=current_user_id,
                     session_id=None,
                     request_body={
-                        "feature": "operator_report",
+                        "feature": "operator_prediction",
                         "action": "generate",
                         "report_id": report_id,
-                        "query": request.query,
-                        "department_ids": request.department_ids,
+                        "disease_id": request.disease_id,
                     },
                     model=settings.DEEPSEEK_MODEL,
                     latency_ms=elapsed_ms,
-                    retrieved_chunk_ids=retrieved_chunk_ids,
+                    retrieved_chunk_ids=[],
                     safety_flags={},
                 )
                 db.add(audit)
@@ -189,19 +170,17 @@ async def create_and_generate_report(
 def list_reports(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
+    analysis_type: str | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_operator),
 ):
-    """列出当前用户创建的报告，按创建时间倒序。"""
-    total = (
-        db.query(AIReport)
-        .filter(AIReport.user_id == current_user.id)
-        .count()
-    )
+    """列出当前用户创建的报告，按创建时间倒序，可按 analysis_type 过滤。"""
+    q = db.query(AIReport).filter(AIReport.user_id == current_user.id)
+    if analysis_type is not None:
+        q = q.filter(AIReport.analysis_type == analysis_type)
+    total = q.count()
     reports = (
-        db.query(AIReport)
-        .filter(AIReport.user_id == current_user.id)
-        .order_by(AIReport.created_at.desc())
+        q.order_by(AIReport.created_at.desc())
         .offset(skip)
         .limit(limit)
         .all()

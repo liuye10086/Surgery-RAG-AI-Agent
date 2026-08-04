@@ -3,41 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-
-class ReportGenerateRequest(BaseModel):
-    query: str = Field(
-        ...,
-        min_length=1,
-        max_length=2000,
-        description="分析问题，1-2000 字符",
-    )
-    department_ids: Optional[list[int]] = Field(
-        default=None,
-        description="可选科室筛选，为 None 或空数组时全库检索",
-    )
-    analysis_backend: str = Field(
-        default="llm",
-        pattern=r"^(llm|predictive)$",
-        description="分析后端：llm（LLM 分析）或 predictive（预测模型，预留）",
-    )
-
-    @field_validator("query", mode="before")
-    @classmethod
-    def strip_query(cls, v: str) -> str:
-        if isinstance(v, str):
-            return v.strip()
-        return v
-
-    @field_validator("department_ids", mode="before")
-    @classmethod
-    def normalize_department_ids(
-        cls, v: Optional[list[int]]
-    ) -> Optional[list[int]]:
-        if v is not None and len(v) == 0:
-            return None
-        return v
+from pydantic import BaseModel, ConfigDict
 
 
 class ReportOut(BaseModel):
@@ -54,6 +20,11 @@ class ReportOut(BaseModel):
     status: str
     error_message: Optional[str]
     download_count: int
+    # 预测分析字段（旧报告默认 retrospective，预测报告为 predictive）
+    analysis_type: str = "retrospective"
+    disease_id: Optional[int] = None
+    indicators: list[dict] = []
+    prediction_result: dict = {}
     created_at: datetime
     updated_at: datetime
 
@@ -71,6 +42,11 @@ class ReportListItem(BaseModel):
     status: str
     error_message: Optional[str]
     download_count: int
+    # 预测分析字段（旧报告默认 retrospective）
+    analysis_type: str = "retrospective"
+    disease_id: Optional[int] = None
+    indicators: list[dict] = []
+    prediction_result: dict = {}
     created_at: datetime
     updated_at: datetime
 
