@@ -11,7 +11,7 @@
 ```yaml
 task_id: ai-operator-predictive-001
 title: AI 操作者预测分析模块（Phase 1 access_scope 隔离 + Phase 2-5 预测分析）
-status: in-progress
+status: completed
 risk: high
 owner: Codex
 client: Codex-Desktop
@@ -21,8 +21,8 @@ planner: Claude-Code
 implementer: Claude-Code
 reviewer: Codex
 database_change: true
-plan: docs/superpowers/plans/2026-08-03-access-scope-isolation.md（Phase 1 已交付）；docs/superpowers/plans/2026-08-03-ai-operator-predictive.md（Phase 2-5 实施中）
-review_handoff: pending
+plan: docs/superpowers/plans/2026-08-03-access-scope-isolation.md（Phase 1 已交付）；docs/superpowers/plans/2026-08-03-ai-operator-predictive.md（Phase 2-5 已交付）
+review_handoff: generated
 ```
 
 #### 目标
@@ -101,7 +101,8 @@ Phase 1 已按文件 B（`2026-08-03-access-scope-isolation.md`，Task 1-3）以
 - **第二批（Task 8-10，预测引擎 + API）已完成**：提交 `ad5b083`（prediction_engine 纯函数）、`640c5af`（prediction_generator SSE + 持久化）、`9d7eda3`（operator API 重构 + 删除旧流程文件，有效用例迁入）。后端全量 127 passed。Codex 复核通过，第二批已推送（`origin/main = 6beba6f`）。
 - **第三批（Task 11-13，前端）已完成**：提交 `d838c26`（API 层 + store + rangeFormat）、`e51919a`（OperatorView 重写 + Sidebar 导航）、`9af1d57`（CaseManageView 病例库）。前端 build 通过。
 - **第三批审查（Codex）**：Task 11 通过；Task 12 需修（病例库视图下选择历史报告/新建分析未切回预测视图）、Task 13 需修（病例保存后未刷新 diseases case_count）。修复提交 `a8a4d48`，修复后 build 通过。Codex 复核通过，第三批已推送（`origin/main = 0455dde`）。
-- **第四批（Task 14，收尾）已完成**：全量后端 127 passed、前端 build 通过、schema.sql 终态核对通过（0001-0006 全链一致）、契约测试 14 passed（0005/0006 链 + access_scope + AIReport 新列）、真实 PG 迁移往返通过（upgrade head → downgrade 0004 → upgrade head，降级后三表/列已删、重放后全部重建）。本地库现为 0006 (head)。待 Codex 终审。
+- **第四批（Task 14，收尾）已完成**：全量后端 127 passed、前端 build 通过、schema.sql 终态核对通过（0001-0006 全链一致）、契约测试 14 passed（0005/0006 链 + access_scope + AIReport 新列）、真实 PG 迁移往返通过（upgrade head → downgrade 0004 → upgrade head，降级后三表/列已删、重放后全部重建）。本地库现为 0006 (head)。
+- **Codex 终审通过**（四批 Task 4-14 全部通过），已推送 `origin/main = 8bf1a96`。**任务已完成**。
 
 #### 评审交接信息
 
