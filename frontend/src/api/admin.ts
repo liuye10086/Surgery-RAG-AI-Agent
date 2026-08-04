@@ -77,8 +77,13 @@ export function listDocuments(skip = 0, limit = 100, search?: string, department
   return request.get('/v1/admin/documents', { params: { skip, limit, search, department_id } })
 }
 
-export function updateDocument(id: number, department_id: number | null): Promise<DocumentOut> {
-  return request.put(`/v1/admin/documents/${id}`, { department_id })
+export interface DocumentUpdateIn {
+  department_id?: number | null
+  access_scope?: 'chat' | 'operator' | 'both'
+}
+
+export function updateDocument(id: number, payload: DocumentUpdateIn): Promise<DocumentOut> {
+  return request.put(`/v1/admin/documents/${id}`, payload)
 }
 
 // 科室 API
