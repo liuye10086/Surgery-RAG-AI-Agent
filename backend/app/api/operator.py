@@ -38,7 +38,13 @@ from app.schemas.operator import (
     ReportListItem,
     ReportOut,
 )
-from app.schemas.prediction import DiseaseCreate, DiseaseOut, DiseaseUpdate
+from app.schemas.prediction import (
+    CaseRecordIn,
+    CaseRecordOut,
+    DiseaseCreate,
+    DiseaseOut,
+    DiseaseUpdate,
+)
 from app.services.pdf_generator import generate_pdf
 from app.services.report_generator import generate_report
 
@@ -399,5 +405,94 @@ def delete_disease(
     if db.query(CaseRecord).filter(CaseRecord.disease_id == disease_id).count():
         raise HTTPException(status_code=409, detail="该疾病下存在病例，请先删除病例")
     db.delete(d)
+    db.commit()
+    return None
+
+
+# ---------------------------------------------------------------------------
+# 病例 CRUD（AI 操作者预测分析）
+# ---------------------------------------------------------------------------
+
+
+def _get_case_or_404(db: Session, case_id: int) -> CaseRecord:
+    c = db.query(CaseRecord).filter(CaseRecord.id == case_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="病例不存在")
+    return c
+
+
+@router.post("/cases", response_model=CaseRecordOut)
+def create_case(
+    payload: CaseRecordIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    if not db.query(Disease).filter(Disease.id == payload.disease_id).first():
+        raise HTTPException(status_code=422, detail="疾病不存在")
+    c = CaseRecord(
+        disease_id=payload.disease_id,
+        patient_label=payload.patient_label,
+        indicators=[i.model_dump() for i in payload.indicators],
+        confirmed=payload.confirmed,
+        case_metadata=payload.metadata,  # ORM 属性名是 case_metadata
+    )
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return c
+
+
+@router.get("/cases")
+def list_cases(
+    disease_id: int | None = Query(None),
+    confirmed: bool | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    q = db.query(CaseRecord)
+    if disease_id is not None:
+        q = q.filter(CaseRecord.disease_id == disease_id)
+    if confirmed is not None:
+        q = q.filter(CaseRecord.confirmed.is_(confirmed))
+    total = q.count()
+    items = (
+        q.order_by(CaseRecord.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return {"total": total, "items": [CaseRecordOut.model_validate(c) for c in items]}
+
+
+@router.put("/cases/{case_id}", response_model=CaseRecordOut)
+def update_case(
+    case_id: int,
+    payload: CaseRecordIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    c = _get_case_or_404(db, case_id)
+    if not db.query(Disease).filter(Disease.id == payload.disease_id).first():
+        raise HTTPException(status_code=422, detail="疾病不存在")
+    c.disease_id = payload.disease_id
+    c.patient_label = payload.patient_label
+    c.indicators = [i.model_dump() for i in payload.indicators]
+    c.confirmed = payload.confirmed
+    c.case_metadata = payload.metadata  # ORM 属性名是 case_metadata
+    db.commit()
+    db.refresh(c)
+    return c
+
+
+@router.delete("/cases/{case_id}", status_code=204)
+def delete_case(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    c = _get_case_or_404(db, case_id)
+    db.delete(c)
     db.commit()
     return None

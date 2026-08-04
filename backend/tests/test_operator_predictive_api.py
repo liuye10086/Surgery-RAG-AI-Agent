@@ -1,7 +1,7 @@
 """Operator predictive API 测试。"""
 import unittest
 from fastapi import HTTPException
-from app.schemas.prediction import DiseaseCreate, DiseaseUpdate
+from app.schemas.prediction import CaseRecordIn, DiseaseCreate, DiseaseUpdate, IndicatorInput
 
 
 class DiseaseSchemaTests(unittest.TestCase):
@@ -27,6 +27,28 @@ class DiseaseSchemaTests(unittest.TestCase):
         out = _disease_to_out(d, 5)
         self.assertEqual(out.id, 1)
         self.assertEqual(out.case_count, 5)
+
+
+class CaseRecordSchemaTests(unittest.TestCase):
+    def test_case_record_requires_indicators(self):
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError):
+            CaseRecordIn(disease_id=1, indicators=[])
+
+    def test_indicator_validates_name_value_unit(self):
+        ind = IndicatorInput(name="TBIL", value=35.0, unit="μmol/L")
+        self.assertEqual(ind.name, "TBIL")
+        self.assertEqual(ind.value, 35.0)
+
+
+class OperatorRouterEndpointTests(unittest.TestCase):
+    def test_case_endpoints_registered(self):
+        """先写：实现前 /operator/cases 未注册 → 本测试为红。"""
+        from app.api.operator import router
+        paths = {r.path for r in router.routes}
+        self.assertTrue(
+            {"/operator/cases", "/operator/diseases"}.issubset(paths)
+        )
 
 
 if __name__ == "__main__":
