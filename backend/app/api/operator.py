@@ -17,11 +17,20 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_ai_operator
 from app.core.config import settings
-from app.db.models import AIReport, AuditLog, Department, User
+from app.db.models import (
+    AIReport,
+    AuditLog,
+    CaseRecord,
+    Department,
+    Disease,
+    ReferenceRange,
+    User,
+)
 from app.db.session import get_db
 from app.schemas.operator import (
     ReportGenerateRequest,
@@ -29,6 +38,7 @@ from app.schemas.operator import (
     ReportListItem,
     ReportOut,
 )
+from app.schemas.prediction import DiseaseCreate, DiseaseOut, DiseaseUpdate
 from app.services.pdf_generator import generate_pdf
 from app.services.report_generator import generate_report
 
@@ -298,3 +308,96 @@ def download_report_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": content_disposition},
     )
+
+
+# ---------------------------------------------------------------------------
+# 疾病 CRUD（AI 操作者预测分析）
+# ---------------------------------------------------------------------------
+
+
+@router.post("/diseases", response_model=DiseaseOut)
+def create_disease(
+    payload: DiseaseCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    if db.query(Disease).filter(Disease.name == payload.name).first():
+        raise HTTPException(status_code=409, detail=f"疾病「{payload.name}」已存在")
+    d = Disease(name=payload.name, description=payload.description)
+    db.add(d)
+    db.commit()
+    db.refresh(d)
+    return d
+
+
+def _disease_to_out(d: Disease, case_count: int) -> DiseaseOut:
+    """显式构造 DiseaseOut。
+
+    注意：Pydantic v2 的 `model_validate` 没有 `update` 参数，
+    `model_validate(d, update={...})` 会抛 TypeError。必须显式传值构造。
+    """
+    return DiseaseOut(
+        id=d.id,
+        name=d.name,
+        description=d.description,
+        case_count=case_count,
+        created_at=d.created_at,
+    )
+
+
+@router.get("/diseases", response_model=list[DiseaseOut])
+def list_diseases(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    diseases = db.query(Disease).order_by(Disease.id).all()
+    counts = dict(
+        db.query(CaseRecord.disease_id, func.count(CaseRecord.id))
+        .group_by(CaseRecord.disease_id)
+        .all()
+    )
+    return [_disease_to_out(d, counts.get(d.id, 0)) for d in diseases]
+
+
+@router.put("/diseases/{disease_id}", response_model=DiseaseOut)
+def update_disease(
+    disease_id: int,
+    payload: DiseaseUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    d = db.query(Disease).filter(Disease.id == disease_id).first()
+    if not d:
+        raise HTTPException(status_code=404, detail="疾病不存在")
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=422, detail="疾病名称不能为空")
+        if (
+            db.query(Disease)
+            .filter(Disease.name == name, Disease.id != disease_id)
+            .first()
+        ):
+            raise HTTPException(status_code=409, detail=f"疾病「{name}」已存在")
+        d.name = name
+    if payload.description is not None:
+        d.description = payload.description
+    db.commit()
+    db.refresh(d)
+    return d
+
+
+@router.delete("/diseases/{disease_id}", status_code=204)
+def delete_disease(
+    disease_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    d = db.query(Disease).filter(Disease.id == disease_id).first()
+    if not d:
+        raise HTTPException(status_code=404, detail="疾病不存在")
+    if db.query(CaseRecord).filter(CaseRecord.disease_id == disease_id).count():
+        raise HTTPException(status_code=409, detail="该疾病下存在病例，请先删除病例")
+    db.delete(d)
+    db.commit()
+    return None

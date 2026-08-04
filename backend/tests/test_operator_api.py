@@ -94,12 +94,13 @@ class TestOperatorRouterSetup(unittest.TestCase):
     """路由注册测试。"""
 
     def test_router_has_5_endpoints(self):
-        """operator router 包含 5 个路由端点。"""
+        """operator router 至少包含原有 5 个报告端点（Task 5 起新增疾病等端点，数量增加）。"""
         from app.api.operator import router
 
-        # 5 个路由注册（POST/GET 可能共享路径，但路由数 = 端点注册数）
-        self.assertEqual(len(router.routes), 5,
-                         f"Expected 5 routes, got {len(router.routes)}")
+        # 原 5 个报告端点 + 预测分析新增端点（疾病/病例/参考范围）。
+        # 本文件将在 Task 10 删除并迁移有效用例，此处仅保留最小不变量。
+        self.assertGreaterEqual(len(router.routes), 5,
+                                f"Expected at least 5 routes, got {len(router.routes)}")
 
     def test_router_prefix_is_operator(self):
         """路由前缀为 /operator。"""
