@@ -76,3 +76,7 @@ class ReferenceRangeOut(BaseModel):
     upper_inclusive: bool = True
     category: Optional[str]
     document_id: Optional[int]
+
+
+class ReferenceRangeSyncIn(BaseModel):
+    document_id: int

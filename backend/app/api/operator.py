@@ -26,8 +26,10 @@ from app.db.models import (
     AIReport,
     AuditLog,
     CaseRecord,
+    Chunk,
     Department,
     Disease,
+    Document,
     ReferenceRange,
     User,
 )
@@ -44,8 +46,11 @@ from app.schemas.prediction import (
     DiseaseCreate,
     DiseaseOut,
     DiseaseUpdate,
+    ReferenceRangeOut,
+    ReferenceRangeSyncIn,
 )
 from app.services.pdf_generator import generate_pdf
+from app.services.reference_standard import sync_reference_ranges
 from app.services.report_generator import generate_report
 
 logger = logging.getLogger(__name__)
@@ -496,3 +501,74 @@ def delete_case(
     db.delete(c)
     db.commit()
     return None
+
+
+# ---------------------------------------------------------------------------
+# 参考标准（AI 操作者预测分析）
+# ---------------------------------------------------------------------------
+
+
+@router.post("/reference-ranges/sync")
+def sync_reference_ranges_endpoint(
+    payload: ReferenceRangeSyncIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    try:
+        result = sync_reference_ranges(db, payload.document_id)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return result
+
+
+@router.get("/reference-ranges", response_model=list[ReferenceRangeOut])
+def list_reference_ranges(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    return db.query(ReferenceRange).order_by(ReferenceRange.indicator_name).all()
+
+
+@router.get("/documents")
+def list_operator_documents(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    """列出 access_scope 为 operator/both 的文档，供参考标准同步界面选择。
+
+    不能复用 admin 文档接口——ai_operator 角色无权访问 admin API
+    （admin.py 的文档接口依赖 require_admin）。
+
+    sync_ready 表示该文档是否具备可同步的前置条件（status=indexed 且有 current chunks）；
+    前端据此禁用不可同步的选项，避免选了 pending/failed 文档后走 422 失败路径。
+    """
+    docs = (
+        db.query(Document)
+        .filter(Document.access_scope.in_(("operator", "both")))
+        .order_by(Document.created_at.desc())
+        .all()
+    )
+    ready_doc_ids = {
+        d.id
+        for d in docs
+        if d.status == "indexed"
+        and db.query(Chunk.id)
+        .filter(
+            Chunk.document_id == d.id,
+            Chunk.generation == d.active_generation,
+            Chunk.is_current.is_(True),
+        )
+        .first()
+        is not None
+    }
+    return [
+        {
+            "id": d.id,
+            "title": d.title or d.filename,
+            "filename": d.filename,
+            "access_scope": d.access_scope,
+            "status": d.status,
+            "sync_ready": d.id in ready_doc_ids,
+        }
+        for d in docs
+    ]

@@ -42,12 +42,14 @@ class CaseRecordSchemaTests(unittest.TestCase):
 
 
 class OperatorRouterEndpointTests(unittest.TestCase):
-    def test_case_endpoints_registered(self):
-        """先写：实现前 /operator/cases 未注册 → 本测试为红。"""
+    def test_predictive_endpoints_registered(self):
+        """预测分析端点全部注册（疾病/病例/参考范围同步与列表/operator 文档）。"""
         from app.api.operator import router
         paths = {r.path for r in router.routes}
         self.assertTrue(
-            {"/operator/cases", "/operator/diseases"}.issubset(paths)
+            {"/operator/cases", "/operator/diseases",
+             "/operator/reference-ranges/sync",
+             "/operator/reference-ranges", "/operator/documents"}.issubset(paths)
         )
 
 
