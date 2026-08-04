@@ -5,8 +5,16 @@ import {
   getReport,
   deleteReport,
   generateReportStream,
+  generatePredictionStream,
+  listDiseases,
+  listCases,
   type ReportListItem,
   type ReportDetail,
+  type Disease,
+  type CaseRecord,
+  type IndicatorInput,
+  type PredictionResult,
+  type IndicatorAnalysis,
 } from '@/api/operator'
 
 export const useOperatorStore = defineStore('operator', () => {
@@ -19,6 +27,10 @@ export const useOperatorStore = defineStore('operator', () => {
   const currentStage = ref('')
   const stageMessage = ref('')
   const currentSources = ref<any[]>([])
+  const diseases = ref<Disease[]>([])
+  const cases = ref<CaseRecord[]>([])
+  const predictionResult = ref<PredictionResult | null>(null)
+  const indicatorAnalyses = ref<IndicatorAnalysis[]>([])
 
   let cancelFn: (() => void) | null = null
 
@@ -98,6 +110,45 @@ export const useOperatorStore = defineStore('operator', () => {
     )
   }
 
+  async function fetchDiseases() {
+    diseases.value = await listDiseases()
+  }
+
+  async function fetchCases(diseaseId?: number) {
+    const res = await listCases(diseaseId)
+    cases.value = res.items
+  }
+
+  function generatePrediction(request: { disease_id: number; indicators: IndicatorInput[]; patient_summary?: string }) {
+    // 重置状态
+    generating.value = true
+    generatedContent.value = ''
+    currentStage.value = ''
+    stageMessage.value = ''
+    currentSources.value = []
+    predictionResult.value = null
+    indicatorAnalyses.value = []
+
+    cancelFn = generatePredictionStream(request, {
+      onStage: (s, m) => { currentStage.value = s; stageMessage.value = m },
+      onIndicators: (analyses, prediction) => { indicatorAnalyses.value = analyses; predictionResult.value = prediction },
+      onDelta: (c) => { generatedContent.value += c },
+      onSources: (s) => { currentSources.value = s },
+      onDone: (id) => {
+        generating.value = false
+        currentStage.value = 'done'
+        generatedContent.value = ''
+        fetchReports()
+        fetchReport(id)
+      },
+      onError: () => {
+        generating.value = false
+        currentStage.value = 'error'
+        fetchReports()
+      },
+    })
+  }
+
   function cancelGeneration() {
     if (cancelFn) {
       cancelFn()
@@ -125,10 +176,18 @@ export const useOperatorStore = defineStore('operator', () => {
     currentStage,
     stageMessage,
     currentSources,
+    diseases,
+    cases,
+    predictionResult,
+    indicatorAnalyses,
+
     fetchReports,
     fetchReport,
     removeReport,
     generateReport,
+    fetchDiseases,
+    fetchCases,
+    generatePrediction,
     cancelGeneration,
     clearCurrent,
   }
