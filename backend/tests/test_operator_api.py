@@ -122,20 +122,36 @@ class TestMainAppRegistration(unittest.TestCase):
     """main.py 路由注册验证。"""
 
     def test_operator_router_registered(self):
-        """operator router 已在 main.py 注册。"""
+        """operator router 已在 main.py 注册。
+
+        兼容 FastAPI include_router 的两种展开形态：
+        - 旧版：子路由扁平展开进 app.routes，path 含 /operator；
+        - 新版：app.routes 以 _IncludedRouter 挂载，original_router /
+          include_context.included_router 指向 operator.router，不再扁平出 path。
+        """
         import importlib
         import app.main as main_mod
         importlib.reload(main_mod)
 
+        from app.api.operator import router as operator_router
+
         app = main_mod.app
-        # 兼容不同 Starlette 版本：app.routes 中可能存在无 path 属性的内部路由对象
-        operator_paths = [
+        flat_paths = [
             r.path for r in app.routes
             if getattr(r, "path", None) and "/operator" in r.path
         ]
-        self.assertGreaterEqual(
-            len(operator_paths), 1,
-            "operator routes not found in app"
+        included = [
+            r for r in app.routes
+            if getattr(r, "original_router", None) is operator_router
+            or (
+                getattr(r, "include_context", None) is not None
+                and getattr(r.include_context, "included_router", None)
+                is operator_router
+            )
+        ]
+        self.assertTrue(
+            flat_paths or included,
+            "operator routes not found in app",
         )
 
 
