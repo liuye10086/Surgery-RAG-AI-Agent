@@ -302,6 +302,8 @@ async function handleDownload() {
 }
 
 async function handleSelect(id: number) {
+  // 从病例库等非预测视图选择历史报告时，先切回预测/报告视图
+  activeView.value = 'predict'
   operatorStore.clearCurrent()
   operatorStore.generatedContent = ''
   operatorStore.currentStage = ''
@@ -323,6 +325,8 @@ async function handleDelete(id: number) {
 }
 
 function handleNewAnalysis() {
+  // 新建分析必须切回预测输入视图，避免在病例库视图下按钮无可见效果
+  activeView.value = 'predict'
   operatorStore.clearCurrent()
   operatorStore.generatedContent = ''
   operatorStore.currentStage = ''

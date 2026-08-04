@@ -314,6 +314,8 @@ async function saveCase() {
     }
     caseFormVisible.value = false
     await loadCases()
+    // case_count 是实时聚合字段，新增/编辑（含迁移疾病、确诊状态变化）后刷新疾病字典
+    await operatorStore.fetchDiseases()
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.detail || '保存病例失败')
   }
