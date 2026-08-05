@@ -18,44 +18,11 @@
           <p class="section-desc">上传和管理知识库文档，支持 PDF、Word、图片格式。</p>
         </div>
 
-        <!-- 操作栏：搜索（左）+ 上传（右） -->
+        <!-- 操作栏：上传（上）+ 搜索（下） -->
         <div class="toolbar-card">
           <div class="toolbar-row">
-            <!-- 左侧：搜索 -->
-            <div class="toolbar-left">
-              <el-input
-                v-model="searchKeyword"
-                placeholder="搜索文档标题或文件名"
-                clearable
-                @keydown.enter="handleSearch"
-                @clear="handleSearch"
-                class="search-input"
-              >
-                <template #prefix>
-                  <el-icon><Search /></el-icon>
-                </template>
-              </el-input>
-              <el-select
-                v-model="filterDepartmentId"
-                placeholder="全部科室"
-                clearable
-                @change="handleDeptFilterChange"
-                class="dept-filter-select"
-              >
-                <el-option
-                  v-for="d in departments"
-                  :key="d.id"
-                  :label="d.name"
-                  :value="d.id"
-                />
-              </el-select>
-              <el-button type="primary" @click="handleSearch">
-                <el-icon :size="16"><Search /></el-icon>
-                <span>搜索</span>
-              </el-button>
-            </div>
-            <!-- 右侧：上传 -->
-            <div class="toolbar-right">
+            <!-- 上传 -->
+            <div class="toolbar-upload-row">
               <el-input
                 v-model="uploadTitle"
                 placeholder="修改当前上传文档标题（可选）"
@@ -74,7 +41,10 @@
                   :value="d.id"
                 />
               </el-select>
-              <el-select v-model="uploadAccessScope" size="small" style="width: 120px">
+              <el-select
+                v-model="uploadAccessScope"
+                class="upload-access-select"
+              >
                 <el-option label="聊天可见" value="chat" />
                 <el-option label="仅操作者" value="operator" />
                 <el-option label="均可" value="both" />
@@ -109,6 +79,40 @@
                 @click="submitUpload"
               >
                 上传
+              </el-button>
+            </div>
+
+            <!-- 搜索 -->
+            <div class="toolbar-search-row">
+              <el-input
+                v-model="searchKeyword"
+                placeholder="搜索文档标题或文件名"
+                clearable
+                @keydown.enter="handleSearch"
+                @clear="handleSearch"
+                class="search-input"
+              >
+                <template #prefix>
+                  <el-icon><Search /></el-icon>
+                </template>
+              </el-input>
+              <el-select
+                v-model="filterDepartmentId"
+                placeholder="全部科室"
+                clearable
+                @change="handleDeptFilterChange"
+                class="dept-filter-select"
+              >
+                <el-option
+                  v-for="d in departments"
+                  :key="d.id"
+                  :label="d.name"
+                  :value="d.id"
+                />
+              </el-select>
+              <el-button type="primary" @click="handleSearch">
+                <el-icon :size="16"><Search /></el-icon>
+                <span>搜索</span>
               </el-button>
             </div>
           </div>
@@ -591,7 +595,7 @@ onMounted(() => {
   font-size: var(--text-sm);
 }
 
-/* ===== 操作栏（搜索 + 上传） ===== */
+/* ===== 操作栏（上传 + 搜索） ===== */
 .toolbar-card {
   margin: var(--space-4) var(--space-6);
   padding: var(--space-3) var(--space-4);
@@ -602,48 +606,40 @@ onMounted(() => {
 
 .toolbar-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
   gap: var(--space-3);
 }
 
-.toolbar-left {
+.toolbar-upload-row,
+.toolbar-search-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
-  flex: 1;
-  min-width: 0;
-}
-
-.toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 1 1 560px;
-  justify-content: flex-end;
   min-width: 0;
 }
 
 .search-input {
-  width: 220px;
+  width: 200px;
   flex-shrink: 0;
 }
 
 .upload-title-input {
-  width: 230px;
-  flex: 0 1 230px;
-  min-width: 180px;
+  width: 216px;
+  flex: 0 1 216px;
+  min-width: 168px;
 }
 
-.upload-dept-select {
-  width: 140px;
-  flex: 0 0 140px;
+.upload-dept-select,
+.upload-access-select {
+  width: 132px;
+  flex: 0 0 132px;
 }
 
 .dept-filter-select {
-  width: 112px;
-  flex: 0 0 112px;
+  width: 104px;
+  flex: 0 0 104px;
 }
 
 .dept-empty {
@@ -655,9 +651,9 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  max-width: 180px;
+  max-width: 168px;
   min-width: 0;
-  flex: 0 1 180px;
+  flex: 0 1 168px;
   padding: 2px 4px 2px 8px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-pill);
@@ -667,7 +663,6 @@ onMounted(() => {
 .selected-file {
   color: var(--text-secondary);
   font-size: var(--text-sm);
-  max-width: 136px;
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
