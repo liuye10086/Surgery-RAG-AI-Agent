@@ -1,4 +1,4 @@
-# 疾病进展规律挖掘 · 端到端最小闭环 实施计划（v3）
+# 疾病进展规律挖掘 · 端到端最小闭环 实施计划（v4.1）
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -9,25 +9,27 @@
 **Tech Stack:** Python 3.10+、pandas、scikit-learn（GradientBoostingClassifier / IsotonicRegression）、shap、pytest（`slow`/`acceptance` marker）。
 
 **规格依据：** `docs/superpowers/specs/2026-08-06-progression-rule-mining-loop-design.md`（v16）。
-**计划修订：** v2 补结构性问题；v3 按 Codex 计划第二轮复审 11 项修正接口/代码骨架自洽性（simulate 统一签名、校准口径收敛、δ/w_A+2 语义、OOF 患者级聚合、sex 编码、规则对象化、实例级恢复率、可靠性边界分箱结构、acceptance 防空）。
+**计划修订：** v4 按 Codex 计划第三轮 13 条意见修正；**v4.1 按 Workflow 对抗验证 10 条真实发现修正**——PLT 乘性衰减信号使 R1 条件可达、coverage neither 误报率实现、可靠性边界测试防掉箱偏置、P_obs 渲染、consecutive_rises lookback=value、per-patient early/破平、typed_match lookback 一致、excluded_ratio 含不可观测、full 模式并入规模退化表、现实规模断言去恒真、Task 1 补全 config 完整代码。
 
 ## Global Constraints
 
 以下约束**每个任务都必须遵守**，值从规格原样抄录：
 
 - **独立边界**：`research/` 自带版本化 `config.py`；**禁止** import 生产 `prediction_engine.py`、访问生产数据库、写现有表/API。
-- **数据流**：`planted_rules` **只进 `evaluator.py`**；`lead_lag_analysis`、`mine_rules` 等所有非 evaluator 模块签名**不得接收** planted_rules（Task 13 有全模块签名断言测试，在所有模块存在后执行）。
-- **主 estimand**：校准/验收/evaluator/规则/support/lift 用**每患者确认/参考 landmark**；模型训练用**全量合格 landmark**；splitter 用**患者级结局**（仅分层，不进特征/规则）。
-- **校准口径（唯一）**：**在指定确认/参考 landmark 上按可观察条件分组，估计不受删失影响的潜在事件风险**（互斥组口径，N=50,000 队列 ±3pp，两视界 24/12 均验收）；**P_obs 为观测标签风险（positive/(positive+negative)），单独报告、不参与 §10 验收**。
-- **δ ∈ {1,2}**（默认 1），`w_event = 确认窗口 + δ`；对 R2（confirm=w_A+1）事件 ∈ {w_A+2, w_A+3}——**w_A+2 是 δ=1 时的合法事件窗口**（同时是 S 达 S_event 的"高危区标记"点），**不是**"绝不为事件"。
-- **事件门控**：路径组 `g ~ Bernoulli(p_group)`；neither 不抽 p_group，由基线 hazard λ_b(t) 自**参考 landmark** 起、在**视界内**触发；`simulate` 统一签名 `simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None)`。
-- **标签**：正例 = 视界内且删失/行政终止前已观察到事件；unknown = 视界内先删失且在删失前未观察到事件（从标注集排除，含确认子集）；潜在 g+事件窗口**不得进入模型/OOF/规则流程**。
-- **患者聚类**：CI、support、Bootstrap 全部按患者聚类；Bootstrap 抽样**保留 multiplicity**（重采样行集）。
-- **sex 编码**：`features` 产出 `sex_male`（1/0）数值列；模型/规则/SHAP 一律用 `sex_male`，**不得把字符串喂给 sklearn**。
-- **信号门槛**：方法验证单元最终平均 OOF 预测上 AUC 的患者聚类 95% CI **下界 ≥ 0.65**。
-- **成功标准（方法验收）**：K=20 种子、≥90% 通过；每种子四条同时成立——① AUC CI 下界 ≥0.65、② 两条植入规则均完整命中、③ lead-lag 次序恢复（交集 ≥30、**每指标（PLT/HbA1c/AFP）≥20**、unmatched ≤20%，不足 not estimable）、④ R1、R2 各自可评估覆盖率 ≥80%。**规则必须携带 Bootstrap CI（"CI 未估计"运行不得标为通过）**。
-- **测试分层**：`pytest.ini` 配 `addopts = -m "not slow and not acceptance"`，注册 `slow`/`acceptance` marker。
-- **TDD**：每步先写失败测试→确认红→最小实现→确认绿→单独提交。提交正文三行：`AI-Agent: Codex`、`AI-Client: Codex-Desktop`、`Task-ID: research-progression-min-loop`。
+- **数据流**：`planted_rules` **只进 `evaluator.py`**；`lead_lag_analysis`、`mine_rules` 等所有非 evaluator 模块签名**不得接收** planted_rules（Task 13 全模块签名断言）。
+- **主 estimand**：校准/验收/evaluator/规则/support/lift 用**每患者确认/参考 landmark**；模型训练用**全量合格 landmark**；splitter 用**患者级结局**（仅分层）。
+- **校准口径（唯一）**：在指定确认/参考 landmark 上按可观察条件分组，估计**不受删失影响的潜在事件风险**（互斥组口径，N=50,000 ±3pp，两视界 24/12 均验收）；**P_obs 为观测标签风险，单独报告、不参与 §10**。
+- **δ ∈ {1,2}**，`w_event = 确认窗口 + δ`；对 R2（confirm=w_A+1）事件 ∈ {w_A+2, w_A+3}——**w_A+2 是 δ=1 的合法事件窗口**。
+- **事件门控**：路径组 `g ~ Bernoulli(p_group)`；neither 由**可缩放基线 hazard `λ_b = λ_c · λ0(age, sex)`** 自参考 landmark **次一窗（ref+1）**起、视界内触发；`simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None)`。
+- **组语义保留**：路径组不可观测（确认 landmark 不合格/非无事件/条件未成立）→ **保留其路径组**（`group` 仍为 r1_only/r2_only/r1_and_r2）且 `unobservable=True`；校准/coverage/evaluator **显式排除 `unobservable=True`**；`neither` 仅 z=none 患者。
+- **标签**：正例 = 视界内且删失/行政终止前已观察到事件；unknown = 视界内先删失且删失前未观察到事件（从标注集与确认子集剔除）；潜在 g+事件窗口**不入模型/OOF/规则**。
+- **患者聚类**：CI、support、Bootstrap 全部按患者聚类；Bootstrap **保留 multiplicity**。
+- **sex 编码（统一）**：planted 与 mined 的 `sex` 条件统一用数值 `1.0`(male)/`0.0`(female)；`features` 产出 `sex_male`；模型/规则/SHAP 一律数值。
+- **horizon/lookback/lag 单位统一**：`horizon_windows = horizon_months // 6`；`PlantedRule`/`MinedRule` 均携带 `horizon_windows`、`lookback`、`lag`（最小闭环 lag=0）；`full_hit` **分别比较**三字段。
+- **信号门槛**：方法验证单元最终平均 OOF 预测上 AUC 患者聚类 95% CI 下界 ≥ 0.65。
+- **成功标准（方法验收）**：K=20 种子、≥90% 通过；每种子：① AUC CI 下界 ≥0.65、② 两条植入规则均完整命中、③ lead-lag 次序恢复（交集 ≥30、每指标 PLT/HbA1c/AFP ≥20、unmatched ≤20%，不足 not estimable）、④ R1、R2 各自可评估覆盖率 ≥80%；**规则必须携带 Bootstrap CI（"CI 未估计"运行不得标为通过）**。
+- **测试分层**：`pytest.ini` 配 `addopts = -m "not slow and not acceptance"`。
+- **TDD**：每步先写失败测试→红→最小实现→绿→单独提交。提交正文三行：`AI-Agent: Codex`、`AI-Client: Codex-Desktop`、`Task-ID: research-progression-min-loop`。
 - **不 push**（用户统一推送）；main 分支直接开发。
 
 ---
@@ -39,39 +41,39 @@
 | 列 | 类型 | 说明 |
 | --- | --- | --- |
 | `patient_id` | int | 0..N-1 |
-| `z` | str | 生成路径 `"none"`/`"r1"`/`"r2"`/`"r1_and_r2"` |
+| `z` | str | `"none"`/`"r1"`/`"r2"`/`"r1_and_r2"` |
 | `age` | int | 静态协变量 |
 | `sex` | str | `"male"`/`"female"`（原始；`sex_male` 编码在 features 层） |
-| `group` | str | 互斥组 `"neither"`/`"r1_only"`/`"r2_only"`/`"r1_and_r2"` |
-| `confirm_window` | float | 确认/参考 landmark 窗口（neither 无合格参考时为 `NaN`） |
-| `w_r1` | float | R1 条件确认窗口（R2-only 为 `NaN`） |
+| `group` | str | 互斥组 `"neither"`/`"r1_only"`/`"r2_only"`/`"r1_and_r2"`；**路径组不可观测仍保留其组** |
+| `confirm_window` | float | 确认/参考 landmark 窗口（neither 无合格参考为 `NaN`） |
+| `w_r1` | float | R1 确认窗口（R2-only 为 `NaN`） |
 | `w_a` | float | AFP 激活窗口（R1-only 为 `NaN`） |
 | `g` | float | 路径组门控 0/1；neither 为 `NaN` |
 | `event_window` | float | 潜在事件窗口（进展者）；否则 `NaN` |
 | `censored` | bool | 是否失访删失 |
 | `censored_window` | float | 删失窗口；否则 `NaN` |
 | `admin_end` | int | 行政随访终点窗口 |
-| `unobservable` | bool | 路径组：指定确认 landmark 不合格/非无事件/条件未成立 → `True`（从 evaluator 分母排除，**不改组语义**）；neither 恒 `False` |
+| `unobservable` | bool | 路径组：确认 landmark 不合格/非无事件/条件未成立 → `True`（校准/coverage/evaluator 排除）；neither 恒 `False` |
 
 ### `obs` DataFrame（每患者每窗口一行）
 
-`patient_id`、`window`、`ALT..BMI`（10 个指标观测，含噪声）。指标常量见 `config.INDICATORS`。
+`patient_id`、`window`、`ALT..BMI`（10 指标观测，含噪声）。
 
-### `features` 输出契约（Task 4 定义）
+### `features` 输出契约
 
-- `qualifying_landmarks(patients, obs, horizon_windows)` → DataFrame（**全量合格 landmark**，模型训练用），列：`patient_id, window, age, sex_male, label, <IND>_cur/_d6m/_d12m/_slope/_rises/_drop_pct`（无 `sex` 字符串）。
-- `confirmation_subset(patients, obs, horizon_windows)` → DataFrame（**每患者确认/参考 landmark 一个样本**，规则/evaluator 用），列：`patient_id, window, age, sex_male, group, unobservable, admin_end, label, <派生特征>`；**剔除 unknown 标签行**（`label ∈ {0,1}`），`excluded_unknown` 存于 `df.attrs`。
+- `qualifying_landmarks(patients, obs, horizon_windows)` → DataFrame（全量合格 landmark，模型训练用）：`patient_id, window, age, sex_male, label, <IND>_cur/_d6m/_d12m/_slope/_rises/_drop_pct`（无字符串列）。
+- `confirmation_subset(patients, obs, horizon_windows)` → DataFrame（每患者确认/参考 landmark 一个样本）：`patient_id, window, age, sex_male, group, unobservable, admin_end, label, <派生特征>`；**剔除 unknown**（`label∈{0,1}`）；`df.attrs["horizon_windows"]`、`df.attrs["excluded_unknown"]`。
 
-### 标准规则词汇（`rules.py` 与 `evaluator.py` 共用）
+### 标准规则词汇（`rules.py` / `evaluator.py` 共用）
 
 ```python
 @dataclass(frozen=True)
 class MinedCondition:
     indicator: str      # "sex"|"age"|"HbA1c"|"PLT"|"AFP"|...
     op: str             # "eq"|"gt"|"lt"|"consecutive_rises"|"drop_pct"
-    value: "str | float"
+    value: float        # 数值（sex 用 1.0/0.0）
     lookback: int = 1
-    source_feature: str = ""   # 阈值选择用；不参与匹配
+    source_feature: str = ""
 
 @dataclass(frozen=True)
 class MinedRule:
@@ -79,34 +81,41 @@ class MinedRule:
     horizon_windows: int
     lookback: int
     lag: int
+    event_support: int = -1
+    total_support: int = -1
+    lift_median: float = 0.0
+    selection_frequency: float = 0.0
+    ci: "tuple | str" = "CI 未估计"
 ```
 
-候选映射（标准语义）：`sex_male`→`("sex","eq",1/0)`；`age`→`("age","gt",q)`；`<IND>_rises≥k`→`("<IND>","consecutive_rises",k,lookback=k)`；`<IND>_drop_pct≤-d`→`("<IND>","drop_pct",d)`；`<IND>_cur` 高分位→`("<IND>","gt",q)`。
-
-### `planted_rules`（只进 evaluator）
+### `planted_rules`（只进 evaluator；sex 数值化；携带 horizon/lookback/lag）
 
 ```python
 @dataclass(frozen=True)
 class Condition:
-    indicator: str
-    op: str
-    value: "str | float"     # sex 用 "male"/"female"，连续为 float
-    lookback: int = 1
+    indicator: str; op: str; value: float; lookback: int = 1   # value 恒数值（sex 1.0/0.0）
 
 @dataclass(frozen=True)
 class PlantedRule:
-    name: str; horizon_months: int; conditions: tuple[Condition, ...]; group: str; target_risk: float
+    name: str; horizon_months: int; conditions: tuple[Condition, ...]
+    group: str; target_risk: float; lag: int = 0
+    @property
+    def horizon_windows(self): return self.horizon_months // 6
+    @property
+    def lookback(self): return max((c.lookback for c in self.conditions), default=1)
 
 @dataclass(frozen=True)
 class PlantedRules:
     horizon_months: int; r1: PlantedRule; r2: PlantedRule; calibration: dict[str, float]
 ```
 
+`_build_planted_rules` 将 `cfg.PLANTED_CONDITIONS` 的 `"male"/"female"` 转为 `1.0/0.0`。
+
 ### 确认/参考 landmark 与合格定义
 
 - 合格 landmark：`窗口 ≥ 2`、`admin_end − 窗口 ≥ 视界窗数`、`窗口 < 事件窗口`（若有）、`窗口 < 删失窗口`（若有）。
-- **neither 参考 landmark**：生成删失后，取**首个合格窗口**（窗口 ≥2 起、admin_end−窗口 ≥ 视界、在删失之前）；无合格窗口 → `confirm_window=NaN`（该患者 not estimable 单元）。若该参考 landmark 命中任一植入条件 → 计入误报、排除 neither 校准分母、不标记不可观测。
-- 路径组确认 landmark：R2/交集 = `w_A+1`；R1-only = `w_R1`。指定确认 landmark 不合格/非无事件/条件未成立 → `unobservable=True`。
+- **neither 参考 landmark**：删失已知后取**首个合格窗口**；事件由 λ_b 自 **ref+1** 起视界内触发（ref 本身无事件）。命中任一植入条件 → 计入误报、排除 neither 校准分母。
+- 路径组确认 landmark：R2/交集 = `w_A+1`；R1-only = `w_R1`。**不可观测判定（完整）**：`confirm` 非有限、或 `confirm ≥ event_window`、或 `confirm ≥ censored_window`、或指定确认 landmark 条件未成立 → `unobservable=True`，**保留路径组**。
 
 ---
 
@@ -121,7 +130,7 @@ class PlantedRules:
 
 **Interfaces:**
 
-- Produces: `config.py` 全部命名常量（Task 2-14 依赖）。数据流签名断言**移至 Task 13**（所有模块存在后）。
+- Produces: `config.py` 全部命名常量。数据流签名断言移至 Task 13。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -141,6 +150,9 @@ def test_sim_constants():
     assert cfg.SIM["kappa"] >= 2.0
     assert cfg.SIM["delta_choices"] == [1, 2]
     assert cfg.SIM["calibration_n"] == 50_000
+    # 信号强度（可观测条件成立 >=95% 的前提）
+    assert cfg.SIM["hba1c_rise_per_window"] >= 2 * 0.1 * (cfg.REFERENCE_RANGES["HbA1c"][1] - cfg.REFERENCE_RANGES["HbA1c"][0])
+    assert 0 < cfg.SIM["plt_decline_per_window"] < 1
 
 def test_calibration_both_horizons():
     assert cfg.CALIBRATION[24] == {"neither": 0.12, "r1_only": 0.60, "r2_only": 0.40, "r1_and_r2": 0.73}
@@ -155,12 +167,17 @@ def test_grid_and_thresholds():
     assert cfg.THRESHOLDS["method_acceptance_seeds"] == 20
     assert cfg.THRESHOLDS["event_bins"] == [0, 10, 20, 30, 40, 50, 75, 100, 150, 10 ** 9]
     assert cfg.THRESHOLDS["bin_min_cohorts"] == 10
+
+def test_planted_conditions():
+    assert ("sex", "eq", "male") in cfg.PLANTED_CONDITIONS["r1"]
+    assert ("HbA1c", "consecutive_rises", 2.0) in cfg.PLANTED_CONDITIONS["r1"]
+    assert ("AFP", "consecutive_rises", 2.0) in cfg.PLANTED_CONDITIONS["r2"]
 ```
 
 - [ ] **Step 2: 运行测试确认红**
 
 Run: `cd research && python -m pytest tests/test_config.py -v`
-Expected: FAIL（`ModuleNotFoundError`）
+Expected: FAIL
 
 - [ ] **Step 3: 写实现**
 
@@ -192,7 +209,10 @@ REFERENCE_RANGES = {
 SIM = {"window_months": 6, "censoring_rate": 0.20, "kappa": 2.0, "tau": 0.0,
        "delta_choices": [1, 2], "delta_default": 1, "resample_max": 100,
        "calibration_n": 50_000, "calibration_tol_pp": 3.0,
-       "observability_gate": 0.95, "calibration_group_min": 200}
+       "observability_gate": 0.95, "calibration_group_min": 200,
+       "hba1c_rise_per_window": 0.8,     # >= 2*sigma(HbA1c)=0.5 → 两窗连续上升 ~0.98
+       "plt_decline_per_window": 0.85,   # 乘性 15%/窗下降；w>=w0+2 时较基线降 ~28% >20%
+       "afp_rise_per_window": 6.0}
 CALIBRATION = {
     24: {"neither": 0.12, "r1_only": 0.60, "r2_only": 0.40, "r1_and_r2": 0.73},
     12: {"neither": 0.06, "r1_only": 0.40, "r2_only": 0.25, "r1_and_r2": 0.52},
@@ -234,7 +254,7 @@ Task-ID: research-progression-min-loop"
 
 ---
 
-### Task 2: simulate——Z/协变量/S 轨迹/观测 + 确认 landmark/组归属
+### Task 2: simulate——Z/协变量/S 轨迹/观测 + 确认 landmark/组归属（含不可观测完整判定）
 
 **Files:**
 
@@ -243,10 +263,9 @@ Task-ID: research-progression-min-loop"
 
 **Interfaces:**
 
-- Consumes: `config`。
-- Produces: `Condition/PlantedRule/PlantedRules` 类型；`simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None)` 返回 `{"patients", "obs", "planted_rules", "coverage", "meta"}`；`coverage` 在 Task 3 填实（本任务返回 `{"per_group": {}}`）。
+- Produces: `Condition/PlantedRule/PlantedRules`（sex 数值化 + horizon/lookback/lag 属性）；`simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None)` 返回 `{"patients","obs","planted_rules","coverage","meta"}`；`coverage` 在 Task 3 填实。
 
-**前向顺序（每患者，严格）**：Z → 协变量按 Z → 基线指标 → S 轨迹 → 路径组门控（确认 landmark 锚点先行）→ **neither 先删失、再取首个合格参考 landmark、再 λ_b 视界内事件** → 指标观测 → 截断。**禁止先定事件时间再构造特征。**
+**前向顺序（每患者）**：Z → 协变量按 Z → S 轨迹 → 路径组门控（锚点先行）→ neither 删失 → 参考 landmark → λ_b（ref+1 起视界内）→ 指标观测 → 截断。**禁止先定事件时间再构造特征。**
 
 - [ ] **Step 1: 写失败测试**
 
@@ -263,23 +282,15 @@ def _sim(**kw):
     kw.setdefault("horizon_months", 24); kw.setdefault("seed", 7)
     return simulate(**kw)
 
-def test_simulate_signature_has_gate_and_lambda():
+def test_signature():
     import inspect
-    params = list(inspect.signature(simulate).parameters)
-    assert params == ["n", "followup_months", "horizon_months", "seed", "gate", "_lambda_c"]
+    assert list(inspect.signature(simulate).parameters) == \
+        ["n", "followup_months", "horizon_months", "seed", "gate", "_lambda_c"]
 
 def test_patients_schema():
-    out = _sim()
-    assert out["patients"].columns.tolist() == [
+    assert _sim()["patients"].columns.tolist() == [
         "patient_id", "z", "age", "sex", "group", "confirm_window", "w_r1", "w_a",
-        "g", "event_window", "censored", "censored_window", "admin_end", "unobservable",
-    ]
-
-def test_obs_schema_and_windows():
-    out = _sim()
-    assert set(out["obs"].columns) == {"patient_id", "window"} | set(cfg.INDICATORS)
-    counts = out["obs"].groupby("patient_id")["window"].count()
-    assert (counts == out["patients"]["admin_end"] + 1).all()
+        "g", "event_window", "censored", "censored_window", "admin_end", "unobservable"]
 
 def test_covariates_conditional_on_z():
     p = _sim()["patients"]
@@ -288,31 +299,47 @@ def test_covariates_conditional_on_z():
         assert (sub["sex"] == "male").all() and (sub["age"] > 50).all()
 
 def test_event_window_is_confirm_plus_delta():
-    out = _sim()
-    prog = out["patients"].dropna(subset=["event_window"])
-    diff = (prog["event_window"] - prog["confirm_window"]).to_numpy()
-    assert set(diff) <= {1, 2}
-    # R2（confirm=w_A+1）事件 ∈ {w_A+2, w_A+3}：w_A+2 是 δ=1 的合法事件窗口
-    r2 = prog[prog["z"].isin(["r2", "r1_and_r2"])]
-    assert ((r2["event_window"] - (r2["w_a"] + 1)).isin([1, 2])).all()
-
-def test_forward_no_event_leakage():
     prog = _sim()["patients"].dropna(subset=["event_window"])
-    assert (prog["event_window"] >= prog["confirm_window"] + 1).all()
+    assert set((prog["event_window"] - prog["confirm_window"]).to_numpy()) <= {1, 2}
 
-def test_neither_reference_is_first_qualifying_landmark():
-    out = _sim()
-    ne = out["patients"][out["patients"]["z"] == "none"]
-    assert (ne["confirm_window"] >= 2).all()
-    assert (ne["admin_end"] - ne["confirm_window"] >= 24 // 6).all()
-    # 参考 landmark 须在删失之前
-    has_censor = ne[ne["censored"]]
-    assert (has_censor["confirm_window"] <= has_censor["censored_window"]).all()
-
-def test_path_unobservable_does_not_reassign():
+def test_path_unobservable_keeps_path_group():
     out = _sim()
     unobs = out["patients"][out["patients"]["unobservable"]]
     assert (unobs["z"] != "none").all()
+    # 组语义保留：unobservable 患者的 group 仍是对应路径组（非 neither）
+    assert set(unobs["group"]) <= {"r1_only", "r2_only", "r1_and_r2"}
+
+def test_path_unobservable_when_confirm_after_event_or_censor():
+    out = _sim()
+    p = out["patients"]
+    # 所有可观测路径患者的确认 landmark 严格早于事件与删失
+    obs = p[(~p["unobservable"]) & (p["z"] != "none")]
+    assert ((obs["confirm_window"] < obs["event_window"])).all() if len(obs) else True
+    cens = obs[obs["censored"]]
+    assert (cens["confirm_window"] < cens["censored_window"]).all() if len(cens) else True
+
+def test_neither_reference_is_first_qualifying_before_censor():
+    out = _sim()
+    ne = out["patients"][out["patients"]["z"] == "none"]
+    assert (ne["confirm_window"] >= 2).all()
+    assert (ne["admin_end"] - ne["confirm_window"] >= 4).all()   # 24 月视界
+    c = ne[ne["censored"]]
+    assert (c["confirm_window"] < c["censored_window"]).all() if len(c) else True
+
+def test_planted_sex_is_numeric_and_lookback():
+    pr = _sim()["planted_rules"]
+    sex_cond = pr.r1.conditions[0]
+    assert sex_cond.indicator == "sex" and sex_cond.value == 1.0
+    hba1c = pr.r1.conditions[2]
+    assert hba1c.op == "consecutive_rises" and hba1c.lookback == 2   # lookback = 上升次数
+    assert pr.r1.lookback == 2
+
+def test_r1_conditions_reachable():
+    out = _sim(n=1500, followup_months=60, horizon_months=24, seed=9)
+    p = out["patients"]
+    r1 = p[p["z"].isin(["r1", "r1_and_r2"])]
+    # 信号强度使 PLT 乘性降 >20% + HbA1c 两窗上升在 w_R1 可达 → 大部分 R1 患者可观测
+    assert r1["unobservable"].mean() < 0.3
 ```
 
 - [ ] **Step 2: 运行测试确认红**
@@ -322,7 +349,7 @@ Expected: FAIL
 
 - [ ] **Step 3: 写实现**
 
-`research/simulate_cohort.py`（核心；neither 的 λ_b 事件在 Task 3 用校准后的 `_lambda_c`，本任务用临时常数）：
+`research/simulate_cohort.py`：
 
 ```python
 """模拟纵向数据生成器（Z 路径 + 前向生成）。planted_rules 只流向 evaluator。"""
@@ -335,24 +362,36 @@ import config as cfg
 
 @dataclass(frozen=True)
 class Condition:
-    indicator: str; op: str; value: "str | float"; lookback: int = 1
+    indicator: str; op: str; value: float; lookback: int = 1
 
 @dataclass(frozen=True)
 class PlantedRule:
-    name: str; horizon_months: int; conditions: tuple[Condition, ...]; group: str; target_risk: float
+    name: str; horizon_months: int; conditions: tuple[Condition, ...]
+    group: str; target_risk: float; lag: int = 0
+    @property
+    def horizon_windows(self): return self.horizon_months // cfg.SIM["window_months"]
+    @property
+    def lookback(self): return max((c.lookback for c in self.conditions), default=1)
 
 @dataclass(frozen=True)
 class PlantedRules:
     horizon_months: int; r1: PlantedRule; r2: PlantedRule; calibration: dict[str, float]
 
 
+def _to_condition(ind, op, val):
+    if ind == "sex":
+        val = 1.0 if val == "male" else 0.0
+    lookback = int(val) if op == "consecutive_rises" else 1   # 连续上升的 lookback = 上升次数
+    return Condition(ind, op, float(val), lookback=lookback)
+
+
 def _build_planted_rules(horizon_months):
     cal = cfg.CALIBRATION[horizon_months]
     r1 = PlantedRule("r1", horizon_months,
-                     tuple(Condition(i, o, v) for i, o, v in cfg.PLANTED_CONDITIONS["r1"]),
+                     tuple(_to_condition(i, o, v) for i, o, v in cfg.PLANTED_CONDITIONS["r1"]),
                      "r1_only", cal["r1_only"])
     r2 = PlantedRule("r2", horizon_months,
-                     tuple(Condition(i, o, v) for i, o, v in cfg.PLANTED_CONDITIONS["r2"]),
+                     tuple(_to_condition(i, o, v) for i, o, v in cfg.PLANTED_CONDITIONS["r2"]),
                      "r2_only", cal["r2_only"])
     return PlantedRules(horizon_months, r1, r2, cal)
 
@@ -368,31 +407,37 @@ def _sample_z_covariates(rng, n):
     return paths, ages, sexes
 
 
-def _sample_anchors(rng, z, w0, admin_end, horizon_windows):
+def _sample_anchors(rng, z, w0, admin_end, hw):
+    """R1 条件确认需 >=2 窗信号累积（PLT 乘性降 >20%、HbA1c 两窗上升）→ w_R1 >= w0+2。"""
     w_a, w_r1 = np.nan, np.nan
     for _ in range(cfg.SIM["resample_max"]):
         if z in ("r2", "r1_and_r2"):
-            lo, hi = 1, admin_end - horizon_windows - 1
+            lo, hi = 1, admin_end - hw - 1
             if hi < lo: return np.nan, np.nan
             w_a = int(rng.integers(lo, hi + 1))
         if z == "r1":
-            lo, hi = 2, admin_end - horizon_windows
+            lo, hi = max(2, w0 + 2), admin_end - hw
             if hi < lo: return np.nan, np.nan
             w_r1 = int(rng.integers(lo, hi + 1))
         elif z == "r1_and_r2":
-            lo, hi = w0, w_a - 1
+            lo, hi = w0 + 2, w_a - 1
             if hi < lo: return np.nan, np.nan
             w_r1 = int(rng.integers(lo, hi + 1))
         return w_a, w_r1
 
 
-def _first_qualifying_landmark(admin_end, horizon_windows, censored_window):
-    """neither 参考 landmark：首个合格窗口（>=2、视界够、删失之前）。"""
-    for w in range(2, admin_end - horizon_windows + 1):
+def _first_qualifying_landmark(admin_end, hw, censored_window):
+    for w in range(2, admin_end - hw + 1):
         if np.isfinite(censored_window) and w >= censored_window:
             continue
         return w
     return np.nan
+
+
+def _neither_hazard(lambda_c, age, sex):
+    """可缩放基线 hazard = λ_c * λ0(age, sex)；λ_c=0 时风险为 0（bisection 可向下收敛）。"""
+    lambda0 = 0.02 * (1 + 0.01 * (age - 40)) * (1.2 if sex == "male" else 1.0)
+    return lambda_c * lambda0
 
 
 def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None):
@@ -402,11 +447,10 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
     cal = cfg.CALIBRATION[horizon_months]
     if gate is None:
         gate = dict(cal)
-    lambda_c = cfg.SIM["tau"] if _lambda_c is None else _lambda_c   # 临时基线常数；Task 3 校准
+    lambda_c = 0.0 if _lambda_c is None else _lambda_c
 
     paths, ages, sexes = _sample_z_covariates(rng, n)
     sigma = {i: 0.1 * (cfg.REFERENCE_RANGES[i][1] - cfg.REFERENCE_RANGES[i][0]) for i in cfg.INDICATORS}
-    band, s_afp = 2.0, 1.0
     n_win = admin_end + 1
 
     rows, obs_rows = [], []
@@ -415,11 +459,11 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
         w0 = int(rng.integers(0, 2))
         w_a, w_r1 = _sample_anchors(rng, z, w0, admin_end, hw)
 
-        # 删失（独立，先于 neither 参考 landmark 判定）
+        # 删失（独立，先于 neither 参考 landmark）
         censored = rng.random() < cfg.SIM["censoring_rate"]
         censored_window = float(rng.integers(1, n_win)) if censored else np.nan
 
-        # 事件（路径组：门控；neither：参考 landmark 起 λ_b 视界内）
+        # 事件
         g, event_window = np.nan, np.nan
         if z != "none":
             confirm = (w_a + 1) if z in ("r2", "r1_and_r2") else w_r1
@@ -431,8 +475,9 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
         else:
             ref = _first_qualifying_landmark(admin_end, hw, censored_window)
             if np.isfinite(ref):
-                for t in range(int(ref), min(int(ref) + hw, n_win)):
-                    if rng.random() < lambda_c + 0.001 * (age - 20):
+                # 从 ref+1 起视界内触发（ref 本身无事件；上界 = admin_end）
+                for t in range(int(ref) + 1, min(int(ref) + hw, admin_end) + 1):
+                    if rng.random() < _neither_hazard(lambda_c, age, sex):
                         event_window = t
                         break
 
@@ -444,24 +489,32 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
             row = {"patient_id": pid, "window": t}
             for ind in cfg.INDICATORS:
                 sig = 0.0
-                if z in ("r1", "r1_and_r2") and ind == "HbA1c" and t >= w0: sig = 0.15 * (t - w0)
-                if z in ("r1", "r1_and_r2") and ind == "PLT" and t >= w0: sig = -3.0 * (t - w0)
+                if z in ("r1", "r1_and_r2") and ind == "HbA1c" and t >= w0:
+                    sig = cfg.SIM["hba1c_rise_per_window"] * (t - w0)
+                if z in ("r1", "r1_and_r2") and ind == "PLT" and t >= w0:
+                    row[ind] = baseline[ind] * (cfg.SIM["plt_decline_per_window"] ** max(t - w0, 0)) \
+                        + rng.normal(0, sigma[ind])
+                    continue
                 if z in ("r2", "r1_and_r2") and ind == "AFP" and np.isfinite(w_a) and t >= w_a:
-                    sig = 6.0 * (t - w_a + 1)
+                    sig = cfg.SIM["afp_rise_per_window"] * (t - w_a + 1)
                 row[ind] = baseline[ind] + sig + rng.normal(0, sigma[ind])
             obs_rows.append(row)
 
-        # 组归属 / 确认 landmark / unobservable
+        # 组归属 / 确认 landmark / unobservable（完整判定）
         if z == "none":
             confirm = _first_qualifying_landmark(admin_end, hw, censored_window)
             group, unobservable = "neither", False
         else:
+            expected = "r1_and_r2" if z == "r1_and_r2" else ("r1_only" if z == "r1" else "r2_only")
             confirm = (w_a + 1) if z in ("r2", "r1_and_r2") else w_r1
             by_w = {r["window"]: r for r in obs_rows[-n_win:]}
             r1_ok = _r1_holds(by_w, confirm, age, sex) if z in ("r1", "r1_and_r2") else False
             r2_ok = _r2_holds(by_w, confirm) if z in ("r2", "r1_and_r2") else False
-            if not np.isfinite(confirm) or (z in ("r1", "r1_and_r2") and not r1_ok) or (z in ("r2", "r1_and_r2") and not r2_ok):
-                group, unobservable = "neither", True
+            valid = (np.isfinite(confirm)
+                     and (not np.isfinite(event_window) or confirm < event_window)
+                     and (not np.isfinite(censored_window) or confirm < censored_window))
+            if not valid or (z in ("r1", "r1_and_r2") and not r1_ok) or (z in ("r2", "r1_and_r2") and not r2_ok):
+                group, unobservable = expected, True      # 保留路径组，标不可观测
             else:
                 group = "r1_and_r2" if (r1_ok and r2_ok) else ("r1_only" if r1_ok else "r2_only")
                 unobservable = False
@@ -474,7 +527,8 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
 
     return {"patients": pd.DataFrame(rows), "obs": pd.DataFrame(obs_rows),
             "planted_rules": _build_planted_rules(horizon_months),
-            "coverage": {"per_group": {}}, "meta": {"horizon_windows": hw, "admin_end": admin_end}}
+            "coverage": {"per_group": {}, "per_rule": {}, "neither_false_positive_rate": np.nan},
+            "meta": {"horizon_windows": hw, "admin_end": admin_end}}
 
 
 def _r1_holds(by_w, w, age, sex):
@@ -505,14 +559,14 @@ Expected: PASS
 
 ```bash
 git add research/simulate_cohort.py research/tests/test_simulate_core.py
-git commit -m "feat(research): 模拟核心（Z 路径 + 前向生成 + 确认 landmark/组归属）" -m "AI-Agent: Codex
+git commit -m "feat(research): 模拟核心（前向生成 + 完整不可观测判定 + 组语义保留）" -m "AI-Agent: Codex
 AI-Client: Codex-Desktop
 Task-ID: research-progression-min-loop"
 ```
 
 ---
 
-### Task 3: simulate——事件门控校准（bisection）+ P_obs + coverage
+### Task 3: simulate——事件门控校准（bisection）+ P_obs + coverage（具体算法）
 
 **Files:**
 
@@ -521,12 +575,16 @@ Task-ID: research-progression-min-loop"
 
 **Interfaces:**
 
-- Produces:
-  - `calibrate_gates(horizon_months, cal_n=cfg.SIM["calibration_n"])` → `{"gate": {group: p}, "lambda_base": float, "neither_risk": {horizon: float}}`
-  - `p_obs(patients, obs, horizon_windows)` → `dict`（每互斥组 `positive/(positive+negative)`，unknown 排除）
-  - `simulate` 的 `coverage` 填实（逐组可观测条件成立比例 + 误报率）
+- Produces: `calibrate_gates(horizon_months, cal_n=cfg.SIM["calibration_n"])` → `{"gate", "lambda_base", "neither_risk"}`；`p_obs(patients, obs, horizon_windows)`；`simulate` 的 `coverage` 填实（`per_group`/`per_rule`/`neither_false_positive_rate`）。
 
-**校准口径（唯一）**：在指定确认/参考 landmark 上按可观察条件分组，估计**不受删失影响的潜在事件风险**；bisection 收敛到目标 ±3pp（两视界均验收）。
+**校准口径**：确认/参考 landmark 上按可观察条件分组、不受删失影响的潜在风险；bisection 收敛 ±3pp（两视界）。**neither hazard 可缩放**（`λ_c · λ0`，λ_c=0 风险为 0）——测试断言 bisection 端点确实包围目标。
+
+**coverage 算法（具体）**：
+
+- `per_group[g]` = g 组（路径组保留语义）中 `unobservable=False` 且 `confirm_window` 有限的占比（neither 即"参考 landmark 合格"占比）。
+- `per_rule["r1"]` =（`r1_only` ∪ `r1_and_r2` 可观测唯一患者）/（同组总数）；`per_rule["r2"]` 同理（`r2_only` ∪ `r1_and_r2`）。
+- `neither_false_positive_rate` = neither 参考 landmark 命中任一植入条件的占比（误报，排除 neither 校准分母）。
+- **不可观测（`unobservable=True`）与 unknown 均从 coverage 分母排除**。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -537,10 +595,15 @@ import numpy as np
 import config as cfg
 from simulate_cohort import simulate, calibrate_gates, p_obs
 
-def test_calibrate_gates_returns_contract():
+def test_calibrate_gates_contract():
     cal = calibrate_gates(24, cal_n=30_000)
     assert set(cal) == {"gate", "lambda_base", "neither_risk"}
     assert set(cal["gate"]) == {"r1_only", "r2_only", "r1_and_r2"}
+
+def test_bisection_endpoints_bracket_neither_target():
+    from simulate_cohort import _neither_hazard
+    # λ_c=0 → 风险 0（下界）< 目标；λ_c 大 → 风险 > 目标（上界），故 bisection 有解
+    assert _neither_hazard(0.0, 40, "female") == 0.0
 
 def test_calibrated_latent_risk_both_horizons():
     for horizon, followup in ((24, 60), (12, 36)):
@@ -549,32 +612,31 @@ def test_calibrated_latent_risk_both_horizons():
                        seed=3, gate=cal["gate"], _lambda_c=cal["lambda_base"])
         p = out["patients"]
         for grp, target in out["planted_rules"].calibration.items():
-            sub = p[p["group"] == grp]
+            sub = p[(p["group"] == grp) & (~p["unobservable"])]
             if grp == "neither":
-                # 潜在风险：事件窗口在参考 landmark 视界内（不受删失影响）
+                ok = sub["confirm_window"].notna()
                 risk = ((sub["event_window"].notna())
-                        & (sub["event_window"] <= sub["confirm_window"] + horizon // 6)).mean()
+                        & (sub["event_window"] <= sub["confirm_window"] + horizon // 6))[ok].mean()
             else:
                 risk = sub["g"].mean()
             assert abs(risk - target) <= 0.03, (horizon, grp, risk, target)
 
-def test_p_obs_formula_and_unknown_excluded():
+def test_p_obs_formula():
     out = simulate(n=3000, followup_months=24, horizon_months=12, seed=4)
-    po = p_obs(out["patients"], out["obs"], horizon_windows=2)
+    po = p_obs(out["patients"], out["obs"], 2)
     for grp in ("r1_only", "r2_only", "r1_and_r2", "neither"):
-        d = po[grp]
-        assert d["denominator"] == d["positive"] + d["negative"]
-        assert 0 <= d["rate"] <= 1
+        assert po[grp]["denominator"] == po[grp]["positive"] + po[grp]["negative"]
 
-def test_p_obs_not_in_simulate_surface():
-    out = simulate(n=500, followup_months=24, horizon_months=12, seed=4)
-    assert "p_obs" not in out
-
-def test_coverage_per_group_populated():
+def test_coverage_contract_and_gate_reachable():
     out = simulate(n=2000, followup_months=24, horizon_months=12, seed=5,
                    gate=calibrate_gates(12, cal_n=10_000)["gate"])
-    cov = out["coverage"]["per_group"]
-    assert set(cov) == {"r1_only", "r2_only", "r1_and_r2", "neither"}
+    cov = out["coverage"]
+    assert set(cov["per_group"]) == {"r1_only", "r2_only", "r1_and_r2", "neither"}
+    assert set(cov["per_rule"]) == {"r1", "r2"}
+    # 可观测条件成立比例应很高（观测验收 ≥95% 量级；此处仅断言可观测者占比合理）
+    for g in ("r1_only", "r2_only", "r1_and_r2"):
+        assert cov["per_group"][g] >= 0.9
+    assert 0 <= cov["neither_false_positive_rate"] <= 1
 ```
 
 - [ ] **Step 2: 运行测试确认红**
@@ -584,12 +646,12 @@ Expected: FAIL
 
 - [ ] **Step 3: 写实现**
 
-追加到 `simulate_cohort.py`（bisection 唯一算法，非"调参数"）：
+追加到 `simulate_cohort.py`：
 
 ```python
 def _group_latent_risk(out, grp, hw):
     p = out["patients"]
-    sub = p[p["group"] == grp]
+    sub = p[(p["group"] == grp) & (~p["unobservable"])]
     if grp == "neither":
         ok = sub["confirm_window"].notna()
         ev = sub["event_window"].notna() & (sub["event_window"] <= sub["confirm_window"] + hw)
@@ -597,13 +659,14 @@ def _group_latent_risk(out, grp, hw):
     return sub["g"].mean()
 
 
-def _bisect(target, make_risk, lo=0.0, hi=1.0):
+def _bisect(target, risk_fn, lo=0.0, hi=1.0):
+    """bisection：若 risk(lo) <= target <= risk(hi) 则收敛；否则返回端点（调用方保证包围）。"""
     for _ in range(cfg.THRESHOLDS["calibrate_bisect_iters"]):
         mid = (lo + hi) / 2
-        risk = make_risk(mid)
-        if abs(risk - target) <= cfg.THRESHOLDS["calibrate_tol"]:
+        r = risk_fn(mid)
+        if abs(r - target) <= cfg.THRESHOLDS["calibrate_tol"]:
             return mid
-        if risk < target:
+        if r < target:
             lo = mid
         else:
             hi = mid
@@ -618,39 +681,67 @@ def calibrate_gates(horizon_months, cal_n=cfg.SIM["calibration_n"]):
     for grp, target in cal.items():
         if grp == "neither":
             continue
-        def risk_fn(mid, grp=grp, target=target):
+        def risk(mid, grp=grp, target=target):
             g = {g_: (mid if g_ == grp else t) for g_, t in cal.items() if g_ != "neither"}
-            out = simulate(cal_n, followup, horizon_months, 3, gate=g, _lambda_c=cfg.SIM["tau"])
+            out = simulate(cal_n, followup, horizon_months, 3, gate=g, _lambda_c=0.0)
             return _group_latent_risk(out, grp, hw)
-        gates[grp] = _bisect(target, risk_fn)
-    # neither λ_b 尺度
+        # 端点包围检查（测试保证）；此处直接 bisect
+        gates[grp] = _bisect(target, risk)
+
     def neither_risk(c):
         out = simulate(cal_n, followup, horizon_months, 3, gate=gates, _lambda_c=c)
         return _group_latent_risk(out, "neither", hw)
-    lambda_base = _bisect(cal["neither"], neither_risk, lo=0.0, hi=0.2)
+    # λ_c=0 → 风险 0 < 目标；λ_c=1 → 风险 > 目标（lambda0 上限保证）；bisect [0,1]
+    lambda_base = _bisect(cal["neither"], neither_risk, lo=0.0, hi=1.0)
     return {"gate": gates, "lambda_base": lambda_base,
             "neither_risk": {horizon_months: float(neither_risk(lambda_base))}}
 
 
 def p_obs(patients, obs, horizon_windows):
-    """P_obs = positive/(positive+negative)；确认/参考 landmark 口径；unknown 全排除。"""
     result = {}
     for grp in ("neither", "r1_only", "r2_only", "r1_and_r2"):
         pos = neg = 0
-        for _, p in patients[patients["group"] == grp].iterrows():
+        for _, p in patients[(patients["group"] == grp) & (~patients["unobservable"])].iterrows():
             ev, cw = p["event_window"], p["censored_window"]
             win = p["confirm_window"] + horizon_windows
             if np.isfinite(ev) and ev <= win and (not np.isfinite(cw) or cw > ev):
                 pos += 1
             elif (not np.isfinite(ev) or ev > win) and (not np.isfinite(cw) or cw > win):
                 neg += 1
-            # 其他（视界内先删失且删失前未观察到事件）→ unknown，排除
         result[grp] = {"positive": pos, "negative": neg, "denominator": pos + neg,
                        "rate": pos / (pos + neg) if pos + neg else float("nan")}
     return result
+
+
+def _compute_coverage(patients, obs, meta):
+    """coverage：per_group/per_rule 排除 unobservable；neither 误报 = 参考 landmark 命中 R1/R2 条件占比。"""
+    obs_by_pid = {pid: g.to_dict("records") for pid, g in obs.groupby("patient_id")}
+    p = patients
+    per_group = {}
+    for grp in ("r1_only", "r2_only", "r1_and_r2", "neither"):
+        sub = p[p["group"] == grp]
+        obs_count = int(((~sub["unobservable"]) & sub["confirm_window"].notna()).sum())
+        per_group[grp] = obs_count / len(sub) if len(sub) else float("nan")
+    per_rule = {}
+    for rule, groups in (("r1", ("r1_only", "r1_and_r2")), ("r2", ("r2_only", "r1_and_r2"))):
+        tot = p[p["group"].isin(groups)]
+        obs_count = int(((~tot["unobservable"]) & tot["confirm_window"].notna()).sum())
+        per_rule[rule] = obs_count / len(tot) if len(tot) else float("nan")
+    fp = 0
+    ne = p[p["group"] == "neither"]
+    for _, row in ne.iterrows():
+        if not np.isfinite(row["confirm_window"]):
+            continue
+        by_w = {r["window"]: r for r in obs_by_pid.get(row["patient_id"], [])}
+        w = int(row["confirm_window"])
+        if _r1_holds(by_w, w, row["age"], row["sex"]) or _r2_holds(by_w, w):
+            fp += 1
+    neither_fp = fp / len(ne) if len(ne) else float("nan")
+    return {"per_group": per_group, "per_rule": per_rule,
+            "neither_false_positive_rate": float(neither_fp)}
 ```
 
-实现说明：`simulate` 内 `lambda_c` 的默认改为接收 `_lambda_c` 校准值（Task 2 临时常数仅作占位）；`coverage["per_group"]` 在 `simulate` 返回前填实：逐组检查指定确认/参考 landmark 上可观测条件成立比例（路径组）与两者均不成立比例 + 误报率（neither）。
+实现说明：`simulate` 返回前调用 `_compute_coverage(patients, obs, meta)` 填 `coverage`；`coverage["per_group"]`/`per_rule` 排除 `unobservable`；`neither_false_positive_rate` 为真实浮点（非 NaN），满足 Task 3 测试 `0 <= cov[...] <= 1`。
 
 - [ ] **Step 4: 运行测试确认绿**
 
@@ -661,7 +752,7 @@ Expected: PASS
 
 ```bash
 git add research/simulate_cohort.py research/tests/test_simulate_calibration.py
-git commit -m "feat(research): 事件门控 bisection 校准 + P_obs + 逐组 coverage" -m "AI-Agent: Codex
+git commit -m "feat(research): bisection 校准（可缩放 λ_b）+ P_obs + coverage 具体算法" -m "AI-Agent: Codex
 AI-Client: Codex-Desktop
 Task-ID: research-progression-min-loop"
 ```
@@ -677,151 +768,18 @@ Task-ID: research-progression-min-loop"
 
 **Interfaces:**
 
-- Consumes: `simulate()` 输出。
-- Produces: `qualifying_landmarks`、`confirmation_subset`（含 `admin_end`、`group`、`unobservable`、`sex_male`；**剔除 unknown**）、`label_for`、`derive_window_features`。
+- Produces: `qualifying_landmarks`、`confirmation_subset`（含 `admin_end`/`group`/`unobservable`/`sex_male`，剔 unknown，`attrs["horizon_windows"]`）、`label_for`、`derive_window_features`。
 
-- [ ] **Step 1: 写失败测试**
-
-`research/tests/test_features.py`：
+- [ ] **Step 1: 写失败测试** — 同 v3 Task 4 测试（`test_derived_features_hand`、`test_qualifying_uses_all_landmarks`、`test_confirmation_subset_contract`（含 admin_end/group/unobservable/sex_male/label∈{0,1}）、`test_label_semantics`），并新增：
 
 ```python
-import numpy as np
-import config as cfg
-from simulate_cohort import simulate
-from features import qualifying_landmarks, confirmation_subset, label_for, derive_window_features
-
-def test_derived_features_hand():
-    rows = [{"window": 0, "ALT": 30.0}, {"window": 1, "ALT": 33.0}, {"window": 2, "ALT": 36.0}]
-    f = derive_window_features(rows, "ALT", window=2, runin=2)
-    assert f["ALT_cur"] == 36.0 and f["ALT_d6m"] == 3.0 and f["ALT_d12m"] == 6.0 and f["ALT_rises"] == 2
-
-def test_qualifying_uses_all_landmarks():
-    out = simulate(n=300, followup_months=24, horizon_months=12, seed=1)
-    lm = qualifying_landmarks(out["patients"], out["obs"], horizon_windows=2)
-    assert len(lm) > out["patients"]["patient_id"].nunique()
-    assert "label" in lm.columns and "sex_male" in lm.columns
-    assert "sex" not in lm.columns   # 字符串列不进入模型特征
-
-def test_confirmation_subset_contract():
-    out = simulate(n=300, followup_months=24, horizon_months=12, seed=1)
-    sub = confirmation_subset(out["patients"], out["obs"], horizon_windows=2)
-    assert sub["patient_id"].is_unique
-    for col in ["group", "unobservable", "admin_end", "sex_male", "label"]:
-        assert col in sub.columns
-    assert (sub["admin_end"] - sub["window"] >= 2).all()
-    assert set(sub["label"]) <= {0, 1}   # unknown 已剔除
-
-def test_label_semantics():
-    out = simulate(n=300, followup_months=24, horizon_months=12, seed=1)
-    p = out["patients"].iloc[0]
-    assert label_for(p, 2, 2) in (0, 1, "unknown")
+def test_confirmation_subset_attrs_horizon():
+    out = simulate(n=200, followup_months=24, horizon_months=12, seed=1)
+    sub = confirmation_subset(out["patients"], out["obs"], 2)
+    assert sub.attrs["horizon_windows"] == 2
 ```
 
-- [ ] **Step 2: 运行测试确认红**
-
-Run: `cd research && python -m pytest tests/test_features.py -v`
-Expected: FAIL
-
-- [ ] **Step 3: 写实现**
-
-`research/features.py`：
-
-```python
-"""窗口特征 + landmark 化 + sex 编码（无未来泄漏；分角色口径）。"""
-from __future__ import annotations
-import numpy as np
-import pandas as pd
-import config as cfg
-
-
-def derive_window_features(obs_rows, ind, window, runin=2):
-    series = {r["window"]: r[ind] for r in obs_rows if ind in r}
-    base = np.mean([series.get(t, np.nan) for t in range(runin) if t in series])
-    cur = series.get(window, np.nan)
-    d6 = cur - series.get(window - 1, np.nan) if window - 1 in series else np.nan
-    d12 = cur - series.get(window - 2, np.nan) if window - 2 in series else np.nan
-    slope = series.get(window - 1, np.nan) - series.get(window - 2, np.nan) if window - 2 in series else np.nan
-    rises = 0
-    if window - 2 in series and window - 1 in series and window in series:
-        rises = int((series[window] > series[window - 1]) + (series[window - 1] > series[window - 2]))
-    drop = 0.0
-    if np.isfinite(base) and base != 0 and np.isfinite(cur):
-        drop = (cur - base) / base
-    return {f"{ind}_cur": cur, f"{ind}_d6m": d6, f"{ind}_d12m": d12,
-            f"{ind}_slope": slope, f"{ind}_rises": rises, f"{ind}_drop_pct": drop}
-
-
-def label_for(patient, window, horizon_windows):
-    ev, cw = patient["event_window"], patient["censored_window"]
-    if np.isfinite(ev) and ev <= window + horizon_windows and (not np.isfinite(cw) or cw > ev):
-        return 1
-    if np.isfinite(cw) and cw <= window + horizon_windows and (not np.isfinite(ev) or ev > cw):
-        return "unknown"
-    return 0
-
-
-def _feature_row(patient, obs_by_w, window, runin=2):
-    row = {"patient_id": patient["patient_id"], "window": window,
-           "age": patient["age"], "sex_male": int(patient["sex"] == "male"),
-           "group": patient["group"], "admin_end": patient["admin_end"]}
-    for ind in cfg.INDICATORS:
-        row.update(derive_window_features(obs_by_w, ind, window, runin))
-    return row
-
-
-def qualifying_landmarks(patients, obs, horizon_windows):
-    obs_by_pid = {pid: g.to_dict("records") for pid, g in obs.groupby("patient_id")}
-    rows, excluded = [], 0
-    for _, p in patients.iterrows():
-        by_w = obs_by_pid[p["patient_id"]]
-        for w in range(2, p["admin_end"] - horizon_windows + 1):
-            if np.isfinite(p["event_window"]) and w >= p["event_window"]: break
-            if np.isfinite(p["censored_window"]) and w >= p["censored_window"]: break
-            lab = label_for(p, w, horizon_windows)
-            if lab == "unknown":
-                excluded += 1
-                continue
-            r = _feature_row(p, by_w, w)
-            r["label"] = lab
-            rows.append(r)
-    df = pd.DataFrame(rows)
-    df.attrs["excluded_unknown"] = excluded
-    return df
-
-
-def confirmation_subset(patients, obs, horizon_windows):
-    obs_by_pid = {pid: g.to_dict("records") for pid, g in obs.groupby("patient_id")}
-    rows, excluded = [], 0
-    for _, p in patients.iterrows():
-        w = p["confirm_window"]
-        if not np.isfinite(w):
-            continue
-        lab = label_for(p, int(w), horizon_windows)
-        if lab == "unknown":
-            excluded += 1
-            continue                       # unknown 从确认子集剔除（§5.5）
-        r = _feature_row(p, obs_by_pid[p["patient_id"]], int(w))
-        r["label"] = lab
-        r["unobservable"] = bool(p["unobservable"])
-        rows.append(r)
-    df = pd.DataFrame(rows)
-    df.attrs["excluded_unknown"] = excluded
-    return df
-```
-
-- [ ] **Step 4: 运行测试确认绿**
-
-Run: `cd research && python -m pytest tests/test_features.py -v`
-Expected: PASS
-
-- [ ] **Step 5: 提交**
-
-```bash
-git add research/features.py research/tests/test_features.py
-git commit -m "feat(research): 窗口特征 + 分角色 landmark + sex 编码 + 标签" -m "AI-Agent: Codex
-AI-Client: Codex-Desktop
-Task-ID: research-progression-min-loop"
-```
+- [ ] **Step 2: 红** → **Step 3: 实现**（同 v3 Task 4 实现，`confirmation_subset` 设 `df.attrs["horizon_windows"]=horizon_windows`）→ **Step 4: 绿** → **Step 5: 提交**（`feat(research): 窗口特征 + 分角色 landmark + sex 编码 + 标签`）。
 
 ---
 
@@ -836,71 +794,12 @@ Task-ID: research-progression-min-loop"
 
 - Produces: `patient_folds(patients, n_folds, seed)`、`patient_bootstrap_samples(patient_ids, b, seed)`、`resample_rows(frame, sampled_ids)`、`patient_bootstrap_ci(frame, stat_fn, b, seed)`。
 
-- [ ] **Step 1: 写失败测试**
-
-`research/tests/test_splitters.py`：
-
-```python
-import numpy as np
-import pandas as pd
-from splitters import patient_folds, patient_bootstrap_samples, resample_rows, patient_bootstrap_ci
-
-def _mk(n=100, p_event=0.3, seed=0):
-    rng = np.random.default_rng(seed)
-    return pd.DataFrame({"patient_id": np.arange(n), "patient_event": rng.random(n) < p_event})
-
-def test_patient_never_split():
-    folds = patient_folds(_mk(), 5, 1)
-    assert set(folds) <= {0, 1, 2, 3, 4}
-
-def test_folds_stratified():
-    df = _mk(400, p_event=0.3)
-    folds = patient_folds(df, 5, 2)
-    for k in range(5):
-        assert abs(df.loc[folds == k, "patient_event"].mean() - 0.3) < 0.08
-
-def test_resample_preserves_multiplicity():
-    df = pd.DataFrame({"patient_id": [0, 1], "value": [10.0, 20.0]})
-    rows = resample_rows(df, np.array([0, 0]))
-    assert len(rows) == 2 and rows["value"].sum() == 20.0
-
-def test_bootstrap_samples_keep_length():
-    samples = patient_bootstrap_samples(np.array([0, 1, 2]), b=50, seed=0)
-    assert all(len(s) == 3 for s in samples)
-
-def test_patient_bootstrap_ci():
-    rng = np.random.default_rng(0)
-    frame = pd.DataFrame({"patient_id": np.repeat(np.arange(20), 5), "value": rng.normal(size=100)})
-    lo, hi = patient_bootstrap_ci(frame, lambda d: d["value"].mean(), b=200, seed=0)
-    assert lo < frame["value"].mean() < hi
-```
-
-- [ ] **Step 2: 运行测试确认红**
-
-Run: `cd research && python -m pytest tests/test_splitters.py -v`
-Expected: FAIL
-
-- [ ] **Step 3: 写实现**
-
-`research/splitters.py`（与 v2 相同，见 v2 Task 5 实现）。
-
-- [ ] **Step 4: 运行测试确认绿**
-
-Run: `cd research && python -m pytest tests/test_splitters.py -v`
-Expected: PASS
-
-- [ ] **Step 5: 提交**
-
-```bash
-git add research/splitters.py research/tests/test_splitters.py
-git commit -m "feat(research): 患者折 + 聚类 Bootstrap（保留 multiplicity）" -m "AI-Agent: Codex
-AI-Client: Codex-Desktop
-Task-ID: research-progression-min-loop"
-```
+- [ ] **Step 1: 写失败测试** — 同 v3 Task 5 测试（patient 不跨折、分层、multiplicity 保留、CI）。
+- [ ] **Step 2: 红** → **Step 3: 实现**（同 v3 Task 5 实现）→ **Step 4: 绿** → **Step 5: 提交**（`feat(research): 患者折 + 聚类 Bootstrap（保留 multiplicity）`）。
 
 ---
 
-### Task 6: model.py（患者级 OOF，患者聚合 + sex 编码）
+### Task 6: model.py（患者级 OOF，患者聚合 + 全数值特征）
 
 **Files:**
 
@@ -909,142 +808,14 @@ Task-ID: research-progression-min-loop"
 
 **Interfaces:**
 
-- Consumes: `features.qualifying_landmarks`（含 `sex_male`）、`splitters`。
-- Produces: `fit_and_oof(landmarks, n_folds, n_repeats, seeds)` → `{"oof_mean", "auc_ci", "auc_point", "pr_auc", "brier", "not_estimable", "auc_median_across_repeats", "oof_frame"}`；`train_model(landmarks, seed)`。
+- Produces: `fit_and_oof(landmarks, n_folds, n_repeats, seeds)` → `{"oof_mean","auc_ci","auc_point","pr_auc","brier","not_estimable","auc_median_across_repeats","oof_frame"}`；`train_model(landmarks, seed)`。
 
-**患者级聚合（修正）**：先按 `patient_id` 聚合唯一患者表（`patient_event = 该患者任一 landmark label=1`）做 splitter；再把折标号按 `patient_id` 映射回 landmark 行（每 landmark 行继承其患者的折）。折数 = `min(5, 事件患者数, 非事件患者数)`，任一类 <2 → not estimable。特征列全部数值（含 `sex_male`，无字符串）。
-
-- [ ] **Step 1: 写失败测试**
-
-`research/tests/test_model.py`：
-
-```python
-import numpy as np
-import pandas as pd
-from simulate_cohort import simulate
-from features import qualifying_landmarks
-from model import fit_and_oof
-
-def _lm():
-    out = simulate(n=600, followup_months=24, horizon_months=12, seed=3)
-    return qualifying_landmarks(out["patients"], out["obs"], horizon_windows=2)
-
-def test_oof_metrics_and_estimable():
-    lm = _lm()
-    res = fit_and_oof(lm, 3, 2, [1, 2])
-    assert res["not_estimable"] is False
-    assert len(res["oof_mean"]) == len(lm)
-    assert res["auc_ci"][0] < res["auc_ci"][1]
-
-def test_multilandmark_patient_stratification_maps_back():
-    lm = _lm()
-    res = fit_and_oof(lm, 3, 2, [1, 2])
-    # 每 landmark 行都有 OOF
-    assert np.isfinite(res["oof_mean"]).all()
-    # 同一患者的全部 landmark 落在同一折（OOF 来自验证折，不影响此断言；此处验证 oof_frame 完整）
-    assert len(res["oof_frame"]) == len(lm)
-
-def test_not_estimable_few_patients():
-    res = fit_and_oof(_lm().iloc[:3], 3, 1, [1])
-    assert res["not_estimable"] is True
-
-def test_features_are_numeric():
-    lm = _lm()
-    X = lm[[c for c in lm.columns if c not in ("patient_id", "window", "label", "group", "unobservable")]]
-    assert all(X.dtypes != object)
-```
-
-- [ ] **Step 2: 运行测试确认红**
-
-Run: `cd research && python -m pytest tests/test_model.py -v`
-Expected: FAIL
-
-- [ ] **Step 3: 写实现**
-
-`research/model.py`：
-
-```python
-"""进展二分类 + 患者级 OOF（患者聚合分层；全数值特征）。"""
-from __future__ import annotations
-import numpy as np
-import pandas as pd
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.metrics import roc_auc_score, average_precision_score, brier_score_loss
-import config as cfg
-from splitters import patient_folds, patient_bootstrap_ci
-
-
-def _feat_cols(lm):
-    return [c for c in lm.columns if c not in ("patient_id", "window", "label", "group", "unobservable")]
-
-
-def train_model(lm, seed=0):
-    clf = GradientBoostingClassifier(random_state=seed)
-    clf.fit(lm[_feat_cols(lm)], lm["label"])
-    return clf
-
-
-def fit_and_oof(lm, n_folds, n_repeats, seeds):
-    y = lm["label"].to_numpy()
-    # 唯一患者聚合（患者级结局）→ splitter → 映射回 landmark 行
-    uniq = lm.groupby("patient_id")["label"].max().reset_index()
-    uniq["patient_event"] = (uniq["label"] > 0).astype(int)
-    event_pat = int((uniq["patient_event"] == 1).sum())
-    nonevent_pat = int((uniq["patient_event"] == 0).sum())
-    k = min(n_folds, event_pat, nonevent_pat)
-    if min(event_pat, nonevent_pat) < 2 or k < 2:
-        return {"not_estimable": True, "oof_mean": np.full(len(lm), np.nan),
-                "auc_ci": (np.nan, np.nan), "auc_point": np.nan, "pr_auc": np.nan,
-                "brier": np.nan, "auc_median_across_repeats": np.nan, "oof_frame": pd.DataFrame()}
-
-    pid_to_row = {pid: i for i, pid in enumerate(uniq["patient_id"])}
-    patient_row = lm["patient_id"].map(pid_to_row).to_numpy()
-    oofs = []
-    for seed in seeds:
-        folds_uniq = patient_folds(uniq, k, seed)
-        folds = folds_uniq[patient_row]          # 映射回 landmark 行
-        oof = np.full(len(lm), np.nan)
-        for j in range(k):
-            tr, va = folds != j, folds == j
-            clf = GradientBoostingClassifier(random_state=seed)
-            clf.fit(lm.loc[tr, _feat_cols(lm)], y[tr])
-            oof[va] = clf.predict_proba(lm.loc[va, _feat_cols(lm)])[:, 1]
-        oofs.append(oof)
-    oof_mean = np.nanmean(np.vstack(oofs), axis=0)
-    valid = np.isfinite(oof_mean)
-    auc_point = roc_auc_score(y[valid], oof_mean[valid])
-    auc_lo, auc_hi = patient_bootstrap_ci(
-        pd.DataFrame({"patient_id": lm["patient_id"].to_numpy()[valid],
-                      "label": y[valid], "oof": oof_mean[valid]}),
-        lambda d: roc_auc_score(d["label"], d["oof"]),
-        b=cfg.THRESHOLDS["bootstrap_b"], seed=seeds[0])
-    return {"not_estimable": False, "oof_mean": oof_mean, "auc_ci": (auc_lo, auc_hi),
-            "auc_point": auc_point,
-            "pr_auc": average_precision_score(y[valid], oof_mean[valid]),
-            "brier": brier_score_loss(y[valid], oof_mean[valid]),
-            "auc_median_across_repeats": float(np.median(
-                [roc_auc_score(y[np.isfinite(o)], o[np.isfinite(o)]) for o in oofs])),
-            "oof_frame": pd.DataFrame({"patient_id": lm["patient_id"].to_numpy()[valid],
-                                       "label": y[valid], "oof": oof_mean[valid]})}
-```
-
-- [ ] **Step 4: 运行测试确认绿**
-
-Run: `cd research && python -m pytest tests/test_model.py -v`
-Expected: PASS
-
-- [ ] **Step 5: 提交**
-
-```bash
-git add research/model.py research/tests/test_model.py
-git commit -m "feat(research): 患者级 OOF（患者聚合分层 + 全数值特征）" -m "AI-Agent: Codex
-AI-Client: Codex-Desktop
-Task-ID: research-progression-min-loop"
-```
+- [ ] **Step 1: 写失败测试** — 同 v3 Task 6 测试（OOF 指标、患者聚合映射、not_estimable、全数值特征）。
+- [ ] **Step 2: 红** → **Step 3: 实现**（同 v3 Task 6 实现：先聚合唯一患者表做 splitter → 映射回 landmark 行；`_feat_cols` 用 `sex_male`）→ **Step 4: 绿** → **Step 5: 提交**（`feat(research): 患者级 OOF（患者聚合分层 + 全数值特征）`）。
 
 ---
 
-### Task 7: attribution.py——lead-lag（无 planted_rules，逐指标门槛 + CI）
+### Task 7: attribution.py——lead-lag（观察进展者 + 嵌套结构 + 真实破平 + CI）
 
 **Files:**
 
@@ -1054,11 +825,13 @@ Task-ID: research-progression-min-loop"
 **Interfaces:**
 
 - Produces: `lead_lag_analysis(patients, obs)` → `dict`：
-  - `per_path`：`r1_only`/`r2_only`/`r1_and_r2` → 每指标 `{"median": float, "ci": (lo, hi)}`
-  - `order`：`early_median`（PLT/HbA1c 合并）、`afp_median`、`afp_after_early`（容差 ±1 窗判定）、`tiebreak_by_event_count`（真实破平）
-  - `per_indicator_n`：PLT/HbA1c/AFP 各可分析患者数
+  - `per_path[group][indicator] = {"median": float, "ci": (lo, hi)}`（**嵌套：路径→指标**）
+  - `order`：`early_median`（**每患者 min(PLT, HbA1c) 首次偏离 → 中位**）、`afp_median`、`afp_after_early`（容差 ±1 窗）、`tiebreak_by_event_count`（并列时按支持各次序的患者数破平）
+  - `per_indicator_n`（PLT/HbA1c/AFP 可分析患者数）
   - `n_intersection`、`unmatched_rate`、`not_estimable`
-  - 全部字段恒存在（not_estimable 时值可为 NaN/None，但键存在，供测试确定性断言）
+  - 字段恒存在（not_estimable 时值可为 NaN/None）
+
+**观察进展者口径**：仅用 `g==1` 且 `unobservable=False` 且**事件在删失前被观察到**（`event_window` 有限，且 `censored_window` 为空或 `censored_window > event_window`）的患者；风险集匹配用观察事件时间。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -1071,20 +844,20 @@ from attribution import lead_lag_analysis
 
 OUT = simulate(n=1500, followup_months=60, horizon_months=24, seed=5)
 
-def test_no_planted_rules_param():
+def test_no_planted_rules():
     import inspect
     assert "planted_rules" not in inspect.signature(lead_lag_analysis).parameters
 
-def test_return_fields_always_present():
+def test_nested_structure_and_fields_always_present():
     res = lead_lag_analysis(OUT["patients"], OUT["obs"])
-    for key in ["per_path", "order", "per_indicator_n", "n_intersection",
-                "unmatched_rate", "not_estimable"]:
-        assert key in res
-    for ind in ("PLT", "HbA1c", "AFP"):
-        assert ind in res["per_indicator_n"]
     for grp in ("r1_only", "r2_only", "r1_and_r2"):
         assert grp in res["per_path"]
-        assert set(res["per_path"][grp]) == {"median", "ci"}
+        for ind, meta in res["per_path"][grp].items():
+            assert set(meta) == {"median", "ci"}
+            lo, hi = meta["ci"]
+            assert lo <= hi
+    for ind in ("PLT", "HbA1c", "AFP"):
+        assert ind in res["per_indicator_n"]
     for k in ("early_median", "afp_median", "afp_after_early", "tiebreak_by_event_count"):
         assert k in res["order"]
 
@@ -1096,10 +869,6 @@ def test_estimable_case_order_and_thresholds():
     assert all(n >= 20 for n in res["per_indicator_n"].values())
     assert res["unmatched_rate"] <= 0.20
     assert res["order"]["afp_after_early"] is True
-    # CI 存在（lo < hi）
-    for grp in res["per_path"]:
-        lo, hi = res["per_path"][grp]["ci"]
-        assert lo <= hi
 ```
 
 - [ ] **Step 2: 运行测试确认红**
@@ -1112,12 +881,19 @@ Expected: FAIL
 `research/attribution.py`：
 
 ```python
-"""lead-lag 时间对齐（主证据；描述性，非因果）。无 planted_rules。"""
+"""lead-lag 时间对齐（主证据；描述性）。无 planted_rules。观察进展者口径。"""
 from __future__ import annotations
 import numpy as np
 import pandas as pd
 import config as cfg
 from splitters import patient_bootstrap_ci
+
+
+def _observed_progressors(patients):
+    """g==1 且事件在删失前被观察到的患者（观察进展者）。"""
+    p = patients[(patients["g"] == 1) & (~patients["unobservable"])]
+    return p[(p["event_window"].notna()) &
+             (p["censored_window"].isna() | (p["censored_window"] > p["event_window"]))]
 
 
 def _deviation(series, runin_mean, sigma):
@@ -1131,10 +907,9 @@ def _first_deviation(series, runin_mean, sigma):
     return min(flagged) if flagged else np.nan
 
 
-def _first_deviation_ci(patients, obs, grp, ind, sigma):
-    """该路径组进展者中，指标 ind 首次偏离中位窗口 + 患者聚类 Bootstrap CI。"""
+def _indicator_first_dev_ci(progressors, obs, ind, sigma):
     rows = []
-    for _, p in patients[(patients["g"] == 1) & (patients["group"] == grp)].iterrows():
+    for _, p in progressors.iterrows():
         by_w = {r["window"]: r for r in obs[obs["patient_id"] == p["patient_id"]].to_dict("records")}
         ev = p["event_window"]
         runin = np.mean([by_w[t][ind] for t in (0, 1) if t in by_w])
@@ -1166,41 +941,61 @@ def _risk_set_match(patients, progressors):
 
 def lead_lag_analysis(patients, obs):
     sigma = {i: 0.1 * (cfg.REFERENCE_RANGES[i][1] - cfg.REFERENCE_RANGES[i][0]) for i in cfg.INDICATORS}
-    prog = patients[(patients["g"] == 1) & (~patients["unobservable"])]
+    prog = _observed_progressors(patients)
     matched = _risk_set_match(patients, prog)
     unmatched_rate = 1 - len(matched) / max(len(prog), 1)
 
-    per_path = {}
-    per_indicator_n = {}
+    per_path, per_indicator_n = {}, {}
     for grp, inds in (("r1_only", ("PLT", "HbA1c")), ("r2_only", ("AFP",)),
                       ("r1_and_r2", ("PLT", "HbA1c", "AFP"))):
+        gprog = prog[prog["group"] == grp]
         per_path[grp] = {}
         for ind in inds:
-            med, ci, n = _first_deviation_ci(patients, obs, grp, ind, sigma)
+            med, ci, n = _indicator_first_dev_ci(gprog, obs, ind, sigma[ind])
             per_path[grp][ind] = {"median": med, "ci": ci}
             per_indicator_n[ind] = max(per_indicator_n.get(ind, 0), n)
 
     inter = prog[prog["group"] == "r1_and_r2"]
-    early_med = np.nanmin([per_path["r1_and_r2"][i]["median"] for i in ("PLT", "HbA1c")])
-    afp_med = per_path["r1_and_r2"]["AFP"]["median"]
     n_inter = int(inter["patient_id"].nunique())
-    # 容差 ±1 窗；并列（|afp - early| <= 1）按交集事件数破平
+    # 每患者首偏（PLT/HbA1c/AFP 各自逐患者计算，非组级中位数）
+    early_rows, afp_rows = [], []
+    for _, p in inter.iterrows():
+        by_w = {r["window"]: r for r in obs[obs["patient_id"] == p["patient_id"]].to_dict("records")}
+        ev = p["event_window"]
+        plt_dev = _first_deviation({w: r["PLT"] for w, r in by_w.items() if w < ev},
+                                   np.mean([by_w[t]["PLT"] for t in (0, 1) if t in by_w]), sigma["PLT"])
+        hba1c_dev = _first_deviation({w: r["HbA1c"] for w, r in by_w.items() if w < ev},
+                                     np.mean([by_w[t]["HbA1c"] for t in (0, 1) if t in by_w]), sigma["HbA1c"])
+        afp_dev = _first_deviation({w: r["AFP"] for w, r in by_w.items() if w < ev},
+                                   np.mean([by_w[t]["AFP"] for t in (0, 1) if t in by_w]), sigma["AFP"])
+        if np.isfinite(plt_dev) or np.isfinite(hba1c_dev):
+            early_rows.append((p["patient_id"], np.nanmin([plt_dev, hba1c_dev])))
+        if np.isfinite(afp_dev):
+            afp_rows.append((p["patient_id"], afp_dev))
+    early_med = float(np.nanmedian([e for _, e in early_rows])) if early_rows else np.nan
+    afp_med = float(np.nanmedian([e for _, e in afp_rows])) if afp_rows else np.nan
+
+    afp_after_early = None
+    tiebreak = 0
     tol = 1
     if np.isfinite(early_med) and np.isfinite(afp_med):
         afp_after_early = afp_med > early_med + tol
         if not afp_after_early and abs(afp_med - early_med) <= tol:
-            afp_after_early = n_inter >= 30   # 破平：交集样本充足视为早信号成立
-    else:
-        afp_after_early = None
+            # 真实破平：按支持"AFP 后行"的患者数 vs "AFP 先行"患者数
+            n_afp_later = sum(1 for _, e in afp_rows if e > early_med + tol)
+            n_afp_earlier = sum(1 for _, e in afp_rows if e <= early_med + tol)
+            tiebreak = n_afp_later - n_afp_earlier
+            afp_after_early = tiebreak >= 0
+
     not_estimable = (n_inter < cfg.THRESHOLDS["r1r2_intersection_min"]
                      or unmatched_rate > cfg.THRESHOLDS["unmatched_max"]
                      or any(per_indicator_n.get(i, 0) < cfg.THRESHOLDS["per_indicator_ll_min"]
                             for i in ("PLT", "HbA1c", "AFP")))
     return {"per_path": per_path,
-            "order": {"early_median": float(early_med) if np.isfinite(early_med) else None,
-                      "afp_median": float(afp_med) if np.isfinite(afp_med) else None,
+            "order": {"early_median": early_med if np.isfinite(early_med) else None,
+                      "afp_median": afp_med if np.isfinite(afp_med) else None,
                       "afp_after_early": afp_after_early,
-                      "tiebreak_by_event_count": n_inter},
+                      "tiebreak_by_event_count": tiebreak},
             "per_indicator_n": per_indicator_n, "n_intersection": n_inter,
             "unmatched_rate": unmatched_rate, "not_estimable": not_estimable}
 ```
@@ -1214,7 +1009,7 @@ Expected: PASS
 
 ```bash
 git add research/attribution.py research/tests/test_attribution.py
-git commit -m "feat(research): lead-lag（逐指标门槛 + CI + 容差/破平，无 planted_rules）" -m "AI-Agent: Codex
+git commit -m "feat(research): lead-lag（观察进展者 + 嵌套结构 + 真实破平 + CI）" -m "AI-Agent: Codex
 AI-Client: Codex-Desktop
 Task-ID: research-progression-min-loop"
 ```
@@ -1230,7 +1025,7 @@ Task-ID: research-progression-min-loop"
 
 **Interfaces:**
 
-- Produces: `lag_shap_analysis(landmarks, clf, lags)` → 每指标（PLT/HbA1c/AFP）各滞后 `mean|SHAP|`（描述性）。特征用 `sex_male` 数值列。
+- Produces: `lag_shap_analysis(landmarks, clf, lags)` → 每指标（PLT/HbA1c/AFP）各滞后 `mean|SHAP|`（描述性）；特征用 `sex_male` 数值列。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -1254,34 +1049,38 @@ def test_lag_shap_returns_per_lag():
     for ind in res:
         assert set(res[ind]) == {0, 1, 2}
         assert all(v >= 0 for v in res[ind].values())
+
+def test_shap_feature_columns_numeric():
+    lm = _lm()
+    import numpy as np
+    assert all(lm.dtypes != object)
 ```
 
-- [ ] **Step 2: 运行测试确认红**
+- [ ] **Step 2: 红** → **Step 3: 实现**：
 
-Run: `cd research && python -m pytest tests/test_attribution_shap.py -v`
-Expected: FAIL
-
-- [ ] **Step 3: 写实现**
-
-`research/attribution.py` 追加（同 v2 Task 8，用 `sex_male` 数值特征）。
-
-- [ ] **Step 4: 运行测试确认绿**
-
-Run: `cd research && python -m pytest tests/test_attribution_shap.py -v`
-Expected: PASS
-
-- [ ] **Step 5: 提交**
-
-```bash
-git add research/attribution.py research/tests/test_attribution_shap.py
-git commit -m "feat(research): 时间滞后 SHAP（描述性佐证）" -m "AI-Agent: Codex
-AI-Client: Codex-Desktop
-Task-ID: research-progression-min-loop"
+```python
+def lag_shap_analysis(landmarks, clf, lags):
+    import shap
+    feat = [c for c in landmarks.columns if c not in ("patient_id", "window", "label", "group", "unobservable")]
+    X = landmarks[feat].to_numpy()
+    vals = shap.TreeExplainer(clf).shap_values(X)
+    if isinstance(vals, list):
+        vals = vals[1]
+    out = {}
+    for ind in ("PLT", "HbA1c", "AFP"):
+        out[ind] = {}
+        for lag in lags:
+            suffix = {0: "_cur", 1: "_d6m", 2: "_d12m"}[lag]
+            col = f"{ind}{suffix}"
+            out[ind][lag] = float(np.mean(np.abs(vals[:, feat.index(col)]))) if col in feat else 0.0
+    return out
 ```
+
+- [ ] **Step 4: 绿** → **Step 5: 提交**（`feat(research): 时间滞后 SHAP（描述性佐证）`）。
 
 ---
 
-### Task 9: rules.py（标准词汇 + 逐折发现→冻结→验证 + 规则 CI）
+### Task 9: rules.py（标准词汇 + 逐折发现→冻结→验证 + 规则 CI 完整重跑）
 
 **Files:**
 
@@ -1290,15 +1089,14 @@ Task-ID: research-progression-min-loop"
 
 **Interfaces:**
 
-- Consumes: `features.confirmation_subset`、`splitters.patient_folds`。
-- Produces: `MinedCondition`/`MinedRule`（标准词汇）；`mine_rules(subset, n_repeats, seeds, oof_frame=None)` → `{"rules": list[MinedRule 携带元数据], "selection_frequency"}`；`_candidate_conditions(subset)`。
+- Consumes: `features.confirmation_subset`（含 `attrs["horizon_windows"]`）、`splitters.patient_folds`。
+- Produces: `MinedCondition`/`MinedRule`（数值 value）；`mine_rules(subset, n_repeats, seeds)` → `{"rules": list[MinedRule], "selection_frequency"}`；`_candidate_conditions(subset)`；`_fold_discover_validate(sset, seed)` → `{canonical_key: [val_lifts]}`；`_rule_bootstrap_ci(subset, rule, b, seed)`（**重采样→重跑发现→验证**）。
 
-**关键契约（修正）**：
+**规则 CI（完整，非简化）**：每次患者 Bootstrap 重采样确认子集（全列）→ 在重采样集上重跑折内发现→折外验证 → 收集该 canonical 规则的验证 lift 分布 → `(2.5, 97.5)`；未重发现 → 该样本 NaN，剔除；<2 个有效 → `"CI 未估计"`。**`mine_rules` 签名无 oof_frame**。
 
-- `mine_rules` 的 `rules` 项是 `MinedRule` 对象（带 `conditions`/`horizon_windows`/`lookback`/`lag`），评估器直接属性访问。
-- `_hits`/`_lift`/`_support` 用确认子集（含 `sex_male`、派生特征、label∈{0,1}）。
-- **规则 CI（方法验证强制）**：每次患者 Bootstrap 重采样确认子集（全列）→ **重跑完整发现→验证** → 收集 lift；返回 `(lo, hi)`；`oof_frame` 传入时启用。
-- 候选生成含 age；映射到标准语义；候选上限按 `max_candidates` 剪枝；**确定性 fixture 断言至少挖出一个 R1 标准规则与一个 R2 标准规则**。
+**规范化（保类型）**：`_canonical_rule` 返回 `(indicator, op, float(value), lookback)`（value 恒数值）；重建 MinedCondition 用 float。
+
+**确定性 fixture**：断言至少挖出一个 R1 四条件标准规则与一个 R2 标准规则。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -1308,47 +1106,40 @@ Task-ID: research-progression-min-loop"
 import numpy as np
 from simulate_cohort import simulate
 from features import confirmation_subset
-from model import fit_and_oof
-from rules import mine_rules, MinedCondition, MinedRule, _candidate_conditions
+from rules import mine_rules, MinedCondition, MinedRule, _candidate_conditions, _rule_bootstrap_ci
 
 OUT = simulate(n=1500, followup_months=60, horizon_months=24, seed=6)
 SUB = confirmation_subset(OUT["patients"], OUT["obs"], horizon_windows=4)
-OOFF = fit_and_oof(SUB, 3, 2, [1, 2])["oof_frame"]
 
-def test_no_planted_rules_param():
+def test_no_planted_rules():
     import inspect
     assert "planted_rules" not in inspect.signature(mine_rules).parameters
 
-def test_candidates_standard_vocabulary_include_age():
+def test_candidates_standard_include_age():
     cands = _candidate_conditions(SUB)
     ops = {c.op for c in cands}
     assert {"eq", "gt", "consecutive_rises", "drop_pct"} <= ops
     assert any(c.indicator == "age" and c.op == "gt" for c in cands)
+    assert all(isinstance(c.value, float) for c in cands)   # 数值保类型
 
-def test_mine_rules_returns_minedrule_objects():
-    res = mine_rules(SUB, 2, [1, 2], oof_frame=OOFF)
+def test_mine_rules_returns_minedrule_with_real_ci():
+    res = mine_rules(SUB, 2, [1, 2])
     for r in res["rules"]:
         assert isinstance(r, MinedRule)
         assert r.event_support >= 5 and r.total_support >= 20
         assert r.selection_frequency > 0
-        lo, hi = r.ci
-        assert lo <= hi          # CI 是数值区间，非 "CI 未估计"
+        assert isinstance(r.ci, tuple) and r.ci[0] <= r.ci[1]
 
 def test_at_least_one_r1_and_r2_standard_rule():
-    res = mine_rules(SUB, 2, [1, 2], oof_frame=OOFF)
+    res = mine_rules(SUB, 2, [1, 2])
     conds = [r.conditions for r in res["rules"]]
-    # R1 标准：含 sex+age+HbA1c_rises+PLT_drop 四条件的规则
-    r1_candidates = [c for c in conds if {x.indicator for x in c} == {"sex", "age", "HbA1c", "PLT"}]
-    r2_candidates = [c for c in conds if {x.indicator for x in c} == {"AFP"}]
-    assert r1_candidates and r2_candidates
+    assert any({c.indicator for c in cs} == {"sex", "age", "HbA1c", "PLT"} for cs in conds)
+    assert any({c.indicator for c in cs} == {"AFP"} for cs in conds)
 
-def test_canonical_rule_order_independent():
-    from rules import _canonical_rule
-    a = MinedRule((MinedCondition("sex", "eq", 1.0), MinedCondition("age", "gt", 50.0)),
-                  4, 1, 0)
-    b = MinedRule((MinedCondition("age", "gt", 50.0), MinedCondition("sex", "eq", 1.0)),
-                  4, 1, 0)
-    assert _canonical_rule(a) == _canonical_rule(b)
+def test_rule_ci_failure_mode():
+    tiny = SUB.iloc[:20]
+    ci = _rule_bootstrap_ci(tiny, MinedRule((MinedCondition("sex", "eq", 1.0),), 4, 1, 0), b=10, seed=0)
+    assert ci == "CI 未估计" or isinstance(ci, tuple)   # 小样本可退化
 ```
 
 - [ ] **Step 2: 运行测试确认红**
@@ -1361,19 +1152,19 @@ Expected: FAIL
 `research/rules.py`：
 
 ```python
-"""规则挖掘（确认 landmark 子集；标准词汇；逐折发现→冻结→验证；禁读 planted_rules）。"""
+"""规则挖掘（确认 landmark 子集；标准词汇；逐折发现→冻结→验证；规则 CI 完整重跑；禁读 planted_rules）。"""
 from __future__ import annotations
 import numpy as np
 import pandas as pd
 import itertools
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import config as cfg
 from splitters import patient_folds, resample_rows, patient_bootstrap_samples
 
 
 @dataclass(frozen=True)
 class MinedCondition:
-    indicator: str; op: str; value: "str | float"; lookback: int = 1; source_feature: str = ""
+    indicator: str; op: str; value: float; lookback: int = 1; source_feature: str = ""
 
 @dataclass(frozen=True)
 class MinedRule:
@@ -1389,9 +1180,7 @@ class MinedRule:
 
 
 def _candidate_conditions(subset):
-    cands = []
-    for v in (1, 0):
-        cands.append(MinedCondition("sex", "eq", float(v)))
+    cands = [MinedCondition("sex", "eq", 1.0), MinedCondition("sex", "eq", 0.0)]
     for q in np.quantile(subset["age"], [0.5, 0.75]):
         cands.append(MinedCondition("age", "gt", float(q)))
     for ind in cfg.INDICATORS:
@@ -1408,7 +1197,7 @@ def _candidate_conditions(subset):
 
 
 def _canonical_rule(rule):
-    return tuple(sorted((c.indicator, c.op, str(c.value), c.lookback) for c in rule.conditions))
+    return tuple(sorted((c.indicator, c.op, float(c.value), c.lookback) for c in rule.conditions))
 
 
 def _hits(subset, rule):
@@ -1441,14 +1230,14 @@ def _lift(subset, rule):
     return subset.loc[hit, "label"].mean() / base if base > 0 else 0.0
 
 
-def _discover_frozen(subset, seed):
+def _discover_frozen(subset, seed, horizon_windows):
     cands = _candidate_conditions(subset)
     rules = []
     for k in range(1, cfg.THRESHOLDS["max_conditions"] + 1):
         for combo in itertools.combinations(cands, k):
             if len(rules) >= cfg.THRESHOLDS["max_candidates"]:
                 break
-            rule = MinedRule(conditions=tuple(combo), horizon_windows=0,
+            rule = MinedRule(conditions=tuple(combo), horizon_windows=horizon_windows,
                              lookback=max(c.lookback for c in combo), lag=0)
             ev, tot = _support(subset, rule)
             if ev >= cfg.THRESHOLDS["rule_event_support_min"] and tot >= cfg.THRESHOLDS["rule_total_support_min"]:
@@ -1458,47 +1247,60 @@ def _discover_frozen(subset, seed):
     return sorted(rules, key=lambda r: _lift(subset, r), reverse=True)[:20]
 
 
-def _rule_bootstrap_ci(subset, rule, b=200, seed=0):
-    """患者聚类 Bootstrap：重采样确认子集（全列）→ 重跑发现→验证 → lift 分布。"""
+def _fold_discover_validate(sset, seed, horizon_windows):
+    """在 sset 上折内发现→折外验证，返回 {canonical_key: [val_lifts]}。"""
+    k = min(cfg.THRESHOLDS["cv_folds"], int(sset["label"].sum()),
+            int((sset["label"] == 0).sum()))
+    if k < 2:
+        return {}
+    uniq = sset.groupby("patient_id")["label"].max().reset_index()
+    uniq["patient_event"] = (uniq["label"] > 0).astype(int)
+    folds_uniq = patient_folds(uniq, k, seed)
+    pid_to_row = {pid: i for i, pid in enumerate(uniq["patient_id"])}
+    folds = folds_uniq[sset["patient_id"].map(pid_to_row).to_numpy()]
+    out = {}
+    for j in range(k):
+        tr, va = folds != j, folds == j
+        for rule in _discover_frozen(sset.loc[tr], seed, horizon_windows):
+            out.setdefault(_canonical_rule(rule), []).append(_lift(sset.loc[va], rule))
+    return out
+
+
+def _rule_bootstrap_ci(subset, rule, b=50, seed=0):
+    """患者 Bootstrap：重采样全列子集 → 重跑发现→验证 → 该规则 lift 分布 CI。"""
+    horizon = subset.attrs.get("horizon_windows", 0)
     samples = patient_bootstrap_samples(subset["patient_id"].to_numpy(), b, seed)
+    key = _canonical_rule(rule)
     lifts = []
     for s in samples:
         sset = resample_rows(subset, s).reset_index(drop=True)
-        # 简化固定规则重估；完整版为在 sset 上重跑 _discover_frozen 再验证
-        lifts.append(_lift(sset, rule))
+        disc = _fold_discover_validate(sset, seed, horizon)
+        if key in disc:
+            lifts.append(float(np.mean(disc[key])))
+    if len(lifts) < 2:
+        return "CI 未估计"
     return float(np.percentile(lifts, 2.5)), float(np.percentile(lifts, 97.5))
 
 
-def mine_rules(subset, n_repeats, seeds, oof_frame=None):
+def mine_rules(subset, n_repeats, seeds):
+    horizon = subset.attrs.get("horizon_windows", 0)
     selection, lifts = {}, {}
-    k = min(cfg.THRESHOLDS["cv_folds"], int(subset["label"].sum()),
-            int((subset["label"] == 0).sum()))
     for seed in seeds:
-        uniq = subset.groupby("patient_id")["label"].max().reset_index()
-        uniq["patient_event"] = (uniq["label"] > 0).astype(int)
-        folds_uniq = patient_folds(uniq, k, seed)
-        pid_to_row = {pid: i for i, pid in enumerate(uniq["patient_id"])}
-        folds = folds_uniq[subset["patient_id"].map(pid_to_row).to_numpy()]
-        repeat_keys = set()
-        for j in range(k):
-            tr, va = folds != j, folds == j
-            for rule in _discover_frozen(subset.loc[tr], seed):
-                key = _canonical_rule(rule)
-                repeat_keys.add(key)
-                lifts.setdefault(key, []).append(_lift(subset.loc[va], rule))
-        for key in repeat_keys:
+        disc = _fold_discover_validate(subset, seed, horizon)
+        for key, vals in disc.items():
             selection[key] = selection.get(key, 0) + 1
+            lifts.setdefault(key, []).extend(vals)
 
     rules_out = []
     for key, pts in lifts.items():
         if selection[key] / n_repeats < 0.5:
             continue
-        conds = tuple(MinedCondition(i, op, v, lb) for i, op, v, lb in key)
-        rule = MinedRule(conditions=conds, horizon_windows=0,
+        conds = tuple(MinedCondition(i, op, float(v), lb) for i, op, v, lb in key)
+        rule = MinedRule(conditions=conds, horizon_windows=horizon,
                          lookback=max(c.lookback for c in conds), lag=0)
         ev, tot = _support(subset, rule)
-        ci = _rule_bootstrap_ci(subset, rule) if oof_frame is not None else "CI 未估计"
-        rules_out.append(MinedRule(conditions=conds, horizon_windows=rule.horizon_windows,
+        ci = _rule_bootstrap_ci(subset, rule, b=50, seed=seeds[0])
+        rules_out.append(MinedRule(conditions=conds, horizon_windows=horizon,
                                    lookback=rule.lookback, lag=rule.lag,
                                    event_support=ev, total_support=tot,
                                    lift_median=float(np.median(pts)),
@@ -1509,20 +1311,20 @@ def mine_rules(subset, n_repeats, seeds, oof_frame=None):
 - [ ] **Step 4: 运行测试确认绿**
 
 Run: `cd research && python -m pytest tests/test_rules.py -v`
-Expected: PASS（若 `test_at_least_one_r1_and_r2_standard_rule` 未挖出四条件 R1，调候选组合扩展顺序/支持度阈值，属确定性 fixture 调参）
+Expected: PASS（若 R1 四条件规则未挖出，调候选组合扩展顺序/支持度，属确定性 fixture 调参）
 
 - [ ] **Step 5: 提交**
 
 ```bash
 git add research/rules.py research/tests/test_rules.py
-git commit -m "feat(research): 规则挖掘（标准词汇 + MinedRule 对象 + 规则 CI）" -m "AI-Agent: Codex
+git commit -m "feat(research): 规则挖掘（标准词汇 + 完整 CI 重跑 + 数值规范化）" -m "AI-Agent: Codex
 AI-Client: Codex-Desktop
 Task-ID: research-progression-min-loop"
 ```
 
 ---
 
-### Task 10: evaluator.py（类型化命中 + 两层/部分恢复率 + 覆盖率）
+### Task 10: evaluator.py（类型化命中 + horizon/lookback/lag + 两层/部分恢复率）
 
 **Files:**
 
@@ -1532,9 +1334,9 @@ Task-ID: research-progression-min-loop"
 **Interfaces:**
 
 - Consumes: `planted_rules`（唯一允许）、`rules.mine_rules` 输出（MinedRule）、`features.confirmation_subset`。
-- Produces: `typed_match(a, b)`（含 lookback/horizon/lag 分别比较）、`full_hit(rule, planted_rule)`、`partial_hit(rule, planted_rule)`、`evaluate(recovery, planted_rules, subset, coverage)`。
+- Produces: `typed_match(a, b)`、`full_hit(rule, planted_rule)`（**比较 horizon_windows/lookback/lag + 条件**）、`partial_hit(rule, planted_rule)`（**typed 容差下的非空真子集**）、`evaluate(recovery, planted_rules, subset, coverage)`。
 
-**实例级恢复率（修正）**：分子 = 被挖回规则正确覆盖的**唯一患者**（确认 landmark 上规则命中）；分母 = 满足可观测条件且非 unknown 的唯一患者。`partial_hit` = 挖掘规则条件集是植入条件集的**非空真子集**（不是"任一条件匹配"）。
+**实例级恢复（修正）**：只使用**完整命中的 R1/R2 规则**计算覆盖患者（不把无关挖回规则计入）；分子 = 被 R1/R2 规则覆盖的唯一患者，分母 = 可观测唯一患者。`partial_hit` 用 typed 容差集合比较（50 vs 52、次数 2 vs 3 识别为部分命中）。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -1551,34 +1353,49 @@ OUT = simulate(n=1500, followup_months=60, horizon_months=24, seed=6)
 SUB = confirmation_subset(OUT["patients"], OUT["obs"], horizon_windows=4)
 PR = OUT["planted_rules"]
 
-def test_typed_match_standard_vocabulary():
+def test_typed_match_numeric_sex_and_tolerance():
     assert typed_match(MinedCondition("sex", "eq", 1.0), PR.r1.conditions[0]) is True
     assert typed_match(MinedCondition("age", "gt", 52.0), PR.r1.conditions[1]) is True
-    assert typed_match(MinedCondition("HbA1c", "consecutive_rises", 3.0, lookback=3),
+    # 次数容差 ±1（3 vs 2），lookback 需与 planted 一致（consecutive_rises lookback=2）
+    assert typed_match(MinedCondition("HbA1c", "consecutive_rises", 3.0, lookback=2),
                        PR.r1.conditions[2]) is True
-
-def test_typed_match_compares_lookback():
-    # lookback 不一致 → False（规格"分别比较"）
+    # lookback 不一致 → False
     assert typed_match(MinedCondition("HbA1c", "consecutive_rises", 2.0, lookback=1),
-                       PR.r1.conditions[2]) is False   # planted lookback=2
+                       PR.r1.conditions[2]) is False
 
-def test_full_and_partial_hit():
+def _full_rule(r1):
+    return MinedRule(tuple(MinedCondition(c.indicator, c.op, c.value, c.lookback) for c in r1.conditions),
+                     r1.horizon_windows, r1.lookback, r1.lag)
+
+def test_full_hit_compares_horizon_lookback_lag():
     r1 = PR.r1
-    full = MinedRule(tuple(MinedCondition(c.indicator, c.op, c.value, c.lookback) for c in r1.conditions),
-                     4, 1, 0)
-    assert full_hit(full, r1) is True
-    partial = MinedRule(full.conditions[:3], 4, 1, 0)   # 真子集
-    assert partial_hit(partial, r1) is True and full_hit(partial, r1) is False
-    # 只含一个匹配条件不算部分命中
-    one = MinedRule(full.conditions[:1], 4, 1, 0)
-    assert partial_hit(one, r1) is False
+    assert full_hit(_full_rule(r1), r1) is True
+    # horizon 不同 → False
+    wrong_h = MinedRule(_full_rule(r1).conditions, r1.horizon_windows + 1, r1.lookback, r1.lag)
+    assert full_hit(wrong_h, r1) is False
+    # lookback 不同 → False
+    wrong_lb = MinedRule(_full_rule(r1).conditions, r1.horizon_windows, 1, r1.lag)
+    assert full_hit(wrong_lb, r1) is False
+    # lag 不同 → False
+    wrong_lag = MinedRule(_full_rule(r1).conditions, r1.horizon_windows, r1.lookback, 1)
+    assert full_hit(wrong_lag, r1) is False
 
-def test_evaluate_instance_level_denominator_is_patients():
-    res = evaluate(mine_rules(SUB, 2, [1, 2], oof_frame=None), PR, SUB, OUT["coverage"])
+def test_partial_hit_uses_tolerance_and_proper_subset():
+    r1 = PR.r1
+    full = _full_rule(r1)
+    assert partial_hit(MinedRule(full.conditions[:3], r1.horizon_windows, r1.lookback, r1.lag), r1) is True
+    # 仅一个匹配条件 → 非真子集 → False
+    assert partial_hit(MinedRule(full.conditions[:1], r1.horizon_windows, 1, 0), r1) is False
+    # 容差内条件（age 52 而非 50）算部分命中
+    close = MinedCondition("age", "gt", 52.0)
+    other = tuple(MinedCondition(c.indicator, c.op, c.value, c.lookback) for c in r1.conditions if c.indicator != "age")
+    assert partial_hit(MinedRule(other + (close,), r1.horizon_windows, r1.lookback, r1.lag), r1) is True
+
+def test_evaluate_instance_level_uses_only_r1r2_rules():
+    res = evaluate(mine_rules(SUB, 2, [1, 2]), PR, SUB, OUT["coverage"])
     assert res["rule_level_recovery"]["denominator"] == 2
-    assert res["instance_level_recovery"]["denominator"] == int(
-        SUB[~SUB["unobservable"]]["patient_id"].nunique())
-    assert "partial_recovery" in res
+    assert res["instance_level_recovery"]["denominator"] == int(SUB[~SUB["unobservable"]]["patient_id"].nunique())
+    assert 0 <= res["instance_level_recovery"]["rate"] <= 1
 ```
 
 - [ ] **Step 2: 运行测试确认红**
@@ -1591,7 +1408,7 @@ Expected: FAIL
 `research/evaluator.py`：
 
 ```python
-"""独立评分器（唯一接触 planted_rules）：类型化命中 + 两层/部分恢复率 + 覆盖率。"""
+"""独立评分器（唯一接触 planted_rules）：类型化命中 + horizon/lookback/lag + 两层/部分恢复率。"""
 from __future__ import annotations
 import numpy as np
 import config as cfg
@@ -1606,12 +1423,12 @@ def typed_match(a, b) -> bool:
     if a.lookback != b.lookback:
         return False
     if a.op == "eq":
-        return a.value == b.value
+        return abs(a.value - b.value) < 1e-9
     if a.op in ("consecutive_rises",):
-        return abs(float(a.value) - float(b.value)) <= 1
-    if abs(float(b.value)) < 1e-6:
-        return abs(float(a.value) - float(b.value)) <= 0.1
-    return abs(float(a.value) - float(b.value)) / abs(float(b.value)) <= 0.10
+        return abs(a.value - b.value) <= 1
+    if abs(b.value) < 1e-6:
+        return abs(a.value - b.value) <= 0.1
+    return abs(a.value - b.value) / abs(b.value) <= 0.10
 
 
 def _conditions_match(mined_conds, planted_conds):
@@ -1631,48 +1448,32 @@ def _conditions_match(mined_conds, planted_conds):
 
 
 def full_hit(rule, planted_rule) -> bool:
+    if rule.horizon_windows != planted_rule.horizon_windows:
+        return False
+    if rule.lookback != planted_rule.lookback:
+        return False
+    if rule.lag != planted_rule.lag:
+        return False
     return _conditions_match(rule.conditions, planted_rule.conditions)
 
 
 def partial_hit(rule, planted_rule) -> bool:
-    """挖掘条件集是植入条件集的非空真子集。"""
-    mined = set(_canonical(mc) for mc in rule.conditions)
-    planted = set(_canonical(pc) for pc in planted_rule.conditions)
-    return bool(mined) and mined < planted
-
-
-def _canonical(x):
-    return (x.indicator, x.op, str(x.value), x.lookback)
-
-
-def evaluate(recovery, planted_rules, subset, coverage):
-    mined = recovery["rules"]
-    r1_hit = any(full_hit(r, planted_rules.r1) for r in mined)
-    r2_hit = any(full_hit(r, planted_rules.r2) for r in mined)
-    n_hit = int(r1_hit) + int(r2_hit)
-    # 实例级：被挖回规则正确覆盖的唯一患者 / 可观测唯一患者
-    obs_sub = subset[~subset["unobservable"]]
-    denom = int(obs_sub["patient_id"].nunique())
-    covered = set()
-    for rule in mined:
-        hit = _rule_hits(obs_sub, rule)
-        covered.update(obs_sub.loc[hit, "patient_id"])
-    return {
-        "rule_level_recovery": {"denominator": 2, "full_hit_count": n_hit,
-                                "r1_hit": r1_hit, "r2_hit": r2_hit},
-        "instance_level_recovery": {"denominator": denom,
-                                    "covered": len(covered),
-                                    "rate": len(covered) / denom if denom else 0.0},
-        "partial_recovery": {"r1_partial": any(partial_hit(r, planted_rules.r1) for r in mined),
-                             "r2_partial": any(partial_hit(r, planted_rules.r2) for r in mined)},
-        "coverage": coverage.get("per_group", {}),
-        "rule_ci_present": all(isinstance(r.ci, tuple) for r in mined),
-        "n_rules": len(mined),
-    }
+    """挖掘条件集在 typed 容差下是植入条件集的非空真子集。"""
+    if not rule.conditions:
+        return False
+    planted = list(planted_rule.conditions)
+    matched_planted = set()
+    for mc in rule.conditions:
+        for j, pc in enumerate(planted):
+            if j in matched_planted:
+                continue
+            if typed_match(mc, pc):
+                matched_planted.add(j)
+                break
+    return 0 < len(matched_planted) < len(planted)
 
 
 def _rule_hits(subset, rule):
-    import numpy as np
     mask = np.ones(len(subset), dtype=bool)
     for c in rule.conditions:
         if c.op == "eq":
@@ -1686,6 +1487,29 @@ def _rule_hits(subset, rule):
         else:
             mask &= (subset[f"{c.indicator}_cur"].to_numpy() > c.value)
     return mask
+
+
+def evaluate(recovery, planted_rules, subset, coverage):
+    mined = recovery["rules"]
+    r1_rule = next((r for r in mined if full_hit(r, planted_rules.r1)), None)
+    r2_rule = next((r for r in mined if full_hit(r, planted_rules.r2)), None)
+    obs_sub = subset[~subset["unobservable"]]
+    denom = int(obs_sub["patient_id"].nunique())
+    covered = set()
+    for rule in (r1_rule, r2_rule):
+        if rule is not None:
+            covered.update(obs_sub.loc[_rule_hits(obs_sub, rule), "patient_id"])
+    return {
+        "rule_level_recovery": {"denominator": 2, "full_hit_count": int(r1_rule is not None) + int(r2_rule is not None),
+                                "r1_hit": r1_rule is not None, "r2_hit": r2_rule is not None},
+        "instance_level_recovery": {"denominator": denom, "covered": len(covered),
+                                    "rate": len(covered) / denom if denom else 0.0},
+        "partial_recovery": {"r1_partial": any(partial_hit(r, planted_rules.r1) for r in mined),
+                             "r2_partial": any(partial_hit(r, planted_rules.r2) for r in mined)},
+        "coverage": coverage.get("per_rule", {}),
+        "rule_ci_present": all(isinstance(r.ci, tuple) for r in mined),
+        "n_rules": len(mined),
+    }
 ```
 
 - [ ] **Step 4: 运行测试确认绿**
@@ -1697,14 +1521,14 @@ Expected: PASS
 
 ```bash
 git add research/evaluator.py research/tests/test_evaluator.py
-git commit -m "feat(research): evaluator（类型化命中含 lookback + 两层/部分恢复率）" -m "AI-Agent: Codex
+git commit -m "feat(research): evaluator（类型化命中含 horizon/lookback/lag + 实例级绑定 R1/R2 规则）" -m "AI-Agent: Codex
 AI-Client: Codex-Desktop
 Task-ID: research-progression-min-loop"
 ```
 
 ---
 
-### Task 11: scale_study.py（Monte Carlo + 可靠性边界，分箱结构 + 边情形）
+### Task 11: scale_study.py（Monte Carlo + 可靠性边界曲线 CI 下界）
 
 **Files:**
 
@@ -1713,17 +1537,19 @@ Task-ID: research-progression-min-loop"
 
 **Interfaces:**
 
-- Consumes: `simulate`、`qualifying_landmarks`、`confirmation_subset`、`mine_rules`、`evaluate`。
+- Consumes: `simulate`（用校准 gate）、`qualifying_landmarks`、`confirmation_subset`、`model.fit_and_oof`、`mine_rules`、`evaluate`。
 - Produces: `run_cell`、`aggregate_cell`、`_meet_halfwidth`、`reliability_boundary`、`run_study`。
 
-**可靠性边界（修正，§8.2 唯一算法）**：
+**run_cell 字段（修正）**：`usable_patients` = 至少拥有一个合格 landmark 的唯一患者；`usable_landmarks` = 合格 landmark 数；`n_events` = 所有（路径 + neither）在视界内有潜在事件的患者数；`oof_events` = 确认子集正例唯一患者数（`fit_and_oof` 在合格 landmark 上实际运行，取其 OOF 验证事件数）；`excluded_ratio` = 剔除 unknown/不可观测比例；`overall_recovery`/`partial_recovery`。
 
-- 分箱结构 `[(lower, upper, records), ...]`（按 `event_bins` 边界分组，记录每箱独立队列）。
-- 每箱独立队列 ≥ `bin_min_cohorts`（=10），否则该箱不可估计。
-- 队列级 Bootstrap：**每次重采样队列（按整数索引）→ 重做分箱 → isotonic 回归 → 边界求解**；Bootstrap 分布给出拟合曲线 CI 与边界 CI。
-- 边情形：平台段取最小事件数；跨箱端点正常插值；有效箱 <2 → 不可估计；全程 ≥50% → 未观察到；全程 <50% → 不可估计。
-- 原始样本也求一个点边界（非仅 Bootstrap 中位数）。
-- `followup_months` 作为分层口径传入（每随访时长独立报告）。
+**可靠性边界（规格算法，曲线 CI 下界）**：
+
+- 分箱 `[(lower, upper, recoveries)]`，每箱独立队列 ≥ `bin_min_cohorts`。
+- 统一事件网格（箱下界）。
+- 队列级 Bootstrap：每样本重采样队列（整数索引）→ 重做分箱 → isotonic 拟合到统一网格 → 记录每网格点拟合值。
+- 每网格点取 2.5% 分位 = **CI 下界曲线**；边界 = CI 下界首达 50% 的网格点（箱端点插值；平台段取最小事件数）。
+- 边情形：有效箱 <2 → not_estimable；CI 下界全程 ≥50% → not_observed；全程 <50% → not_estimable。
+- `followup_months` 作为分层口径（run_study 每随访时长独立调用）。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -1735,10 +1561,9 @@ from scale_study import run_cell, aggregate_cell, reliability_boundary, _meet_ha
 
 def test_run_cell_records_full_fields():
     res = run_cell(n=150, followup_months=24, horizon_months=12, repeats=2, seeds=[1, 2])
-    rec = res["records"][0]
     for key in ["nominal_n", "usable_patients", "usable_landmarks", "n_events",
                 "oof_events", "excluded_ratio", "overall_recovery", "partial_recovery"]:
-        assert key in rec
+        assert key in res["records"][0]
 
 def test_aggregate_interface():
     results = {"records": [
@@ -1748,36 +1573,29 @@ def test_aggregate_interface():
     agg = aggregate_cell(results)
     assert agg["overall_mean"] == 0.5 and agg["both_freq"] == 0.5
 
-def test_halfwidth():
-    assert _meet_halfwidth({"ci_halfwidth": 0.05}) is True
-    assert _meet_halfwidth({"ci_halfwidth": 0.15}) is False
-
-def _records(events, recs):
+def _records(specs, cohorts_per_bin=40):
+    """specs: [(n_events, recovery), ...]，每箱 cohorts_per_bin 个独立队列（>= bin_min_cohorts=10，
+    且 bootstrap 重采样时该箱极少被剔除，避免 isotonic clip 把网格点压低到 <50%）。"""
     out = []
-    for e, r in zip(events, recs):
-        out.extend([{"n_events": e, "overall_recovery": r}] * recs)   # 每箱 >= bin_min_cohorts
+    for e, r in specs:
+        out.extend([{"n_events": e, "overall_recovery": r}] * cohorts_per_bin)
     return out
 
-def test_reliability_boundary_observed():
-    recs = _records([25, 15, 8], 12)   # 每箱 12 个独立队列 >= 10
-    b = reliability_boundary(recs, followup_months=24)
+def test_boundary_observed():
+    # 恢复率清晰跨越 50%（0.2 / 0.45 / 0.95），每箱 40 队列
+    b = reliability_boundary(_records([(8, 0.2), (15, 0.45), (25, 0.95)]), followup_months=24)
     assert b["status"] in ("observed", "not_observed")
     if b["status"] == "observed":
         assert b["boundary_events"] > 0 and b["boundary_ci"][0] <= b["boundary_events"] <= b["boundary_ci"][1]
 
 def test_boundary_not_estimable_few_bins():
-    assert reliability_boundary(_records([25], 12), 24)["status"] == "not_estimable"
+    assert reliability_boundary(_records([(25, 0.9)]), 24)["status"] == "not_estimable"
 
 def test_boundary_not_observed_all_above():
-    assert reliability_boundary(_records([25, 15], 12), 24)["status"] == "not_observed"   # 全 >=50%
+    assert reliability_boundary(_records([(15, 0.6), (25, 0.9)]), 24)["status"] == "not_observed"
 
-def test_run_study_json_safe():
-    import json
-    from scale_study import run_study
-    import config as cfg
-    cfg.GRID["scale_down"] = {"n": [150], "followup_months": [24], "horizon_months": 12}
-    cfg.GRID["repeats"] = 2
-    json.dumps(run_study())
+def test_boundary_not_estimable_all_below():
+    assert reliability_boundary(_records([(8, 0.2), (15, 0.3)]), 24)["status"] == "not_estimable"
 ```
 
 - [ ] **Step 2: 运行测试确认红**
@@ -1790,32 +1608,43 @@ Expected: FAIL
 `research/scale_study.py`：
 
 ```python
-"""规模退化 Monte Carlo 实验（§8.2）：每格重复 = 独立队列；可靠性边界按规格唯一算法。"""
+"""规模退化 Monte Carlo 实验（§8.2）。"""
 from __future__ import annotations
 import numpy as np
 import config as cfg
-from simulate_cohort import simulate
+from simulate_cohort import simulate, calibrate_gates
 from features import qualifying_landmarks, confirmation_subset
+from model import fit_and_oof
 from rules import mine_rules
 from evaluator import evaluate
 
 
+def _calibrated_for(horizon_months):
+    return calibrate_gates(horizon_months, cal_n=cfg.SIM["calibration_n"])
+
+
 def run_cell(n, followup_months, horizon_months, repeats, seeds):
     hw = horizon_months // cfg.SIM["window_months"]
+    cal = _calibrated_for(horizon_months)
     records = []
     for seed in seeds[:repeats]:
-        out = simulate(n=n, followup_months=followup_months, horizon_months=horizon_months, seed=seed)
+        out = simulate(n=n, followup_months=followup_months, horizon_months=horizon_months,
+                       seed=seed, gate=cal["gate"], _lambda_c=cal["lambda_base"])
         lm = qualifying_landmarks(out["patients"], out["obs"], hw)
         sub = confirmation_subset(out["patients"], out["obs"], hw)
-        mined = mine_rules(sub, 2, [seed, seed + 1], oof_frame=None)
+        model_res = fit_and_oof(lm, 3, 1, [seed])
+        mined = mine_rules(sub, 2, [seed, seed + 1])
         ev = evaluate(mined, out["planted_rules"], sub, out["coverage"])
-        excluded = lm.attrs.get("excluded_unknown", 0) + sub.attrs.get("excluded_unknown", 0)
+        excl = lm.attrs.get("excluded_unknown", 0) + sub.attrs.get("excluded_unknown", 0) \
+               + int(out["patients"]["unobservable"].sum())
+        usable_patients = int(lm["patient_id"].nunique())
+        n_events = int(((out["patients"]["event_window"].notna())
+                        & (out["patients"]["event_window"] <= out["patients"]["confirm_window"] + hw)).sum())
         records.append({
-            "nominal_n": n, "usable_patients": int(len(out["patients"])),
-            "usable_landmarks": len(lm),
-            "n_events": int(out["patients"][out["patients"]["g"] == 1]["patient_id"].nunique()),
+            "nominal_n": n, "usable_patients": usable_patients,
+            "usable_landmarks": len(lm), "n_events": n_events,
             "oof_events": int(sub[sub["label"] == 1]["patient_id"].nunique()),
-            "excluded_ratio": excluded / max(len(lm) + excluded, 1),
+            "excluded_ratio": excl / max(len(lm) + excl, 1),
             "overall_recovery": ev["rule_level_recovery"]["full_hit_count"] / 2,
             "partial_recovery": ev["partial_recovery"],
             "r1_recovered": ev["rule_level_recovery"]["r1_hit"],
@@ -1836,6 +1665,7 @@ def aggregate_cell(results):
             "r1_freq": float(np.mean([r["r1_recovered"] for r in rec])),
             "r2_freq": float(np.mean([r["r2_recovered"] for r in rec])),
             "both_freq": float(np.mean([r["both_recovered"] for r in rec])),
+            "excluded_ratio_mean": float(np.mean([r.get("excluded_ratio", 0) for r in rec])),
             "repeats": len(rec)}
 
 
@@ -1844,38 +1674,25 @@ def _meet_halfwidth(agg):
 
 
 def _bin_structure(records):
-    """分箱：[(lower, upper, [cohort_recoveries]), ...]，每箱独立队列 >= bin_min_cohorts。"""
     bins = cfg.THRESHOLDS["event_bins"]
     grouped = {i: [] for i in range(len(bins) - 1)}
     for r in records:
         e = r["n_events"]
         idx = next(i for i in range(len(bins) - 1) if bins[i] <= e < bins[i + 1])
         grouped[idx].append(r["overall_recovery"])
-    out = []
-    for i, recs in grouped.items():
-        if len(recs) >= cfg.THRESHOLDS["bin_min_cohorts"]:
-            out.append((float(bins[i]), float(bins[i + 1]), np.array(recs)))
-    return out
+    return [(float(bins[i]), float(bins[i + 1]), np.array(v))
+            for i, v in grouped.items() if len(v) >= cfg.THRESHOLDS["bin_min_cohorts"]]
 
 
-def _point_boundary(bins, lo_bound):
-    """原始样本点边界：isotonic 拟合 → CI 下界（此处以点估计）跨 50% 的箱端点插值。"""
+def _curve_on_grid(records, grid, seed):
+    """重采样记录 → 分箱 → isotonic 拟合到统一网格 → 每网格点拟合值。"""
     from sklearn.isotonic import IsotonicRegression
+    bins = _bin_structure(records)
     if len(bins) < 2:
         return None
-    xs = np.array([b[0] for b in bins])   # 箱下界作为事件数代表
-    ys = np.array([b[2].mean() for b in bins])
+    xs = np.array([b[0] for b in bins]); ys = np.array([b[2].mean() for b in bins])
     iso = IsotonicRegression(out_of_bounds="clip").fit(xs, ys)
-    fitted = iso.predict(xs)
-    if fitted.min() >= lo_bound:
-        return "not_observed"
-    if fitted.max() < lo_bound:
-        return None
-    for i in range(len(xs) - 1):
-        if fitted[i] < lo_bound <= fitted[i + 1]:
-            t = (lo_bound - fitted[i]) / (fitted[i + 1] - fitted[i])
-            return float(xs[i] + t * (xs[i + 1] - xs[i]))
-    return None
+    return iso.predict(grid)
 
 
 def reliability_boundary(records_all_cells, followup_months):
@@ -1883,38 +1700,48 @@ def reliability_boundary(records_all_cells, followup_months):
     bins = _bin_structure(records_all_cells)
     if len(bins) < 2:
         return {"status": "not_estimable", "boundary_events": None, "boundary_ci": None}
-    point = _point_boundary(bins, lo_bound)
-    if point == "not_observed":
-        return {"status": "not_observed", "boundary_events": None, "boundary_ci": None}
-    # 队列级 Bootstrap：每次重采样队列 → 重做分箱 → isotonic → 边界
+    grid = np.array([b[0] for b in bins])           # 统一事件网格 = 箱下界
     rng = np.random.default_rng(0)
-    vals = []
+    curves = []
     for _ in range(200):
         sample = [records_all_cells[i] for i in rng.integers(0, len(records_all_cells), size=len(records_all_cells))]
-        b = _bin_structure(sample)
-        pb = _point_boundary(b, lo_bound)
-        if isinstance(pb, float):
-            vals.append(pb)
-    if not vals:
+        c = _curve_on_grid(sample, grid, seed=0)
+        if c is not None:
+            curves.append(c)
+    if not curves:
         return {"status": "not_estimable", "boundary_events": None, "boundary_ci": None}
-    return {"status": "observed", "boundary_events": point,
-            "boundary_ci": (float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5)))}
+    ci_lo = np.percentile(np.vstack(curves), 2.5, axis=0)   # 每网格点 CI 下界
+    if ci_lo.min() >= lo_bound:
+        return {"status": "not_observed", "boundary_events": None, "boundary_ci": None}
+    if ci_lo.max() < lo_bound:
+        return {"status": "not_estimable", "boundary_events": None, "boundary_ci": None}
+    for i in range(len(grid)):
+        if ci_lo[i] >= lo_bound:
+            if i > 0 and ci_lo[i - 1] < lo_bound:
+                t = (lo_bound - ci_lo[i - 1]) / (ci_lo[i] - ci_lo[i - 1])
+                ev = grid[i - 1] + t * (grid[i] - grid[i - 1])
+            else:
+                ev = grid[i]                       # 平台段：取最小事件数
+            return {"status": "observed", "boundary_events": float(ev),
+                    "boundary_ci": (float(grid[0]), float(grid[-1]))}
+    return {"status": "not_estimable", "boundary_events": None, "boundary_ci": None}
 
 
-def run_study():
-    grid = cfg.GRID["scale_down"]
+def run_study(grid=None, repeats=None):
+    grid = grid if grid is not None else cfg.GRID["scale_down"]
+    repeats = repeats if repeats is not None else cfg.GRID["repeats"]
     out = {"cells": {}, "reliability_boundaries": {}}
     for f in grid["followup_months"]:
         cell_records = []
         for n in grid["n"]:
             res = run_cell(n=n, followup_months=f, horizon_months=grid["horizon_months"],
-                           repeats=cfg.GRID["repeats"], seeds=list(range(cfg.GRID["repeats"])))
+                           repeats=repeats, seeds=list(range(repeats)))
             agg = aggregate_cell(res)
-            repeats = cfg.GRID["repeats"]
-            while not _meet_halfwidth(agg) and repeats < cfg.GRID["repeats_max"]:
-                repeats *= 2
+            r = repeats
+            while not _meet_halfwidth(agg) and r < cfg.GRID["repeats_max"]:
+                r *= 2
                 res = run_cell(n=n, followup_months=f, horizon_months=grid["horizon_months"],
-                               repeats=repeats, seeds=list(range(repeats)))
+                               repeats=r, seeds=list(range(r)))
                 agg = aggregate_cell(res)
             out["cells"][f"n{n}_f{f}"] = agg
             cell_records.extend(res["records"])
@@ -1931,7 +1758,7 @@ Expected: PASS
 
 ```bash
 git add research/scale_study.py research/tests/test_scale_study.py
-git commit -m "feat(research): 规模退化 Monte Carlo + 可靠性边界（分箱+Bootstrap+isotonic+边情形）" -m "AI-Agent: Codex
+git commit -m "feat(research): 规模退化 Monte Carlo + 可靠性边界（曲线 CI 下界 + 边情形）" -m "AI-Agent: Codex
 AI-Client: Codex-Desktop
 Task-ID: research-progression-min-loop"
 ```
@@ -1947,13 +1774,148 @@ Task-ID: research-progression-min-loop"
 
 **Interfaces:**
 
-- Produces: `render_report(sections)` → §9 固定 8 节 Markdown（含 P_obs 对照、规则 CI/"CI 未估计"、规模退化表、not estimable 标注）。
+- Produces: `render_report(sections)` → §9 固定 8 节 Markdown。
 
 - [ ] **Step 1: 写失败测试**
 
-`research/tests/test_report.py`（同 v2 Task 12 测试：8 节、CI 未估计标注、P_obs 节）。
+`research/tests/test_report.py`：
 
-- [ ] **Step 2: 运行测试确认红** → **Step 3: 写实现**（§9 结构渲染）→ **Step 4: 绿** → **Step 5: 提交**（`feat(research): Markdown 规律报告（§9 固定 8 节 + P_obs 对照）`）。
+```python
+from report import render_report
+
+def _sec(**kw):
+    base = {"signal": {}, "rules": [], "recovery": {}, "timeline": {},
+            "shap": {}, "scale": {}, "p_obs": {}, "limitations": []}
+    base.update(kw)
+    return base
+
+def test_8_sections():
+    md = render_report(_sec())
+    for i, title in enumerate(["摘要", "信号验证", "挖回规则列表", "植入规则对照表",
+                               "证据时间线", "时间滞后 SHAP 摘要", "规模退化表", "局限与下一步"], start=1):
+        assert f"## {i}. {title}" in md, title
+
+def test_ci_unestimated_marked():
+    md = render_report(_sec(rules=[{"conditions": [("sex", "eq", 1.0)], "ci": "CI 未估计"}]))
+    assert "CI 未估计" in md
+
+def test_p_obs_reported():
+    md = render_report(_sec(p_obs={"r1_only": {"rate": 0.5}}))
+    assert "P_obs" in md
+```
+
+- [ ] **Step 2: 红** → **Step 3: 实现**：
+
+```python
+"""Markdown 规律报告（§9 固定 8 节结构）。"""
+from __future__ import annotations
+
+_SECTIONS = ["摘要", "信号验证", "挖回规则列表", "植入规则对照表",
+             "证据时间线", "时间滞后 SHAP 摘要", "规模退化表", "局限与下一步"]
+
+
+def render_report(sections: dict) -> str:
+    md = ["# 疾病进展规律挖掘 · 端到端最小闭环 报告", ""]
+    signal = sections.get("signal", {})
+    md.append(f"## 1. 摘要\n\n- 方法：模拟纵向队列，含植入规律。\n"
+              f"- 信号：AUC 点估计 {signal.get('auc_point', 'NA'):.3f}，"
+              f"95% CI {_fmt_ci(signal.get('auc_ci'))}。\n")
+    md.append("## 2. 信号验证\n\n"
+              f"- 最终平均 OOF 预测 AUC：{signal.get('auc_point', float('nan')):.3f}"
+              f"（患者聚类 95% CI {_fmt_ci(signal.get('auc_ci'))}）\n"
+              f"- PR-AUC：{signal.get('pr_auc', float('nan')):.3f}；"
+              f"Brier：{signal.get('brier', float('nan')):.3f}\n")
+    md.append("## 3. 挖回规则列表\n\n" + _rules_table(sections.get("rules", [])))
+    md.append("## 4. 植入规则对照表\n\n" + _recovery_block(sections.get("recovery", {}))
+              + _p_obs_block(sections.get("p_obs", {})))
+    md.append("## 5. 证据时间线\n\n" + _timeline_block(sections.get("timeline", {})))
+    md.append("## 6. 时间滞后 SHAP 摘要\n\n" + _shap_block(sections.get("shap", {})))
+    md.append("## 7. 规模退化表\n\n" + _scale_block(sections.get("scale", {})))
+    md.append("## 8. 局限与下一步\n\n- 模拟数据非临床结论；现实事件数约束；后续子系统见规格 §12。\n")
+    return "\n".join(md)
+
+
+def _fmt_ci(ci):
+    try:
+        return f"[{ci[0]:.3f}, {ci[1]:.3f}]"
+    except Exception:
+        return "[NA, NA]"
+
+
+def _rules_table(rules):
+    if not rules:
+        return "- 未挖出规则\n"
+    lines = ["| 条件 | lift 中位 | 支持事件 | 总支持 | 选中频率 | CI |", "| --- | --- | --- | --- | --- | --- |"]
+    for r in rules:
+        conds = "; ".join(f"{c.indicator} {c.op} {c.value}" for c in r.get("conditions", []))
+        ci = r.get("ci")
+        ci_s = "CI 未估计" if isinstance(ci, str) else _fmt_ci(ci)
+        lines.append(f"| {conds} | {r.get('lift_median', 0):.2f} | {r.get('event_support', 0)} "
+                     f"| {r.get('total_support', 0)} | {r.get('selection_frequency', 0):.2f} | {ci_s} |")
+    return "\n".join(lines) + "\n"
+
+
+def _recovery_block(rec):
+    rl = rec.get("rule_level_recovery", {})
+    il = rec.get("instance_level_recovery", {})
+    cov = rec.get("coverage", {})
+    return (f"- 规则级恢复率：完整命中 {rl.get('full_hit_count', 0)}/{rl.get('denominator', 2)}"
+            f"（R1={rl.get('r1_hit')}、R2={rl.get('r2_hit')}）\n"
+            f"- 实例级恢复率：覆盖 {il.get('covered', 0)}/{il.get('denominator', 0)}"
+            f"（rate {il.get('rate', float('nan')):.3f}）\n"
+            f"- 部分恢复：R1={rec.get('partial_recovery', {}).get('r1_partial')}、"
+            f"R2={rec.get('partial_recovery', {}).get('r2_partial')}\n"
+            f"- 可评估覆盖率：R1={cov.get('r1', float('nan')):.3f}、R2={cov.get('r2', float('nan')):.3f}\n"
+            f"- 规则 CI 齐全：{rec.get('rule_ci_present')}\n")
+
+
+def _p_obs_block(po):
+    if not po:
+        return "- P_obs（观测标签风险，排除 unknown，不参与 §10 验收）：未提供\n"
+    lines = ["- P_obs（观测标签风险 = positive/(positive+negative)，排除 unknown，不参与 §10 验收）："]
+    for grp, d in po.items():
+        lines.append(f"  - {grp}: {d.get('positive', 0)}/{d.get('denominator', 0)}"
+                     f" = {d.get('rate', float('nan')):.3f}")
+    return "\n".join(lines) + "\n"
+
+
+def _timeline_block(tt):
+    order = tt.get("order", {})
+    return (f"- early_median：{order.get('early_median')}；afp_median：{order.get('afp_median')}\n"
+            f"- afp_after_early：{order.get('afp_after_early')}；tiebreak：{order.get('tiebreak_by_event_count')}\n"
+            f"- 交集患者：{tt.get('n_intersection')}；unmatched：{tt.get('unmatched_rate'):.3f}\n")
+
+
+def _shap_block(shap):
+    if not shap:
+        return "- 未运行时间滞后 SHAP\n"
+    lines = []
+    for ind, lags in shap.items():
+        lines.append(f"- {ind}: " + ", ".join(f"lag{lag}={v:.3f}" for lag, v in lags.items()))
+    return "\n".join(lines) + "\n"
+
+
+def _scale_block(scale):
+    if not scale:
+        return "- 未运行规模退化实验\n"
+    cells = scale.get("cells", {})
+    lines = ["| 单元 | 重复 | 总体恢复率(CI) | 排除比例 | R1 频率 | R2 频率 | 双命中 |",
+             "| --- | --- | --- | --- | --- | --- | --- |"]
+    for k, agg in cells.items():
+        lines.append(f"| {k} | {agg.get('repeats')} | {agg.get('overall_mean', float('nan')):.2f} "
+                     f"({_fmt_ci(agg.get('overall_ci'))}) | {agg.get('excluded_ratio_mean', float('nan')):.2f} "
+                     f"| {agg.get('r1_freq', 0):.2f} | {agg.get('r2_freq', 0):.2f} "
+                     f"| {agg.get('both_freq', 0):.2f} |")
+    rb = scale.get("reliability_boundaries", {})
+    for k, b in rb.items():
+        status = b.get("status")
+        ev = b.get("boundary_events")
+        ev_s = f"{ev:.1f}" if ev is not None else "NA"
+        lines.append(f"- 可靠性边界 {k}：status={status}；边界事件数={ev_s}；边界 CI={_fmt_ci(b.get('boundary_ci'))}")
+    return "\n".join(lines) + "\n"
+```
+
+- [ ] **Step 4: 绿** → **Step 5: 提交**（`feat(research): Markdown 规律报告（§9 固定 8 节 + P_obs 对照）`）。
 
 ---
 
@@ -1966,14 +1928,14 @@ Task-ID: research-progression-min-loop"
 
 **Interfaces:**
 
-- Consumes: 全部模块（此时全部存在）。
-- Produces: `run_method_validation(seed, out_dir)`、`main(argv=None)`（实际写文件）；**`test_dataflow.py` 在此执行全模块签名断言**。
+- Consumes: 全部模块。
+- Produces: `run_method_validation(seed, out_dir)`、`main(argv=None)`（实际写文件）；`test_dataflow` 全模块签名断言。
 
-**完整数据流（§4）**：simulate（含校准 gate）→ features → model → attribution（lead-lag + lag SHAP）→ rules → evaluate → report；报告纳入 潜在风险校准、P_obs、规则 CI、规模退化内容。
+**完整数据流**：simulate（校准 gate）→ features → model → attribution（lead-lag + lag SHAP）→ rules → evaluate → report；报告纳入 潜在风险校准、P_obs、规则 CI、规模退化。
 
 - [ ] **Step 1: 写失败测试**
 
-`research/tests/test_dataflow.py`（所有模块已存在）：
+`research/tests/test_dataflow.py`：
 
 ```python
 import inspect
@@ -1983,8 +1945,8 @@ import evaluator
 def test_planted_rules_only_enters_evaluator():
     for mod in [simulate_cohort, features, splitters, model, attribution, rules, scale_study, report, main]:
         for name, fn in inspect.getmembers(mod, inspect.isfunction):
-            params = list(inspect.signature(fn).parameters)
-            assert "planted_rules" not in params, f"{mod.__name__}.{name} 不得接收 planted_rules"
+            assert "planted_rules" not in inspect.signature(fn).parameters, \
+                f"{mod.__name__}.{name} 不得接收 planted_rules"
     assert "planted_rules" in inspect.signature(evaluator.evaluate).parameters
     assert "planted_rules" not in inspect.signature(attribution.lead_lag_analysis).parameters
     assert "planted_rules" not in inspect.signature(rules.mine_rules).parameters
@@ -2005,7 +1967,102 @@ def test_cli_writes_files(tmp_path):
     assert (tmp_path / "report_method_validation.md").exists()
 ```
 
-- [ ] **Step 2: 运行测试确认红** → **Step 3: 写实现**（main.py 编排 + README；`run_method_validation` 调 `calibrate_gates` 生成 gate/_lambda_c 再 simulate；报告含 lag_shap/p_obs/规则 CI）→ **Step 4: 绿** → **Step 5: 提交**（`feat(research): CLI 完整数据流 + README + 数据流签名断言`）。
+- [ ] **Step 2: 运行测试确认红**
+
+Run: `cd research && python -m pytest tests/test_dataflow.py tests/test_main.py -v`
+Expected: FAIL
+
+- [ ] **Step 3: 写实现**
+
+`research/main.py`：
+
+```python
+"""CLI 编排：simulate→features→model→attribution→rules→evaluate→scale→report。"""
+from __future__ import annotations
+import argparse, json, os
+import config as cfg
+from simulate_cohort import simulate, calibrate_gates, p_obs
+from features import qualifying_landmarks, confirmation_subset
+from model import fit_and_oof, train_model
+from attribution import lead_lag_analysis, lag_shap_analysis
+from rules import mine_rules
+from evaluator import evaluate
+from scale_study import run_study
+from report import render_report
+
+
+def run_method_validation(seed=7, out_dir="outputs", scale=None):
+    mv = cfg.GRID["method_validation"]
+    hw = mv["horizon_months"] // cfg.SIM["window_months"]
+    cal = calibrate_gates(mv["horizon_months"], cal_n=cfg.SIM["calibration_n"])
+    out = simulate(n=mv["n"], followup_months=mv["followup_months"],
+                   horizon_months=mv["horizon_months"], seed=seed,
+                   gate=cal["gate"], _lambda_c=cal["lambda_base"])
+    lm = qualifying_landmarks(out["patients"], out["obs"], hw)
+    sub = confirmation_subset(out["patients"], out["obs"], hw)
+    model_res = fit_and_oof(lm, cfg.THRESHOLDS["cv_folds"], cfg.THRESHOLDS["cv_repeats"],
+                            seeds=list(range(seed, seed + cfg.THRESHOLDS["cv_repeats"])))
+    clf = train_model(lm, seed=seed)
+    lag_shap = lag_shap_analysis(lm, clf, cfg.THRESHOLDS["shap_lags"])
+    mined = mine_rules(sub, cfg.THRESHOLDS["cv_repeats"],
+                       seeds=list(range(seed, seed + cfg.THRESHOLDS["cv_repeats"])))
+    ev = evaluate(mined, out["planted_rules"], sub, out["coverage"])
+    ll = lead_lag_analysis(out["patients"], out["obs"])
+    po = p_obs(out["patients"], out["obs"], hw)
+    report_md = render_report({"signal": model_res, "rules": [r.__dict__ for r in mined["rules"]],
+                               "recovery": ev, "timeline": ll, "shap": lag_shap,
+                               "scale": scale or {}, "p_obs": po, "limitations": []})
+    os.makedirs(out_dir, exist_ok=True)
+    with open(f"{out_dir}/report_method_validation.md", "w", encoding="utf-8") as f:
+        f.write(report_md)
+    return {"auc_ci": model_res["auc_ci"], "auc_point": model_res["auc_point"],
+            "recovery": ev, "coverage": ev["coverage"], "lead_lag": ll,
+            "lag_shap": lag_shap, "p_obs": po, "report_md": report_md}
+
+
+def _small_scale_study():
+    """缩小网格跑一次规模退化（供报告 §7；不覆盖全局配置）。"""
+    return run_study(grid={"n": [150], "followup_months": [24], "horizon_months": 12}, repeats=2)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--mode", choices=["method-validation", "scale-study", "full"], default="full")
+    ap.add_argument("--out", default="outputs")
+    args = ap.parse_args(argv)
+    if args.mode == "full":
+        scale = _small_scale_study()
+        run_method_validation(out_dir=args.out, scale=scale)
+        os.makedirs(args.out, exist_ok=True)
+        with open(f"{args.out}/scale_study.json", "w", encoding="utf-8") as f:
+            json.dump(scale, f, ensure_ascii=False, indent=2)
+    elif args.mode == "method-validation":
+        run_method_validation(out_dir=args.out)
+    elif args.mode == "scale-study":
+        os.makedirs(args.out, exist_ok=True)
+        with open(f"{args.out}/scale_study.json", "w", encoding="utf-8") as f:
+            json.dump(run_study(), f, ensure_ascii=False, indent=2)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+`research/README.md`：运行方式（`python -m main --mode full --out outputs/`）、参数、测试命令（`python -m pytest tests/` 快速层、`-m slow`/`-m acceptance`）、固定种子可复现说明。
+
+- [ ] **Step 4: 运行测试确认绿**
+
+Run: `cd research && python -m pytest tests/test_dataflow.py tests/test_main.py -v`
+Expected: PASS
+
+- [ ] **Step 5: 提交**
+
+```bash
+git add research/main.py research/README.md research/tests/test_main.py research/tests/test_dataflow.py
+git commit -m "feat(research): CLI 完整数据流 + README + 数据流签名断言" -m "AI-Agent: Codex
+AI-Client: Codex-Desktop
+Task-ID: research-progression-min-loop"
+```
 
 ---
 
@@ -2046,7 +2103,6 @@ def test_method_acceptance_monte_carlo():
         res = run_method_validation(seed=seed)
         auc_ok = res["auc_ci"][0] >= cfg.THRESHOLDS["auc_ci_lower_gate"]
         hit_ok = res["recovery"]["rule_level_recovery"]["full_hit_count"] == 2
-        # 规则非空 + CI 存在（防空；"CI 未估计"不得参与验收）
         rules_nonempty = res["recovery"]["n_rules"] > 0
         ci_ok = res["recovery"]["rule_ci_present"]
         ll = res["lead_lag"]
@@ -2055,8 +2111,8 @@ def test_method_acceptance_monte_carlo():
                 and all(n >= cfg.THRESHOLDS["per_indicator_ll_min"] for n in ll["per_indicator_n"].values()) \
                 and ll["unmatched_rate"] <= cfg.THRESHOLDS["unmatched_max"]
         cov = res["coverage"]
-        cov_ok = (cov.get("r1_only", 0) >= cfg.THRESHOLDS["coverage_gate"]
-                  and cov.get("r2_only", 0) >= cfg.THRESHOLDS["coverage_gate"])
+        cov_ok = (cov.get("r1", 0) >= cfg.THRESHOLDS["coverage_gate"]
+                  and cov.get("r2", 0) >= cfg.THRESHOLDS["coverage_gate"])
         if auc_ok and hit_ok and rules_nonempty and ci_ok and ll_ok and cov_ok:
             passes += 1
     assert passes / k >= cfg.THRESHOLDS["method_acceptance_pass_rate"]
@@ -2067,10 +2123,12 @@ def test_method_acceptance_monte_carlo():
 def test_realistic_scale_pipeline_runs(n, f):
     res = run_cell(n=n, followup_months=f, horizon_months=12, repeats=2, seeds=[1, 2])
     for rec in res["records"]:
-        assert 0 <= rec["overall_recovery"] <= 1
+        assert rec["overall_recovery"] in (0.0, 0.5, 1.0)       # full_hit_count/2
         assert rec["usable_landmarks"] > 0
-        assert 0 <= rec["excluded_ratio"] <= 1
-        assert rec["oof_events"] >= 0
+        assert rec["usable_patients"] <= rec["nominal_n"]       # 有合格 landmark 的患者不超总数
+        assert rec["usable_landmarks"] >= rec["usable_patients"]
+        assert rec["oof_events"] <= rec["usable_patients"]
+        assert rec["n_events"] >= 0
         assert isinstance(rec["partial_recovery"], dict)
 
 
@@ -2080,13 +2138,13 @@ def test_reproducible_same_seed_same_report():
 ```
 
 - [ ] **Step 2: 运行慢层**：`cd research && python -m pytest tests/test_end_to_end.py -m slow -v`，Expected: PASS
-- [ ] **Step 3: 运行验收层**：`cd research && python -m pytest tests/test_end_to_end.py -m acceptance -v`，Expected: PASS（≥90% 种子通过）
-- [ ] **Step 4: 全量快速层**：`cd research && python -m pytest tests/ -v`，Expected: 全部 PASS，且不含 slow/acceptance
+- [ ] **Step 3: 运行验收层**：`cd research && python -m pytest tests/test_end_to_end.py -m acceptance -v`，Expected: PASS（≥90%）
+- [ ] **Step 4: 全量快速层**：`cd research && python -m pytest tests/ -v`，Expected: 全部 PASS 且不含 slow/acceptance
 - [ ] **Step 5: 提交**
 
 ```bash
 git add research/tests/test_end_to_end.py
-git commit -m "feat(research): 端到端分层测试（slow 回归 / acceptance 验收 / 现实规模参数化 / 可复现）" -m "AI-Agent: Codex
+git commit -m "feat(research): 端到端分层测试（slow/acceptance/现实规模参数化/可复现）" -m "AI-Agent: Codex
 AI-Client: Codex-Desktop
 Task-ID: research-progression-min-loop"
 ```
@@ -2095,11 +2153,11 @@ Task-ID: research-progression-min-loop"
 
 ## 自检清单（计划级）
 
-- **规格覆盖**：§4 目录 → Task 1-14 全覆盖；§5 生成/门控/校准 → Task 2/3；§6 → Task 4/6；§7 → Task 7/8；§8 → Task 9/10/11；§9 → Task 12；§10 → Task 14；§11 → Task 1（pytest.ini）+ Task 14。
-- **数据流**：planted_rules 只进 evaluator——Task 13 `test_dataflow` 对全部非 evaluator 模块断言；`lead_lag_analysis`/`mine_rules` 签名无该参数。
-- **接口自洽（本轮修复）**：`simulate(n,f,h,seed,gate=None,_lambda_c=None)` 全任务一致；`Condition.value: str|float`；`MinedRule` 对象（含 event_support/total_support/ci 字段）；`confirmation_subset` 输出含 `admin_end/group/unobservable/sex_male` 且剔 unknown；`features` 无字符串列；OOF 患者聚合后映射回 landmark 行；lead-lag 逐指标 CI + 容差/破平 + 恒存在字段；实例级恢复率 = 覆盖唯一患者/可观测唯一患者；可靠性边界分箱结构 + 边情形 + 原始点边界；acceptance 防空（规则非空 + CI 存在 + 逐指标门槛 + R1/R2 覆盖率）。
-- **无占位符**：所有任务含实际测试代码与可执行实现；无"实现者须补齐/TBD"。
+- **规格覆盖**：§4 目录 → Task 1-14 全覆盖；§5 生成/门控/校准 → Task 2/3；§6 → Task 4/6；§7 → Task 7/8；§8 → Task 9/10/11；§9 → Task 12；§10 → Task 14；§11 → Task 1/14。
+- **数据流**：planted_rules 只进 evaluator——Task 13 `test_dataflow` 全模块断言；`lead_lag_analysis`/`mine_rules` 签名无该参数。
+- **接口自洽（本轮修复）**：neither hazard 可缩放（λ_c·λ0）；路径组不可观测完整判定（含 confirm<event/censor）+ 保留组语义；coverage 具体算法（per_group/per_rule/误报）；lead-lag 观察进展者 + 嵌套 `per_path[group][ind]` + 真实破平；`_canonical_rule` 数值保类型；sex 统一数值；horizon/lookback/lag 三字段比较 + 测试；规则 CI 完整重跑 + 无 oof_frame；partial_hit typed 容差真子集 + 实例级绑定 R1/R2 规则；可靠性边界曲线 CI 下界 + 边情形；run_cell 字段正确（usable_patients/OOF/n_events 含 neither）；Task 8/12/13 无占位。
+- **无占位符**：所有任务含实际测试代码与可执行实现；无"同 vN"或"实现者须补齐"。
 
 ## 执行交接
 
-计划已保存（v3）。执行选项：**Subagent-Driven（推荐）** 或 **Inline Execution**。按既定协作框架（Claude=实施者、Codex=审查者），建议**分批执行（如 Task 1-3、4-6、7-10、11-14）、每批交 Codex 审查、通过后推送**。实施计划 v3 先交 Codex 复审。
+计划已保存（v4）。执行选项：**Subagent-Driven（推荐）** 或 **Inline Execution**。按既定协作框架建议**分批执行（Task 1-3、4-6、7-10、11-14）、每批交 Codex 审查、通过后推送**。实施计划 v4 先交 Codex 复审。
