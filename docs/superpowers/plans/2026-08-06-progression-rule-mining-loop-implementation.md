@@ -1,4 +1,4 @@
-# 疾病进展规律挖掘 · 端到端最小闭环 实施计划（v5.2）
+# 疾病进展规律挖掘 · 端到端最小闭环 实施计划（v5.3）
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -9,7 +9,7 @@
 **Tech Stack:** Python 3.10+、pandas、scikit-learn（GradientBoostingClassifier / IsotonicRegression）、shap、pytest（`slow`/`acceptance` marker）。
 
 **规格依据：** `docs/superpowers/specs/2026-08-06-progression-rule-mining-loop-design.md`（v16）。
-**计划修订：** v4 按 Codex 计划第三轮 13 条意见修正；**v4.1 按 Workflow 对抗验证 10 条真实发现修正**；**v5**（Codex 第四轮 8 大项）；**v5.1**（Codex 第五轮 12 项）；**v5.2 按 Codex 计划第六轮 11 项修正**——R1 ≥95% 测试改按 z + 指定锚点直接验证（脱离 group/unobservable 生成判定循环）、`_group_latent_risk` 排除 neither 误报患者（obs 传参 + 校准测试同分母）、coverage 文档口径统一（excluded 单列不从规则覆盖率分母移除）、mine_rules 内部过滤 unobservable、候选标准优先确定性顺序（candidate_grid 版本化，R1/R2 组合先于截断枚举）+ synthetic fixture 测试、control_delta 对照无偏离取 cutoff 端点（有限值）+ 确定性手工 fixture、边界 Bootstrap B/有效比例版本化 + +inf CI 契约、run_cell excluded_breakdown 明细 + 字段语义修正、`_fold_discover_validate` 签名统一（显式 horizon）、acceptance ci_ok 加强（长度一致 + 有限数值区间）。
+**计划修订：** v4 按 Codex 计划第三轮 13 条意见修正；**v4.1 按 Workflow 对抗验证 10 条真实发现修正**；**v5**（Codex 第四轮 8 大项）；**v5.1**（Codex 第五轮 12 项）；**v5.2 按 Codex 计划第六轮 11 项修正**——R1 ≥95% 测试改按 z + 指定锚点直接验证（脱离 group/unobservable 生成判定循环）、`_group_latent_risk` 排除 neither 误报患者（obs 传参 + 校准测试同分母）、coverage 文档口径统一（excluded 单列不从规则覆盖率分母移除）、mine_rules 内部过滤 unobservable、候选标准优先确定性顺序（candidate_grid 版本化，R1/R2 组合先于截断枚举）+ synthetic fixture 测试、control_delta 对照无偏离取 cutoff 端点（有限值）+ 确定性手工 fixture、边界 Bootstrap B/有效比例版本化 + +inf CI 契约、run_cell excluded_breakdown 明细 + 字段语义修正、`_fold_discover_validate` 签名统一（显式 horizon）、acceptance ci_ok 加强（长度一致 + 有限数值区间）。**v5.3 按 Codex 计划第七轮 10 项修正**——R1 条件成立率口径限定可评估患者 + unobservable 原因分解（删失不设门槛、条件未成立 ≤5%，patients 表新增 `unobservable_reason`）、neither 误报分母改为全部 neither 候选患者（规格 §5.3 口径，校准分母不变）、`_bisect` 端点包围检查 + 上界自适应扩展（非包围显式 ValueError）、synthetic fixture 加确定性负例（折数可用）+ `_discover_frozen` 显式标准组合优先枚举（discover_top_k 版本化）、Task 8 新增整组滞后消融 `lag_ablation_analysis`（§7.2 佐证）、`_recovery_block` 兼容嵌套 coverage 契约 + 报告测试、run_cell excluded_breakdown 统一患者口径（unknown 行级单独字段）、`patient_bootstrap_ci` 无效重采样契约（单类样本丢弃、有效 <2 → NaN，规则/模型 CI 同步）、版本残留清理。
 
 ## Global Constraints
 
@@ -54,6 +54,7 @@
 | `censored_window` | float | 删失窗口；否则 `NaN` |
 | `admin_end` | int | 行政随访终点窗口 |
 | `unobservable` | bool | 路径组：确认 landmark 不合格/非无事件/条件未成立 → `True`（校准/coverage/evaluator 排除）；neither 恒 `False` |
+| `unobservable_reason` | str/`None` | 不可观测原因分解（仅路径组且 unobservable=True 时非空）：`"no_feasible_anchor"`（锚点采样无可行区间）、`"censored"`（confirm ≥ 删失窗，删失客观导致，不设门槛）、`"event_before_confirm"`（confirm ≥ 事件窗）、`"condition_not_held"`（锚点合格无事件未删失但条件未成立——生成器缺陷信号，测试设 ≤5% 门槛）；否则 `None` |
 
 ### `obs` DataFrame（每患者每窗口一行）
 
@@ -233,13 +234,15 @@ THRESHOLDS = {"auc_ci_lower_gate": 0.65, "coverage_gate": 0.80,
               "thresholds_per_feature": 3, "max_candidates": 5000, "lift_min": 1.5,
               "method_acceptance_seeds": 20, "method_acceptance_pass_rate": 0.90,
               "bootstrap_b": 1000, "cv_folds": 5, "cv_repeats": 5, "shap_lags": [0, 1, 2],
-              "calibrate_tol": 0.005, "calibrate_bisect_iters": 40,
+              "calibrate_tol": 0.005, "calibrate_bisect_iters": 40, "calibrate_hi_max": 128.0,
               "event_bins": [0, 10, 20, 30, 40, 50, 75, 100, 150, 10 ** 9],
               "bin_min_cohorts": 10, "boundary_threshold": 0.50,
               # 规则候选临床阈值网格（确定性；标准值在前保证 R1/R2 组合先被枚举）
               "candidate_grid": {"age": [50, 40, 60],
                                  "consecutive_rises": [2, 1],
                                  "drop_pct": [0.20, 0.10, 0.30]},
+              # 规则发现：标准组合优先枚举；max_candidates 总量上限；返回按 lift 排序的 top_k
+              "discover_top_k": 20,
               # 可靠性边界 Bootstrap（版本化）
               "boundary_bootstrap_b": 200, "boundary_valid_ratio_min": 0.5}
 PLANTED_CONDITIONS = {
@@ -357,9 +360,11 @@ def _drop(by_w, ind, w, pct):
 def _conditions_hold_at_anchor(out, rows, anchor_col, horizon_windows):
     """按指定锚点（w_r1 / w_a+1）独立验证 R1 四条件成立率。
     分母 = 传入全部患者；判定 = 锚点存在 + 合格约束 + R1 四条件 + 事件在锚点之后。
-    不依赖 group/unobservable（避免生成器自我判定循环）。"""
+    不依赖 group/unobservable（避免生成器自我判定循环）。
+    分母 = 资格检查全部通过的患者（可评估：锚点有限 + 合格 + 视界够 + 无事件 + 未删失）。
+    ——「条件成立率 ≥95%」仅针对观测条件（可评估患者），与 v16 §5.3 一致。"""
     obs_by_pid = {pid: g.to_dict("records") for pid, g in out["obs"].groupby("patient_id")}
-    ok = 0
+    ok, eligible = 0, 0
     for _, row in rows.iterrows():
         if not np.isfinite(row[anchor_col]):
             continue
@@ -370,11 +375,12 @@ def _conditions_hold_at_anchor(out, rows, anchor_col, horizon_windows):
             continue
         if np.isfinite(row["censored_window"]) and w >= row["censored_window"]:
             continue
+        eligible += 1
         by_w = {r["window"]: r for r in obs_by_pid[row["patient_id"]]}
         if (row["sex"] == "male" and row["age"] > 50
                 and _rises(by_w, "HbA1c", w, 2) and _drop(by_w, "PLT", w, 0.20)):
             ok += 1
-    return ok / len(rows) if len(rows) else float("nan")
+    return ok / eligible if eligible else float("nan")
 
 def test_r1_conditions_hold_at_confirmation_landmark():
     out = _sim(n=3000, followup_months=60, horizon_months=24, seed=9)
@@ -384,10 +390,16 @@ def test_r1_conditions_hold_at_confirmation_landmark():
     for z, anchor in (("r1", "w_r1"), ("r1_and_r2", "w_r1")):
         sub = p[p["z"] == z]
         assert len(sub) > 0, z
+        # §5.3 观测验收 ≥95%：分母 = 可评估患者（锚点合格且无事件且未删失）
         hold = _conditions_hold_at_anchor(out, sub, anchor, hw)
-        assert hold >= 0.95, (z, hold)             # §5.3 观测验收 ≥95%
-        unobs = int(sub["unobservable"].sum())
-        assert unobs <= 0.05 * len(sub), (z, unobs)   # 不可观测 <=5%（单列）
+        assert hold >= 0.95, (z, hold)
+        # 不可观测不设 ≤5% 门槛——删失独立抽取 20%，confirm 落在删失后的占比客观可超 5%；
+        # 只对「条件未成立」子类设 ≤5% 门槛（生成器缺陷信号：锚点采样未验证条件成立）
+        cond_unobs = int(sub["unobservable_reason"].eq("condition_not_held").sum())
+        assert cond_unobs <= 0.05 * len(sub), (z, cond_unobs)
+        # 其余原因单列诊断（不参与门槛）：censored / event_before_confirm / no_feasible_anchor
+        assert set(sub["unobservable_reason"].dropna()) <= {
+            "condition_not_held", "censored", "event_before_confirm", "no_feasible_anchor"}
     # 事件发生在确认 landmark 之后（路径组）
     prog = p[(p["z"] != "none") & p["event_window"].notna()]
     assert (prog["event_window"] > prog["confirm_window"]).all()
@@ -553,10 +565,10 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
                 row[ind] = baseline[ind] + sig + rng.normal(0, sigma[ind])
             obs_rows.append(row)
 
-        # 组归属 / 确认 landmark / unobservable（完整判定）
+        # 组归属 / 确认 landmark / unobservable（完整判定 + 原因分解）
         if z == "none":
             confirm = _first_qualifying_landmark(admin_end, hw, censored_window)
-            group, unobservable = "neither", False
+            group, unobservable, unobservable_reason = "neither", False, None
         else:
             expected = "r1_and_r2" if z == "r1_and_r2" else ("r1_only" if z == "r1" else "r2_only")
             confirm = (w_a + 1) if z in ("r2", "r1_and_r2") else w_r1
@@ -568,15 +580,25 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
                      and (not np.isfinite(censored_window) or confirm < censored_window))
             if not valid or (z in ("r1", "r1_and_r2") and not r1_ok) or (z in ("r2", "r1_and_r2") and not r2_ok):
                 group, unobservable = expected, True      # 保留路径组，标不可观测
+                # 原因分解（确定性归因顺序）：无可行锚点 → 删失 → 事件先于确认 → 条件未成立
+                if not np.isfinite(confirm):
+                    unobservable_reason = "no_feasible_anchor"
+                elif np.isfinite(censored_window) and confirm >= censored_window:
+                    unobservable_reason = "censored"           # 删失客观导致（20% 删失率），不设门槛
+                elif np.isfinite(event_window) and confirm >= event_window:
+                    unobservable_reason = "event_before_confirm"
+                else:
+                    unobservable_reason = "condition_not_held" # 生成器缺陷信号（测试设 ≤5% 门槛）
             else:
                 group = "r1_and_r2" if (r1_ok and r2_ok) else ("r1_only" if r1_ok else "r2_only")
-                unobservable = False
+                unobservable, unobservable_reason = False, None
 
         rows.append({"patient_id": pid, "z": z, "age": age, "sex": sex, "group": group,
                      "confirm_window": confirm, "w_r1": w_r1, "w_a": w_a, "g": g,
                      "event_window": event_window, "censored": censored,
                      "censored_window": censored_window, "admin_end": admin_end,
-                     "unobservable": unobservable})
+                     "unobservable": unobservable,
+                     "unobservable_reason": unobservable_reason})
 
     return {"patients": pd.DataFrame(rows), "obs": pd.DataFrame(obs_rows),
             "planted_rules": _build_planted_rules(horizon_months),
@@ -644,6 +666,7 @@ Task-ID: research-progression-min-loop"
 
 ```python
 import numpy as np
+import pytest
 import config as cfg
 from simulate_cohort import simulate, calibrate_gates, p_obs
 
@@ -653,9 +676,36 @@ def test_calibrate_gates_contract():
     assert set(cal["gate"]) == {"r1_only", "r2_only", "r1_and_r2"}
 
 def test_bisection_endpoints_bracket_neither_target():
-    from simulate_cohort import _neither_hazard
-    # λ_c=0 → 风险 0（下界）< 目标；λ_c 大 → 风险 > 目标（上界），故 bisection 有解
+    from simulate_cohort import _group_latent_risk, _neither_hazard
+    target = cfg.CALIBRATION[24]["neither"]
+    # 下界：λ_c=0 → 潜在风险 0 < 目标
     assert _neither_hazard(0.0, 40, "female") == 0.0
+    out0 = simulate(3000, 60, 24, 3, _lambda_c=0.0)
+    assert _group_latent_risk(out0, "neither", 4, obs=out0["obs"]) <= target
+    # 上界：λ_c 取扩展上限（calibrate_hi_max，可 >1）→ 潜在风险 > 目标 → 端点真实包围
+    out_hi = simulate(3000, 60, 24, 3, _lambda_c=cfg.THRESHOLDS["calibrate_hi_max"])
+    assert _group_latent_risk(out_hi, "neither", 4, obs=out_hi["obs"]) > target
+
+def test_bisection_endpoints_bracket_path_groups():
+    from simulate_cohort import _group_latent_risk
+    grps = ("r1_only", "r2_only", "r1_and_r2")
+    gate0 = {g: 0.0 for g in grps}
+    gate1 = {g: 1.0 for g in grps}
+    for grp in grps:
+        target = cfg.CALIBRATION[24][grp]
+        out0 = simulate(3000, 60, 24, 3, gate=gate0, _lambda_c=0.0)
+        assert _group_latent_risk(out0, grp, 4, obs=out0["obs"]) <= target   # g=0 → 风险 0
+        out1 = simulate(3000, 60, 24, 3, gate=gate1, _lambda_c=0.0)
+        assert _group_latent_risk(out1, grp, 4, obs=out1["obs"]) >= target   # g=1 → 风险 1
+
+def test_bisect_raises_when_not_bracketed():
+    from simulate_cohort import _bisect
+    # 风险恒 < 目标（扩展至 calibrate_hi_max 仍不达）→ 显式 ValueError，绝不静默返回伪端点
+    with pytest.raises(ValueError):
+        _bisect(0.5, lambda x: 0.3)
+    # 下界即超目标 → ValueError
+    with pytest.raises(ValueError):
+        _bisect(0.2, lambda x: 0.8)
 
 def test_calibrated_latent_risk_both_horizons():
     for horizon, followup in ((24, 60), (12, 36)):
@@ -704,8 +754,9 @@ Expected: FAIL
 
 ```python
 def _group_latent_risk(out, grp, hw, obs=None):
-    """潜在风险（不受删失影响）。neither：排除"参考 landmark 命中 R1/R2"的误报患者（规格口径）。
-    分母 = 有合格参考 landmark 且非误报的 neither 患者。"""
+    """潜在风险（不受删失影响）。neither：排除"参考 landmark 命中 R1/R2"的误报患者。
+    **校准分母** = 有合格参考 landmark 且非误报的 neither 患者（规格 §5.3 明确定义；
+    与 coverage 的**误报率分母 = 全部 neither 候选患者**是两个不同口径，勿混淆）。"""
     p = out["patients"]
     sub = p[(p["group"] == grp) & (~p["unobservable"])]
     if grp == "neither":
@@ -730,7 +781,21 @@ def _group_latent_risk(out, grp, hw, obs=None):
 
 
 def _bisect(target, risk_fn, lo=0.0, hi=1.0):
-    """bisection：若 risk(lo) <= target <= risk(hi) 则收敛；否则返回端点（调用方保证包围）。"""
+    """bisection（端点包围强制检查 + 上界自适应扩展）。
+
+    - 检查 risk(lo) <= target <= risk(hi)；**不包围 → 上界倍增扩展**（λ_c 允许 >1，
+      neither 基线 hazard 可缩放语义），扩展超 `calibrate_hi_max` 仍不达 → 显式
+      `ValueError`（**绝不静默返回伪校准端点值**）。
+    - risk(lo) > target → 直接 `ValueError`（下界即超目标，参数错误）。"""
+    risk_lo = risk_fn(lo)
+    if risk_lo > target:
+        raise ValueError(f"bisection 下界风险 {risk_lo:.4f} > 目标 {target:.4f}")
+    risk_hi = risk_fn(hi)
+    while risk_hi < target and hi < cfg.THRESHOLDS["calibrate_hi_max"]:
+        hi *= 2.0
+        risk_hi = risk_fn(hi)
+    if risk_hi < target:
+        raise ValueError(f"bisection 上界风险 {risk_hi:.4f} < 目标 {target:.4f}（扩展至 hi={hi:.1f} 仍不包围）")
     for _ in range(cfg.THRESHOLDS["calibrate_bisect_iters"]):
         mid = (lo + hi) / 2
         r = risk_fn(mid)
@@ -755,13 +820,13 @@ def calibrate_gates(horizon_months, cal_n=cfg.SIM["calibration_n"]):
             g = {g_: (mid if g_ == grp else t) for g_, t in cal.items() if g_ != "neither"}
             out = simulate(cal_n, followup, horizon_months, 3, gate=g, _lambda_c=0.0)
             return _group_latent_risk(out, grp, hw, obs=out["obs"])
-        # 端点包围检查（测试保证）；此处直接 bisect
+        # 端点包围：g=0 → 风险 0 < 目标；g=1 → 风险 1 ≥ 目标（事件=confirm+δ ≤ confirm+hw）→ 必有解
         gates[grp] = _bisect(target, risk)
 
     def neither_risk(c):
         out = simulate(cal_n, followup, horizon_months, 3, gate=gates, _lambda_c=c)
         return _group_latent_risk(out, "neither", hw, obs=out["obs"])
-    # λ_c=0 → 风险 0 < 目标；λ_c=1 → 风险 > 目标（lambda0 上限保证）；bisect [0,1]
+    # λ_c=0 → 风险 0 < 目标；λ_c 可能需 >1（视界内 λ0 累积不足目标时自动扩展上界）
     lambda_base = _bisect(cal["neither"], neither_risk, lo=0.0, hi=1.0)
     return {"gate": gates, "lambda_base": lambda_base,
             "neither_risk": {horizon_months: float(neither_risk(lambda_base))}}
@@ -789,7 +854,8 @@ def _compute_coverage(patients, obs, meta):
     eligible_total = 该组全部患者；eligible_observed = 确认/参考 landmark 合格、无事件、条件成立的患者；
     excluded = eligible_total - eligible_observed；coverage = eligible_observed / eligible_total。
     per_rule 按规则路径组聚合，**按唯一患者去重**（避免 landmark 行数混入患者口径）。
-    neither 误报分母 = 有合格参考 landmark 的 neither 患者。"""
+    neither 误报分母 = **全部 neither 候选患者**（规格 §5.3：误报率分母 = 全部 neither 候选患者）；
+    无合格参考 landmark 的患者无法判定误报、不计入分子，但仍在分母中。"""
     obs_by_pid = {pid: g.to_dict("records") for pid, g in obs.groupby("patient_id")}
     p = patients
     per_group = {}
@@ -808,9 +874,11 @@ def _compute_coverage(patients, obs, meta):
         per_rule[rule] = {"eligible_total": total, "eligible_observed": observed_ids,
                           "excluded": total - observed_ids,
                           "coverage": observed_ids / total if total else float("nan")}
-    ne = p[(p["group"] == "neither") & p["confirm_window"].notna()]
+    ne = p[p["group"] == "neither"]                    # 分母 = 全部 neither 候选患者（规格 §5.3）
     fp = 0
     for _, row in ne.iterrows():
+        if not np.isfinite(row["confirm_window"]):
+            continue                                    # 无合格参考 landmark → 无法判定，不计入分子
         by_w = {r["window"]: r for r in obs_by_pid.get(row["patient_id"], [])}
         w = int(row["confirm_window"])
         if _r1_holds(by_w, w, row["age"], row["sex"]) or _r2_holds(by_w, w):
@@ -1044,6 +1112,26 @@ def test_patient_bootstrap_ci():
     frame = pd.DataFrame({"patient_id": np.repeat(np.arange(20), 5), "value": rng.normal(size=100)})
     lo, hi = patient_bootstrap_ci(frame, lambda d: d["value"].mean(), b=200, seed=0)
     assert lo < frame["value"].mean() < hi
+
+def test_bootstrap_ci_single_class_dropped():
+    # 全正例患者 → 任何重采样都单类 → AUC 抛 ValueError → 全部样本丢弃
+    # → 有效样本 <2 → (nan, nan)（CI 未估计），**不抛异常**
+    from sklearn.metrics import roc_auc_score
+    frame = pd.DataFrame({"patient_id": np.zeros(10, dtype=int),
+                          "label": np.ones(10, dtype=int), "x": np.arange(10.0)})
+    lo, hi = patient_bootstrap_ci(frame, lambda d: roc_auc_score(d["label"], d["x"]),
+                                  b=30, seed=0)
+    assert np.isnan(lo) and np.isnan(hi)
+
+def test_bootstrap_ci_nan_stats_dropped():
+    # 非有限统计值被丢弃；其余样本正常 → CI 有限
+    frame = pd.DataFrame({"patient_id": np.repeat(np.arange(10), 5),
+                          "value": np.repeat([1.0, 2.0, 3.0, 4.0, 5.0], 10)})
+    def stat(d):
+        v = d["value"].mean()
+        return v if v < 4.0 else float("nan")      # 部分样本 NaN → 丢弃
+    lo, hi = patient_bootstrap_ci(frame, stat, b=100, seed=0)
+    assert np.isfinite(lo) and np.isfinite(hi)
 ```
 
 - [ ] **Step 2: 运行测试确认红**
@@ -1085,9 +1173,23 @@ def resample_rows(frame, sampled_ids):
 
 
 def patient_bootstrap_ci(frame, stat_fn, b=1000, seed=0):
+    """患者聚类 Bootstrap CI（无效重采样契约）：
+    - 单类样本（如 AUC 不可定义抛 ValueError）→ 丢弃该样本；
+    - 非有限统计值（NaN/inf）→ 丢弃；
+    - 有效样本 <2 → 返回 (nan, nan)（**CI 未估计**，调用方必须处理，不得静默视为数值 CI）。
+    绝不因单个 Bootstrap 样本的异常而中断整个 CI。"""
     samples = patient_bootstrap_samples(frame["patient_id"].to_numpy(), b, seed)
-    stats = np.array([stat_fn(resample_rows(frame, s)) for s in samples])
-    return float(np.percentile(stats, 2.5)), float(np.percentile(stats, 97.5))
+    vals = []
+    for s in samples:
+        try:
+            v = stat_fn(resample_rows(frame, s))
+        except ValueError:
+            continue                        # 单类样本（AUC 不可定义）→ 丢弃该样本
+        if np.isfinite(v):
+            vals.append(v)
+    if len(vals) < 2:
+        return float("nan"), float("nan")   # 有效样本不足 → CI 未估计
+    return float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5))
 ```
 
 - [ ] **Step 4: 运行测试确认绿**
@@ -1116,6 +1218,7 @@ Task-ID: research-progression-min-loop"
 **Interfaces:**
 
 - Produces: `fit_and_oof(landmarks, n_folds, n_repeats, seeds)` → `{"oof_mean","auc_ci","auc_point","pr_auc","brier","not_estimable","auc_median_across_repeats","oof_frame"}`；`train_model(landmarks, seed)`。
+- **模型 CI 契约**：`auc_ci` 来自 `patient_bootstrap_ci`——**无效重采样（单类 AUC 抛异常 / 非有限值）被丢弃**，有效样本 <2 时返回 `(nan, nan)`（**CI 未估计**）；报告 `_fmt_ci` 渲染 `[NA, NA]`，acceptance 的 `auc_ci[0] >= 0.65` 对 NaN 自然为 False（CI 未估计不得视为通过）。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -1509,7 +1612,7 @@ Task-ID: research-progression-min-loop"
 
 ---
 
-### Task 8: attribution.py——时间滞后 SHAP/消融
+### Task 8: attribution.py——时间滞后 SHAP/整组滞后消融（§7.2 佐证）
 
 **Files:**
 
@@ -1519,6 +1622,7 @@ Task-ID: research-progression-min-loop"
 **Interfaces:**
 
 - Produces: `lag_shap_analysis(landmarks, clf, lags)` → 每指标（PLT/HbA1c/AFP）各滞后 `mean|SHAP|`（描述性）；特征用 `sex_male` 数值列。
+- Produces: `lag_ablation_analysis(landmarks, lags, seed=0)` → 每指标 `{"baseline_auc", "without_auc", "auc_drop"}`——**整组滞后消融（§7.2）**：把某指标全部滞后列作为一个组整体移除后重训患者级 OOF 模型，比较 OOF AUC 相对全特征基线的变化（SHAP 贡献分摊的佐证，描述性措辞）。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -1529,7 +1633,7 @@ import numpy as np
 from simulate_cohort import simulate
 from features import qualifying_landmarks
 from model import train_model
-from attribution import lag_shap_analysis
+from attribution import lag_shap_analysis, lag_ablation_analysis
 
 def _lm():
     out = simulate(n=500, followup_months=24, horizon_months=12, seed=2)
@@ -1547,11 +1651,30 @@ def test_shap_feature_columns_numeric():
     lm = _lm()
     import numpy as np
     assert all(lm.dtypes != object)
+
+def test_lag_ablation_group_contract():
+    lm = _lm()
+    res = lag_ablation_analysis(lm, lags=[0, 1, 2], seed=0)
+    assert set(res) == {"PLT", "HbA1c", "AFP"}
+    for ind, d in res.items():
+        assert set(d) == {"baseline_auc", "without_auc", "auc_drop"}
+        assert 0 <= d["baseline_auc"] <= 1 and 0 <= d["without_auc"] <= 1
+        assert np.isfinite(d["auc_drop"])
+
+def test_lag_ablation_signal_group_drop_positive():
+    # 植入信号确定（HbA1c/PLT 早期偏离自 onset 先行）→ 移除该指标全部滞后组应使
+    # OOF AUC 下降（固定种子确定性；这是 §7.2"整组消融"验证的实质断言）
+    lm = _lm()
+    res = lag_ablation_analysis(lm, lags=[0, 1, 2], seed=0)
+    assert res["PLT"]["auc_drop"] > 0.0 and res["HbA1c"]["auc_drop"] > 0.0
 ```
 
 - [ ] **Step 2: 红** → **Step 3: 实现**：
 
 ```python
+import config as cfg
+from model import fit_and_oof
+
 def lag_shap_analysis(landmarks, clf, lags):
     import shap
     feat = [c for c in landmarks.columns if c not in ("patient_id", "window", "label", "group", "unobservable")]
@@ -1567,9 +1690,26 @@ def lag_shap_analysis(landmarks, clf, lags):
             col = f"{ind}{suffix}"
             out[ind][lag] = float(np.mean(np.abs(vals[:, feat.index(col)]))) if col in feat else 0.0
     return out
+
+
+def lag_ablation_analysis(landmarks, lags, seed=0):
+    """整组滞后消融（§7.2）：移除某指标全部滞后列 → 重训 OOF 模型 → AUC 相对基线下降。
+    与 SHAP 佐证互补（分摊下 SHAP 大小不可单独证明时间先后）；措辞限定为
+    "模型预测贡献的时间滞后一致性（描述性）"，不解释为因果先后。"""
+    feat = [c for c in landmarks.columns
+            if c not in ("patient_id", "window", "label", "group", "unobservable")]
+    base = fit_and_oof(landmarks, cfg.THRESHOLDS["cv_folds"], 1, [seed])["auc_point"]
+    out = {}
+    for ind in ("PLT", "HbA1c", "AFP"):
+        drop_cols = [c for c in feat if c.startswith(f"{ind}_")]
+        auc_d = fit_and_oof(landmarks.drop(columns=drop_cols),
+                            cfg.THRESHOLDS["cv_folds"], 1, [seed])["auc_point"]
+        out[ind] = {"baseline_auc": float(base), "without_auc": float(auc_d),
+                    "auc_drop": float(base - auc_d)}
+    return out
 ```
 
-- [ ] **Step 4: 绿** → **Step 5: 提交**（`feat(research): 时间滞后 SHAP（描述性佐证）`）。
+- [ ] **Step 4: 绿** → **Step 5: 提交**（`feat(research): 时间滞后 SHAP + 整组滞后消融（描述性佐证）`）。
 
 ---
 
@@ -1585,7 +1725,7 @@ def lag_shap_analysis(landmarks, clf, lags):
 - Consumes: `features.confirmation_subset`（含 `attrs["horizon_windows"]`）、`splitters.patient_folds`。
 - Produces: `MinedCondition`/`MinedRule`（数值 value）；`mine_rules(subset, n_repeats, seeds)` → `{"rules": list[MinedRule], "selection_frequency"}`；`_candidate_conditions(subset)`；`_fold_discover_validate(sset, seed, horizon_windows)` → `{canonical_key: [val_lifts]}`（**horizon 显式传参，非从 attrs 隐式读**）；`_rule_bootstrap_ci(subset, rule, b, seed)`（**重采样→重跑发现→验证**）。**mine_rules 内部先过滤 `unobservable` 行**（发现/验证/CI 只用可评估确认 landmark）。
 
-**规则 CI（完整，非简化）**：每次患者 Bootstrap 重采样确认子集（全列）→ 在重采样集上重跑折内发现→折外验证 → 收集该 canonical 规则的验证 lift 分布 → `(2.5, 97.5)`；未重发现 → 该样本 NaN，剔除；<2 个有效 → `"CI 未估计"`。**`mine_rules` 签名无 oof_frame**。
+**规则 CI（完整，非简化）**：每次患者 Bootstrap 重采样确认子集（全列）→ 在重采样集上重跑折内发现→折外验证 → 收集该 canonical 规则的验证 lift 分布 → `(2.5, 97.5)`；未重发现 → 该样本 NaN，剔除；**重采样集单类（负例 0 → `_fold_discover_validate` 折数 k<2 返回空）→ 该样本无结果，同样剔除**；<2 个有效 → `"CI 未估计"`。**`mine_rules` 签名无 oof_frame**。
 
 **规范化（保类型）**：`_canonical_rule` 返回 `(indicator, op, float(value), lookback)`（value 恒数值）；重建 MinedCondition 用 float。
 
@@ -1651,18 +1791,27 @@ def test_rule_ci_failure_mode():
     assert ci == "CI 未估计" or isinstance(ci, tuple)   # 小样本可退化
 
 def test_synthetic_fixture_discovers_r1_full_hit():
-    """确定性 synthetic fixture（不依赖模拟器）：所有行满足 R1 条件且为正例 →
-    候选标准优先顺序保证 R1 四条件组合第一个被枚举，full_hit 确定性成立。"""
+    """确定性 synthetic fixture（不依赖模拟器）：**正例（满足 R1 四条件）+ 确定性负例
+    （不满足任何条件）**——负例保证 `_fold_discover_validate` 的折数
+    k = min(cv_folds, 正例数, 负例数) ≥ 2 可用（全正例时 k=0 会直接返回空结果）；
+    标准组合优先枚举保证 R1 四条件组合在 max_candidates 截断前被枚举，
+    full_hit 确定性成立。"""
     import pandas as pd
     from rules import mine_rules
     from evaluator import full_hit
-    n = 60
     rows = []
-    for i in range(n):
+    for i in range(40):                       # 正例：满足 R1 四条件
         rows.append({
             "patient_id": i, "window": 2, "age": 55, "sex_male": 1,
             "group": "r1_only", "unobservable": False, "admin_end": 8, "label": 1,
             "HbA1c_rises": 2, "PLT_drop_pct": -0.25, "AFP_rises": 0,
+            **{f"{ind}_cur": 1.0 for ind in cfg.INDICATORS},
+        })
+    for i in range(40, 60):                   # 确定性负例：不满足任何条件
+        rows.append({
+            "patient_id": i, "window": 2, "age": 30, "sex_male": 0,
+            "group": "neither", "unobservable": False, "admin_end": 8, "label": 0,
+            "HbA1c_rises": 0, "PLT_drop_pct": 0.0, "AFP_rises": 0,
             **{f"{ind}_cur": 1.0 for ind in cfg.INDICATORS},
         })
     sub = pd.DataFrame(rows)
@@ -1710,8 +1859,8 @@ class MinedRule:
 
 def _candidate_conditions(subset):
     """标准词汇候选：确定性顺序（标准条件优先）+ 固定临床阈值网格 + 数据分位数。
-    顺序保证 R1 四条件组合（sex1, age50, HbA1c_rises2, PLT_drop0.20）是 4 组合枚举的**第一个**，
-    R2（AFP_rises2）在 1 组合中靠前——不会被 max_candidates 截断，标准规则确定性可达。
+    顺序只保证标准候选列表内容确定（sex1 → age50 → HbA1c_rises2 → PLT_drop0.20 → AFP_rises2）；
+    标准组合的**优先枚举**由 `_discover_frozen` 显式完成（不依赖 itertools 组合次序）。
     阈值来自 config.candidate_grid（通用临床切点，不引用 planted_rules）。"""
     grid = cfg.THRESHOLDS["candidate_grid"]
     cands = [MinedCondition("sex", "eq", 1.0), MinedCondition("sex", "eq", 0.0)]
@@ -1769,21 +1918,61 @@ def _lift(subset, rule):
     return subset.loc[hit, "label"].mean() / base if base > 0 else 0.0
 
 
+def _standard_candidates(cands):
+    """显式标准候选子集（确定性，不依赖组合次序）：R1 四条件 + R2 单条件的标准值。
+    标准组合 = 该子集全组合（1..max_conditions），在一般组合之前枚举，
+    保证 R1 四条件组合 / R2 单条件**不受 max_candidates 截断影响**。"""
+    std_keys = [("sex", 1.0, 1), ("age", 50.0, 1), ("HbA1c", 2.0, 2),
+                ("PLT", 0.20, 1), ("AFP", 2.0, 2)]
+    return [c for c in cands
+            if (c.indicator, float(c.value), c.lookback) in std_keys]
+
+
+def _enumerate_combos(cands, k, max_n):
+    """枚举 k 项组合（有序、去重），达到 max_n 停止。"""
+    out, seen = [], set()
+    for combo in itertools.combinations(cands, k):
+        key = tuple(sorted((c.indicator, c.op, float(c.value), c.lookback) for c in combo))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(tuple(combo))
+        if len(out) >= max_n:
+            break
+    return out
+
+
 def _discover_frozen(subset, seed, horizon_windows):
     cands = _candidate_conditions(subset)
-    rules = []
+    std = _standard_candidates(cands)
+    rules, seen = [], set()
+    # 1) 标准组合优先：R1 四条件组合（sex1, age50, HbA1c_rises2, PLT_drop0.20）在
+    #    标准子集 4 组合中确定被枚举；R2（AFP_rises2）在标准 1 组合中首个枚举。
+    std_combos = []
     for k in range(1, cfg.THRESHOLDS["max_conditions"] + 1):
-        for combo in itertools.combinations(cands, k):
+        std_combos += _enumerate_combos(std, k, cfg.THRESHOLDS["max_candidates"])
+    for combo in std_combos:
+        if len(rules) >= cfg.THRESHOLDS["max_candidates"]:
+            break
+        rule = MinedRule(conditions=tuple(combo), horizon_windows=horizon_windows,
+                         lookback=max(c.lookback for c in combo), lag=0)
+        ev, tot = _support(subset, rule)
+        if ev >= cfg.THRESHOLDS["rule_event_support_min"] and tot >= cfg.THRESHOLDS["rule_total_support_min"]:
+            rules.append(rule)
+            seen.add(_canonical_rule(rule))
+    # 2) 一般组合补齐（跳过已枚举的标准组合）
+    for k in range(1, cfg.THRESHOLDS["max_conditions"] + 1):
+        for combo in _enumerate_combos(cands, k, cfg.THRESHOLDS["max_candidates"]):
             if len(rules) >= cfg.THRESHOLDS["max_candidates"]:
                 break
             rule = MinedRule(conditions=tuple(combo), horizon_windows=horizon_windows,
                              lookback=max(c.lookback for c in combo), lag=0)
+            if _canonical_rule(rule) in seen:
+                continue
             ev, tot = _support(subset, rule)
             if ev >= cfg.THRESHOLDS["rule_event_support_min"] and tot >= cfg.THRESHOLDS["rule_total_support_min"]:
                 rules.append(rule)
-        if len(rules) >= cfg.THRESHOLDS["max_candidates"]:
-            break
-    return sorted(rules, key=lambda r: _lift(subset, r), reverse=True)[:20]
+    return sorted(rules, key=lambda r: _lift(subset, r), reverse=True)[:cfg.THRESHOLDS["discover_top_k"]]
 
 
 def _fold_discover_validate(sset, seed, horizon_windows):
@@ -2114,8 +2303,21 @@ from scale_study import run_cell, aggregate_cell, reliability_boundary, _meet_ha
 def test_run_cell_records_full_fields():
     res = run_cell(n=150, followup_months=24, horizon_months=12, repeats=2, seeds=[1, 2])
     for key in ["nominal_n", "usable_patients", "usable_landmarks", "n_events",
-                "oof_events", "excluded_ratio", "overall_recovery", "partial_recovery"]:
+                "oof_events", "excluded_ratio", "overall_recovery", "partial_recovery",
+                "excluded_breakdown", "unknown_landmark_rows"]:
         assert key in res["records"][0]
+
+def test_run_cell_excluded_patient_level_closure():
+    """excluded_breakdown 是患者级明细，与 usable/excluded_ratio 同一层级核对：
+    unobservable + no_feasible_landmark + usable == nominal_n（患者级闭环）；
+    unknown 行级单独字段（>= 0），不参与 breakdown 求和。"""
+    res = run_cell(n=150, followup_months=24, horizon_months=12, repeats=1, seeds=[1])
+    rec = res["records"][0]
+    bd = rec["excluded_breakdown"]
+    assert set(bd) == {"unobservable", "no_feasible_landmark"}
+    assert bd["unobservable"] + bd["no_feasible_landmark"] + rec["usable_patients"] == rec["nominal_n"]
+    assert rec["unknown_landmark_rows"] >= 0
+    assert 0 <= rec["excluded_ratio"] <= 1
 
 def test_aggregate_interface():
     results = {"records": [
@@ -2203,13 +2405,16 @@ def run_cell(n, followup_months, horizon_months, repeats, seeds):
         oof_frame = model_res["oof_frame"]
         oof_events = int(oof_frame.loc[oof_frame["label"] == 1, "patient_id"].nunique()) \
             if len(oof_frame) else 0
-        # excluded 明细（唯一患者口径，不重复计数）：不可观测 / 无可评估 landmark / unknown（landmark 行级）
+        # excluded 明细（**唯一患者口径，同一层级可核对**）：
+        # n_unobservable + n_no_feasible + usable_patients == n_total（患者级闭环）。
+        # unknown 是 landmark 行级概念（每患者可能多行被剔除），**单独字段**放顶层、
+        # 不混入患者级 breakdown（避免与 excluded_ratio 的患者分母核对不上）。
         n_total = int(out["patients"]["patient_id"].nunique())
         n_unobservable = int(out["patients"]["unobservable"].sum())
         n_no_feasible = max(n_total - n_unobservable - usable_patients, 0)
         excluded_breakdown = {"unobservable": n_unobservable,
-                              "no_feasible_landmark": n_no_feasible,
-                              "unknown_landmark_rows": int(lm.attrs.get("excluded_unknown", 0))}
+                              "no_feasible_landmark": n_no_feasible}
+        unknown_landmark_rows = int(lm.attrs.get("excluded_unknown", 0))
         records.append({
             "nominal_n": n, "usable_patients": usable_patients,
             "usable_landmarks": len(lm_eval), "n_events": n_events,
@@ -2217,6 +2422,7 @@ def run_cell(n, followup_months, horizon_months, repeats, seeds):
             # excluded_ratio = 未进入可评估 landmark 模型的患者比例（唯一患者口径，含不可观测与无可评估 landmark）
             "excluded_ratio": 1 - usable_patients / max(n_total, 1),
             "excluded_breakdown": excluded_breakdown,
+            "unknown_landmark_rows": unknown_landmark_rows,
             "overall_recovery": ev["rule_level_recovery"]["full_hit_count"] / 2,
             "partial_recovery": ev["partial_recovery"],
             "r1_recovered": ev["rule_level_recovery"]["r1_hit"],
@@ -2382,7 +2588,7 @@ def _sec(**kw):
 def test_8_sections():
     md = render_report(_sec())
     for i, title in enumerate(["摘要", "信号验证", "挖回规则列表", "植入规则对照表",
-                               "证据时间线", "时间滞后 SHAP 摘要", "规模退化表", "局限与下一步"], start=1):
+                               "证据时间线", "时间滞后 SHAP/消融摘要", "规模退化表", "局限与下一步"], start=1):
         assert f"## {i}. {title}" in md, title
 
 def test_ci_unestimated_marked():
@@ -2392,6 +2598,23 @@ def test_ci_unestimated_marked():
 def test_p_obs_reported():
     md = render_report(_sec(p_obs={"r1_only": {"rate": 0.5}}))
     assert "P_obs" in md
+
+def test_recovery_nested_coverage():
+    # evaluate 的 coverage 是嵌套 per_rule（{"r1": {"eligible_total":..., "coverage":...}}）——
+    # 报告必须按嵌套契约取数（_cov_rate），不能用 float 格式直接格式化 dict
+    rec = {"rule_level_recovery": {"full_hit_count": 2, "denominator": 2,
+                                   "r1_hit": True, "r2_hit": True},
+           "instance_level_recovery": {"covered": 30, "denominator": 40, "rate": 0.75},
+           "partial_recovery": {"r1_partial": False, "r2_partial": False},
+           "coverage": {"r1": {"eligible_total": 100, "eligible_observed": 95, "coverage": 0.95},
+                        "r2": {"eligible_total": 100, "eligible_observed": 98, "coverage": 0.98}},
+           "rule_ci_present": True}
+    md = render_report(_sec(recovery=rec))
+    assert "0.95" in md and "0.98" in md
+
+def test_ablation_block_renders():
+    md = render_report(_sec(ablation={"PLT": {"baseline_auc": 0.9, "without_auc": 0.7, "auc_drop": 0.2}}))
+    assert "整组滞后消融" in md and "0.200" in md
 ```
 
 - [ ] **Step 2: 红** → **Step 3: 实现**：
@@ -2406,7 +2629,7 @@ from __future__ import annotations
 import numpy as np
 
 _SECTIONS = ["摘要", "信号验证", "挖回规则列表", "植入规则对照表",
-             "证据时间线", "时间滞后 SHAP 摘要", "规模退化表", "局限与下一步"]
+             "证据时间线", "时间滞后 SHAP/消融摘要", "规模退化表", "局限与下一步"]
 
 
 def _rget(rule, key, default=None):
@@ -2445,7 +2668,8 @@ def render_report(sections: dict) -> str:
     md.append("## 4. 植入规则对照表\n\n" + _recovery_block(sections.get("recovery", {}))
               + _p_obs_block(sections.get("p_obs", {})))
     md.append("## 5. 证据时间线\n\n" + _timeline_block(sections.get("timeline", {})))
-    md.append("## 6. 时间滞后 SHAP 摘要\n\n" + _shap_block(sections.get("shap", {})))
+    md.append("## 6. 时间滞后 SHAP/消融摘要\n\n" + _shap_block(sections.get("shap", {}))
+              + _ablation_block(sections.get("ablation", {})))
     md.append("## 7. 规模退化表\n\n" + _scale_block(sections.get("scale", {})))
     md.append("## 8. 局限与下一步\n\n- 模拟数据非临床结论；现实事件数约束；后续子系统见规格 §12。\n")
     return "\n".join(md)
@@ -2471,6 +2695,18 @@ def _rules_table(rules):
     return "\n".join(lines) + "\n"
 
 
+def _cov_rate(cov, key):
+    """coverage 兼容契约：evaluate 传 `per_rule`（嵌套 dict，`{"r1": {"coverage": ...}}`）；
+    防御旧格式（纯 float）。缺失 → NaN，绝不把 dict 当 float 格式化。"""
+    v = cov.get(key, {})
+    if isinstance(v, dict):
+        return v.get("coverage", float("nan"))
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return float("nan")
+
+
 def _recovery_block(rec):
     rl = rec.get("rule_level_recovery", {})
     il = rec.get("instance_level_recovery", {})
@@ -2481,7 +2717,7 @@ def _recovery_block(rec):
             f"（rate {il.get('rate', float('nan')):.3f}）\n"
             f"- 部分恢复：R1={rec.get('partial_recovery', {}).get('r1_partial')}、"
             f"R2={rec.get('partial_recovery', {}).get('r2_partial')}\n"
-            f"- 可评估覆盖率：R1={cov.get('r1', float('nan')):.3f}、R2={cov.get('r2', float('nan')):.3f}\n"
+            f"- 可评估覆盖率：R1={_cov_rate(cov, 'r1'):.3f}、R2={_cov_rate(cov, 'r2'):.3f}\n"
             f"- 规则 CI 齐全：{rec.get('rule_ci_present')}\n")
 
 
@@ -2508,6 +2744,18 @@ def _shap_block(shap):
     lines = []
     for ind, lags in shap.items():
         lines.append(f"- {ind}: " + ", ".join(f"lag{lag}={v:.3f}" for lag, v in lags.items()))
+    return "\n".join(lines) + "\n"
+
+
+def _ablation_block(abl):
+    """整组滞后消融（§7.2 佐证）：移除某指标全部滞后组后的 OOF AUC 相对基线下降。"""
+    if not abl:
+        return ""
+    lines = ["\n**整组滞后消融（移除该指标全部滞后 → 重训 OOF AUC；描述性，非因果）：**",
+             "| 指标 | 基线 AUC | 移除组后 AUC | AUC 下降 |", "| --- | --- | --- | --- |"]
+    for ind, d in abl.items():
+        lines.append(f"| {ind} | {_fmt_num(d.get('baseline_auc'))} "
+                     f"| {_fmt_num(d.get('without_auc'))} | {_fmt_num(d.get('auc_drop'))} |")
     return "\n".join(lines) + "\n"
 
 
@@ -2579,7 +2827,7 @@ from main import run_method_validation, main
 
 def test_full_pipeline_fields():
     res = run_method_validation(seed=7)
-    for key in ["auc_ci", "lag_shap", "p_obs", "recovery", "report_md"]:
+    for key in ["auc_ci", "lag_shap", "lag_ablation", "p_obs", "recovery", "report_md"]:
         assert key in res
 
 def test_cli_writes_files(tmp_path):
@@ -2604,7 +2852,7 @@ import config as cfg
 from simulate_cohort import simulate, calibrate_gates, p_obs
 from features import qualifying_landmarks, confirmation_subset
 from model import fit_and_oof, train_model
-from attribution import lead_lag_analysis, lag_shap_analysis
+from attribution import lead_lag_analysis, lag_shap_analysis, lag_ablation_analysis
 from rules import mine_rules
 from evaluator import evaluate
 from scale_study import run_study
@@ -2624,6 +2872,7 @@ def run_method_validation(seed=7, out_dir="outputs", scale=None):
                             seeds=list(range(seed, seed + cfg.THRESHOLDS["cv_repeats"])))
     clf = train_model(lm, seed=seed)
     lag_shap = lag_shap_analysis(lm, clf, cfg.THRESHOLDS["shap_lags"])
+    ablation = lag_ablation_analysis(lm, cfg.THRESHOLDS["shap_lags"], seed=seed)
     mined = mine_rules(sub, cfg.THRESHOLDS["cv_repeats"],
                        seeds=list(range(seed, seed + cfg.THRESHOLDS["cv_repeats"])))
     ev = evaluate(mined, out["planted_rules"], sub, out["coverage"])
@@ -2631,14 +2880,15 @@ def run_method_validation(seed=7, out_dir="outputs", scale=None):
     po = p_obs(out["patients"], out["obs"], hw)
     report_md = render_report({"signal": model_res, "rules": [r.__dict__ for r in mined["rules"]],
                                "recovery": ev, "timeline": ll, "shap": lag_shap,
+                               "ablation": ablation,
                                "scale": scale or {}, "p_obs": po, "limitations": []})
     os.makedirs(out_dir, exist_ok=True)
     with open(f"{out_dir}/report_method_validation.md", "w", encoding="utf-8") as f:
         f.write(report_md)
     return {"auc_ci": model_res["auc_ci"], "auc_point": model_res["auc_point"],
             "recovery": ev, "coverage": ev["coverage"], "lead_lag": ll,
-            "lag_shap": lag_shap, "p_obs": po, "report_md": report_md,
-            "rules_ci": [r.ci for r in mined["rules"]]}
+            "lag_shap": lag_shap, "lag_ablation": ablation, "p_obs": po,
+            "report_md": report_md, "rules_ci": [r.ci for r in mined["rules"]]}
 
 
 def _small_scale_study():
@@ -2790,9 +3040,9 @@ Task-ID: research-progression-min-loop"
 
 - **规格覆盖**：§4 目录 → Task 1-14 全覆盖；§5 生成/门控/校准 → Task 2/3；§6 → Task 4/6；§7 → Task 7/8；§8 → Task 9/10/11；§9 → Task 12；§10 → Task 14；§11 → Task 1/14。
 - **数据流**：planted_rules 只进 evaluator——Task 13 `test_dataflow` 全模块断言；`lead_lag_analysis`/`mine_rules` 签名无该参数。
-- **接口自洽（v5 修复）**：neither hazard 可缩放（λ_c·λ0）+ 参考 landmark 无事件；路径组不可观测完整判定 + 保留组语义；coverage 分母=可评估/规则路径总数 + excluded 单列 + neither 误报分母限定（有合格参考 landmark）；校准下界 confirm<event<=confirm+hw；R1 确认 landmark 条件成立率 ≥95% 测试（逐组）；lead-lag per-patient 破平（逐患者 afp vs min(plt,hba1c)）+ 匹配对照参与（control_delta）+ per-indicator 去重；规则候选含固定临床阈值网格使标准规则可达（fixture canonical 键断言 full_hit）；`_canonical_rule` 数值保类型；sex 统一数值；horizon/lookback/lag 三字段比较；规则 CI 完整重跑 + 无 oof_frame；partial_hit typed 容差真子集 + 实例级绑定 R1/R2 规则；可靠性边界点估计 + Bootstrap 边界分布 CI + 边情形；run_cell 字段修正（OOF 事件来自 fit_and_oof、n_events 过滤、排除唯一患者）；report 格式化守卫（signal/timeline/条件 tuple）；method-validation 并入缩小规模退化；acceptance 键存在断言 + 现实规模交叉核对。
+- **接口自洽（v5.3 修复）**：neither hazard 可缩放（λ_c·λ0）+ 参考 landmark 无事件；路径组不可观测完整判定 + 保留组语义 + **unobservable_reason 原因分解（删失不设门槛、条件未成立 ≤5%）**；coverage 分母=可评估/规则路径总数 + excluded 单列 + **neither 误报分母 = 全部 neither 候选患者（规格 §5.3，校准分母不变）**；校准下界 confirm<event<=confirm+hw；**R1 确认 landmark 条件成立率 ≥95% 仅限可评估患者**（逐组）；**`_bisect` 端点包围强制检查 + 上界自适应扩展 + 非包围显式 ValueError**；lead-lag per-patient 破平（逐患者 afp vs min(plt,hba1c)）+ 匹配对照参与（control_delta）+ per-indicator 去重；规则候选固定临床阈值网格 + **`_discover_frozen` 显式标准组合优先枚举**使标准规则可达（fixture 正例+确定性负例断言 full_hit）；`_canonical_rule` 数值保类型；sex 统一数值；horizon/lookback/lag 三字段比较；规则 CI 完整重跑 + 无 oof_frame + **单类重采样集剔除契约**；**模型/规则 Bootstrap 无效样本契约（单类丢弃、有效 <2 → NaN/"CI 未估计"）**；partial_hit typed 容差真子集 + 实例级绑定 R1/R2 规则；可靠性边界点估计 + Bootstrap 边界分布 CI + 边情形；**run_cell excluded_breakdown 统一患者级口径（unobservable + no_feasible + usable == nominal_n），unknown 行级单独字段**；**report `_cov_rate` 嵌套 coverage 契约（含真实嵌套 coverage 报告测试）**；**Task 8 整组滞后消融 lag_ablation_analysis（§7.2，接口+测试+报告字段）**；report 格式化守卫（signal/timeline/条件 tuple）；method-validation 并入缩小规模退化；acceptance 键存在断言 + 现实规模交叉核对 + ci_ok 有限区间。
 - **无占位符**：所有任务（含 Task 4/5/6）均含实际测试代码与可执行实现；无"同 vN"或"实现者须补齐"。
 
 ## 执行交接
 
-计划已保存（v5）。执行选项：**Subagent-Driven（推荐）** 或 **Inline Execution**。按既定协作框架建议**分批执行（Task 1-3、4-6、7-10、11-14）、每批交 Codex 审查、通过后推送**。实施计划 v5 先交 Codex 复审。
+计划已保存（v5.3）。执行选项：**Subagent-Driven（推荐）** 或 **Inline Execution**。按既定协作框架建议**分批执行（Task 1-3、4-6、7-10、11-14）、每批交 Codex 审查、通过后推送**。实施计划 v5.3 先交 Codex 复审。
