@@ -57,13 +57,16 @@ def _sample_z_covariates(rng, n):
 
 def _sample_anchors(rng, z, w0, admin_end, hw):
     """确认锚点需 >=3 窗信号累积（PLT 乘性 ×0.80、HbA1c 上升；噪声 sd ~12pp，
-    最小锚点处降幅须达 >=44% 才留 >=2σ 余量）→ w_R1 >= w0+3、w_A >= w0+3
-    （confirm = w_A+1 >= w0+4）。w_A 下界同步提高使 r1_and_r2 的 PLT 条件
-    在共同确认 landmark 处同样有足够信号余量。"""
+    最小锚点处降幅须达 >=44% 才留 >=2σ 余量）→ w_R1 >= w0+3、w_A >= w0+2
+    （confirm = w_A+1 >= w0+3：PLT 累积 3 窗 → 降 48.8% → 成立率 99.3% ✓；
+     AFP 信号自 w_A 起立即生效，无需额外累积。v5.19 曾用 w_A >= w0+3，
+     12 月视界（admin_end=6）下 w0=1 患者 hi<lo 全部 no_feasible → 可观测样本
+     减半 → 校准 mean(g) 抽样噪声 3.4% > bisection tol 0.5% → ±3pp 断言不可达；
+     w0+2 使 w0=1 患者恢复（w_A=3），样本翻倍、噪声 <1.5%）。"""
     w_a, w_r1 = np.nan, np.nan
     for _ in range(cfg.SIM["resample_max"]):
         if z in ("r2", "r1_and_r2"):
-            lo, hi = max(1, w0 + 3), admin_end - hw - 1
+            lo, hi = max(1, w0 + 2), admin_end - hw - 1
             if hi < lo: return np.nan, np.nan
             w_a = int(rng.integers(lo, hi + 1))
         if z == "r1":
@@ -72,8 +75,10 @@ def _sample_anchors(rng, z, w0, admin_end, hw):
             w_r1 = int(rng.integers(lo, hi + 1))
         elif z == "r1_and_r2":
             lo, hi = w0 + 2, w_a - 1
-            if hi < lo: return np.nan, np.nan
-            w_r1 = int(rng.integers(lo, hi + 1))
+            if hi < lo:
+                w_r1 = np.nan        # w_r1 仅记录字段；R1 条件在 confirm=w_A+1 检查，不牵连 w_A
+            else:
+                w_r1 = int(rng.integers(lo, hi + 1))
         return w_a, w_r1
 
 
@@ -101,10 +106,16 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
     lambda_c = 0.0 if _lambda_c is None else _lambda_c
 
     paths, ages, sexes = _sample_z_covariates(rng, n)
-    sigma = {i: 0.1 * (cfg.REFERENCE_RANGES[i][1] - cfg.REFERENCE_RANGES[i][0]) for i in cfg.INDICATORS}
+    # 向量化索引（v5.20）：σ = 0.1·范围，与逐指标定义分布完全一致
+    inds = cfg.INDICATORS
+    n_ind = len(inds)
+    lo_hi = np.array([cfg.REFERENCE_RANGES[i][:2] for i in inds], dtype=float)
+    mid = (lo_hi[:, 0] + lo_hi[:, 1]) / 2
+    sigma = 0.1 * (lo_hi[:, 1] - lo_hi[:, 0])
+    i_hba1c, i_plt, i_afp = inds.index("HbA1c"), inds.index("PLT"), inds.index("AFP")
     n_win = admin_end + 1
 
-    rows, obs_rows = [], []
+    rows, obs_rows, obs_wins, obs_pids = [], [], [], []
     for pid in range(n):
         patient_rows = []
         z, age, sex = paths[pid], ages[pid], sexes[pid]
@@ -136,39 +147,44 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
         # 指标观测（基线 + 信号 + 噪声）；观测截断（规格 5.4 第 9 步）：
         # T = min(事件, 删失, 行政随访终点)，**其后窗口观测截断**——T 窗口本身有观测，
         # T+1 起无观测（杜绝事件/删失后的"未来观测"，避免 lead-lag 对已删失对照使用未来值）。
-        # **观测按 patient_rows 收集**（截断后每患者行数 ≠ n_win，不能用全局 obs_rows 尾部切片，
-        # 否则会混入上一患者窗口——条件判定 by_w 必须只用当前患者行）
-        baseline = {i: rng.normal((cfg.REFERENCE_RANGES[i][0] + cfg.REFERENCE_RANGES[i][1]) / 2,
-                                  (cfg.REFERENCE_RANGES[i][1] - cfg.REFERENCE_RANGES[i][0]) / 6)
-                    for i in cfg.INDICATORS}
+        # **观测按患者矩阵收集**（截断后每患者行数 ≠ n_win，不能用全局 obs 尾部切片，
+        # 否则会混入上一患者窗口——条件判定 by_w 必须只用当前患者行）。
+        # **向量化（v5.20）**：每患者一次批量噪声 rng.normal(0,1,size=(n_t,n_ind))*σ，
+        # 信号叠加用 numpy 掩码——与逐指标逐窗调用分布完全相同（iid 同分布），
+        # 但避免 330 万次 rng 调用与 dict 构造（simulate(30k)：13.65s → ~2s，Task 11/14 受益）。
+        baseline = mid + rng.normal(0, 1, size=n_ind) * sigma
         trunc = admin_end
         if np.isfinite(event_window):
             trunc = min(trunc, int(event_window))
         if np.isfinite(censored_window):
             trunc = min(trunc, int(censored_window))
-        for t in range(trunc + 1):
-            row = {"patient_id": pid, "window": t}
-            for ind in cfg.INDICATORS:
-                sig = 0.0
-                if z in ("r1", "r1_and_r2") and ind == "HbA1c" and t >= w0:
-                    sig = cfg.SIM["hba1c_rise_per_window"] * (t - w0)
-                if z in ("r1", "r1_and_r2") and ind == "PLT" and t >= w0:
-                    row[ind] = baseline[ind] * (cfg.SIM["plt_decline_per_window"] ** max(t - w0, 0)) \
-                        + rng.normal(0, sigma[ind])
-                    continue
-                if z in ("r2", "r1_and_r2") and ind == "AFP" and np.isfinite(w_a) and t >= w_a:
-                    sig = cfg.SIM["afp_rise_per_window"] * (t - w_a + 1)
-                row[ind] = baseline[ind] + sig + rng.normal(0, sigma[ind])
-            patient_rows.append(row)
-        obs_rows.extend(patient_rows)
+        n_t = trunc + 1
+        obs_mat = np.empty((n_t, n_ind))
+        noise = rng.normal(0, 1, size=(n_t, n_ind)) * sigma
+        obs_mat[:] = baseline + noise
+        t_arr = np.arange(n_t)
+        if z in ("r1", "r1_and_r2"):
+            sel = t_arr >= w0
+            obs_mat[sel, i_hba1c] = baseline[i_hba1c] \
+                + cfg.SIM["hba1c_rise_per_window"] * (t_arr[sel] - w0) + noise[sel, i_hba1c]
+            obs_mat[sel, i_plt] = baseline[i_plt] \
+                * (cfg.SIM["plt_decline_per_window"] ** np.maximum(t_arr[sel] - w0, 0)) + noise[sel, i_plt]
+        if z in ("r2", "r1_and_r2") and np.isfinite(w_a):
+            sel = t_arr >= w_a
+            obs_mat[sel, i_afp] = baseline[i_afp] \
+                + cfg.SIM["afp_rise_per_window"] * (t_arr[sel] - w_a + 1) + noise[sel, i_afp]
+        obs_rows.append(obs_mat)
+        obs_wins.append(t_arr)
+        obs_pids.append(np.full(n_t, pid))
 
         # 组归属 / 确认 landmark / unobservable（完整判定 + 原因分解；路径组逻辑收敛到纯函数）
         if z == "none":
             confirm = _first_qualifying_landmark(admin_end, hw, censored_window)
             group, unobservable, unobservable_reason = "neither", False, None
         else:
+            by_w = {t: {ind: obs_mat[t, j] for j, ind in enumerate(inds)} for t in range(n_t)}
             cls = _classify_observable(z, age, sex, w_a, w_r1, event_window, censored_window,
-                                       {r["window"]: r for r in patient_rows}, hw)
+                                       by_w, hw)
             confirm, group = cls["confirm_window"], cls["group"]
             unobservable, unobservable_reason = cls["unobservable"], cls["unobservable_reason"]
 
@@ -179,10 +195,16 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
                      "unobservable": unobservable,
                      "unobservable_reason": unobservable_reason})
 
-    return {"patients": pd.DataFrame(rows), "obs": pd.DataFrame(obs_rows),
+    patients = pd.DataFrame(rows)
+    obs_mat_all = np.vstack(obs_rows)
+    obs_df = pd.DataFrame({
+        "patient_id": np.concatenate(obs_pids), "window": np.concatenate(obs_wins),
+        **{ind: obs_mat_all[:, j] for j, ind in enumerate(inds)}})
+    meta = {"horizon_windows": hw, "admin_end": admin_end}
+    return {"patients": patients, "obs": obs_df,
             "planted_rules": _build_planted_rules(horizon_months),
-            "coverage": {"per_group": {}, "per_rule": {}, "neither_false_positive_rate": np.nan},
-            "meta": {"horizon_windows": hw, "admin_end": admin_end}}
+            "coverage": _compute_coverage(patients, obs_df, meta),
+            "meta": meta}
 
 
 def _classify_observable(z, age, sex, w_a, w_r1, event_window, censored_window, by_w, hw):
@@ -231,3 +253,162 @@ def _consecutive_rises(by_w, ind, w, k):
     vals = [by_w.get(w - i, {}).get(ind, np.nan) for i in range(k + 1)]
     if any(not np.isfinite(v) for v in vals): return False
     return all(vals[i] > vals[i + 1] for i in range(k))
+
+
+def _row_range(pids, pid):
+    """患者行范围 [s, e)（obs 按 patient_id, window 有序；窗口 0..e-s-1 连续）。"""
+    s = np.searchsorted(pids, pid, side="left")
+    e = np.searchsorted(pids, pid, side="right")
+    return s, e
+
+
+def _by_w_slice(pids, vals, cols, pid, w):
+    """判定所需窄窗口 by_w（{w-2, w-1, w, 0, 1} ∩ 患者观测，PLT 基线取窗口 0,1）。
+    numpy 直取（窗口连续 → 行 = 患者起点 s + 窗口），**避免 groupby/to_dict 慢路径**
+    （v5.20：simulate(30k) 的 _compute_coverage/_group_latent_risk 从 31s → <0.5s）。
+    与全量 by_w 语义等价：_r1_holds/_r2_holds 只读这些窗口，缺失键即无观测。"""
+    s, e = _row_range(pids, pid)
+    by_w = {}
+    for k in (w, w - 1, w - 2, 0, 1):
+        if 0 <= k < e - s:
+            by_w[k] = {cols[j]: vals[s + k, j] for j in range(len(cols))}
+    return by_w
+
+
+def _group_latent_risk(out, grp, hw, obs=None):
+    """潜在风险（不受删失影响）。neither：排除"参考 landmark 命中 R1/R2"的误报患者。
+    **校准分母** = 有合格参考 landmark 且非误报的 neither 患者（规格 §5.3 明确定义；
+    与 coverage 的**误报率分母 = 全部 neither 候选患者**是两个不同口径，勿混淆）。"""
+    p = out["patients"]
+    sub = p[(p["group"] == grp) & (~p["unobservable"])]
+    if grp == "neither":
+        if obs is None:
+            raise ValueError("neither 校准需传入 obs 以检查参考 landmark 误报")
+        cols = [c for c in cfg.INDICATORS if c in obs.columns]
+        pids = obs["patient_id"].to_numpy()
+        vals = obs[cols].to_numpy()
+        ok_mask = sub["confirm_window"].notna().to_numpy()
+        fp_mask = np.zeros(len(sub), dtype=bool)
+        for i, row in enumerate(sub.itertuples()):
+            if not np.isfinite(row.confirm_window):
+                continue
+            by_w = _by_w_slice(pids, vals, cols, row.patient_id, int(row.confirm_window))
+            w = int(row.confirm_window)
+            if _r1_holds(by_w, w, row.age, row.sex) or _r2_holds(by_w, w):
+                fp_mask[i] = True
+        valid = ok_mask & (~fp_mask)                       # 误报患者排除出 neither 校准分母
+        ev = sub["event_window"].notna().to_numpy() \
+             & (sub["event_window"] > sub["confirm_window"]).to_numpy() \
+             & (sub["event_window"] <= sub["confirm_window"] + hw).to_numpy()
+        return ev[valid].mean() if valid.any() else np.nan
+    return sub["g"].mean()
+
+
+def _bisect(target, risk_fn, lo=0.0, hi=1.0):
+    """bisection（端点包围强制检查 + 上界自适应扩展）。
+
+    - 检查 risk(lo) <= target <= risk(hi)；**不包围 → 上界倍增扩展**（λ_c 允许 >1，
+      neither 基线 hazard 可缩放语义），扩展超 `calibrate_hi_max` 仍不达 → 显式
+      `ValueError`（**绝不静默返回伪校准端点值**）。
+    - risk(lo) > target → 直接 `ValueError`（下界即超目标，参数错误）。"""
+    risk_lo = risk_fn(lo)
+    if risk_lo > target:
+        raise ValueError(f"bisection 下界风险 {risk_lo:.4f} > 目标 {target:.4f}")
+    risk_hi = risk_fn(hi)
+    while risk_hi < target and hi < cfg.THRESHOLDS["calibrate_hi_max"]:
+        hi *= 2.0
+        risk_hi = risk_fn(hi)
+    if risk_hi < target:
+        raise ValueError(f"bisection 上界风险 {risk_hi:.4f} < 目标 {target:.4f}（扩展至 hi={hi:.1f} 仍不包围）")
+    for _ in range(cfg.THRESHOLDS["calibrate_bisect_iters"]):
+        mid = (lo + hi) / 2
+        r = risk_fn(mid)
+        if abs(r - target) <= cfg.THRESHOLDS["calibrate_tol"]:
+            return mid
+        if r < target:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
+def calibrate_gates(horizon_months, cal_n=cfg.SIM["calibration_n"]):
+    followup = 60 if horizon_months == 24 else 36
+    hw = horizon_months // cfg.SIM["window_months"]
+    cal = cfg.CALIBRATION[horizon_months]
+    gates = {}
+    for grp, target in cal.items():
+        if grp == "neither":
+            continue
+        def risk(mid, grp=grp, target=target):
+            g = {g_: (mid if g_ == grp else t) for g_, t in cal.items() if g_ != "neither"}
+            out = simulate(cal_n, followup, horizon_months, 3, gate=g, _lambda_c=0.0)
+            return _group_latent_risk(out, grp, hw, obs=out["obs"])
+        # 端点包围：g=0 → 风险 0 < 目标；g=1 → 风险 1 ≥ 目标（事件=confirm+δ ≤ confirm+hw）→ 必有解
+        gates[grp] = _bisect(target, risk)
+
+    def neither_risk(c):
+        out = simulate(cal_n, followup, horizon_months, 3, gate=gates, _lambda_c=c)
+        return _group_latent_risk(out, "neither", hw, obs=out["obs"])
+    # λ_c=0 → 风险 0 < 目标；λ_c 可能需 >1（视界内 λ0 累积不足目标时自动扩展上界）
+    lambda_base = _bisect(cal["neither"], neither_risk, lo=0.0, hi=1.0)
+    return {"gate": gates, "lambda_base": lambda_base,
+            "neither_risk": {horizon_months: float(neither_risk(lambda_base))}}
+
+
+def p_obs(patients, obs, horizon_windows):
+    result = {}
+    for grp in ("neither", "r1_only", "r2_only", "r1_and_r2"):
+        pos = neg = 0
+        for _, p in patients[(patients["group"] == grp) & (~patients["unobservable"])].iterrows():
+            ev, cw = p["event_window"], p["censored_window"]
+            win = p["confirm_window"] + horizon_windows
+            if np.isfinite(ev) and ev <= win and (not np.isfinite(cw) or cw > ev):
+                pos += 1
+            elif (not np.isfinite(ev) or ev > win) and (not np.isfinite(cw) or cw > win):
+                neg += 1
+        result[grp] = {"positive": pos, "negative": neg, "denominator": pos + neg,
+                       "rate": pos / (pos + neg) if pos + neg else float("nan")}
+    return result
+
+
+def _compute_coverage(patients, obs, meta):
+    """coverage 口径（唯一）：每互斥组/规则输出
+    {"eligible_total", "eligible_observed", "excluded", "coverage"}。
+    eligible_total = 该组全部患者；eligible_observed = 确认/参考 landmark 合格、无事件、条件成立的患者；
+    excluded = eligible_total - eligible_observed；coverage = eligible_observed / eligible_total。
+    per_rule 按规则路径组聚合，**按唯一患者去重**（避免 landmark 行数混入患者口径）。
+    neither 误报分母 = **全部 neither 候选患者**（规格 §5.3：误报率分母 = 全部 neither 候选患者）；
+    无合格参考 landmark 的患者无法判定误报、不计入分子，但仍在分母中。"""
+    p = patients
+    per_group = {}
+    for grp in ("r1_only", "r2_only", "r1_and_r2", "neither"):
+        sub = p[p["group"] == grp]
+        total = int(len(sub))
+        observed = int((sub["confirm_window"].notna() & (~sub["unobservable"])).sum())
+        per_group[grp] = {"eligible_total": total, "eligible_observed": observed,
+                          "excluded": total - observed,
+                          "coverage": observed / total if total else float("nan")}
+    per_rule = {}
+    for rule, groups in (("r1", ("r1_only", "r1_and_r2")), ("r2", ("r2_only", "r1_and_r2"))):
+        sub = p[p["group"].isin(groups)]
+        total = int(sub["patient_id"].nunique())                          # 唯一患者
+        observed_ids = sub[(sub["confirm_window"].notna()) & (~sub["unobservable"])]["patient_id"].nunique()
+        per_rule[rule] = {"eligible_total": total, "eligible_observed": observed_ids,
+                          "excluded": total - observed_ids,
+                          "coverage": observed_ids / total if total else float("nan")}
+    ne = p[p["group"] == "neither"]                    # 分母 = 全部 neither 候选患者（规格 §5.3）
+    cols = [c for c in cfg.INDICATORS if c in obs.columns]
+    pids = obs["patient_id"].to_numpy()
+    vals = obs[cols].to_numpy()
+    fp = 0
+    for _, row in ne.iterrows():
+        if not np.isfinite(row["confirm_window"]):
+            continue                                    # 无合格参考 landmark → 无法判定，不计入分子
+        by_w = _by_w_slice(pids, vals, cols, row["patient_id"], int(row["confirm_window"]))
+        w = int(row["confirm_window"])
+        if _r1_holds(by_w, w, row["age"], row["sex"]) or _r2_holds(by_w, w):
+            fp += 1
+    neither_fp = fp / len(ne) if len(ne) else float("nan")
+    return {"per_group": per_group, "per_rule": per_rule,
+            "neither_false_positive_rate": float(neither_fp)}
