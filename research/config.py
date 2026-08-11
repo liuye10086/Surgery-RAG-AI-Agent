@@ -11,8 +11,8 @@ SIM = {"window_months": 6, "censoring_rate": 0.20, "kappa": 2.0, "tau": 0.0,
        "delta_choices": [1, 2], "delta_default": 1, "resample_max": 100,
        "calibration_n": 50_000, "calibration_tol_pp": 3.0,
        "observability_gate": 0.95, "calibration_group_min": 200,
-       "hba1c_rise_per_window": 0.8,     # >= 2*sigma(HbA1c)=0.5 → 两窗连续上升 ~0.98
-       "plt_decline_per_window": 0.85,   # 乘性 15%/窗下降；w>=w0+2 时较基线降 ~28% >20%
+       "hba1c_rise_per_window": 1.0,     # >= 2*sigma(HbA1c)=0.5 → 两窗连续上升 ~0.995（K=20 余量）
+       "plt_decline_per_window": 0.80,   # 乘性 20%/窗下降；w>=w0+3 时较基线降 >=44% >> 20%（噪声 sd ~12pp，锚点推迟后余量 >=2σ）
        "afp_rise_per_window": 6.0}
 CALIBRATION = {
     24: {"neither": 0.12, "r1_only": 0.60, "r2_only": 0.40, "r1_and_r2": 0.73},
