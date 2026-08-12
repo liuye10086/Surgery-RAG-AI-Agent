@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import config as cfg
 from splitters import patient_bootstrap_ci
+from model import fit_and_oof
 
 
 def _observed_progressors(patients):
@@ -163,3 +164,42 @@ def lead_lag_analysis(patients, obs):
             "control_delta": control_delta,
             "per_indicator_n": per_indicator_n, "n_intersection": n_inter,
             "unmatched_rate": unmatched_rate, "not_estimable": not_estimable}
+
+
+def lag_shap_analysis(landmarks, clf, lags):
+    import shap
+    feat = [c for c in landmarks.columns if c not in ("patient_id", "window", "label", "group", "unobservable")]
+    X = landmarks[feat].to_numpy()
+    vals = shap.TreeExplainer(clf).shap_values(X)
+    if isinstance(vals, list):
+        vals = vals[1]
+    out = {}
+    for ind in ("PLT", "HbA1c", "AFP"):
+        out[ind] = {}
+        for lag in lags:
+            suffix = {0: "_cur", 1: "_d6m", 2: "_d12m"}[lag]
+            col = f"{ind}{suffix}"
+            out[ind][lag] = float(np.mean(np.abs(vals[:, feat.index(col)]))) if col in feat else 0.0
+    return out
+
+
+def lag_ablation_analysis(landmarks, lags, seed=0):
+    """整组滞后消融（§7.2）：**消融组 = 该指标在 `lags` 中对应的滞后观测列**
+    （lags=[0,1,2] → _cur/_d6m/_d12m；slope/rises/drop_pct 为派生特征，不属滞后组、保留）。
+    移除该组后重训患者级 OOF → 比较 AUC；**基线/移除后均报告患者 Bootstrap CI**
+    （§7.2 滞后预测贡献分布带 CI）。与 SHAP 佐证互补（分摊下 SHAP 大小不可单独证明
+    时间先后）；措辞限定为"模型预测贡献的时间滞后一致性（描述性）"，不解释为因果先后。"""
+    feat = [c for c in landmarks.columns
+            if c not in ("patient_id", "window", "label", "group", "unobservable")]
+    suffixes = {0: "_cur", 1: "_d6m", 2: "_d12m"}
+    base_res = fit_and_oof(landmarks, cfg.THRESHOLDS["cv_folds"], 1, [seed])
+    base_auc, base_ci = base_res["auc_point"], base_res["auc_ci"]
+    out = {}
+    for ind in ("PLT", "HbA1c", "AFP"):
+        drop_cols = [f"{ind}{suffixes[lag]}" for lag in lags if f"{ind}{suffixes[lag]}" in feat]
+        res_d = fit_and_oof(landmarks.drop(columns=drop_cols),
+                            cfg.THRESHOLDS["cv_folds"], 1, [seed])
+        out[ind] = {"baseline_auc": float(base_auc), "baseline_ci": tuple(base_ci),
+                    "without_auc": float(res_d["auc_point"]), "without_ci": tuple(res_d["auc_ci"]),
+                    "auc_drop": float(base_auc - res_d["auc_point"])}
+    return out
