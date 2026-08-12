@@ -126,31 +126,78 @@ def test_p_obs_excludes_no_anchor_patients():
     assert po["neither"]["positive"] == 0 and po["neither"]["negative"] == 1
 
 def test_by_w_slice_handles_unsorted_and_missing_windows():
-    """_by_w_slice 按实际 window 列定位（v5.21）：乱序/缺窗不把行偏移误当窗口号
-    （Codex 批次 1 P2-1：打乱 obs 后误判 neither 误报率 0.162→0.0006）。"""
-    from simulate_cohort import _by_w_slice
-    pids = np.array([0, 0, 0, 1, 1, 1, 1])
-    wins = np.array([2, 0, 1, 3, 0, 1, 2])             # 患者 0 乱序；患者 1 乱序
+    """_by_w_slice 按稳定排序索引 + 实际 window 列定位（v5.21）：全局乱序/块内乱序/
+    缺窗/非零起始均正确，与输入行序无关（Codex 批次 1 P2-1：行偏移推导误判
+    neither 误报率 0.162→0.0006）。"""
+    from simulate_cohort import _by_w_slice, _patient_order
+    pids = np.array([1, 0, 1, 1, 0, 0, 1])             # 全局乱序（患者块不连续）
+    wins = np.array([3, 2, 0, 1, 0, 1, 2])             # 患者 1 乱序；患者 0 乱序
     cols = ["HbA1c", "PLT"]
-    vals = np.array([[1.0, 10], [3.0, 30], [2.0, 20],   # 患者 0：窗口 2/0/1 的值
-                     [12.0, 60], [9.0, 90], [10.0, 80], [11.0, 70]], dtype=float)
-    by_w0 = _by_w_slice(pids, wins, vals, cols, 0, 2)
+    vals = np.array([[12.0, 60], [1.0, 10], [9.0, 90], [10.0, 80],   # 患者 0 在行 1,4,5；患者 1 在行 0,2,3,6
+                     [3.0, 30], [2.0, 20], [11.0, 70]], dtype=float)
+    order = _patient_order(pids)
+    sorted_pids = pids[order]
+    by_w0 = _by_w_slice(sorted_pids, order, wins, vals, cols, 0, 2)
     assert set(by_w0) == {0, 1, 2}
     assert by_w0[2]["HbA1c"] == 1.0 and by_w0[0]["HbA1c"] == 3.0     # 按实际窗口号，非行偏移
-    by_w1 = _by_w_slice(pids, wins, vals, cols, 1, 3)
+    by_w1 = _by_w_slice(sorted_pids, order, wins, vals, cols, 1, 3)
     assert set(by_w1) == {0, 1, 2, 3}
     assert by_w1[3]["PLT"] == 60.0
 
+def test_by_w_slice_global_shuffle_invariant():
+    """全局 shuffle（含跨患者交错）下 neither 误报率与原始顺序一致（Codex 批次 1 P2-1
+    二轮：searchsorted 全局有序假设使 shuffle 后 0.152→0.001——稳定排序索引修复）。"""
+    from simulate_cohort import _compute_coverage
+    out = simulate(n=3000, followup_months=24, horizon_months=12, seed=4)
+    cov_orig = _compute_coverage(out["patients"], out["obs"], {})
+    for seed in (0, 1):
+        obs_shuf = out["obs"].sample(frac=1.0, random_state=seed)
+        cov_shuf = _compute_coverage(out["patients"], obs_shuf, {})
+        assert abs(cov_orig["neither_false_positive_rate"] - cov_shuf["neither_false_positive_rate"]) < 1e-12
+
+def _gate_all(m):
+    return {"r1_only": m, "r2_only": m, "r1_and_r2": m}
+
 def test_gate_risk_monotone_under_crn():
-    """事件门控独立 rng（CRN，v5.21）：r(mid)=mean(g) 是 mid 的严格单调非降函数
-    ——g 每患者固定消耗 1 个 rng_gate 随机数、δ 用 rng_delta 独立流，患者构成与
-    gate 无关 → 校准 bisection 收敛有保证（Codex 批次 1 P2-2：旧实现共享 rng 流
-    下 n=30/120/300 出现 0.40→0.25 非单调）。"""
+    """患者级派生 rng + rng_gate 每患者固定消耗（CRN，v5.21 二轮）：r(mid)=mean(g)
+    是 mid 的严格单调非降函数——患者构成（z 之外）与 gate 完全无关、u_i 固定 →
+    校准 bisection 收敛有保证（Codex 二轮 P1-1：一轮仅拆分 rng 流不彻底，n=30 实测
+    r1_only [0.50,0.25,0.80,...] 非单调反例）。"""
     from simulate_cohort import _group_latent_risk
     prev = -1.0
     for m in (0.1, 0.3, 0.5, 0.7, 0.9):
-        gate = {"r1_only": m, "r2_only": m, "r1_and_r2": m}
-        out = simulate(3000, 60, 24, 3, gate=gate, _lambda_c=0.0)
+        out = simulate(3000, 60, 24, 3, gate=_gate_all(m), _lambda_c=0.0)
         r = _group_latent_risk(out, "r1_only", 4, obs=out["obs"])
         assert r >= prev - 1e-12, (m, r, prev)
         prev = r
+
+def test_gate_risk_monotone_small_samples_dense_grid():
+    """小样本细网格单调（Codex 二轮 P1-1 反例种子 n=30/120/300）：CRN 下任意样本量
+    均严格单调（患者构成固定 → mean(g) 为单调阶梯）。"""
+    from simulate_cohort import _group_latent_risk
+    for n, seed in ((30, 167), (120, 526), (300, 837)):
+        prev = -1.0
+        for m in (0.0, 0.2, 0.4, 0.6, 0.8, 1.0):
+            out = simulate(n, 60, 24, seed, gate=_gate_all(m), _lambda_c=0.0)
+            r = _group_latent_risk(out, "r1_only", 4, obs=out["obs"])
+            assert r >= prev - 1e-12, (n, seed, m, r, prev)
+            prev = r
+
+def test_gate_changes_only_g_and_event():
+    """CRN 患者构成固定：不同 gate 下 patients/obs 除 g、event_window 外完全一致
+    （Codex 二轮 P1-1：旧实现事件窗口改变 n_t → 下一患者锚点/删失/基线漂移）。"""
+    a = simulate(300, 60, 24, 3, gate=_gate_all(0.1), _lambda_c=0.0)
+    b = simulate(300, 60, 24, 3, gate=_gate_all(0.9), _lambda_c=0.0)
+    pa, pb = a["patients"], b["patients"]
+    for col in ("z", "age", "sex", "confirm_window", "w_r1", "w_a",
+                "censored", "censored_window", "admin_end",
+                "unobservable", "unobservable_reason"):
+        assert pa[col].equals(pb[col]), col
+    # obs 公共窗口值一致（行数可不同——观测截断随事件窗口变，规格 5.4 第 9 步语义）
+    da = a["obs"].set_index(["patient_id", "window"])
+    db = b["obs"].set_index(["patient_id", "window"])
+    common = da.index.intersection(db.index)
+    assert len(common) > 0
+    assert da.loc[common].equals(db.loc[common])
+    # g/event_window 确实随 gate 变化（场景有效）
+    assert pa["g"].sum() != pb["g"].sum() or pa["event_window"].notna().sum() != pb["event_window"].notna().sum()

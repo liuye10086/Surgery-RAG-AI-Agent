@@ -98,9 +98,12 @@ def _neither_hazard(lambda_c, age, sex):
 
 def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None):
     rng = np.random.default_rng(seed)
-    # 事件门控独立 rng 流（v5.21，CRN）：g 每患者固定消耗 1 个随机数、δ 用独立流
-    # → r(mid)=mean(g) 是 mid 的严格单调函数（校准 bisection 收敛保证）；
-    # 观测/锚点/删失用主 rng（与 gate 无关 → 患者构成固定）。
+    # CRN（v5.21 二轮）：患者级派生 rng——每患者从主 rng 派生独立子 rng `rng_i`
+    # （锚点/删失/δ/观测/neither hazard 全部患者内），患者间完全独立 → 患者构成
+    # （z 之外的一切）与 gate 无关；g 用 rng_gate 独立流，**每患者固定消耗 1 个
+    # uniform（含 z=none）** → u_i 固定 → g_i(mid)=1{u_i<mid} 严格单调 → 校准
+    # r(mid)=mean(g) 严格单调（v5.21 一轮仅拆分 rng_gate/rng_delta 不彻底：事件窗口
+    # 改变 n_t → 下一患者主 rng 流偏移 → w_a/w_r1/删失漂移，n=30 实测非单调反例）。
     rng_gate = np.random.default_rng(seed + 1)
     rng_delta = np.random.default_rng(seed + 2)
     admin_end = followup_months // cfg.SIM["window_months"]
@@ -125,22 +128,25 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
     rows, obs_rows, obs_wins, obs_pids = [], [], [], []
     for pid in range(n):
         patient_rows = []
+        rng_i = np.random.default_rng(int(rng.integers(0, 2 ** 31)))   # 患者级派生（主 rng 固定消耗 1 个整数）
         z, age, sex = paths[pid], ages[pid], sexes[pid]
-        w0 = int(rng.integers(0, 2))
-        w_a, w_r1 = _sample_anchors(rng, z, w0, admin_end, hw)
+        w0 = int(rng_i.integers(0, 2))
+        w_a, w_r1 = _sample_anchors(rng_i, z, w0, admin_end, hw)
 
-        # 删失（独立，先于 neither 参考 landmark）
-        censored = rng.random() < cfg.SIM["censoring_rate"]
-        censored_window = float(rng.integers(1, n_win)) if censored else np.nan
+        # 删失（独立，先于 neither 参考 landmark；患者内 rng）
+        censored = rng_i.random() < cfg.SIM["censoring_rate"]
+        censored_window = float(rng_i.integers(1, n_win)) if censored else np.nan
 
-        # 事件（门控用 rng_gate 独立流：每患者固定消耗 1 个随机数 → CRN 下 mean(g) 单调；
-        # δ 窗口用 rng_delta 独立流：不消耗 g 流 → 单调性不受事件患者影响）
+        # 事件：g 用 rng_gate 独立流（**每患者固定消耗 1 个 uniform，含 z=none** →
+        # u_i 固定、患者构成不随 gate 漂移 → CRN 严格单调）；δ 用 rng_delta 独立流
+        # （不消耗 rng_i → 患者内观测流固定）；neither hazard 用患者内 rng
+        u_g = rng_gate.random()
         g, event_window = np.nan, np.nan
         if z != "none":
             confirm = (w_a + 1) if z in ("r2", "r1_and_r2") else w_r1
             if np.isfinite(confirm):
                 grp = "r1_and_r2" if z == "r1_and_r2" else ("r1_only" if z == "r1" else "r2_only")
-                g = int(rng_gate.random() < gate[grp])
+                g = int(u_g < gate[grp])
                 if g == 1:
                     event_window = confirm + int(rng_delta.choice(cfg.SIM["delta_choices"]))
         else:
@@ -148,7 +154,7 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
             if np.isfinite(ref):
                 # 从 ref+1 起视界内触发（ref 本身无事件；上界 = admin_end）
                 for t in range(int(ref) + 1, min(int(ref) + hw, admin_end) + 1):
-                    if rng.random() < _neither_hazard(lambda_c, age, sex):
+                    if rng_i.random() < _neither_hazard(lambda_c, age, sex):
                         event_window = t
                         break
 
@@ -160,7 +166,11 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
         # **向量化（v5.20）**：每患者一次批量噪声 rng.normal(0,1,size=(n_t,n_ind))*σ，
         # 信号叠加用 numpy 掩码——与逐指标逐窗调用分布完全相同（iid 同分布），
         # 但避免 330 万次 rng 调用与 dict 构造（simulate(30k)：13.65s → ~2s，Task 11/14 受益）。
-        baseline = mid + rng.normal(0, 1, size=n_ind) * baseline_sd
+        baseline = mid + rng_i.normal(0, 1, size=n_ind) * baseline_sd
+        # 噪声**全窗口一次性生成**（rng_i 固定消耗 n_win×n_ind）后按截断截取——
+        # n_t 依赖 event_window（随 gate 变），若按 n_t 生成则 rng_i 消耗偏移 →
+        # 观测随 gate 变 → condition_not_held 边界漂移 → CRN 单调性被破坏（v5.21 二轮）
+        noise_all = rng_i.normal(0, 1, size=(n_win, n_ind)) * sigma
         trunc = admin_end
         if np.isfinite(event_window):
             trunc = min(trunc, int(event_window))
@@ -168,7 +178,7 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
             trunc = min(trunc, int(censored_window))
         n_t = trunc + 1
         obs_mat = np.empty((n_t, n_ind))
-        noise = rng.normal(0, 1, size=(n_t, n_ind)) * sigma
+        noise = noise_all[:n_t]
         obs_mat[:] = baseline + noise
         t_arr = np.arange(n_t)
         if z in ("r1", "r1_and_r2"):
@@ -263,25 +273,26 @@ def _consecutive_rises(by_w, ind, w, k):
     return all(vals[i] > vals[i + 1] for i in range(k))
 
 
-def _row_range(pids, pid):
-    """患者行范围 [s, e)（obs 按 patient_id, window 有序；窗口 0..e-s-1 连续）。"""
-    s = np.searchsorted(pids, pid, side="left")
-    e = np.searchsorted(pids, pid, side="right")
-    return s, e
+def _patient_order(pids):
+    """稳定排序索引：`order` 使 pids[order] 有序（任意输入行序 → 患者块连续）。
+    一次 O(N log N)，调用方每观测集构建一次；_by_w_slice 不再假设全局排序
+    （v5.21 二轮：Codex 复现全局 shuffle 后 neither 误报率 0.152→0.001）。"""
+    return np.argsort(pids, kind="stable")
 
 
-def _by_w_slice(pids, wins, vals, cols, pid, w):
+def _by_w_slice(sorted_pids, order, wins, vals, cols, pid, w):
     """判定所需窄窗口 by_w（{w-2, w-1, w, 0, 1} ∩ 患者观测，PLT 基线取窗口 0,1）。
-    **按实际 window 列定位**（不假设行偏移 = 窗口号）：乱序/缺窗/非零起始窗口均正确
-    （v5.21：Codex 评审发现行偏移推导在打乱 obs 时误判——neither_false_positive_rate
-    从 0.162 掉到 0.0006；simulate 输出天然有序，但函数不再依赖该隐藏前提）。
+    按稳定排序索引定位患者块（`order` 由 _patient_order 构建），块内**按实际 window
+    列匹配**：全局乱序/块内乱序/缺窗/非零起始窗口均正确，与输入行序无关。
     与全量 by_w 语义等价：_r1_holds/_r2_holds 只读这些窗口，缺失键即无观测。"""
-    s, e = _row_range(pids, pid)
+    s = np.searchsorted(sorted_pids, pid, side="left")
+    e = np.searchsorted(sorted_pids, pid, side="right")
     by_w = {}
     for i in range(s, e):
-        k = int(wins[i])
+        r = order[i]
+        k = int(wins[r])
         if k in (w, w - 1, w - 2, 0, 1):
-            by_w[k] = {cols[j]: vals[i, j] for j in range(len(cols))}
+            by_w[k] = {cols[j]: vals[r, j] for j in range(len(cols))}
     return by_w
 
 
@@ -298,12 +309,14 @@ def _group_latent_risk(out, grp, hw, obs=None):
         pids = obs["patient_id"].to_numpy()
         wins = obs["window"].to_numpy()
         vals = obs[cols].to_numpy()
+        order = _patient_order(pids)
+        sorted_pids = pids[order]
         ok_mask = sub["confirm_window"].notna().to_numpy()
         fp_mask = np.zeros(len(sub), dtype=bool)
         for i, row in enumerate(sub.itertuples()):
             if not np.isfinite(row.confirm_window):
                 continue
-            by_w = _by_w_slice(pids, wins, vals, cols, row.patient_id, int(row.confirm_window))
+            by_w = _by_w_slice(sorted_pids, order, wins, vals, cols, row.patient_id, int(row.confirm_window))
             w = int(row.confirm_window)
             if _r1_holds(by_w, w, row.age, row.sex) or _r2_holds(by_w, w):
                 fp_mask[i] = True
@@ -415,11 +428,13 @@ def _compute_coverage(patients, obs, meta):
     pids = obs["patient_id"].to_numpy()
     wins = obs["window"].to_numpy()
     vals = obs[cols].to_numpy()
+    order = _patient_order(pids)
+    sorted_pids = pids[order]
     fp = 0
     for _, row in ne.iterrows():
         if not np.isfinite(row["confirm_window"]):
             continue                                    # 无合格参考 landmark → 无法判定，不计入分子
-        by_w = _by_w_slice(pids, wins, vals, cols, row["patient_id"], int(row["confirm_window"]))
+        by_w = _by_w_slice(sorted_pids, order, wins, vals, cols, row["patient_id"], int(row["confirm_window"]))
         w = int(row["confirm_window"])
         if _r1_holds(by_w, w, row["age"], row["sex"]) or _r2_holds(by_w, w):
             fp += 1

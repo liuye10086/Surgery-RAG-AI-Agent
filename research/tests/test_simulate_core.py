@@ -194,6 +194,19 @@ def _conditions_hold_at_anchor(out, rows, anchor_fn, horizon_windows, which):
             ok += 1
     return ok / eligible if eligible else float("nan")
 
+def test_conditions_hold_across_seeds():
+    """多 seed 成立率稳定性回归（Codex 二轮 P2-2：基线 SD 恢复 range/6 后须确认
+    信号余量仍满足规格 ≥95% 观测验收——其独立脚本 0.891 系分母未按可评估过滤
+    （确认点处观测截断的删失患者计入失败）；规格口径（可评估）下 5 seeds 均 ≥0.98）。"""
+    for seed in (9, 11, 17, 23, 31):
+        out = _sim(n=2000, followup_months=60, horizon_months=24, seed=seed)
+        p = out["patients"]
+        for z, which in (("r1", "r1"), ("r2", "r2"), ("r1_and_r2", "both")):
+            sub = p[p["z"] == z]
+            assert len(sub) > 0, (seed, z)
+            hold = _conditions_hold_at_anchor(out, sub, _anchor_expr(z), 4, which)
+            assert hold >= 0.95, (seed, z, hold)
+
 def test_conditions_hold_at_confirmation_landmark():
     out = _sim(n=3000, followup_months=60, horizon_months=24, seed=9)
     p = out["patients"]
