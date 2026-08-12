@@ -106,3 +106,51 @@ def test_neither_false_positive_denominator_fixture():
     ])
     cov = _compute_coverage(patients, obs, {})
     assert abs(cov["neither_false_positive_rate"] - 1 / 3) < 1e-9
+
+def test_p_obs_excludes_no_anchor_patients():
+    """无可行确认/参考 landmark（confirm_window=NaN）的患者 = not_estimable（规格 §5.5），
+    不进 P_obs 分母。旧实现 `win=NaN` 使"无事件未删失"患者落入 negative（Codex 批次 1 P1-5）。"""
+    import pandas as pd
+    from simulate_cohort import p_obs
+    patients = pd.DataFrame({
+        "patient_id": [0, 1], "z": ["none", "none"],
+        "age": [30, 30], "sex": ["female", "female"],
+        "group": ["neither", "neither"], "confirm_window": [np.nan, 2.0],
+        "w_r1": [np.nan, np.nan], "w_a": [np.nan, np.nan], "g": [np.nan, np.nan],
+        "event_window": [np.nan, np.nan], "censored": [False, False],
+        "censored_window": [np.nan, np.nan], "admin_end": [8, 8],
+        "unobservable": [False, False], "unobservable_reason": [None, None]})
+    obs = pd.DataFrame(columns=["patient_id", "window"])
+    po = p_obs(patients, obs, 2)
+    assert po["neither"]["denominator"] == 1           # 无参考患者被排除，只计有参考患者（患者 1 → 负例）
+    assert po["neither"]["positive"] == 0 and po["neither"]["negative"] == 1
+
+def test_by_w_slice_handles_unsorted_and_missing_windows():
+    """_by_w_slice 按实际 window 列定位（v5.21）：乱序/缺窗不把行偏移误当窗口号
+    （Codex 批次 1 P2-1：打乱 obs 后误判 neither 误报率 0.162→0.0006）。"""
+    from simulate_cohort import _by_w_slice
+    pids = np.array([0, 0, 0, 1, 1, 1, 1])
+    wins = np.array([2, 0, 1, 3, 0, 1, 2])             # 患者 0 乱序；患者 1 乱序
+    cols = ["HbA1c", "PLT"]
+    vals = np.array([[1.0, 10], [3.0, 30], [2.0, 20],   # 患者 0：窗口 2/0/1 的值
+                     [12.0, 60], [9.0, 90], [10.0, 80], [11.0, 70]], dtype=float)
+    by_w0 = _by_w_slice(pids, wins, vals, cols, 0, 2)
+    assert set(by_w0) == {0, 1, 2}
+    assert by_w0[2]["HbA1c"] == 1.0 and by_w0[0]["HbA1c"] == 3.0     # 按实际窗口号，非行偏移
+    by_w1 = _by_w_slice(pids, wins, vals, cols, 1, 3)
+    assert set(by_w1) == {0, 1, 2, 3}
+    assert by_w1[3]["PLT"] == 60.0
+
+def test_gate_risk_monotone_under_crn():
+    """事件门控独立 rng（CRN，v5.21）：r(mid)=mean(g) 是 mid 的严格单调非降函数
+    ——g 每患者固定消耗 1 个 rng_gate 随机数、δ 用 rng_delta 独立流，患者构成与
+    gate 无关 → 校准 bisection 收敛有保证（Codex 批次 1 P2-2：旧实现共享 rng 流
+    下 n=30/120/300 出现 0.40→0.25 非单调）。"""
+    from simulate_cohort import _group_latent_risk
+    prev = -1.0
+    for m in (0.1, 0.3, 0.5, 0.7, 0.9):
+        gate = {"r1_only": m, "r2_only": m, "r1_and_r2": m}
+        out = simulate(3000, 60, 24, 3, gate=gate, _lambda_c=0.0)
+        r = _group_latent_risk(out, "r1_only", 4, obs=out["obs"])
+        assert r >= prev - 1e-12, (m, r, prev)
+        prev = r

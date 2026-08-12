@@ -63,6 +63,18 @@ def test_neither_reference_is_first_qualifying_before_censor():
     c = has_ref[has_ref["censored"]]
     assert (c["confirm_window"] < c["censored_window"]).all() if len(c) else True
 
+def test_obs_baseline_distribution():
+    """基线 SD = 范围/6（患者间异质性）+ 测量噪声 SD = 0.1·范围（窗口 0 无信号叠加）。
+    v5.20 向量化曾误用 0.1·范围作基线 SD（PLT 37.5→22.5，患者间异质性收缩）——
+    本回归测试用窗口 0 观测方差 = 基线²+噪声² 捕获该缺陷（Codex 批次 1 P1-3）。"""
+    out = _sim(n=2000, followup_months=24, horizon_months=12, seed=11)
+    w0 = out["obs"][out["obs"]["window"] == 0]
+    for ind in ("PLT", "HbA1c", "AFP"):
+        lo, hi = cfg.REFERENCE_RANGES[ind][:2]
+        sd_theory = np.sqrt(((hi - lo) / 6) ** 2 + (0.1 * (hi - lo)) ** 2)
+        sd_obs = float(w0[ind].std())
+        assert abs(sd_obs - sd_theory) < 0.1 * (hi - lo), (ind, sd_obs, sd_theory)
+
 def test_obs_truncation_no_cross_patient():
     out = _sim()
     obs = out["obs"]
@@ -151,7 +163,8 @@ def _conditions_hold_at_anchor(out, rows, anchor_fn, horizon_windows, which):
     分母 = 资格检查全部通过的患者（可评估：锚点有限 + 合格 + 视界够 + 无事件 + 未删失）。
     ——「条件成立率 ≥95%」仅针对观测条件（可评估患者），与 v16 §5.3 一致。
     neither_clean 只验 R1（4 条件复合，噪声下命中概率 ~0.1%）；R2 单条件在纯 iid
-    噪声下两窗连升 ~25% 是数学事实（与 σ 无关），其命中如实计入
+    噪声下两窗连升概率 = 1/6 ≈ 16.7%（三个独立同分布连续值严格递增的排列概率，
+    与 σ 无关；v5.20 误写 25%，实测 17.5% 吻合 1/6），其命中如实计入
     `coverage.neither_false_positive_rate` 报告（规格 §5.3 定义命中=误报），不设门槛。"""
     obs_by_pid = {pid: g.to_dict("records") for pid, g in out["obs"].groupby("patient_id")}
     ok, eligible = 0, 0
@@ -192,7 +205,7 @@ def test_conditions_hold_at_confirmation_landmark():
         hold = _conditions_hold_at_anchor(out, sub, _anchor_expr(z), hw, which)
         assert hold >= 0.95, (z, which, hold)
     # neither 首参考 landmark：R1（4 条件复合）不成立——"条件未成立"是 neither 的定义；
-    # R2 单条件噪声命中（~25%）如实计入 coverage.neither_false_positive_rate（规格 §5.3）
+    # R2 单条件噪声命中（~1/6）如实计入 coverage.neither_false_positive_rate（规格 §5.3）
     ne = p[p["z"] == "none"]
     clean = _conditions_hold_at_anchor(out, ne, _anchor_expr("neither"), hw, "neither_clean")
     assert clean >= 0.95, clean

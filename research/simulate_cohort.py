@@ -98,6 +98,11 @@ def _neither_hazard(lambda_c, age, sex):
 
 def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None):
     rng = np.random.default_rng(seed)
+    # 事件门控独立 rng 流（v5.21，CRN）：g 每患者固定消耗 1 个随机数、δ 用独立流
+    # → r(mid)=mean(g) 是 mid 的严格单调函数（校准 bisection 收敛保证）；
+    # 观测/锚点/删失用主 rng（与 gate 无关 → 患者构成固定）。
+    rng_gate = np.random.default_rng(seed + 1)
+    rng_delta = np.random.default_rng(seed + 2)
     admin_end = followup_months // cfg.SIM["window_months"]
     hw = horizon_months // cfg.SIM["window_months"]
     cal = cfg.CALIBRATION[horizon_months]
@@ -106,12 +111,14 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
     lambda_c = 0.0 if _lambda_c is None else _lambda_c
 
     paths, ages, sexes = _sample_z_covariates(rng, n)
-    # 向量化索引（v5.20）：σ = 0.1·范围，与逐指标定义分布完全一致
+    # 向量化索引：σ_meas = 0.1·范围（测量噪声）、基线 SD = 范围/6（患者间异质性，
+    # 与逐指标定义一致；v5.20 曾误用 0.1·范围 → PLT 基线 SD 37.5→22.5，已修复）
     inds = cfg.INDICATORS
     n_ind = len(inds)
     lo_hi = np.array([cfg.REFERENCE_RANGES[i][:2] for i in inds], dtype=float)
     mid = (lo_hi[:, 0] + lo_hi[:, 1]) / 2
     sigma = 0.1 * (lo_hi[:, 1] - lo_hi[:, 0])
+    baseline_sd = (lo_hi[:, 1] - lo_hi[:, 0]) / 6
     i_hba1c, i_plt, i_afp = inds.index("HbA1c"), inds.index("PLT"), inds.index("AFP")
     n_win = admin_end + 1
 
@@ -126,15 +133,16 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
         censored = rng.random() < cfg.SIM["censoring_rate"]
         censored_window = float(rng.integers(1, n_win)) if censored else np.nan
 
-        # 事件
+        # 事件（门控用 rng_gate 独立流：每患者固定消耗 1 个随机数 → CRN 下 mean(g) 单调；
+        # δ 窗口用 rng_delta 独立流：不消耗 g 流 → 单调性不受事件患者影响）
         g, event_window = np.nan, np.nan
         if z != "none":
             confirm = (w_a + 1) if z in ("r2", "r1_and_r2") else w_r1
             if np.isfinite(confirm):
                 grp = "r1_and_r2" if z == "r1_and_r2" else ("r1_only" if z == "r1" else "r2_only")
-                g = int(rng.random() < gate[grp])
+                g = int(rng_gate.random() < gate[grp])
                 if g == 1:
-                    event_window = confirm + int(rng.choice(cfg.SIM["delta_choices"]))
+                    event_window = confirm + int(rng_delta.choice(cfg.SIM["delta_choices"]))
         else:
             ref = _first_qualifying_landmark(admin_end, hw, censored_window)
             if np.isfinite(ref):
@@ -152,7 +160,7 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
         # **向量化（v5.20）**：每患者一次批量噪声 rng.normal(0,1,size=(n_t,n_ind))*σ，
         # 信号叠加用 numpy 掩码——与逐指标逐窗调用分布完全相同（iid 同分布），
         # 但避免 330 万次 rng 调用与 dict 构造（simulate(30k)：13.65s → ~2s，Task 11/14 受益）。
-        baseline = mid + rng.normal(0, 1, size=n_ind) * sigma
+        baseline = mid + rng.normal(0, 1, size=n_ind) * baseline_sd
         trunc = admin_end
         if np.isfinite(event_window):
             trunc = min(trunc, int(event_window))
@@ -262,16 +270,18 @@ def _row_range(pids, pid):
     return s, e
 
 
-def _by_w_slice(pids, vals, cols, pid, w):
+def _by_w_slice(pids, wins, vals, cols, pid, w):
     """判定所需窄窗口 by_w（{w-2, w-1, w, 0, 1} ∩ 患者观测，PLT 基线取窗口 0,1）。
-    numpy 直取（窗口连续 → 行 = 患者起点 s + 窗口），**避免 groupby/to_dict 慢路径**
-    （v5.20：simulate(30k) 的 _compute_coverage/_group_latent_risk 从 31s → <0.5s）。
+    **按实际 window 列定位**（不假设行偏移 = 窗口号）：乱序/缺窗/非零起始窗口均正确
+    （v5.21：Codex 评审发现行偏移推导在打乱 obs 时误判——neither_false_positive_rate
+    从 0.162 掉到 0.0006；simulate 输出天然有序，但函数不再依赖该隐藏前提）。
     与全量 by_w 语义等价：_r1_holds/_r2_holds 只读这些窗口，缺失键即无观测。"""
     s, e = _row_range(pids, pid)
     by_w = {}
-    for k in (w, w - 1, w - 2, 0, 1):
-        if 0 <= k < e - s:
-            by_w[k] = {cols[j]: vals[s + k, j] for j in range(len(cols))}
+    for i in range(s, e):
+        k = int(wins[i])
+        if k in (w, w - 1, w - 2, 0, 1):
+            by_w[k] = {cols[j]: vals[i, j] for j in range(len(cols))}
     return by_w
 
 
@@ -286,13 +296,14 @@ def _group_latent_risk(out, grp, hw, obs=None):
             raise ValueError("neither 校准需传入 obs 以检查参考 landmark 误报")
         cols = [c for c in cfg.INDICATORS if c in obs.columns]
         pids = obs["patient_id"].to_numpy()
+        wins = obs["window"].to_numpy()
         vals = obs[cols].to_numpy()
         ok_mask = sub["confirm_window"].notna().to_numpy()
         fp_mask = np.zeros(len(sub), dtype=bool)
         for i, row in enumerate(sub.itertuples()):
             if not np.isfinite(row.confirm_window):
                 continue
-            by_w = _by_w_slice(pids, vals, cols, row.patient_id, int(row.confirm_window))
+            by_w = _by_w_slice(pids, wins, vals, cols, row.patient_id, int(row.confirm_window))
             w = int(row.confirm_window)
             if _r1_holds(by_w, w, row.age, row.sex) or _r2_holds(by_w, w):
                 fp_mask[i] = True
@@ -361,6 +372,8 @@ def p_obs(patients, obs, horizon_windows):
     for grp in ("neither", "r1_only", "r2_only", "r1_and_r2"):
         pos = neg = 0
         for _, p in patients[(patients["group"] == grp) & (~patients["unobservable"])].iterrows():
+            if not np.isfinite(p["confirm_window"]):
+                continue                                # 无可行确认/参考 landmark → not_estimable（规格 §5.5），不进 P_obs 分母
             ev, cw = p["event_window"], p["censored_window"]
             win = p["confirm_window"] + horizon_windows
             if np.isfinite(ev) and ev <= win and (not np.isfinite(cw) or cw > ev):
@@ -400,12 +413,13 @@ def _compute_coverage(patients, obs, meta):
     ne = p[p["group"] == "neither"]                    # 分母 = 全部 neither 候选患者（规格 §5.3）
     cols = [c for c in cfg.INDICATORS if c in obs.columns]
     pids = obs["patient_id"].to_numpy()
+    wins = obs["window"].to_numpy()
     vals = obs[cols].to_numpy()
     fp = 0
     for _, row in ne.iterrows():
         if not np.isfinite(row["confirm_window"]):
             continue                                    # 无合格参考 landmark → 无法判定，不计入分子
-        by_w = _by_w_slice(pids, vals, cols, row["patient_id"], int(row["confirm_window"]))
+        by_w = _by_w_slice(pids, wins, vals, cols, row["patient_id"], int(row["confirm_window"]))
         w = int(row["confirm_window"])
         if _r1_holds(by_w, w, row["age"], row["sex"]) or _r2_holds(by_w, w):
             fp += 1
