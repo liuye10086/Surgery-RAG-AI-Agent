@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd
 import config as cfg
 
-# 固定输出列 schema（v5.26，Codex 批次 2 P1：空数据集必须保留完整列，
-# 否则下游 model.py 访问 lm["label"] / mine_rules 访问 sub["unobservable"] KeyError）
+# 固定输出列 schema（v5.26/27，Codex 批次 2 P1：空数据集必须保留完整列 **与 dtype**，
+# 否则下游 model.py 访问 lm["label"] / mine_rules 访问 sub["unobservable"] KeyError，
+# 且 object 空列在 `sub[~sub["unobservable"]]` 布尔过滤后丢失 schema）
 _FEATURE_BASE_COLS = ["patient_id", "window", "age", "sex_male", "group", "admin_end"]
 _FEATURE_METRIC_COLS = [f"{ind}_{s}" for ind in cfg.INDICATORS
                         for s in ("cur", "d6m", "d12m", "slope", "rises", "drop_pct")]
@@ -13,8 +14,19 @@ FEATURE_SCHEMA = _FEATURE_BASE_COLS + _FEATURE_METRIC_COLS + ["label"]
 
 
 def _empty_frame(extra_cols=()):
-    """带完整固定列 schema 的空 DataFrame（无行）。"""
-    return pd.DataFrame(columns=list(FEATURE_SCHEMA) + list(extra_cols))
+    """带完整固定列 schema 与 dtype 的空 DataFrame（无行）。
+    dtype 与正常路径一致：patient_id/window/age/sex_male/admin_end/label int64、
+    指标派生 float64、group object、unobservable bool（bool 使
+    `sub[~sub["unobservable"]]` 过滤在空表上保持列 schema）。"""
+    cols = list(FEATURE_SCHEMA) + [c for c in extra_cols if c not in FEATURE_SCHEMA]
+    dtypes = {c: "float64" for c in _FEATURE_METRIC_COLS}
+    dtypes.update({"patient_id": "int64", "window": "int64", "age": "int64",
+                   "sex_male": "int64", "group": "object", "admin_end": "int64",
+                   "label": "int64"})
+    for c in extra_cols:
+        if c not in dtypes:
+            dtypes[c] = "bool" if c == "unobservable" else "object"
+    return pd.DataFrame({c: pd.Series(dtype=dtypes[c]) for c in cols})
 
 
 def derive_window_features(obs_rows, ind, window, runin=2):

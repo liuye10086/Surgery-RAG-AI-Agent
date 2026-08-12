@@ -30,17 +30,25 @@ def test_confirmation_subset_contract():
     assert sub.attrs["horizon_windows"] == 2
 
 def test_empty_landmarks_preserve_schema():
-    """空数据集保留完整固定列 schema（Codex 批次 2 P1）：下游 model.py 访问
-    lm['label'] / mine_rules 访问 sub['unobservable'] 不 KeyError。"""
+    """空数据集保留完整固定列 schema 与 dtype（Codex 批次 2 P1/P1-二轮）：下游
+    model.py 访问 lm['label'] / mine_rules 访问 sub['unobservable'] 不 KeyError；
+    object 空列在 `sub[~sub['unobservable']]` 布尔过滤后不丢 schema。"""
     out = simulate(n=100, followup_months=36, horizon_months=12, seed=1)
     empty_patients = out["patients"].iloc[0:0]
     lm = qualifying_landmarks(empty_patients, out["obs"], 2)
     assert len(lm) == 0
     assert set(lm.columns) == set(FEATURE_SCHEMA)
+    assert lm["label"].dtype.kind == "i"            # int64，非 object
+    assert lm["patient_id"].dtype.kind == "i"
+    assert lm["ALT_cur"].dtype.kind == "f"          # 指标派生 float64
     assert lm.attrs["excluded_unknown"] == 0
     sub = confirmation_subset(empty_patients, out["obs"], 2)
     assert len(sub) == 0
     assert set(sub.columns) == set(FEATURE_SCHEMA) | {"unobservable"}
+    assert sub["unobservable"].dtype == bool        # bool 使 ~ 过滤保持 schema
+    sub_eval = sub[~sub["unobservable"]]            # Task 9/11 链：过滤后列保留
+    assert set(sub_eval.columns) == set(FEATURE_SCHEMA) | {"unobservable"}
+    assert sub_eval.groupby("patient_id").size().empty   # groupby 不 KeyError
     assert sub.attrs["horizon_windows"] == 2 and sub.attrs["excluded_unknown"] == 0
 
 def test_label_semantics():

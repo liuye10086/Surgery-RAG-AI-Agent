@@ -36,9 +36,14 @@ def fit_and_oof(lm, n_folds, n_repeats, seeds):
     nonevent_pat = int((uniq["patient_event"] == 0).sum())
     k = min(n_folds, event_pat, nonevent_pat)
     if min(event_pat, nonevent_pat) < 2 or k < 2:
+        # v5.27（Codex 批次 2 二轮 P1）：空 oof_frame 保留 patient_id/label/oof schema
+        # 与 dtype（Task 11 直接读取 oof_frame["label"]，原无列 DataFrame 会 KeyError）
+        empty_oof = pd.DataFrame({"patient_id": pd.Series(dtype="int64"),
+                                  "label": pd.Series(dtype="int64"),
+                                  "oof": pd.Series(dtype="float64")})
         return {"not_estimable": True, "oof_mean": np.full(len(lm), np.nan),
                 "auc_ci": (np.nan, np.nan), "auc_point": np.nan, "pr_auc": np.nan,
-                "brier": np.nan, "auc_median_across_repeats": np.nan, "oof_frame": pd.DataFrame()}
+                "brier": np.nan, "auc_median_across_repeats": np.nan, "oof_frame": empty_oof}
     pid_to_row = {pid: i for i, pid in enumerate(uniq["patient_id"])}
     patient_row = lm["patient_id"].map(pid_to_row).to_numpy()
     oofs = []
