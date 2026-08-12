@@ -4,6 +4,18 @@ import numpy as np
 import pandas as pd
 import config as cfg
 
+# 固定输出列 schema（v5.26，Codex 批次 2 P1：空数据集必须保留完整列，
+# 否则下游 model.py 访问 lm["label"] / mine_rules 访问 sub["unobservable"] KeyError）
+_FEATURE_BASE_COLS = ["patient_id", "window", "age", "sex_male", "group", "admin_end"]
+_FEATURE_METRIC_COLS = [f"{ind}_{s}" for ind in cfg.INDICATORS
+                        for s in ("cur", "d6m", "d12m", "slope", "rises", "drop_pct")]
+FEATURE_SCHEMA = _FEATURE_BASE_COLS + _FEATURE_METRIC_COLS + ["label"]
+
+
+def _empty_frame(extra_cols=()):
+    """带完整固定列 schema 的空 DataFrame（无行）。"""
+    return pd.DataFrame(columns=list(FEATURE_SCHEMA) + list(extra_cols))
+
 
 def derive_window_features(obs_rows, ind, window, runin=2):
     series = {r["window"]: r[ind] for r in obs_rows if ind in r}
@@ -57,7 +69,7 @@ def qualifying_landmarks(patients, obs, horizon_windows):
             r = _feature_row(p, by_w, w)
             r["label"] = lab
             rows.append(r)
-    df = pd.DataFrame(rows)
+    df = _empty_frame() if not rows else pd.DataFrame(rows)   # 空结果保留完整 schema（v5.26）
     df.attrs["excluded_unknown"] = excluded
     return df
 
@@ -77,7 +89,7 @@ def confirmation_subset(patients, obs, horizon_windows):
         r["label"] = lab
         r["unobservable"] = bool(p["unobservable"])
         rows.append(r)
-    df = pd.DataFrame(rows)
+    df = _empty_frame(extra_cols=("unobservable",)) if not rows else pd.DataFrame(rows)
     df.attrs["horizon_windows"] = horizon_windows
     df.attrs["excluded_unknown"] = excluded
     return df

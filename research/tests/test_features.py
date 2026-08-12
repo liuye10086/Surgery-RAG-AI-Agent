@@ -1,7 +1,9 @@
 import numpy as np
+import pandas as pd
 import config as cfg
 from simulate_cohort import simulate
-from features import qualifying_landmarks, confirmation_subset, label_for, derive_window_features
+from features import (qualifying_landmarks, confirmation_subset, label_for,
+                      derive_window_features, FEATURE_SCHEMA)
 
 def test_derived_features_hand():
     rows = [{"window": 0, "ALT": 30.0}, {"window": 1, "ALT": 33.0}, {"window": 2, "ALT": 36.0}]
@@ -26,6 +28,20 @@ def test_confirmation_subset_contract():
     assert (sub["admin_end"] - sub["window"] >= 2).all()
     assert set(sub["label"]) <= {0, 1}   # unknown 已剔除
     assert sub.attrs["horizon_windows"] == 2
+
+def test_empty_landmarks_preserve_schema():
+    """空数据集保留完整固定列 schema（Codex 批次 2 P1）：下游 model.py 访问
+    lm['label'] / mine_rules 访问 sub['unobservable'] 不 KeyError。"""
+    out = simulate(n=100, followup_months=36, horizon_months=12, seed=1)
+    empty_patients = out["patients"].iloc[0:0]
+    lm = qualifying_landmarks(empty_patients, out["obs"], 2)
+    assert len(lm) == 0
+    assert set(lm.columns) == set(FEATURE_SCHEMA)
+    assert lm.attrs["excluded_unknown"] == 0
+    sub = confirmation_subset(empty_patients, out["obs"], 2)
+    assert len(sub) == 0
+    assert set(sub.columns) == set(FEATURE_SCHEMA) | {"unobservable"}
+    assert sub.attrs["horizon_windows"] == 2 and sub.attrs["excluded_unknown"] == 0
 
 def test_label_semantics():
     out = simulate(n=300, followup_months=24, horizon_months=12, seed=1)

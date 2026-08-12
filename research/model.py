@@ -7,9 +7,14 @@ from sklearn.metrics import roc_auc_score, average_precision_score, brier_score_
 import config as cfg
 from splitters import patient_folds, patient_bootstrap_ci
 
+# 模型特征 = 指标派生特征 + age + sex_male（规格 §6.1）。
+# admin_end 是随访设计/资格元数据，**不进入模型**（v5.26，Codex 批次 2 P2-2：
+# 单网格单元内恒常量，但合并不同随访队列时会泄漏研究设计差异）
+_META_COLS = ("patient_id", "window", "label", "group", "unobservable", "admin_end")
+
 
 def _feat_cols(lm):
-    return [c for c in lm.columns if c not in ("patient_id", "window", "label", "group", "unobservable")]
+    return [c for c in lm.columns if c not in _META_COLS]
 
 
 def train_model(lm, seed=0):
@@ -19,6 +24,10 @@ def train_model(lm, seed=0):
 
 
 def fit_and_oof(lm, n_folds, n_repeats, seeds):
+    # v5.26（Codex 批次 2 P2-1）：显式校验 n_repeats 与 seeds 长度一致，
+    # 避免静默少跑/空 seeds 在 vstack/seeds[0] 处崩溃
+    if n_repeats < 1 or len(seeds) != n_repeats:
+        raise ValueError(f"n_repeats={n_repeats} 与 seeds 长度 {len(seeds)} 不一致（需 >=1 且相等）")
     y = lm["label"].to_numpy()
     # 唯一患者聚合（患者级结局）→ splitter → 映射回 landmark 行
     uniq = lm.groupby("patient_id")["label"].max().reset_index()
