@@ -195,9 +195,13 @@ def _conditions_hold_at_anchor(out, rows, anchor_fn, horizon_windows, which):
     return ok / eligible if eligible else float("nan")
 
 def test_conditions_hold_across_seeds():
-    """多 seed 成立率稳定性回归（Codex 二轮 P2-2：基线 SD 恢复 range/6 后须确认
-    信号余量仍满足规格 ≥95% 观测验收——其独立脚本 0.891 系分母未按可评估过滤
-    （确认点处观测截断的删失患者计入失败）；规格口径（可评估）下 5 seeds 均 ≥0.98）。"""
+    """多 seed **观测条件成立率**稳定性回归（Codex 二轮 P2-2 + 三轮 P2 口径明确）：
+    分母 = 可评估患者（锚点有限 + 合格 w≥2 且视界够 + 无事件 + 未删失）——排除
+    删失/事件前确认/无可行锚点患者；这是"观测条件成立率 ≥95%"，**不是全路径组
+    覆盖率**（后者含不可评估患者，会被删失客观拉低）；与 condition_not_held 的
+    分母（实际进入条件检查的患者）口径一致。基线 SD 恢复 range/6 后须确认信号
+    余量仍达标（Codex 脚本 0.891 系分母未按可评估过滤——确认点处观测截断的删失
+    患者计入失败）。"""
     for seed in (9, 11, 17, 23, 31):
         out = _sim(n=2000, followup_months=60, horizon_months=24, seed=seed)
         p = out["patients"]
