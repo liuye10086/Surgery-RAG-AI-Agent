@@ -9,7 +9,7 @@
 **Tech Stack:** Python 3.10+、pandas、scikit-learn（GradientBoostingClassifier / IsotonicRegression）、shap、pytest（`slow`/`acceptance` marker）。
 
 **规格依据：** `docs/superpowers/specs/2026-08-06-progression-rule-mining-loop-design.md`（v16）。
-**计划修订：** v5.20 按实施第一批（Task 3）实测发现的三处缺陷 + 性能优化修正——① `_sample_anchors` 的 w_A 下界 w0+3 过度保守：AFP 信号自 w_A 起立即生效（无需累积），PLT 只需 confirm=w_A+1 ≥ w0+3（3 窗累积 → 降 48.8% → 99.3%）；w0+3 使 12 月视界（admin_end=6）下 w0=1 的 r2/r1_and_r2 患者 hi<lo 全部 no_feasible → 校准 mean(g) 可观测样本减半（~210/10k）→ 抽样噪声 3.4% > bisection tol 0.5% → gate 偏差 4.65pp、±3pp 断言不可达；改 w_A ≥ w0+2 后样本翻倍、两视界偏差 ≤1.3pp；② r1_and_r2 的 w_r1 采样空区间不再牵连 w_A（原 `return np.nan, np.nan` 把 w_a 一并丢弃 → 80% 交集组患者 no_feasible → per_rule r1 coverage 0.67<0.80）；w_r1 对交集组仅记录字段（R1 条件在 confirm=w_A+1 检查），空区间只置 w_r1=NaN；③ Task 3 测试两处修正：`test_calibrated_latent_risk_both_horizons` 补 `_group_latent_risk` import（计划测试代码缺失，14 轮评审未运行测试未暴露）、`test_coverage_contract_and_gate_reachable` followup_months 24→36（admin_end=4 下 w_r1 ≥ w0+3 ≥ 3 > admin_end−hw=2，几何不可行 → 路径组全 no_feasible → coverage=0）；性能优化（simulate 向量化）：观测生成改每患者一次批量噪声矩阵 `rng.normal(0,1,size=(n_t,n_ind))*σ` + numpy 掩码信号叠加（与逐指标逐窗 iid 分布完全相同），`_group_latent_risk`/`_compute_coverage` 的 by_w 改 numpy 窄窗口直取（`_by_w_slice`，obs 按 patient_id/window 有序 → 行 = 患者起点+窗口，绕开 groupby/to_dict 慢路径）——simulate(30k) 13.65s→2.05s、calibrate_gates 145s(5k)→73s(10k)，本批全量测试 ~30min→4.5min（Task 11/14 Monte Carlo 受益）。**v5.19 按实施第一批（Task 1-2）实测发现的两处数值/语义缺陷修正**——① config 信号强度与锚点下界：原假设"w>=w0+2 时 PLT 较基线降 ~28% >20%"在 w0=0 时实际仅 -21.4%（基线取窗口 0,1 平均含 1 窗衰减），噪声 sd ~12pp 下最小锚点余量不足，R1 条件成立率实测 0.885<0.95（14 轮评审均未运行测试，属计划数值假设错误）；修正为 `hba1c_rise_per_window` 0.8→1.0、`plt_decline_per_window` 0.85→0.80、锚点下界 w_A/w_R1 提至 w0+3（confirm=w_A+1≥w0+4），成立率 ~0.99（K=20 seeds 稳定过线）；② neither_clean 断言语义：纯 iid 噪声下 AFP 两窗连升 ~25% 是数学事实（与 σ 无关，修改前实测 0.8024），"neither 参考 landmark R1、R2 均不成立 ≥95%"在数学上不可达；改为只验 R1 复合条件（噪声下 ~0.1% 命中，实测 ~0.999），R2 单条件命中如实计入 `neither_false_positive_rate` 报告（规格 §5.3 本就定义命中=误报、无门槛，Task 3 仅断言 `0≤rate≤1`）。**v4 按 Codex 计划第三轮 13 条意见修正；**v4.1 按 Workflow 对抗验证 10 条真实发现修正**；**v5**（Codex 第四轮 8 大项）；**v5.1**（Codex 第五轮 12 项）；**v5.2 按 Codex 计划第六轮 11 项修正**——R1 ≥95% 测试改按 z + 指定锚点直接验证（脱离 group/unobservable 生成判定循环）、`_group_latent_risk` 排除 neither 误报患者（obs 传参 + 校准测试同分母）、coverage 文档口径统一（excluded 单列不从规则覆盖率分母移除）、mine_rules 内部过滤 unobservable、候选网格版本化 + 确定性顺序（candidate_grid 版本化）+ synthetic fixture 测试、control_delta 对照无偏离取 cutoff 端点（有限值）+ 确定性手工 fixture、边界 Bootstrap B/有效比例版本化 + +inf CI 契约、run_cell excluded_breakdown 明细 + 字段语义修正、`_fold_discover_validate` 签名统一（显式 horizon）、acceptance ci_ok 加强（长度一致 + 有限数值区间）。**v5.3 按 Codex 计划第七轮 10 项修正**——R1 条件成立率口径限定可评估患者 + unobservable 原因分解（删失不设门槛、条件未成立 ≤5%，patients 表新增 `unobservable_reason`）、neither 误报分母改为全部 neither 候选患者（规格 §5.3 口径，校准分母不变）、`_bisect` 端点包围检查 + 上界自适应扩展（非包围显式 ValueError）、synthetic fixture 加确定性负例（折数可用）+ `_discover_frozen` 发现流程确定性（discover_top_k 版本化）、Task 8 新增整组滞后消融 `lag_ablation_analysis`（§7.2 佐证）、`_recovery_block` 兼容嵌套 coverage 契约 + 报告测试、run_cell excluded_breakdown 统一患者口径（unknown 行级单独字段）、`patient_bootstrap_ci` 无效重采样契约（单类样本丢弃、有效 <2 → NaN，规则/模型 CI 同步）、版本残留清理。**v5.4 按 Codex 计划第八轮 10 项修正**——Task 2 schema 断言加 `unobservable_reason` + 无潜在事件（g=0）/无参考 landmark 分别处理（可转绿）、R1/R2 条件成立率按**各自指定确认 landmark** 验证（交集组 = w_A+1 双条件、补 R2-only 与 neither 首参考不命中两规则）+ 原因互斥/绑定/计数闭合 + condition_not_held 分母限定实际进入条件检查的患者、删 per_group coverage ≥0.9 门槛（与删失不设门槛一致，保留 §10 per-rule ≥0.80）、neither 误报分母全文统一（Task 3 算法说明）+ 三类患者手工 fixture（误报/有参考非误报/无参考，断言 1/3 识别分母错误）、`_discover_frozen` 去除 `_standard_candidates` 组合优先（植入语义泄漏）→ 确定性枚举 + lift 排序 + 组合预算防截断（显式 raise）、`_fold_discover_validate` 按**唯一患者**定折数（Bootstrap 重复患者不重复计数）+ 唯一正例重复确定性测试 + 收紧 CI 失败契约（"CI 未估计"确定性断言）、`lag_ablation_analysis` 消融组 = `lags` 对应滞后观测列（不误删 slope/rises/drop_pct）+ 基线/移除后均报告患者 Bootstrap CI、`reliability_boundary` 统一为规格算法（每网格点 CI 下界曲线首达 50%，boundary_events 与 point_boundary_events 分列）、lead-lag per_indicator_n 限定相关路径组 + 有匹配合格对照（§10 口径）+ 风险集匹配检查对照 index time 前删失、模拟器观测截断 `T = min(事件, 删失, 行政终点)`（§5.4 第 9 步，杜绝未来观测）。**v5.5 按 Codex 计划第九轮 6 项修正**——simulate 观测改 `patient_rows` 逐患者收集（修 `obs_rows[-n_win:]` 截断后跨患者污染，条件判定只用当前患者行）+ 观测截断无跨患者测试、`reliability_boundary` 去掉 `_point_boundary` 提前判边情形（point 仅诊断，边情形只由 CI 下界曲线判定；"原始点达标但 CI 下界跨 50%" fixture `test_boundary_point_high_ci_lower_crosses`）、`_discover_frozen` 排序改二级键 `(-lift, canonical_rule)`（并列 lift 不依赖组合枚举顺序）+ `test_discover_sorted_by_lift_then_canonical` + Task 9 Step 4 残留清理、`unobservable_reason` 逐类绑定与计数闭合测试（no_feasible_anchor⇒锚点 NaN、censored⇒confirm≥删失、event_before_confirm⇒confirm≥事件、condition_not_held⇒锚点合格事件删失在后且条件实际失败）、`lag_ablation` Bootstrap CI 可估计/不足样本两测试（(nan,nan) 必须）+ `_fmt_ci` NaN→`[NA, NA]` + 报告测试、synthetic fixture 提取 helper + `test_synthetic_fixture_r1_rule_in_top_k`（R1 canonical 规则确定性进 top_k，Task 14 依赖链有测试支撑而非仅注释）。**v5.6 按 Codex 计划第十轮 6 项修正**——synthetic fixture 加 **4 个困难负例**（R1 四条件各缺一：缺 sex/缺 age50(45 满足 age>40)/缺 HbA1c2(rises1)/缺 PLTdrop0.2(-0.15)，覆盖所有非 R1 的 1-4 条件组合）使 **R1 四条件是 lift 严格唯一最高** → 确定性进 top_k（修阻断项：7 正例条件 98 条并列时 R1 排 ~60 进不了 top20）、`_records_var` 参数改 mean=0.55/spread=0.5+clip（固定 seed=0 下 CI 下界 ≈0.47 <0.5 确跨 50%）+ 断言边界 ∈ (0,20)、`_ext_percentile` 扩展实数分位数（含 +inf 确定性处理，不用 np.percentile）+ `_fmt_ci` 渲染 `(finite, +inf)` 为 `[lo, +inf]`（不误报 [NA, NA]）、抽取 `_classify_observable` 纯函数（路径组判定收敛；`_r1_holds` 容错缺失窗口）+ 两患者手工 fixture 回归跨患者污染（`test_classify_observable_uses_current_patient_obs`，因旧缺陷不改变最终 obs 窗口集合、原截断测试无法检测）、四类原因非空手工 fixture（`test_unobservable_reason_classification_fixture` 验证优先级/绑定/互斥，修空集合通过）、`_insufficient_frame` 显式 1 正例 + 5 负例（min=1<2 确定性 not_estimable，修 `_lm().iloc[:5]` 不确定）、残留清理（config/候选注释措辞、自检标题版本）。**v5.7 按 Codex 计划第十一轮 4 项修正**——接线级回归测试 `test_simulate_classification_uses_current_patient_rows`（monkeypatch `_classify_observable` 记录 simulate **实际传入**的 by_w 键集，断言每路径组患者 by_w 只含自身观测窗口 0..min(事件,删失,admin_end) 且存在截断患者场景——仅手工调用纯函数无法捕获实现者重新使用旧全局切片接线）、`test_ext_percentile_with_inf`（扩展实数分位数确定性：中位有限、高上分位 +inf、空→nan）+ `test_fmt_ci_inf_and_nan_contract`（(finite,+inf)→"[lo, +inf]"、(nan,nan)/None→"[NA, NA]"）、`test_synthetic_fixture_r1_rule_is_unique_max_lift`（枚举全部候选组合后最大 lift **唯一且对应 R1**——困难负例覆盖论证的可执行证明）、config 测试注释措辞更新为"通用候选网格"。**v5.8 按 Codex 计划第十二轮 1 项修正**——第 12 行历史修订长句已统一改写为中性表述、清理旧措辞残留，全文通过残留检查。**v5.9 按整体复审（final review）6 项缺口修正**——`_candidate_conditions` 实现规格 §8.1 折内候选（SHAP top-M 特征 + 折内分位数阈值 + 固定临床网格补充）、`_discover_frozen` 改 **Apriori 逐层枚举 + 训练折支持度剪枝**（top_m/thresholds_per_feature 版本化，防截断 raise）、run_cell 模型改**全量 qualifying_landmarks**（unobservable 只排除确认子集流程，§5.5 角色表）、`run_method_validation` 增加**信号门槛门控**（AUC CI 下界 <0.65 → 归因与规则挖掘停止并亮红灯，`signal_gate` 返回 + acceptance 门控 + monkeypatch 测试）、`label_for` 事件==删失同窗 → **unknown**（`ev >= cw`，不得落负例 + 确定性测试）、`reliability_boundary` 保留**扩展实数 CI**（全 +inf 样本集不丢弃；boundary_samples 空 → not_estimable）+ `_scale_block` 渲染**"精度目标未达到"**（precision_not_met 列）、`_latent_risk_calibration` + `render_report` **潜在风险校准块**（目标/实际/误差 ±3pp，并入第 2 节信号验证）+ 测试。**v5.10 按整体复审二轮 6 项缺口修正**——`render_report` 第 8 节**实际渲染 limitations**（门控/失败原因可见，`_limitations_block` + `test_limitations_rendered`，修门控测试必失败）、`_candidate_conditions` 契约落实（**SHAP 输入只含可转换规则特征**（排除 admin_end/*_d6m/*_d12m/*_slope）、`_condition_from_feature` 支持 sex_male→eq、drop_pct 分位 **abs(v) 正的下降幅度**（_hits `<= -c.value` 方向正确）、候选 canonical 整体去重；删"其余指标 cur 高分位"块）+ `test_candidate_contract`（元数据排除/top-M 上限/每特征切点数/drop_pct 符号/无重复）、`_discover_frozen` **seen_rules 去重 + 预算按评估组合数**（含未通过支持度的组合，`test_discover_no_duplicate_rules` + `test_discover_budget_raises`）、`_latent_risk_calibration` 改 **独立 N=50,000 校准队列**（cal_n，种子 3）估计四组潜在风险 + **ok = 四组 |误差| ≤ 0.03（±3pp 硬断言）** + 报告校准达标/未达标状态 + `test_full_pipeline_fields` ±3pp 断言、+inf 契约**层级明确**（"全 +inf 保留 (inf,inf)" 为 `_ext_percentile` 单元级契约，`test_ext_percentile_all_inf`；reliability_boundary observed 分支边界样本必然非空含有限值，`not boundary_samples` 为防御性保护）、run_cell **model/evaluator 患者与 landmark 分列**（model_patients/model_landmarks = 全量 lm；evaluator_patients/evaluator_landmarks = 可评估口径；excluded_ratio 注释更新"未进 evaluator 流程"；`oof_events <= model_patients`）+ 测试与 Task 14 断言更新。**v5.11 按整体复审三轮 5 项修正**——report.py 补 `import config as cfg`（`_calibration_block` 用 `cfg.SIM["calibration_n"]`，修 NameError）、`_latent_risk_calibration` ok 判定**显式要求 actual 有限**（NaN 比较恒 False 会错误保留 ok=True；`_group_latent_risk` 提升为 main 模块级 import）+ `test_calibration_ok_fails_on_nan`、run_cell **evaluator 统计改从实际 confirmation_subset 输入**（`sub_eval = sub[~sub["unobservable"]]`，不再用 lm 过滤；excluded_breakdown 三分类 `unobservable + no_feasible_landmark + unknown_patients + evaluator_patients == nominal_n`，unknown_patients 来自 confirmation_subset 剔除行（每患者一行 → 患者级），qualifying_landmarks 行级 unknown 仍单独顶层字段）+ 闭环测试更新、config/fixture/自检清单 **Apriori 口径统一**（评估组合数预算、逐层支持度剪枝，无旧枚举口径残留）、`_candidate_conditions` 分位 **drop_pct 值 ≤0 过滤**（无正下降幅度不产生候选，`test_candidate_contract` 的 drop_pct >0 断言确定性成立）。**v5.12 按整体复审四轮 5 项修正**——main.py 补 `import numpy as np`（`_latent_risk_calibration` 有限性检查，修 NameError）、`_excluded_patient_sets` **患者级互斥分配**（优先级 unobservable → unknown → no_feasible → evaluator；unknown 患者 = 确认 landmark 合格且非 unobservable 且 label_for=="unknown"，与 confirmation_subset 剔除一致；unobservable 患者即使确认窗口判定 unknown 也不重复计数；闭环由集合互斥保证而非 max 偶然）+ `test_excluded_sets_mutually_exclusive_with_overlap`（unobservable+unknown 重叠场景）、Task 11 接口说明更新为**三分类闭环**（`unobservable + no_feasible_landmark + unknown_patients + evaluator_patients == nominal_n`，excluded_ratio 语义同步）、Task 13 接口签名更新 `_latent_risk_calibration(horizon_months, hw, cal)`、第 12 行历史措辞中性化（无旧枚举口径残留，且 v5.11 说明不再逐字引用）。**v5.13 按整体复审五轮 2 项修正**——第 12 行历史修订长句旧组合枚举口径全部改写为中性表述（v5.3 段"组合枚举确定性"→"发现流程确定性"；禁用措辞 grep 检查通过）、Task 11 接口 evaluator 语义明确（**evaluator = confirmation_subset 中 `~unobservable` 且 label ∈ {0,1} 的患者/landmark；unknown 患者单列为 `unknown_patients`、不进 evaluator；excluded_ratio 含 unobservable、unknown、no-feasible 三类**）。**v5.14 按整体复审六轮 1 项修正**——`_excluded_patient_sets` 互斥分配补强：**evaluator_ids = 调用者提供 ID 先与患者全集求交、再剔除 unobs/unknown**（四集合互斥不依赖调用者输入干净；后由 v5.15 显式写入 `& all_ids`）+ **确认 landmark 资格显式化**（confirm 有限且 `w ≥ 2` 且 `admin_end − w ≥ hw`，§5.5）+ `test_excluded_sets_evaluator_overlap_removed`（evaluator ID 与 unobservable/unknown 重叠场景，断言仍 1/1/1/1）。**v5.15 按整体复审七轮 1 项修正**——`_excluded_patient_sets` evaluator_ids **先 ∩ 患者全集**（`(supplied & all_ids) − unobs − unknown`，外部"幽灵"ID 不计入 n_evaluator、也不减少 no_feasible，四集合闭环不失真）+ `test_excluded_sets_ghost_eval_ids_ignored`（supplied 含不存在 ID 99 → 仍 1/1/1/1 且闭环 = 4）。**v5.16 按整体复审八轮 1 项修正**——`_excluded_patient_sets` docstring 与 v5.14 历史简写同步为"**调用者提供 ID 先与患者全集求交、再剔除 unobservable/unknown**"（消除 stale 注释，全文口径一致）。**v5.17 按整体复审九轮 1 项修正**——Task 11 重叠测试注释同步为"`evaluator_ids = (supplied ∩ 患者全集) − unobs − unknown`"（全文口径一致）。**v5.18 按整体复审十轮 1 项修正**——自检清单 v5.14 追加行历史简写同步为"`(supplied ∩ 患者全集) − unobs − unknown`"（全文无 stale 简写）。
+**计划修订：** v5.21 按 Codex 批次 1 评审（5 P1 + 2 P2）修正——① 向量化基线 SD 误改（range/6 → 0.1·range，PLT 患者间异质性 37.5→22.5）恢复 range/6 + `test_obs_baseline_distribution` 回归（窗口 0 观测方差 = 基线²+噪声²）；② `p_obs` 补 not_estimable 口径（confirm_window 非有限患者跳过，规格 §5.5）+ `test_p_obs_excludes_no_anchor_patients`；③ `_by_w_slice` 改按实际 window 列定位（不假设行偏移=窗口号；Codex 打乱 obs 复现 neither 误报率 0.162→0.0006）+ `test_by_w_slice_handles_unsorted_and_missing_windows`；④ 事件门控隔离 rng（`rng_gate` g 每患者固定消耗 1 随机数 + `rng_delta` δ 独立流 → CRN 下 r(mid)=mean(g) 严格单调，校准 bisection 收敛有保证；旧共享流 n=30/120/300 实测 0.40→0.25 非单调）+ `test_gate_risk_monotone_under_crn`；⑤ 数学修正：neither R2 噪声两窗连升概率 = 1/6 ≈ 16.7%（三个 iid 连续值严格递增的排列概率），v5.19/v5.20 误写 25%（实测 17.5% 吻合 1/6），全文注释同步；⑥ Task 11 网格标记：scale_down 的 followup_months=24（admin_end=4）在锚点约束（w_R1 ≥ w0+3 ≥ 3 > admin_end−hw=2）下路径组全 no_feasible（simulate(10k,24,12) 实测 per-rule coverage 全 0）→ Task 11 实现须将该单元显式标记 not_estimable 并从恢复率/可靠性边界统计排除（§5.5），规格 v17 同步。**v5.20 按实施第一批（Task 3）实测发现的三处缺陷 + 性能优化修正**——① `_sample_anchors` 的 w_A 下界 w0+3 过度保守：AFP 信号自 w_A 起立即生效（无需累积），PLT 只需 confirm=w_A+1 ≥ w0+3（3 窗累积 → 降 48.8% → 99.3%）；w0+3 使 12 月视界（admin_end=6）下 w0=1 的 r2/r1_and_r2 患者 hi<lo 全部 no_feasible → 校准 mean(g) 可观测样本减半（~210/10k）→ 抽样噪声 3.4% > bisection tol 0.5% → gate 偏差 4.65pp、±3pp 断言不可达；改 w_A ≥ w0+2 后样本翻倍、两视界偏差 ≤1.3pp；② r1_and_r2 的 w_r1 采样空区间不再牵连 w_A（原 `return np.nan, np.nan` 把 w_a 一并丢弃 → 80% 交集组患者 no_feasible → per_rule r1 coverage 0.67<0.80）；w_r1 对交集组仅记录字段（R1 条件在 confirm=w_A+1 检查），空区间只置 w_r1=NaN；③ Task 3 测试两处修正：`test_calibrated_latent_risk_both_horizons` 补 `_group_latent_risk` import（计划测试代码缺失，14 轮评审未运行测试未暴露）、`test_coverage_contract_and_gate_reachable` followup_months 24→36（admin_end=4 下 w_r1 ≥ w0+3 ≥ 3 > admin_end−hw=2，几何不可行 → 路径组全 no_feasible → coverage=0）；性能优化（simulate 向量化）：观测生成改每患者一次批量噪声矩阵 `rng.normal(0,1,size=(n_t,n_ind))*σ` + numpy 掩码信号叠加（与逐指标逐窗 iid 分布完全相同），`_group_latent_risk`/`_compute_coverage` 的 by_w 改 numpy 窄窗口直取（`_by_w_slice`，obs 按 patient_id/window 有序 → 行 = 患者起点+窗口，绕开 groupby/to_dict 慢路径）——simulate(30k) 13.65s→2.05s、calibrate_gates 145s(5k)→73s(10k)，本批全量测试 ~30min→4.5min（Task 11/14 Monte Carlo 受益）。**v5.19 按实施第一批（Task 1-2）实测发现的两处数值/语义缺陷修正**——① config 信号强度与锚点下界：原假设"w>=w0+2 时 PLT 较基线降 ~28% >20%"在 w0=0 时实际仅 -21.4%（基线取窗口 0,1 平均含 1 窗衰减），噪声 sd ~12pp 下最小锚点余量不足，R1 条件成立率实测 0.885<0.95（14 轮评审均未运行测试，属计划数值假设错误）；修正为 `hba1c_rise_per_window` 0.8→1.0、`plt_decline_per_window` 0.85→0.80、锚点下界 w_A/w_R1 提至 w0+3（confirm=w_A+1≥w0+4），成立率 ~0.99（K=20 seeds 稳定过线）；② neither_clean 断言语义：纯 iid 噪声下 AFP 两窗连升概率 = 1/6 ≈ 16.7%（三个 iid 连续值严格递增的排列概率；与 σ 无关，修改前实测 0.8024 吻合），"neither 参考 landmark R1、R2 均不成立 ≥95%"在数学上不可达；改为只验 R1 复合条件（噪声下 ~0.1% 命中，实测 ~0.999），R2 单条件命中如实计入 `neither_false_positive_rate` 报告（规格 §5.3 本就定义命中=误报、无门槛，Task 3 仅断言 `0≤rate≤1`）。**v4 按 Codex 计划第三轮 13 条意见修正；**v4.1 按 Workflow 对抗验证 10 条真实发现修正**；**v5**（Codex 第四轮 8 大项）；**v5.1**（Codex 第五轮 12 项）；**v5.2 按 Codex 计划第六轮 11 项修正**——R1 ≥95% 测试改按 z + 指定锚点直接验证（脱离 group/unobservable 生成判定循环）、`_group_latent_risk` 排除 neither 误报患者（obs 传参 + 校准测试同分母）、coverage 文档口径统一（excluded 单列不从规则覆盖率分母移除）、mine_rules 内部过滤 unobservable、候选网格版本化 + 确定性顺序（candidate_grid 版本化）+ synthetic fixture 测试、control_delta 对照无偏离取 cutoff 端点（有限值）+ 确定性手工 fixture、边界 Bootstrap B/有效比例版本化 + +inf CI 契约、run_cell excluded_breakdown 明细 + 字段语义修正、`_fold_discover_validate` 签名统一（显式 horizon）、acceptance ci_ok 加强（长度一致 + 有限数值区间）。**v5.3 按 Codex 计划第七轮 10 项修正**——R1 条件成立率口径限定可评估患者 + unobservable 原因分解（删失不设门槛、条件未成立 ≤5%，patients 表新增 `unobservable_reason`）、neither 误报分母改为全部 neither 候选患者（规格 §5.3 口径，校准分母不变）、`_bisect` 端点包围检查 + 上界自适应扩展（非包围显式 ValueError）、synthetic fixture 加确定性负例（折数可用）+ `_discover_frozen` 发现流程确定性（discover_top_k 版本化）、Task 8 新增整组滞后消融 `lag_ablation_analysis`（§7.2 佐证）、`_recovery_block` 兼容嵌套 coverage 契约 + 报告测试、run_cell excluded_breakdown 统一患者口径（unknown 行级单独字段）、`patient_bootstrap_ci` 无效重采样契约（单类样本丢弃、有效 <2 → NaN，规则/模型 CI 同步）、版本残留清理。**v5.4 按 Codex 计划第八轮 10 项修正**——Task 2 schema 断言加 `unobservable_reason` + 无潜在事件（g=0）/无参考 landmark 分别处理（可转绿）、R1/R2 条件成立率按**各自指定确认 landmark** 验证（交集组 = w_A+1 双条件、补 R2-only 与 neither 首参考不命中两规则）+ 原因互斥/绑定/计数闭合 + condition_not_held 分母限定实际进入条件检查的患者、删 per_group coverage ≥0.9 门槛（与删失不设门槛一致，保留 §10 per-rule ≥0.80）、neither 误报分母全文统一（Task 3 算法说明）+ 三类患者手工 fixture（误报/有参考非误报/无参考，断言 1/3 识别分母错误）、`_discover_frozen` 去除 `_standard_candidates` 组合优先（植入语义泄漏）→ 确定性枚举 + lift 排序 + 组合预算防截断（显式 raise）、`_fold_discover_validate` 按**唯一患者**定折数（Bootstrap 重复患者不重复计数）+ 唯一正例重复确定性测试 + 收紧 CI 失败契约（"CI 未估计"确定性断言）、`lag_ablation_analysis` 消融组 = `lags` 对应滞后观测列（不误删 slope/rises/drop_pct）+ 基线/移除后均报告患者 Bootstrap CI、`reliability_boundary` 统一为规格算法（每网格点 CI 下界曲线首达 50%，boundary_events 与 point_boundary_events 分列）、lead-lag per_indicator_n 限定相关路径组 + 有匹配合格对照（§10 口径）+ 风险集匹配检查对照 index time 前删失、模拟器观测截断 `T = min(事件, 删失, 行政终点)`（§5.4 第 9 步，杜绝未来观测）。**v5.5 按 Codex 计划第九轮 6 项修正**——simulate 观测改 `patient_rows` 逐患者收集（修 `obs_rows[-n_win:]` 截断后跨患者污染，条件判定只用当前患者行）+ 观测截断无跨患者测试、`reliability_boundary` 去掉 `_point_boundary` 提前判边情形（point 仅诊断，边情形只由 CI 下界曲线判定；"原始点达标但 CI 下界跨 50%" fixture `test_boundary_point_high_ci_lower_crosses`）、`_discover_frozen` 排序改二级键 `(-lift, canonical_rule)`（并列 lift 不依赖组合枚举顺序）+ `test_discover_sorted_by_lift_then_canonical` + Task 9 Step 4 残留清理、`unobservable_reason` 逐类绑定与计数闭合测试（no_feasible_anchor⇒锚点 NaN、censored⇒confirm≥删失、event_before_confirm⇒confirm≥事件、condition_not_held⇒锚点合格事件删失在后且条件实际失败）、`lag_ablation` Bootstrap CI 可估计/不足样本两测试（(nan,nan) 必须）+ `_fmt_ci` NaN→`[NA, NA]` + 报告测试、synthetic fixture 提取 helper + `test_synthetic_fixture_r1_rule_in_top_k`（R1 canonical 规则确定性进 top_k，Task 14 依赖链有测试支撑而非仅注释）。**v5.6 按 Codex 计划第十轮 6 项修正**——synthetic fixture 加 **4 个困难负例**（R1 四条件各缺一：缺 sex/缺 age50(45 满足 age>40)/缺 HbA1c2(rises1)/缺 PLTdrop0.2(-0.15)，覆盖所有非 R1 的 1-4 条件组合）使 **R1 四条件是 lift 严格唯一最高** → 确定性进 top_k（修阻断项：7 正例条件 98 条并列时 R1 排 ~60 进不了 top20）、`_records_var` 参数改 mean=0.55/spread=0.5+clip（固定 seed=0 下 CI 下界 ≈0.47 <0.5 确跨 50%）+ 断言边界 ∈ (0,20)、`_ext_percentile` 扩展实数分位数（含 +inf 确定性处理，不用 np.percentile）+ `_fmt_ci` 渲染 `(finite, +inf)` 为 `[lo, +inf]`（不误报 [NA, NA]）、抽取 `_classify_observable` 纯函数（路径组判定收敛；`_r1_holds` 容错缺失窗口）+ 两患者手工 fixture 回归跨患者污染（`test_classify_observable_uses_current_patient_obs`，因旧缺陷不改变最终 obs 窗口集合、原截断测试无法检测）、四类原因非空手工 fixture（`test_unobservable_reason_classification_fixture` 验证优先级/绑定/互斥，修空集合通过）、`_insufficient_frame` 显式 1 正例 + 5 负例（min=1<2 确定性 not_estimable，修 `_lm().iloc[:5]` 不确定）、残留清理（config/候选注释措辞、自检标题版本）。**v5.7 按 Codex 计划第十一轮 4 项修正**——接线级回归测试 `test_simulate_classification_uses_current_patient_rows`（monkeypatch `_classify_observable` 记录 simulate **实际传入**的 by_w 键集，断言每路径组患者 by_w 只含自身观测窗口 0..min(事件,删失,admin_end) 且存在截断患者场景——仅手工调用纯函数无法捕获实现者重新使用旧全局切片接线）、`test_ext_percentile_with_inf`（扩展实数分位数确定性：中位有限、高上分位 +inf、空→nan）+ `test_fmt_ci_inf_and_nan_contract`（(finite,+inf)→"[lo, +inf]"、(nan,nan)/None→"[NA, NA]"）、`test_synthetic_fixture_r1_rule_is_unique_max_lift`（枚举全部候选组合后最大 lift **唯一且对应 R1**——困难负例覆盖论证的可执行证明）、config 测试注释措辞更新为"通用候选网格"。**v5.8 按 Codex 计划第十二轮 1 项修正**——第 12 行历史修订长句已统一改写为中性表述、清理旧措辞残留，全文通过残留检查。**v5.9 按整体复审（final review）6 项缺口修正**——`_candidate_conditions` 实现规格 §8.1 折内候选（SHAP top-M 特征 + 折内分位数阈值 + 固定临床网格补充）、`_discover_frozen` 改 **Apriori 逐层枚举 + 训练折支持度剪枝**（top_m/thresholds_per_feature 版本化，防截断 raise）、run_cell 模型改**全量 qualifying_landmarks**（unobservable 只排除确认子集流程，§5.5 角色表）、`run_method_validation` 增加**信号门槛门控**（AUC CI 下界 <0.65 → 归因与规则挖掘停止并亮红灯，`signal_gate` 返回 + acceptance 门控 + monkeypatch 测试）、`label_for` 事件==删失同窗 → **unknown**（`ev >= cw`，不得落负例 + 确定性测试）、`reliability_boundary` 保留**扩展实数 CI**（全 +inf 样本集不丢弃；boundary_samples 空 → not_estimable）+ `_scale_block` 渲染**"精度目标未达到"**（precision_not_met 列）、`_latent_risk_calibration` + `render_report` **潜在风险校准块**（目标/实际/误差 ±3pp，并入第 2 节信号验证）+ 测试。**v5.10 按整体复审二轮 6 项缺口修正**——`render_report` 第 8 节**实际渲染 limitations**（门控/失败原因可见，`_limitations_block` + `test_limitations_rendered`，修门控测试必失败）、`_candidate_conditions` 契约落实（**SHAP 输入只含可转换规则特征**（排除 admin_end/*_d6m/*_d12m/*_slope）、`_condition_from_feature` 支持 sex_male→eq、drop_pct 分位 **abs(v) 正的下降幅度**（_hits `<= -c.value` 方向正确）、候选 canonical 整体去重；删"其余指标 cur 高分位"块）+ `test_candidate_contract`（元数据排除/top-M 上限/每特征切点数/drop_pct 符号/无重复）、`_discover_frozen` **seen_rules 去重 + 预算按评估组合数**（含未通过支持度的组合，`test_discover_no_duplicate_rules` + `test_discover_budget_raises`）、`_latent_risk_calibration` 改 **独立 N=50,000 校准队列**（cal_n，种子 3）估计四组潜在风险 + **ok = 四组 |误差| ≤ 0.03（±3pp 硬断言）** + 报告校准达标/未达标状态 + `test_full_pipeline_fields` ±3pp 断言、+inf 契约**层级明确**（"全 +inf 保留 (inf,inf)" 为 `_ext_percentile` 单元级契约，`test_ext_percentile_all_inf`；reliability_boundary observed 分支边界样本必然非空含有限值，`not boundary_samples` 为防御性保护）、run_cell **model/evaluator 患者与 landmark 分列**（model_patients/model_landmarks = 全量 lm；evaluator_patients/evaluator_landmarks = 可评估口径；excluded_ratio 注释更新"未进 evaluator 流程"；`oof_events <= model_patients`）+ 测试与 Task 14 断言更新。**v5.11 按整体复审三轮 5 项修正**——report.py 补 `import config as cfg`（`_calibration_block` 用 `cfg.SIM["calibration_n"]`，修 NameError）、`_latent_risk_calibration` ok 判定**显式要求 actual 有限**（NaN 比较恒 False 会错误保留 ok=True；`_group_latent_risk` 提升为 main 模块级 import）+ `test_calibration_ok_fails_on_nan`、run_cell **evaluator 统计改从实际 confirmation_subset 输入**（`sub_eval = sub[~sub["unobservable"]]`，不再用 lm 过滤；excluded_breakdown 三分类 `unobservable + no_feasible_landmark + unknown_patients + evaluator_patients == nominal_n`，unknown_patients 来自 confirmation_subset 剔除行（每患者一行 → 患者级），qualifying_landmarks 行级 unknown 仍单独顶层字段）+ 闭环测试更新、config/fixture/自检清单 **Apriori 口径统一**（评估组合数预算、逐层支持度剪枝，无旧枚举口径残留）、`_candidate_conditions` 分位 **drop_pct 值 ≤0 过滤**（无正下降幅度不产生候选，`test_candidate_contract` 的 drop_pct >0 断言确定性成立）。**v5.12 按整体复审四轮 5 项修正**——main.py 补 `import numpy as np`（`_latent_risk_calibration` 有限性检查，修 NameError）、`_excluded_patient_sets` **患者级互斥分配**（优先级 unobservable → unknown → no_feasible → evaluator；unknown 患者 = 确认 landmark 合格且非 unobservable 且 label_for=="unknown"，与 confirmation_subset 剔除一致；unobservable 患者即使确认窗口判定 unknown 也不重复计数；闭环由集合互斥保证而非 max 偶然）+ `test_excluded_sets_mutually_exclusive_with_overlap`（unobservable+unknown 重叠场景）、Task 11 接口说明更新为**三分类闭环**（`unobservable + no_feasible_landmark + unknown_patients + evaluator_patients == nominal_n`，excluded_ratio 语义同步）、Task 13 接口签名更新 `_latent_risk_calibration(horizon_months, hw, cal)`、第 12 行历史措辞中性化（无旧枚举口径残留，且 v5.11 说明不再逐字引用）。**v5.13 按整体复审五轮 2 项修正**——第 12 行历史修订长句旧组合枚举口径全部改写为中性表述（v5.3 段"组合枚举确定性"→"发现流程确定性"；禁用措辞 grep 检查通过）、Task 11 接口 evaluator 语义明确（**evaluator = confirmation_subset 中 `~unobservable` 且 label ∈ {0,1} 的患者/landmark；unknown 患者单列为 `unknown_patients`、不进 evaluator；excluded_ratio 含 unobservable、unknown、no-feasible 三类**）。**v5.14 按整体复审六轮 1 项修正**——`_excluded_patient_sets` 互斥分配补强：**evaluator_ids = 调用者提供 ID 先与患者全集求交、再剔除 unobs/unknown**（四集合互斥不依赖调用者输入干净；后由 v5.15 显式写入 `& all_ids`）+ **确认 landmark 资格显式化**（confirm 有限且 `w ≥ 2` 且 `admin_end − w ≥ hw`，§5.5）+ `test_excluded_sets_evaluator_overlap_removed`（evaluator ID 与 unobservable/unknown 重叠场景，断言仍 1/1/1/1）。**v5.15 按整体复审七轮 1 项修正**——`_excluded_patient_sets` evaluator_ids **先 ∩ 患者全集**（`(supplied & all_ids) − unobs − unknown`，外部"幽灵"ID 不计入 n_evaluator、也不减少 no_feasible，四集合闭环不失真）+ `test_excluded_sets_ghost_eval_ids_ignored`（supplied 含不存在 ID 99 → 仍 1/1/1/1 且闭环 = 4）。**v5.16 按整体复审八轮 1 项修正**——`_excluded_patient_sets` docstring 与 v5.14 历史简写同步为"**调用者提供 ID 先与患者全集求交、再剔除 unobservable/unknown**"（消除 stale 注释，全文口径一致）。**v5.17 按整体复审九轮 1 项修正**——Task 11 重叠测试注释同步为"`evaluator_ids = (supplied ∩ 患者全集) − unobs − unknown`"（全文口径一致）。**v5.18 按整体复审十轮 1 项修正**——自检清单 v5.14 追加行历史简写同步为"`(supplied ∩ 患者全集) − unobs − unknown`"（全文无 stale 简写）。
 
 ## Global Constraints
 
@@ -224,6 +224,10 @@ CALIBRATION = {
     12: {"neither": 0.06, "r1_only": 0.40, "r2_only": 0.25, "r1_and_r2": 0.52},
 }
 GRID = {"method_validation": {"n": 1500, "followup_months": 60, "horizon_months": 24},
+        # v5.21：followup_months=24（admin_end=4）在锚点约束（w_R1 ≥ w0+3 ≥ 3 >
+        # admin_end−hw=2）下路径组全 no_feasible（simulate(10k,24,12) 实测 per-rule
+        # coverage 全 0）→ Task 11 实现须将该单元显式标记 not_estimable 并从恢复率/
+        # 可靠性边界统计排除（规格 §5.5），不产生 coverage=0 的假"规模退化"
         "scale_down": {"n": [150, 300, 600, 1500],
                        "followup_months": [24, 36, 60], "horizon_months": 12},
         "repeats": 50, "repeats_max": 200, "ci_halfwidth_target": 0.10}
@@ -442,7 +446,8 @@ def _conditions_hold_at_anchor(out, rows, anchor_fn, horizon_windows, which):
     分母 = 资格检查全部通过的患者（可评估：锚点有限 + 合格 + 视界够 + 无事件 + 未删失）。
     ——「条件成立率 ≥95%」仅针对观测条件（可评估患者），与 v16 §5.3 一致。
     neither_clean 只验 R1（4 条件复合，噪声下命中概率 ~0.1%）；R2 单条件在纯 iid
-    噪声下两窗连升 ~25% 是数学事实（与 σ 无关），其命中如实计入
+    噪声下两窗连升概率 = 1/6 ≈ 16.7%（三个 iid 连续值严格递增的排列概率，与 σ 无关；
+    v5.20 误写 25%，实测 17.5% 吻合 1/6），其命中如实计入
     `coverage.neither_false_positive_rate` 报告（规格 §5.3 定义命中=误报），不设门槛。"""
     obs_by_pid = {pid: g.to_dict("records") for pid, g in out["obs"].groupby("patient_id")}
     ok, eligible = 0, 0
@@ -483,7 +488,7 @@ def test_conditions_hold_at_confirmation_landmark():
         hold = _conditions_hold_at_anchor(out, sub, _anchor_expr(z), hw, which)
         assert hold >= 0.95, (z, which, hold)
     # neither 首参考 landmark：R1（4 条件复合）不成立——"条件未成立"是 neither 的定义；
-    # R2 单条件噪声命中（~25%）如实计入 coverage.neither_false_positive_rate（规格 §5.3）
+    # R2 单条件噪声命中（~1/6）如实计入 coverage.neither_false_positive_rate（规格 §5.3）
     ne = p[p["z"] == "none"]
     clean = _conditions_hold_at_anchor(out, ne, _anchor_expr("neither"), hw, "neither_clean")
     assert clean >= 0.95, clean
@@ -674,6 +679,11 @@ def _neither_hazard(lambda_c, age, sex):
 
 def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None):
     rng = np.random.default_rng(seed)
+    # 事件门控独立 rng 流（v5.21，CRN）：g 每患者固定消耗 1 个随机数、δ 用独立流
+    # → r(mid)=mean(g) 是 mid 的严格单调函数（校准 bisection 收敛保证）；
+    # 观测/锚点/删失用主 rng（与 gate 无关 → 患者构成固定）。
+    rng_gate = np.random.default_rng(seed + 1)
+    rng_delta = np.random.default_rng(seed + 2)
     admin_end = followup_months // cfg.SIM["window_months"]
     hw = horizon_months // cfg.SIM["window_months"]
     cal = cfg.CALIBRATION[horizon_months]
@@ -682,12 +692,14 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
     lambda_c = 0.0 if _lambda_c is None else _lambda_c
 
     paths, ages, sexes = _sample_z_covariates(rng, n)
-    # 向量化索引（v5.20）：σ = 0.1·范围，与逐指标定义分布完全一致
+    # 向量化索引：σ_meas = 0.1·范围（测量噪声）、基线 SD = 范围/6（患者间异质性，
+    # 与逐指标定义一致；v5.20 曾误用 0.1·范围 → PLT 基线 SD 37.5→22.5，v5.21 修复）
     inds = cfg.INDICATORS
     n_ind = len(inds)
     lo_hi = np.array([cfg.REFERENCE_RANGES[i][:2] for i in inds], dtype=float)
     mid = (lo_hi[:, 0] + lo_hi[:, 1]) / 2
     sigma = 0.1 * (lo_hi[:, 1] - lo_hi[:, 0])
+    baseline_sd = (lo_hi[:, 1] - lo_hi[:, 0]) / 6
     i_hba1c, i_plt, i_afp = inds.index("HbA1c"), inds.index("PLT"), inds.index("AFP")
     n_win = admin_end + 1
 
@@ -702,15 +714,16 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
         censored = rng.random() < cfg.SIM["censoring_rate"]
         censored_window = float(rng.integers(1, n_win)) if censored else np.nan
 
-        # 事件
+        # 事件（门控用 rng_gate 独立流：每患者固定消耗 1 个随机数 → CRN 下 mean(g) 单调；
+        # δ 窗口用 rng_delta 独立流：不消耗 g 流 → 单调性不受事件患者影响）
         g, event_window = np.nan, np.nan
         if z != "none":
             confirm = (w_a + 1) if z in ("r2", "r1_and_r2") else w_r1
             if np.isfinite(confirm):
                 grp = "r1_and_r2" if z == "r1_and_r2" else ("r1_only" if z == "r1" else "r2_only")
-                g = int(rng.random() < gate[grp])
+                g = int(rng_gate.random() < gate[grp])
                 if g == 1:
-                    event_window = confirm + int(rng.choice(cfg.SIM["delta_choices"]))
+                    event_window = confirm + int(rng_delta.choice(cfg.SIM["delta_choices"]))
         else:
             ref = _first_qualifying_landmark(admin_end, hw, censored_window)
             if np.isfinite(ref):
@@ -728,7 +741,7 @@ def simulate(n, followup_months, horizon_months, seed, gate=None, _lambda_c=None
         # **向量化（v5.20）**：每患者一次批量噪声 rng.normal(0,1,size=(n_t,n_ind))*σ，
         # 信号叠加用 numpy 掩码——与逐指标逐窗调用分布完全相同（iid 同分布），
         # 但避免 330 万次 rng 调用与 dict 构造（simulate(30k)：13.65s → ~2s，Task 11/14 受益）。
-        baseline = mid + rng.normal(0, 1, size=n_ind) * sigma
+        baseline = mid + rng.normal(0, 1, size=n_ind) * baseline_sd
         trunc = admin_end
         if np.isfinite(event_window):
             trunc = min(trunc, int(event_window))
@@ -998,16 +1011,18 @@ def _row_range(pids, pid):
     return s, e
 
 
-def _by_w_slice(pids, vals, cols, pid, w):
+def _by_w_slice(pids, wins, vals, cols, pid, w):
     """判定所需窄窗口 by_w（{w-2, w-1, w, 0, 1} ∩ 患者观测，PLT 基线取窗口 0,1）。
-    numpy 直取（窗口连续 → 行 = 患者起点 s + 窗口），**避免 groupby/to_dict 慢路径**
-    （v5.20：simulate(30k) 的 _compute_coverage/_group_latent_risk 从 31s → <0.5s）。
+    **按实际 window 列定位**（不假设行偏移 = 窗口号）：乱序/缺窗/非零起始窗口均正确
+    （v5.21：Codex 评审发现行偏移推导在打乱 obs 时误判——neither_false_positive_rate
+    从 0.162 掉到 0.0006；simulate 输出天然有序，但函数不再依赖该隐藏前提）。
     与全量 by_w 语义等价：_r1_holds/_r2_holds 只读这些窗口，缺失键即无观测。"""
     s, e = _row_range(pids, pid)
     by_w = {}
-    for k in (w, w - 1, w - 2, 0, 1):
-        if 0 <= k < e - s:
-            by_w[k] = {cols[j]: vals[s + k, j] for j in range(len(cols))}
+    for i in range(s, e):
+        k = int(wins[i])
+        if k in (w, w - 1, w - 2, 0, 1):
+            by_w[k] = {cols[j]: vals[i, j] for j in range(len(cols))}
     return by_w
 
 
@@ -1022,13 +1037,14 @@ def _group_latent_risk(out, grp, hw, obs=None):
             raise ValueError("neither 校准需传入 obs 以检查参考 landmark 误报")
         cols = [c for c in cfg.INDICATORS if c in obs.columns]
         pids = obs["patient_id"].to_numpy()
+        wins = obs["window"].to_numpy()
         vals = obs[cols].to_numpy()
         ok_mask = sub["confirm_window"].notna().to_numpy()
         fp_mask = np.zeros(len(sub), dtype=bool)
         for i, row in enumerate(sub.itertuples()):
             if not np.isfinite(row.confirm_window):
                 continue
-            by_w = _by_w_slice(pids, vals, cols, row.patient_id, int(row.confirm_window))
+            by_w = _by_w_slice(pids, wins, vals, cols, row.patient_id, int(row.confirm_window))
             w = int(row.confirm_window)
             if _r1_holds(by_w, w, row.age, row.sex) or _r2_holds(by_w, w):
                 fp_mask[i] = True
@@ -1097,6 +1113,8 @@ def p_obs(patients, obs, horizon_windows):
     for grp in ("neither", "r1_only", "r2_only", "r1_and_r2"):
         pos = neg = 0
         for _, p in patients[(patients["group"] == grp) & (~patients["unobservable"])].iterrows():
+            if not np.isfinite(p["confirm_window"]):
+                continue                                # 无可行确认/参考 landmark → not_estimable（规格 §5.5），不进 P_obs 分母
             ev, cw = p["event_window"], p["censored_window"]
             win = p["confirm_window"] + horizon_windows
             if np.isfinite(ev) and ev <= win and (not np.isfinite(cw) or cw > ev):
@@ -1136,12 +1154,13 @@ def _compute_coverage(patients, obs, meta):
     ne = p[p["group"] == "neither"]                    # 分母 = 全部 neither 候选患者（规格 §5.3）
     cols = [c for c in cfg.INDICATORS if c in obs.columns]
     pids = obs["patient_id"].to_numpy()
+    wins = obs["window"].to_numpy()
     vals = obs[cols].to_numpy()
     fp = 0
     for _, row in ne.iterrows():
         if not np.isfinite(row["confirm_window"]):
             continue                                    # 无合格参考 landmark → 无法判定，不计入分子
-        by_w = _by_w_slice(pids, vals, cols, row["patient_id"], int(row["confirm_window"]))
+        by_w = _by_w_slice(pids, wins, vals, cols, row["patient_id"], int(row["confirm_window"]))
         w = int(row["confirm_window"])
         if _r1_holds(by_w, w, row["age"], row["sex"]) or _r2_holds(by_w, w):
             fp += 1
