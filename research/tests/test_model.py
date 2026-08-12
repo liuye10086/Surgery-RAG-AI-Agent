@@ -57,5 +57,6 @@ def test_empty_landmarks_not_estimable_chain():
     assert res["not_estimable"] is True
     # 空 oof_frame 保留 patient_id/label/oof schema（Task 11 直接读 oof_frame["label"]）
     assert list(res["oof_frame"].columns) == ["patient_id", "label", "oof"]
+    assert res["oof_frame"]["patient_id"].dtype.kind == "i"   # 三列 dtype 契约：patient_id/label int64、oof float64
     assert res["oof_frame"]["label"].dtype.kind == "i"
     assert res["oof_frame"]["oof"].dtype.kind == "f"
