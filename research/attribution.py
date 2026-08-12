@@ -97,7 +97,9 @@ def lead_lag_analysis(patients, obs):
     per_path = {}
     for grp, inds in (("r1_only", ("PLT", "HbA1c")), ("r2_only", ("AFP",)),
                       ("r1_and_r2", ("PLT", "HbA1c", "AFP"))):
-        gids = set(prog[prog["group"] == grp]["patient_id"])
+        # v5.29（Codex 批次 3 P1-5）：per_path 只统计**有匹配合格对照**的进展者
+        # （与 control_delta 同分析集；规格 §7.1 进展组与匹配对照比较）
+        gids = set(prog[prog["group"] == grp]["patient_id"]) & set(matched)
         per_path[grp] = {}
         for ind in inds:
             rows = [(pid, v) for pid, v in dev_by_ind[ind].items() if pid in gids]
@@ -138,9 +140,11 @@ def lead_lag_analysis(patients, obs):
     # 对照无事件窗口 → 用匹配进展者的事件时间作显式 cutoff（伪零点）；
     # 对照在 cutoff 内无偏离 → 取 cutoff 端点（"未更早偏离"），保证 control_delta 有限
     prog_event = dict(zip(prog["patient_id"], prog["event_window"]))
-    control_delta = {}
+    control_delta, control_delta_ci = {}, {}
     for ind in ("PLT", "HbA1c", "AFP"):
-        prog_vals, ctrl_vals = [], []
+        # **配对差异**（v5.29，Codex 批次 3 P2-1）：每进展者 fd − 其匹配对照 ctrl
+        # （对照无偏离 → cutoff 端点"未更早偏离"）→ 患者级 Bootstrap CI
+        pairs = []
         for pid, fd in dev_by_ind[ind].items():
             cpid = matched.get(pid)
             if cpid is None or pid not in prog_event:
@@ -149,8 +153,15 @@ def lead_lag_analysis(patients, obs):
             ctrl = _first_dev_by_patient(patients[patients["patient_id"] == cpid], obs, ind, sigma[ind],
                                          cutoff=cutoff_w).get(cpid, cutoff_w)   # 无偏离 → cutoff 端点
             if np.isfinite(fd) and np.isfinite(ctrl):
-                prog_vals.append(fd); ctrl_vals.append(ctrl)
-        control_delta[ind] = float(np.median(prog_vals) - np.median(ctrl_vals)) if prog_vals else np.nan
+                pairs.append({"patient_id": pid, "delta": fd - ctrl})
+        if pairs:
+            frame = pd.DataFrame(pairs)
+            control_delta[ind] = float(np.median(frame["delta"]))
+            control_delta_ci[ind] = patient_bootstrap_ci(
+                frame, lambda d: np.median(d["delta"]), b=200, seed=0)
+        else:
+            control_delta[ind] = np.nan
+            control_delta_ci[ind] = (np.nan, np.nan)
 
     not_estimable = (n_inter < cfg.THRESHOLDS["r1r2_intersection_min"]
                      or unmatched_rate > cfg.THRESHOLDS["unmatched_max"]
@@ -162,6 +173,7 @@ def lead_lag_analysis(patients, obs):
                       "afp_after_early": afp_after_early,
                       "tiebreak_by_event_count": tiebreak},
             "control_delta": control_delta,
+            "control_delta_ci": control_delta_ci,     # v5.29：配对差异的患者级 Bootstrap CI（§7.1）
             "per_indicator_n": per_indicator_n, "n_intersection": n_inter,
             "unmatched_rate": unmatched_rate, "not_estimable": not_estimable}
 

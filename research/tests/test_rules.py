@@ -5,7 +5,8 @@ from simulate_cohort import simulate
 from features import confirmation_subset
 from rules import (mine_rules, MinedCondition, MinedRule, _candidate_conditions,
                    _fold_discover_validate, _rule_bootstrap_ci,
-                   _discover_frozen, _canonical_rule, _lift, _support, _enumerate_combos, _hits)
+                   _discover_frozen, _canonical_rule, _canonical_cond,
+                   _lift, _support, _enumerate_combos, _hits)
 
 OUT = simulate(n=1500, followup_months=60, horizon_months=24, seed=6)
 SUB = confirmation_subset(OUT["patients"], OUT["obs"], horizon_windows=4)
@@ -126,6 +127,71 @@ def test_discover_sorted_by_lift_then_canonical():
     # 同输入两次运行逐位一致（枚举顺序无关）
     again = _discover_frozen(SUB, 1, 4)
     assert [_canonical_rule(r) for r in again] == keys
+
+def test_support_unique_patient_in_resample():
+    """支持度按唯一患者（Codex 批次 3 P1-2）：Bootstrap 重采样保留重复患者行，
+    事件/总支持不重复计（行级会是 10/10，唯一患者 1/1）。"""
+    import pandas as pd
+    from rules import _support
+    rows = ([{"patient_id": 0, "label": 1, "sex_male": 1, "HbA1c_rises": 2,
+              "age": 55, "PLT_drop_pct": -0.25, "AFP_rises": 0,
+              **{f"{i}_cur": 1.0 for i in cfg.INDICATORS}}] * 10
+            + [{"patient_id": 1, "label": 0, "sex_male": 0, "HbA1c_rises": 0,
+                "age": 30, "PLT_drop_pct": 0.0, "AFP_rises": 0,
+                **{f"{i}_cur": 1.0 for i in cfg.INDICATORS}}] * 10)
+    sub = pd.DataFrame(rows)
+    rule = MinedRule((MinedCondition("sex", "eq", 1.0),), 4, 1, 0)
+    ev, tot = _support(sub, rule)
+    assert (ev, tot) == (1, 1)          # 唯一患者：1 正例 1 总（行级会是 10/10）
+
+def test_rules_ci_requires_fold_train_support():
+    """CI 折内发现判定（Codex 批次 3 P1-1 反例）：规则须在**每个训练折**支持度 ≥ 门槛
+    ——全体事件支持达标（ev=6 ≥ 5）但 3 折训练集各 8 人（正例 ~4 < 5）→ 折内不发现
+    → CI 未估计（旧实现按全体支持度判定会给数值 CI——estimand 错误）。"""
+    import pandas as pd
+    from rules import _rules_bootstrap_ci
+    rows = []
+    for i in range(6):
+        rows.append({"patient_id": i, "label": 1, "age": 55, "sex_male": 1,
+                     "HbA1c_rises": 2, "PLT_drop_pct": -0.25, "AFP_rises": 0,
+                     **{f"{ind}_cur": 1.0 for ind in cfg.INDICATORS}})
+    for i in range(6, 12):
+        rows.append({"patient_id": i, "label": 0, "age": 30, "sex_male": 0,
+                     "HbA1c_rises": 0, "PLT_drop_pct": 0.0, "AFP_rises": 0,
+                     **{f"{ind}_cur": 1.0 for ind in cfg.INDICATORS}})
+    sub = pd.DataFrame(rows)
+    sub.attrs["horizon_windows"] = 4
+    rule = MinedRule(tuple([MinedCondition("sex", "eq", 1.0),
+                            MinedCondition("HbA1c", "consecutive_rises", 2.0, lookback=2)]), 4, 2, 0)
+    assert _support(sub, rule)[0] == 6          # 全体事件支持达标
+    ci = _rules_bootstrap_ci(sub, [rule], b=5, seed=0)
+    assert ci[_canonical_rule(rule)] == "CI 未估计"
+
+def test_discover_returns_all_passing():
+    """top_k 全量不截断（Codex 批次 3 P1-3）：输出 = 全部通过支持度的组合
+    （无静默截断——硬截断会丢弃 planted 规则）。"""
+    rules = _discover_frozen(SUB, 1, 4)
+    cands = _candidate_conditions(SUB, 1)
+    passing = 0
+    for k in range(1, cfg.THRESHOLDS["max_conditions"] + 1):
+        for combo in _enumerate_combos(cands, k):
+            rule = MinedRule(tuple(combo), 4, max(c.lookback for c in combo), 0)
+            ev, tot = _support(SUB, rule)
+            if ev >= cfg.THRESHOLDS["rule_event_support_min"] \
+                    and tot >= cfg.THRESHOLDS["rule_total_support_min"]:
+                passing += 1
+    assert len(rules) == passing
+
+def test_candidate_stability_across_seeds():
+    """候选跨 seed 稳定性（v5.29，Codex P2-3 风险记录）：SHAP top-M 特征随 seed
+    漂移是已知限制（规则身份由 canonical 精确值承载、selection=全部重复过滤
+    seed 偶发规则）；**planted 语义条件（固定网格）跨 seed 恒在**。"""
+    c1 = {_canonical_cond(c) for c in _candidate_conditions(SUB, 1)}
+    c2 = {_canonical_cond(c) for c in _candidate_conditions(SUB, 2)}
+    for c in (("sex", "eq", 1.0, 1), ("age", "gt", 50.0, 1),
+              ("HbA1c", "consecutive_rises", 2.0, 2), ("PLT", "drop_pct", 0.2, 1)):
+        assert c in c1 and c in c2, c
+    assert len(c1 & c2) >= 0.4 * min(len(c1), len(c2)), (len(c1), len(c2))
 
 def test_rule_ci_failure_mode():
     # 确定性失败契约：唯一正例重复抽中 → 全部样本无效 → **必然** "CI 未估计"

@@ -122,16 +122,28 @@ def _hits(subset, rule):
 
 
 def _support(subset, rule):
+    """事件/总支持按**唯一患者**计数（v5.29，Codex 批次 3 P1-2：规格 §5.5/§8.1
+    每患者一次确认 landmark；Bootstrap 重采样保留重复患者行，行级计数会重复计）。
+    原始 SUB/训练折每患者 1 行 → 与行级等价；重采样集 → 唯一患者去重。"""
     hit = _hits(subset, rule)
-    return int(subset.loc[hit, "label"].sum()), int(hit.sum())
+    hit_df = subset.loc[hit]
+    ev = int(hit_df.loc[hit_df["label"] > 0, "patient_id"].nunique())
+    tot = int(hit_df["patient_id"].nunique())
+    return ev, tot
 
 
 def _lift(subset, rule):
+    """命中组正例率 / 基线正例率，**按唯一患者**（v5.29，重采样集重复患者不重复计）。"""
     hit = _hits(subset, rule)
     if hit.sum() == 0:
         return 0.0
-    base = subset["label"].mean()
-    return subset.loc[hit, "label"].mean() / base if base > 0 else 0.0
+    hit_ids = subset.loc[hit, "patient_id"].unique()
+    hit_pos = int(subset.loc[hit & (subset["label"] > 0), "patient_id"].nunique())
+    base_pos = int(subset.loc[subset["label"] > 0, "patient_id"].nunique())
+    base_tot = int(subset["patient_id"].nunique())
+    if base_pos == 0 or base_tot == 0:
+        return 0.0
+    return (hit_pos / len(hit_ids)) / (base_pos / base_tot)
 
 
 def _enumerate_combos(cands, k):
@@ -203,7 +215,10 @@ def _discover_frozen(subset, seed, horizon_windows, cands=None):
                         continue
                     level.append((combo + (c,), pmask & masks[_canonical_cond(c)]))
     # 确定性排序：lift 降序主键 + canonical_rule 二级键（并列 lift 不依赖枚举顺序）
-    return sorted(rules, key=lambda r: (-_lift(subset, r), _canonical_rule(r)))[:cfg.THRESHOLDS["discover_top_k"]]
+    # v5.29：**全量不截断**（发现预算语义，Codex 批次 3 P1-3）——硬截断会静默丢弃
+    # 通过支持度的组合（实测 top_k=20 时 planted R1/R2 被挤出）；输出全部通过组合，
+    # 报告渲染截断在 Task 12（top 20 + 汇总）
+    return sorted(rules, key=lambda r: (-_lift(subset, r), _canonical_rule(r)))
 
 
 def _fold_discover_validate(sset, seed, horizon_windows, cands=None, return_cands=False):
@@ -268,27 +283,27 @@ def _rules_bootstrap_ci(subset, rules, b=12, seed=0):
     per_sample = {k: [] for k in keys}
     for s in samples:
         sset = resample_rows(subset, s).reset_index(drop=True)
-        # 患者折（折外验证；与 fold_validate 同机制）
+        # 患者折（折内发现→折外验证；与 _fold_discover_validate 同机制）
         uniq = sset.groupby("patient_id")["label"].max().reset_index()
         pos = int((uniq["label"] > 0).sum())
         neg = int((uniq["label"] == 0).sum())
         k = min(cfg.THRESHOLDS["cv_folds"], pos, neg)
-        folds_map = None
-        if k >= 2:
-            uniq["patient_event"] = (uniq["label"] > 0).astype(int)
-            folds_uniq = patient_folds(uniq, k, seed)
-            pid_to_row = {pid: i for i, pid in enumerate(uniq["patient_id"])}
-            folds_map = folds_uniq[sset["patient_id"].map(pid_to_row).to_numpy()]
+        if k < 2:
+            continue
+        uniq["patient_event"] = (uniq["label"] > 0).astype(int)
+        folds_uniq = patient_folds(uniq, k, seed)
+        pid_to_row = {pid: i for i, pid in enumerate(uniq["patient_id"])}
+        folds_map = folds_uniq[sset["patient_id"].map(pid_to_row).to_numpy()]
         for key, rule in zip(keys, rules):
-            ev, tot = _support(sset, rule)
-            if ev < cfg.THRESHOLDS["rule_event_support_min"] or tot < cfg.THRESHOLDS["rule_total_support_min"]:
-                continue                                # 支持度不足 → 该样本未重新发现
-            if folds_map is None:
-                continue
             val_lifts = []
             for j in range(k):
-                va = folds_map == j
-                if va.sum() == 0:
+                tr, va = folds_map != j, folds_map == j
+                # **折内发现判定**（Codex 批次 3 P1-1）：规则须在该**训练折**上支持度
+                # ≥ 门槛（与"重跑折内发现"等价——固定切点下发现 = 训练折门槛；
+                # 全体样本达标 ≠ 每训练折达标，如规则 ev=5 但某折无事件）
+                ev_tr, tot_tr = _support(sset.loc[tr], rule)
+                if ev_tr < cfg.THRESHOLDS["rule_event_support_min"] \
+                        or tot_tr < cfg.THRESHOLDS["rule_total_support_min"]:
                     continue
                 l = _lift(sset.loc[va], rule)
                 if np.isfinite(l):
@@ -304,6 +319,9 @@ def _rules_bootstrap_ci(subset, rules, b=12, seed=0):
 
 
 def mine_rules(subset, n_repeats, seeds):
+    # v5.29（Codex 批次 3 P2-2）：显式校验 n_repeats 与 seeds 长度一致（同 fit_and_oof）
+    if n_repeats < 1 or len(seeds) != n_repeats:
+        raise ValueError(f"n_repeats={n_repeats} 与 seeds 长度 {len(seeds)} 不一致（需 >=1 且相等）")
     # 规则发现/验证/CI 只用可评估确认 landmark（排除 unobservable，避免事后信息/不可评估样本泄漏）
     subset = subset[~subset["unobservable"]].reset_index(drop=True)
     subset.attrs["horizon_windows"] = subset.attrs.get("horizon_windows", 0)

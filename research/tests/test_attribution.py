@@ -19,8 +19,14 @@ def test_nested_structure_and_fields_always_present():
     for ind in ("PLT", "HbA1c", "AFP"):
         assert ind in res["per_indicator_n"]
         assert ind in res["control_delta"]
+        assert ind in res["control_delta_ci"]           # v5.29：配对差异 CI（§7.1）
+        lo, hi = res["control_delta_ci"][ind]
+        assert lo <= hi
     # 匹配对照参与：至少一个指标有有限 control_delta（进展者更早 → 为负）
     assert any(np.isfinite(v) for v in res["control_delta"].values())
+    # 有匹配对照的指标应有配对差异 CI 有限（进展者更早 → 负中位）
+    assert any(all(np.isfinite(v) for v in res["control_delta_ci"][i])
+               for i in ("PLT", "HbA1c", "AFP"))
     for k in ("early_median", "afp_median", "afp_after_early", "tiebreak_by_event_count"):
         assert k in res["order"]
 
