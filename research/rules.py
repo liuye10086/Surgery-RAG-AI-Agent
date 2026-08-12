@@ -160,7 +160,7 @@ def _cond_mask(subset, c):
     return subset[f"{c.indicator}_cur"].to_numpy() > c.value
 
 
-def _discover_frozen(subset, seed, horizon_windows):
+def _discover_frozen(subset, seed, horizon_windows, cands=None):
     """规格 §8.1 发现：**折内候选**（`_candidate_conditions`：SHAP top-M + 折内分位数 +
     固定临床网格，canonical 去重）→ **Apriori 逐层枚举 + 训练折支持度剪枝**（每层通过支持
     门槛者进入下一层；规范顺序去重 + `seen_rules` 防重复）→ **(-lift, canonical_rule) 排序取 top_k**。
@@ -168,8 +168,11 @@ def _discover_frozen(subset, seed, horizon_windows):
     超 max_candidates → **显式 raise**（防静默截断，不得只按通过规则数统计）。
     **v5.29 性能**：候选掩码预计算 + 组合掩码逐层 AND 复用（`_cond_mask`）——35 候选
     的 4 层全枚举 ~5.9 万组合从逐组合重算 ~30s 降至 ~1s（Bootstrap 重跑完整发现的
-    b 次 × 折数放大下必需；语义与枚举顺序/预算计数/剪枝/排序完全一致）。"""
-    cands = _candidate_conditions(subset, seed)
+    b 次 × 折数放大下必需；语义与枚举顺序/预算计数/剪枝/排序完全一致）。
+    **v5.29 cands 参数**：规则 CI 重跑发现（`_rules_bootstrap_ci`）传**固定候选**
+    （与原始发现同空间）——分位切点随重采样集漂移会导致固定阈值规则永不重新发现
+    （实测 0/12 次 → CI 未估计），固定候选使"重新发现 = 支持度门槛在重采样集上通过"。"""
+    cands = cands if cands is not None else _candidate_conditions(subset, seed)
     ordered = sorted(cands, key=_canonical_cond)
     masks = {_canonical_cond(c): _cond_mask(subset, c) for c in ordered}
     rules, seen_rules = [], set()
@@ -203,27 +206,34 @@ def _discover_frozen(subset, seed, horizon_windows):
     return sorted(rules, key=lambda r: (-_lift(subset, r), _canonical_rule(r)))[:cfg.THRESHOLDS["discover_top_k"]]
 
 
-def _fold_discover_validate(sset, seed, horizon_windows):
+def _fold_discover_validate(sset, seed, horizon_windows, cands=None, return_cands=False):
     """在 sset 上折内发现→折外验证，返回 {canonical_key: [val_lifts]}。
     **折数按唯一患者计数**（Bootstrap 重复患者不得重复计数）：
     k = min(cv_folds, 唯一正例患者数, 唯一负例患者数)；任一类别唯一患者 <2 → 无效（返回空）。
-    仅按行数计正/负会把"一个唯一正例被重复抽中"误判为 k>=2。"""
+    仅按行数计正/负会把"一个唯一正例被重复抽中"误判为 k>=2。
+    **v5.29 cands/return_cands**：cands 缺省 = **每折训练集内生成**（规格 §8.1 折内候选）；
+    return_cands=True 时返回 (out, 折内候选并集)——mine_rules 的规则 CI 用**全部折内
+    候选并集**重跑发现（规则切点来自各折训练集，全量候选不含折内切点 → 实测 CI 未估计）。"""
     uniq = sset.groupby("patient_id")["label"].max().reset_index()
     pos = int((uniq["label"] > 0).sum())
     neg = int((uniq["label"] == 0).sum())
     k = min(cfg.THRESHOLDS["cv_folds"], pos, neg)
     if k < 2:
-        return {}
+        return ({}, []) if return_cands else {}
     uniq["patient_event"] = (uniq["label"] > 0).astype(int)
     folds_uniq = patient_folds(uniq, k, seed)
     pid_to_row = {pid: i for i, pid in enumerate(uniq["patient_id"])}
     folds = folds_uniq[sset["patient_id"].map(pid_to_row).to_numpy()]
-    out = {}
+    out, all_cands = {}, []
     for j in range(k):
         tr, va = folds != j, folds == j
-        for rule in _discover_frozen(sset.loc[tr], seed, horizon_windows):
+        fold_cands = cands if cands is not None else _candidate_conditions(sset.loc[tr], seed)
+        for c in fold_cands:
+            if c not in all_cands:
+                all_cands.append(c)
+        for rule in _discover_frozen(sset.loc[tr], seed, horizon_windows, cands=fold_cands):
             out.setdefault(_canonical_rule(rule), []).append(_lift(sset.loc[va], rule))
-    return out
+    return (out, all_cands) if return_cands else out
 
 
 def _rule_bootstrap_ci(subset, rule, b=50, seed=0):
@@ -242,6 +252,57 @@ def _rule_bootstrap_ci(subset, rule, b=50, seed=0):
     return float(np.percentile(lifts, 2.5)), float(np.percentile(lifts, 97.5))
 
 
+def _rules_bootstrap_ci(subset, rules, b=12, seed=0):
+    """**批量规则 CI（v5.29 重构）**：同一批患者重采样共享——每样本直接判定
+    每条输出规则（**不重跑组合枚举发现**）：
+    - **"重新发现" = 规则在重采样集上支持度 ≥ 门槛**（`_support` 直接判定）——
+      固定切点下与"重跑发现 + 该规则出现"**数学等价**（发现枚举所有通过组合）；
+      折内候选并集的 10.2 万组合/次 × 5 折 × b 次在 CI 放大下不可行（实测 10+ 分钟），
+      直接判定 ~1 秒（176 规则 × 掩码）；
+    - **折外验证**：重采样集上按患者分折，验证折的 lift 均值（与 `_fold_discover_validate`
+      同机制）；
+    - 未重新发现（支持度不足）/有效 <2 → 该规则 "CI 未估计"。
+    语义 = "规则强度（验证 lift）在患者重采样人群中的分布"（计划 CI 契约）。"""
+    samples = patient_bootstrap_samples(subset["patient_id"].to_numpy(), b, seed)
+    keys = [_canonical_rule(r) for r in rules]
+    per_sample = {k: [] for k in keys}
+    for s in samples:
+        sset = resample_rows(subset, s).reset_index(drop=True)
+        # 患者折（折外验证；与 fold_validate 同机制）
+        uniq = sset.groupby("patient_id")["label"].max().reset_index()
+        pos = int((uniq["label"] > 0).sum())
+        neg = int((uniq["label"] == 0).sum())
+        k = min(cfg.THRESHOLDS["cv_folds"], pos, neg)
+        folds_map = None
+        if k >= 2:
+            uniq["patient_event"] = (uniq["label"] > 0).astype(int)
+            folds_uniq = patient_folds(uniq, k, seed)
+            pid_to_row = {pid: i for i, pid in enumerate(uniq["patient_id"])}
+            folds_map = folds_uniq[sset["patient_id"].map(pid_to_row).to_numpy()]
+        for key, rule in zip(keys, rules):
+            ev, tot = _support(sset, rule)
+            if ev < cfg.THRESHOLDS["rule_event_support_min"] or tot < cfg.THRESHOLDS["rule_total_support_min"]:
+                continue                                # 支持度不足 → 该样本未重新发现
+            if folds_map is None:
+                continue
+            val_lifts = []
+            for j in range(k):
+                va = folds_map == j
+                if va.sum() == 0:
+                    continue
+                l = _lift(sset.loc[va], rule)
+                if np.isfinite(l):
+                    val_lifts.append(l)
+            if val_lifts:
+                per_sample[key].append(float(np.mean(val_lifts)))
+    out = {}
+    for k in keys:
+        vals = per_sample[k]
+        out[k] = "CI 未估计" if len(vals) < 2 else \
+            (float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5)))
+    return out
+
+
 def mine_rules(subset, n_repeats, seeds):
     # 规则发现/验证/CI 只用可评估确认 landmark（排除 unobservable，避免事后信息/不可评估样本泄漏）
     subset = subset[~subset["unobservable"]].reset_index(drop=True)
@@ -254,18 +315,25 @@ def mine_rules(subset, n_repeats, seeds):
             selection[key] = selection.get(key, 0) + 1
             lifts.setdefault(key, []).extend(vals)
 
+    # v5.29：selection 门槛 = **全部重复发现**（0.5 在 n_repeats=2 下 = 出现 ≥1 次——
+    # 各 seed 的 SHAP 分位切点漂移使"seed 偶发规则"泛滥（实测 5333 条输出），
+    # 全部重复符合"跨重复稳定性"设计意图；R1/R2 标准的网格候选跨 seed 固定 ✓）
+    keys_out = [key for key, pts in lifts.items() if selection[key] >= n_repeats]
+    # v5.29：批量规则 CI（共享重采样 + 直接支持度判定，见 _rules_bootstrap_ci docstring）
+    ci_map = _rules_bootstrap_ci(
+        subset,
+        [MinedRule(tuple(MinedCondition(i, op, float(v), lb) for i, op, v, lb in key),
+                   horizon, max(lb for _, _, _, lb in key), 0) for key in keys_out],
+        b=12, seed=seeds[0])
     rules_out = []
-    for key, pts in lifts.items():
-        if selection[key] / n_repeats < 0.5:
-            continue
+    for key in keys_out:
         conds = tuple(MinedCondition(i, op, float(v), lb) for i, op, v, lb in key)
         rule = MinedRule(conditions=conds, horizon_windows=horizon,
                          lookback=max(c.lookback for c in conds), lag=0)
         ev, tot = _support(subset, rule)
-        ci = _rule_bootstrap_ci(subset, rule, b=12, seed=seeds[0])   # v5.29：b 50→12（Bootstrap 重跑完整发现，b 线性放大成本；数值区间契约保持）
         rules_out.append(MinedRule(conditions=conds, horizon_windows=horizon,
                                    lookback=rule.lookback, lag=rule.lag,
                                    event_support=ev, total_support=tot,
-                                   lift_median=float(np.median(pts)),
-                                   selection_frequency=selection[key] / n_repeats, ci=ci))
+                                   lift_median=float(np.median(lifts[key])),
+                                   selection_frequency=selection[key] / n_repeats, ci=ci_map[key]))
     return {"rules": rules_out, "selection_frequency": selection}

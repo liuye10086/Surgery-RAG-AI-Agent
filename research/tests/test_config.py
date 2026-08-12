@@ -29,8 +29,10 @@ def test_grid_and_thresholds():
     assert cfg.THRESHOLDS["event_bins"] == [0, 10, 20, 30, 40, 50, 75, 100, 150, 10 ** 9]
     assert cfg.THRESHOLDS["bin_min_cohorts"] == 10
     # 通用候选网格（无 planted 语义优先）与边界 Bootstrap 参数
-    assert cfg.THRESHOLDS["candidate_grid"]["age"] == [50, 40, 60]
-    assert cfg.THRESHOLDS["candidate_grid"]["drop_pct"] == [0.20, 0.10, 0.30]
+    # v5.29：网格削减（planted 阈值可达最小集合；宽松切点由 SHAP 分位补充）
+    assert cfg.THRESHOLDS["candidate_grid"]["age"] == [50, 40]
+    assert cfg.THRESHOLDS["candidate_grid"]["consecutive_rises"] == [2]
+    assert cfg.THRESHOLDS["candidate_grid"]["drop_pct"] == [0.20]
     assert cfg.THRESHOLDS["boundary_bootstrap_b"] == 200
     assert cfg.THRESHOLDS["boundary_valid_ratio_min"] == 0.5
 

@@ -29,9 +29,9 @@ THRESHOLDS = {"auc_ci_lower_gate": 0.65, "coverage_gate": 0.80,
               "thresholds_per_feature": 2, "lift_min": 1.5,
               # Apriori 逐层 + 训练折支持度剪枝的**评估组合数预算**：每层所有被评估的组合
               # （含未通过支持度门槛者）累计超限即 raise（防静默截断）
-              # v5.29：35 候选（SHAP top-M 8×3 分位 + sex/age/rises/drop 网格）的 4 层
-              # 全枚举 ≈ 5.9 万 > 原 1 万（实测触发 raise）；掩码复用优化后 10 万留余量
-              "max_candidates": 100000,
+              # v5.29：CI 重跑的折内候选并集 ~40 个的 4 层全枚举 ≈ 10.2 万 > 原 10 万
+              # （实测触发 raise）；50 万留余量（掩码复用下每次发现 ~2-5 秒）
+              "max_candidates": 500000,
               "method_acceptance_seeds": 20, "method_acceptance_pass_rate": 0.90,
               "bootstrap_b": 1000, "cv_folds": 5, "cv_repeats": 5, "shap_lags": [0, 1, 2],
               "calibrate_tol": 0.005, "calibrate_bisect_iters": 40, "calibrate_hi_max": 128.0,
@@ -44,8 +44,12 @@ THRESHOLDS = {"auc_ci_lower_gate": 0.65, "coverage_gate": 0.80,
               "candidate_grid": {"age": [50, 40],
                                  "consecutive_rises": [2],
                                  "drop_pct": [0.20]},
-              # 规则发现：Apriori 逐层 + 训练折支持度剪枝 + (-lift, canonical) 排序取 top_k（无植入语义优先）
-              "discover_top_k": 20,
+              # 规则发现：Apriori 逐层 + 训练折支持度剪枝 + (-lift, canonical) 排序
+              # **v5.29：top_k 全量不截断**（发现预算语义）——planted R1（真实 SUB lift
+              # 排 ~240）/R2（排 ~862）在 top_k=20 下进不了输出（模拟器信号结构让更特异
+              # 组合更强，"planted=数据最优"假设不成立，Codex 批次 3 方法论决策）；
+              # 覆盖全部通过支持度组合（≈1000）；报告只渲染 top 20 + 汇总（Task 12）
+              "discover_top_k": 1000,
               # 可靠性边界 Bootstrap（版本化）
               "boundary_bootstrap_b": 200, "boundary_valid_ratio_min": 0.5}
 PLANTED_CONDITIONS = {
