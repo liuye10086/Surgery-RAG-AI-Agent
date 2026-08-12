@@ -82,6 +82,12 @@ def lead_lag_analysis(patients, obs):
     prog = _observed_progressors(patients)
     matched = _risk_set_match(patients, prog)          # 匹配对照（§7.1，参与偏离比较）
     unmatched_rate = 1 - len(matched) / max(len(prog), 1)
+    # v5.29（Codex 二轮 P1-3）：**路径级 unmatched**（规格 §10"该路径组进展者总数"；
+    # 全局比例会被其他路径组稀释）——每组进展者中未匹配比例
+    unmatched_by_group = {}
+    for grp in ("r1_only", "r2_only", "r1_and_r2"):
+        gids = set(prog[prog["group"] == grp]["patient_id"])
+        unmatched_by_group[grp] = 1 - len(gids & set(matched)) / max(len(gids), 1)
 
     # 每指标可分析患者（§10 口径）：**该指标相关路径组**进展者中、**有匹配合格对照**且
     # 有限首偏的唯一患者（不是所有观察进展者）——门槛与 §10 第 3 条一致
@@ -94,34 +100,40 @@ def lead_lag_analysis(patients, obs):
         gids = set(prog[prog["group"].isin(grps)]["patient_id"]) & set(matched)
         per_indicator_n[ind] = len({pid for pid in gids if pid in dev_by_ind[ind]})
 
+    # v5.29（Codex 二轮 P1-4）：per_path/order 汇总**相对事件的提前量**（ev − 首偏），
+    # 不混合不同 event_window 的绝对窗口（规格 §7.1 对齐事件零点逐窗回溯）
+    prog_event = dict(zip(prog["patient_id"], prog["event_window"]))
     per_path = {}
     for grp, inds in (("r1_only", ("PLT", "HbA1c")), ("r2_only", ("AFP",)),
                       ("r1_and_r2", ("PLT", "HbA1c", "AFP"))):
-        # v5.29（Codex 批次 3 P1-5）：per_path 只统计**有匹配合格对照**的进展者
-        # （与 control_delta 同分析集；规格 §7.1 进展组与匹配对照比较）
+        # 只统计**有匹配合格对照**的进展者（与 control_delta 同分析集；规格 §7.1）
         gids = set(prog[prog["group"] == grp]["patient_id"]) & set(matched)
         per_path[grp] = {}
         for ind in inds:
-            rows = [(pid, v) for pid, v in dev_by_ind[ind].items() if pid in gids]
+            rows = [(pid, prog_event[pid] - v) for pid, v in dev_by_ind[ind].items()
+                    if pid in gids and pid in prog_event]          # 相对 lead（提前窗数）
             if rows:
-                frame = pd.DataFrame(rows, columns=["patient_id", "first_dev"])
+                frame = pd.DataFrame(rows, columns=["patient_id", "lead"])
                 per_path[grp][ind] = {
-                    "median": float(np.median(frame["first_dev"])),
-                    "ci": patient_bootstrap_ci(frame, lambda d: np.median(d["first_dev"]), b=200, seed=0),
+                    "median": float(np.median(frame["lead"])),
+                    "ci": patient_bootstrap_ci(frame, lambda d: np.median(d["lead"]), b=200, seed=0),
                 }
             else:
                 per_path[grp][ind] = {"median": np.nan, "ci": (np.nan, np.nan)}
 
     inter = prog[prog["group"] == "r1_and_r2"]
     n_inter = int(inter["patient_id"].nunique())
-    # 逐患者比较：afp_dev vs 该患者 min(plt_dev, hba1c_dev)（真实破平）
+    # 逐患者比较（真实破平）：afp lead vs 该患者 min(plt, hba1c) lead——**仅匹配对照
+    # 的进展者**（Codex 二轮 P1-3：order 与 per_path/control_delta 同分析集）
     pairs = []
     for _, p in inter.iterrows():
         pid = p["patient_id"]
+        if pid not in matched or pid not in prog_event:
+            continue
         e = np.nanmin([dev_by_ind["PLT"].get(pid, np.nan), dev_by_ind["HbA1c"].get(pid, np.nan)])
         a = dev_by_ind["AFP"].get(pid, np.nan)
         if np.isfinite(e) and np.isfinite(a):
-            pairs.append((pid, e, a))
+            pairs.append((pid, prog_event[pid] - e, prog_event[pid] - a))   # 相对 lead
     early_med = float(np.median([e for _, e, _ in pairs])) if pairs else np.nan
     afp_med = float(np.median([a for _, _, a in pairs])) if pairs else np.nan
 
@@ -129,9 +141,10 @@ def lead_lag_analysis(patients, obs):
     tiebreak = 0
     tol = 1
     if pairs:
-        n_afp_later = sum(1 for _, e, a in pairs if a > e + tol)
-        n_afp_earlier = sum(1 for _, e, a in pairs if a <= e + tol)
-        afp_after_early = afp_med > early_med + tol
+        # v5.29 相对口径：lead 大 = 更早（距事件提前窗数多）→ AFP 后行 = lead 更小
+        n_afp_later = sum(1 for _, e, a in pairs if a < e - tol)
+        n_afp_earlier = sum(1 for _, e, a in pairs if a >= e - tol)
+        afp_after_early = afp_med < early_med - tol
         if not afp_after_early:
             tiebreak = n_afp_later - n_afp_earlier
             afp_after_early = tiebreak >= 0
@@ -139,16 +152,22 @@ def lead_lag_analysis(patients, obs):
     # 匹配对照比较（§7.1）：进展者 vs 对照 首偏中位数差（进展者应更早 → 差为负）
     # 对照无事件窗口 → 用匹配进展者的事件时间作显式 cutoff（伪零点）；
     # 对照在 cutoff 内无偏离 → 取 cutoff 端点（"未更早偏离"），保证 control_delta 有限
-    prog_event = dict(zip(prog["patient_id"], prog["event_window"]))
+    # 指标-路径组绑定（§10：PLT/HbA1c → r1 系、AFP → r2 系；Codex 二轮 P1-3：
+    # 未限制时 AFP 会含 R1-only（无 AFP 信号的噪声首偏）、PLT/HbA1c 会含 R2-only）
+    ind_paths_flat = {"PLT": {"r1_only", "r1_and_r2"}, "HbA1c": {"r1_only", "r1_and_r2"},
+                      "AFP": {"r2_only", "r1_and_r2"}}
     control_delta, control_delta_ci = {}, {}
     for ind in ("PLT", "HbA1c", "AFP"):
         # **配对差异**（v5.29，Codex 批次 3 P2-1）：每进展者 fd − 其匹配对照 ctrl
-        # （对照无偏离 → cutoff 端点"未更早偏离"）→ 患者级 Bootstrap CI
+        # （对照无偏离 → cutoff 端点"未更早偏离"；配对差已按事件零点对齐——同对同基准）
         pairs = []
         for pid, fd in dev_by_ind[ind].items():
             cpid = matched.get(pid)
             if cpid is None or pid not in prog_event:
                 continue
+            grp = prog.loc[prog["patient_id"] == pid, "group"]
+            if len(grp) == 0 or grp.iloc[0] not in ind_paths_flat[ind]:
+                continue                                    # 非该指标相关路径组
             cutoff_w = prog_event[pid]
             ctrl = _first_dev_by_patient(patients[patients["patient_id"] == cpid], obs, ind, sigma[ind],
                                          cutoff=cutoff_w).get(cpid, cutoff_w)   # 无偏离 → cutoff 端点
@@ -164,7 +183,7 @@ def lead_lag_analysis(patients, obs):
             control_delta_ci[ind] = (np.nan, np.nan)
 
     not_estimable = (n_inter < cfg.THRESHOLDS["r1r2_intersection_min"]
-                     or unmatched_rate > cfg.THRESHOLDS["unmatched_max"]
+                     or max(unmatched_by_group.values()) > cfg.THRESHOLDS["unmatched_max"]
                      or any(per_indicator_n.get(i, 0) < cfg.THRESHOLDS["per_indicator_ll_min"]
                             for i in ("PLT", "HbA1c", "AFP")))
     return {"per_path": per_path,
@@ -175,7 +194,9 @@ def lead_lag_analysis(patients, obs):
             "control_delta": control_delta,
             "control_delta_ci": control_delta_ci,     # v5.29：配对差异的患者级 Bootstrap CI（§7.1）
             "per_indicator_n": per_indicator_n, "n_intersection": n_inter,
-            "unmatched_rate": unmatched_rate, "not_estimable": not_estimable}
+            "unmatched_rate": unmatched_rate,
+            "unmatched_by_group": unmatched_by_group,   # v5.29：路径级 unmatched（§10）
+            "not_estimable": not_estimable}
 
 
 def lag_shap_analysis(landmarks, clf, lags):

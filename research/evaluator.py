@@ -48,18 +48,24 @@ def full_hit(rule, planted_rule) -> bool:
 
 
 def partial_hit(rule, planted_rule) -> bool:
-    """挖掘条件集在 typed 容差下是植入条件集的非空真子集。"""
+    """挖掘条件集在 typed 容差下是植入条件集的非空真子集。
+    v5.29（Codex 批次 3 二轮 P2-1）：**每个 mined 条件都必须匹配 planted 某条件**
+    ——含无关条件（如 R1.sex + AFP 条件）→ 非真子集 → False。"""
     if not rule.conditions:
         return False
     planted = list(planted_rule.conditions)
     matched_planted = set()
     for mc in rule.conditions:
+        found = False
         for j, pc in enumerate(planted):
             if j in matched_planted:
                 continue
             if typed_match(mc, pc):
                 matched_planted.add(j)
+                found = True
                 break
+        if not found:
+            return False                    # 无关条件 → 非 planted 真子集
     return 0 < len(matched_planted) < len(planted)
 
 

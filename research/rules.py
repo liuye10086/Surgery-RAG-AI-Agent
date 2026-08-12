@@ -124,9 +124,12 @@ def _hits(subset, rule):
 def _support(subset, rule):
     """事件/总支持按**唯一患者**计数（v5.29，Codex 批次 3 P1-2：规格 §5.5/§8.1
     每患者一次确认 landmark；Bootstrap 重采样保留重复患者行，行级计数会重复计）。
-    原始 SUB/训练折每患者 1 行 → 与行级等价；重采样集 → 唯一患者去重。"""
+    原始 SUB/训练折每患者 1 行 → 行级快速路径（is_unique 检查）；重采样集 → 去重。
+    （性能：b=1000 × 规则数 × 折数的 CI 下 nunique 哈希成本显著，快速路径必需）"""
     hit = _hits(subset, rule)
     hit_df = subset.loc[hit]
+    if hit_df["patient_id"].is_unique:                 # 每患者 1 行 → 行级等价
+        return int((hit_df["label"] > 0).sum()), len(hit_df)
     ev = int(hit_df.loc[hit_df["label"] > 0, "patient_id"].nunique())
     tot = int(hit_df["patient_id"].nunique())
     return ev, tot
@@ -137,6 +140,9 @@ def _lift(subset, rule):
     hit = _hits(subset, rule)
     if hit.sum() == 0:
         return 0.0
+    if subset["patient_id"].is_unique:                 # 每患者 1 行 → 行级快速路径
+        base = subset["label"].mean()
+        return subset.loc[hit, "label"].mean() / base if base > 0 else 0.0
     hit_ids = subset.loc[hit, "patient_id"].unique()
     hit_pos = int(subset.loc[hit & (subset["label"] > 0), "patient_id"].nunique())
     base_pos = int(subset.loc[subset["label"] > 0, "patient_id"].nunique())
@@ -201,7 +207,10 @@ def _discover_frozen(subset, seed, horizon_windows, cands=None):
                              lookback=max(c.lookback for c in combo), lag=0)
             if _canonical_rule(rule) in seen_rules:
                 continue
-            ev, tot = int(subset.loc[mask, "label"].sum()), int(mask.sum())
+            # v5.29（Codex 二轮 P1-1）：发现流程支持度也按**唯一患者**（规格 §5.5/§8.1；
+            # 原始 SUB/训练折每患者 1 行与行级等价，重采样子集则须去重）
+            ev = int(subset.loc[mask & (subset["label"] > 0), "patient_id"].nunique())
+            tot = int(subset.loc[mask, "patient_id"].nunique())
             if ev >= cfg.THRESHOLDS["rule_event_support_min"] and tot >= cfg.THRESHOLDS["rule_total_support_min"]:
                 seen_rules.add(_canonical_rule(rule))
                 rules.append(rule)
@@ -267,22 +276,60 @@ def _rule_bootstrap_ci(subset, rule, b=50, seed=0):
     return float(np.percentile(lifts, 2.5)), float(np.percentile(lifts, 97.5))
 
 
+def _cond_col(c):
+    """条件 → 特征列（_rules_bootstrap_ci numpy 内核用；与 _hits 语义一致）。"""
+    if c.op == "eq":
+        return "sex_male"
+    if c.op == "consecutive_rises":
+        return f"{c.indicator}_rises"
+    if c.op == "drop_pct":
+        return f"{c.indicator}_drop_pct"
+    return "age" if c.indicator == "age" else f"{c.indicator}_cur"
+
+
 def _rules_bootstrap_ci(subset, rules, b=12, seed=0):
     """**批量规则 CI（v5.29 重构）**：同一批患者重采样共享——每样本直接判定
     每条输出规则（**不重跑组合枚举发现**）：
-    - **"重新发现" = 规则在重采样集上支持度 ≥ 门槛**（`_support` 直接判定）——
-      固定切点下与"重跑发现 + 该规则出现"**数学等价**（发现枚举所有通过组合）；
-      折内候选并集的 10.2 万组合/次 × 5 折 × b 次在 CI 放大下不可行（实测 10+ 分钟），
-      直接判定 ~1 秒（176 规则 × 掩码）；
-    - **折外验证**：重采样集上按患者分折，验证折的 lift 均值（与 `_fold_discover_validate`
-      同机制）；
-    - 未重新发现（支持度不足）/有效 <2 → 该规则 "CI 未估计"。
-    语义 = "规则强度（验证 lift）在患者重采样人群中的分布"（计划 CI 契约）。"""
+    - **"重新发现" = 规则在重采样集上支持度 ≥ 门槛**（固定切点下与"重跑发现 +
+      该规则出现"数学等价——发现枚举所有通过组合）；
+    - **折内发现判定**（Codex 批次 3 P1-1）：规则须在该**训练折**上支持度 ≥ 门槛
+      （全体样本达标 ≠ 每训练折达标，如规则 ev=5 但某折无事件）；
+    - **折外验证**：验证折 lift 均值（与 _fold_discover_validate 同机制）；
+    - 未重新发现/有效 <2 → 该规则 "CI 未估计"。
+    **v5.29 numpy 内核**：每样本一次特征矩阵提取、规则掩码列比较向量化
+    （pandas 逐规则开销在 b=1000 × 规则 × 折 下实测 653s/CI 不可行）；
+    **先按患者去重**——唯一患者口径支持度 ≡ 去重后行级支持度（严格等价）。"""
     samples = patient_bootstrap_samples(subset["patient_id"].to_numpy(), b, seed)
     keys = [_canonical_rule(r) for r in rules]
     per_sample = {k: [] for k in keys}
+    # 预提取特征列索引（所有规则用；索引 = X（col_names 子集）内的位置）
+    col_names = []
+    for r in rules:
+        for c in r.conditions:
+            col = _cond_col(c)
+            if col not in col_names:
+                col_names.append(col)
+    cols_needed = {col: i for i, col in enumerate(col_names)}
+
+    def rule_mask(X, rule):
+        mask = np.ones(len(X), dtype=bool)
+        for c in rule.conditions:
+            arr = X[:, cols_needed[_cond_col(c)]]
+            if c.op == "eq":
+                mask &= (arr == int(c.value))
+            elif c.op == "consecutive_rises":
+                mask &= (arr >= c.value)
+            elif c.op == "drop_pct":
+                mask &= (arr <= -c.value)
+            else:
+                mask &= (arr > c.value)
+        return mask
+
     for s in samples:
         sset = resample_rows(subset, s).reset_index(drop=True)
+        sset = sset.drop_duplicates("patient_id").reset_index(drop=True)
+        X = sset[col_names].to_numpy() if col_names else np.empty((len(sset), 0))
+        y = sset["label"].to_numpy()
         # 患者折（折内发现→折外验证；与 _fold_discover_validate 同机制）
         uniq = sset.groupby("patient_id")["label"].max().reset_index()
         pos = int((uniq["label"] > 0).sum())
@@ -294,18 +341,22 @@ def _rules_bootstrap_ci(subset, rules, b=12, seed=0):
         folds_uniq = patient_folds(uniq, k, seed)
         pid_to_row = {pid: i for i, pid in enumerate(uniq["patient_id"])}
         folds_map = folds_uniq[sset["patient_id"].map(pid_to_row).to_numpy()]
+        base_pos = int((y > 0).sum())
+        base_tot = len(y)
         for key, rule in zip(keys, rules):
             val_lifts = []
             for j in range(k):
                 tr, va = folds_map != j, folds_map == j
-                # **折内发现判定**（Codex 批次 3 P1-1）：规则须在该**训练折**上支持度
-                # ≥ 门槛（与"重跑折内发现"等价——固定切点下发现 = 训练折门槛；
-                # 全体样本达标 ≠ 每训练折达标，如规则 ev=5 但某折无事件）
-                ev_tr, tot_tr = _support(sset.loc[tr], rule)
+                m_tr = rule_mask(X[tr], rule)
+                ev_tr = int((m_tr & (y[tr] > 0)).sum())
+                tot_tr = int(m_tr.sum())
                 if ev_tr < cfg.THRESHOLDS["rule_event_support_min"] \
                         or tot_tr < cfg.THRESHOLDS["rule_total_support_min"]:
                     continue
-                l = _lift(sset.loc[va], rule)
+                m_va = rule_mask(X[va], rule)
+                if m_va.sum() == 0 or base_pos == 0:
+                    continue
+                l = float(y[va][m_va].mean()) / (base_pos / base_tot)
                 if np.isfinite(l):
                     val_lifts.append(l)
             if val_lifts:
@@ -316,6 +367,13 @@ def _rules_bootstrap_ci(subset, rules, b=12, seed=0):
         out[k] = "CI 未估计" if len(vals) < 2 else \
             (float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5)))
     return out
+
+
+def _rule_from_key(key, horizon):
+    """canonical 键 → MinedRule（独立函数：listcomp 嵌套 genexpr 引用外层循环
+    变量 `key` 在部分 Python 版本解析异常（'got 1'），函数内拆包稳定）。"""
+    conds = tuple(MinedCondition(i, op, float(v), lb) for i, op, v, lb in key)
+    return MinedRule(conds, horizon, max(c.lookback for c in conds), 0)
 
 
 def mine_rules(subset, n_repeats, seeds):
@@ -330,6 +388,11 @@ def mine_rules(subset, n_repeats, seeds):
     for seed in seeds:
         disc = _fold_discover_validate(subset, seed, horizon)
         for key, vals in disc.items():
+            # v5.29（Codex 二轮 P1-2）：**折级共识**——该 seed 内 ≥2 折发现才计为
+            # 该重复的一次发现（单折偶发不计；"任一折发现即计数"会让规则在一个
+            # 训练折偶然发现就进入 selection，替代规格 §8.1 重复内共识）
+            if len(vals) < 2:
+                continue
             selection[key] = selection.get(key, 0) + 1
             lifts.setdefault(key, []).extend(vals)
 
@@ -337,17 +400,16 @@ def mine_rules(subset, n_repeats, seeds):
     # 各 seed 的 SHAP 分位切点漂移使"seed 偶发规则"泛滥（实测 5333 条输出），
     # 全部重复符合"跨重复稳定性"设计意图；R1/R2 标准的网格候选跨 seed 固定 ✓）
     keys_out = [key for key, pts in lifts.items() if selection[key] >= n_repeats]
-    # v5.29：批量规则 CI（共享重采样 + 直接支持度判定，见 _rules_bootstrap_ci docstring）
+    # v5.29：批量规则 CI（共享重采样 + 直接支持度判定，见 _rules_bootstrap_ci docstring；
+    # b = 版本化 bootstrap_b（1000）——12 次重采样的 2.5/97.5 分位由极值决定，CI 不稳定）
     ci_map = _rules_bootstrap_ci(
         subset,
-        [MinedRule(tuple(MinedCondition(i, op, float(v), lb) for i, op, v, lb in key),
-                   horizon, max(lb for _, _, _, lb in key), 0) for key in keys_out],
-        b=12, seed=seeds[0])
+        [_rule_from_key(key, horizon) for key in keys_out],
+        b=cfg.THRESHOLDS["bootstrap_b"], seed=seeds[0])
     rules_out = []
     for key in keys_out:
         conds = tuple(MinedCondition(i, op, float(v), lb) for i, op, v, lb in key)
-        rule = MinedRule(conditions=conds, horizon_windows=horizon,
-                         lookback=max(c.lookback for c in conds), lag=0)
+        rule = _rule_from_key(key, horizon)
         ev, tot = _support(subset, rule)
         rules_out.append(MinedRule(conditions=conds, horizon_windows=horizon,
                                    lookback=rule.lookback, lag=rule.lag,

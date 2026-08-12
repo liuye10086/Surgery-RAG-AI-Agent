@@ -193,6 +193,25 @@ def test_candidate_stability_across_seeds():
         assert c in c1 and c in c2, c
     assert len(c1 & c2) >= 0.4 * min(len(c1), len(c2)), (len(c1), len(c2))
 
+def test_selection_requires_fold_consensus(monkeypatch):
+    """折级共识（Codex 批次 3 二轮 P1-2）：单折偶发规则不计入 selection——
+    "任一折发现即计数"会让规则在一个训练折偶然发现就进入该重复（替代 §8.1 共识）。"""
+    import pandas as pd
+    import rules as rules_mod
+    # 手工 disc：键 A 单折（1 个 lift）、键 B 两折（2 个 lift）——A 不计 selection
+    # （canonical 键格式 = 4 元组的元组，同 _canonical_rule；条件用 fixture 真实列）
+    fake = {(("sex", "eq", 1.0, 1),): [1.0],
+            (("HbA1c", "consecutive_rises", 2.0, 2),): [1.0, 2.0]}
+    monkeypatch.setattr(rules_mod, "_fold_discover_validate", lambda *a, **k: fake)
+    sub = pd.DataFrame({"patient_id": [0, 1], "label": [1, 0], "sex_male": [1, 0],
+                        "age": [55, 30], "unobservable": [False, False],
+                        "HbA1c_rises": [2, 0], "PLT_drop_pct": [-0.25, 0.0],
+                        "AFP_rises": [0, 0], "admin_end": [8, 8]})
+    sub.attrs["horizon_windows"] = 4
+    res = rules_mod.mine_rules(sub, 1, [1])
+    assert (("sex", "eq", 1.0, 1),) not in res["selection_frequency"]     # 单折偶发不计
+    assert (("HbA1c", "consecutive_rises", 2.0, 2),) in res["selection_frequency"]
+
 def test_rule_ci_failure_mode():
     # 确定性失败契约：唯一正例重复抽中 → 全部样本无效 → **必然** "CI 未估计"
     # （不允许 tuple 兜底模糊——用确定性 fixture 验证失败路径，而非"小样本可退化"）

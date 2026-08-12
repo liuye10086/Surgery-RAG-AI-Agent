@@ -60,6 +60,18 @@ def test_evaluate_instance_level_uses_only_r1r2_rules():
     # coverage 必须含 r1/r2 键（不接受 get(..., 0) 静默缺失）
     assert "r1" in res["coverage"] and "r2" in res["coverage"]
 
+def test_partial_hit_rejects_unrelated_condition():
+    """部分命中排除无关条件（Codex 批次 3 二轮 P2-1）：R1 条件 + 无关 AFP 条件
+    → mined 条件集不是 planted 真子集 → False。"""
+    r1 = PR.r1
+    full = _full_rule(r1)
+    unrelated = MinedCondition("AFP", "consecutive_rises", 2.0, lookback=2)
+    mixed = MinedRule(full.conditions[:2] + (unrelated,),
+                      r1.horizon_windows, r1.lookback, r1.lag)
+    assert partial_hit(mixed, r1) is False
+    # 对照：纯 planted 子集仍 True
+    assert partial_hit(MinedRule(full.conditions[:2], r1.horizon_windows, r1.lookback, r1.lag), r1) is True
+
 def test_partial_hit_count_tolerance():
     r1 = PR.r1
     full = _full_rule(r1)
