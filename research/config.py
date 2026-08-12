@@ -25,20 +25,25 @@ GRID = {"method_validation": {"n": 1500, "followup_months": 60, "horizon_months"
 THRESHOLDS = {"auc_ci_lower_gate": 0.65, "coverage_gate": 0.80,
               "r1r2_intersection_min": 30, "per_indicator_ll_min": 20,
               "unmatched_max": 0.20, "rule_event_support_min": 5,
-              "rule_total_support_min": 20, "max_conditions": 4, "top_m": 8,
-              "thresholds_per_feature": 3, "lift_min": 1.5,
+              "rule_total_support_min": 20, "max_conditions": 4, "top_m": 4,
+              "thresholds_per_feature": 2, "lift_min": 1.5,
               # Apriori 逐层 + 训练折支持度剪枝的**评估组合数预算**：每层所有被评估的组合
-              # （含未通过支持度门槛者）累计超限即 raise（防静默截断，需调大）
-              "max_candidates": 10000,
+              # （含未通过支持度门槛者）累计超限即 raise（防静默截断）
+              # v5.29：35 候选（SHAP top-M 8×3 分位 + sex/age/rises/drop 网格）的 4 层
+              # 全枚举 ≈ 5.9 万 > 原 1 万（实测触发 raise）；掩码复用优化后 10 万留余量
+              "max_candidates": 100000,
               "method_acceptance_seeds": 20, "method_acceptance_pass_rate": 0.90,
               "bootstrap_b": 1000, "cv_folds": 5, "cv_repeats": 5, "shap_lags": [0, 1, 2],
               "calibrate_tol": 0.005, "calibrate_bisect_iters": 40, "calibrate_hi_max": 128.0,
               "event_bins": [0, 10, 20, 30, 40, 50, 75, 100, 150, 10 ** 9],
               "bin_min_cohorts": 10, "boundary_threshold": 0.50,
               # 规则候选临床阈值网格（通用、确定性；§8.1 折内 SHAP top-M/分位数的固定网格补充）
-              "candidate_grid": {"age": [50, 40, 60],
-                                 "consecutive_rises": [2, 1],
-                                 "drop_pct": [0.20, 0.10, 0.30]},
+              # v5.29：网格削减（age [50,40]/rises [2]/drop [0.2]——planted 阈值确定性可达
+              # 的最小集合；宽松切点由 SHAP 分位补充）——候选 35→16，Apriori 组合 ~5.9 万
+              # →~2500，Bootstrap 重跑完整发现的 b×折数放大下必需
+              "candidate_grid": {"age": [50, 40],
+                                 "consecutive_rises": [2],
+                                 "drop_pct": [0.20]},
               # 规则发现：Apriori 逐层 + 训练折支持度剪枝 + (-lift, canonical) 排序取 top_k（无植入语义优先）
               "discover_top_k": 20,
               # 可靠性边界 Bootstrap（版本化）

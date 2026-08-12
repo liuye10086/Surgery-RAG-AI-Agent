@@ -1,0 +1,233 @@
+import numpy as np
+import pytest
+import config as cfg
+from simulate_cohort import simulate
+from features import confirmation_subset
+from rules import (mine_rules, MinedCondition, MinedRule, _candidate_conditions,
+                   _fold_discover_validate, _rule_bootstrap_ci,
+                   _discover_frozen, _canonical_rule, _lift, _support, _enumerate_combos, _hits)
+
+OUT = simulate(n=1500, followup_months=60, horizon_months=24, seed=6)
+SUB = confirmation_subset(OUT["patients"], OUT["obs"], horizon_windows=4)
+
+# v5.29：SUB 上的 mine_rules 重测试标 slow（Bootstrap CI 对每条规则重跑完整发现——
+# 规则数 × b × 折数的本质成本；计划 pytest.ini 的 slow 分层，Task 14 同款）。
+# 验收时显式 `pytest -m slow` 一次性运行。
+
+def test_no_planted_rules():
+    import inspect
+    assert "planted_rules" not in inspect.signature(mine_rules).parameters
+
+def test_candidates_standard_include_age():
+    cands = _candidate_conditions(SUB, seed=1)   # 折内 SHAP top-M + 分位数 + 固定临床网格
+    ops = {c.op for c in cands}
+    assert {"eq", "gt", "consecutive_rises", "drop_pct"} <= ops
+    assert any(c.indicator == "age" and c.op == "gt" for c in cands)
+    assert all(isinstance(c.value, float) for c in cands)   # 数值保类型
+
+def test_candidate_contract():
+    cands = _candidate_conditions(SUB, seed=1)
+    # 1) 元数据/派生特征排除：source_feature 不含 admin_end/*_d6m/*_d12m/*_slope
+    for c in cands:
+        if c.source_feature:
+            assert c.source_feature != "admin_end"
+            assert not c.source_feature.endswith(("_d6m", "_d12m", "_slope")), c.source_feature
+    # 2) drop_pct 值恒为正（下降幅度；_hits 用 <= -c.value，方向不得反转）
+    assert all(c.value > 0 for c in cands if c.op == "drop_pct")
+    # 3) sex 条件恒 eq（分位数/网格不得产生 sex gt）
+    assert all(c.op == "eq" for c in cands if c.indicator == "sex")
+    # 4) top-M 上限：SHAP 分位特征数 ≤ top_m，每特征切点数 ≤ thresholds_per_feature
+    #    （_cur 分位特征；固定网格的 rises/drop/age 另行计数）
+    from collections import Counter
+    cnt = Counter(c.source_feature for c in cands if c.source_feature)
+    quant_feats = {f for f in cnt if f.endswith("_cur")}
+    assert len(quant_feats) <= cfg.THRESHOLDS["top_m"], len(quant_feats)
+    for f in quant_feats:
+        assert cnt[f] <= cfg.THRESHOLDS["thresholds_per_feature"], (f, cnt[f])
+    # 5) 候选无重复（canonical 唯一）
+    keys = [(c.indicator, c.op, float(c.value), c.lookback) for c in cands]
+    assert len(keys) == len(set(keys))
+
+@pytest.mark.slow
+def test_mine_rules_returns_minedrule_with_real_ci():
+    res = mine_rules(SUB, 2, [1, 2])
+    for r in res["rules"]:
+        assert isinstance(r, MinedRule)
+        assert r.event_support >= 5 and r.total_support >= 20
+        assert r.selection_frequency > 0
+        # 大 N fixture（方法验证规模）下规则必须携带 Bootstrap CI（数值区间，非"CI 未估计"）
+        assert isinstance(r.ci, tuple) and r.ci[0] <= r.ci[1]
+
+@pytest.mark.slow
+def test_at_least_one_r1_and_r2_full_hit_rule():
+    """确定性：挖回规则包含与植入 R1/R2 标准语义精确一致的规则（drop_pct 比例单位 0.20）。"""
+    from rules import _canonical_rule, MinedCondition, MinedRule
+    from evaluator import full_hit
+    r1_std = MinedRule(tuple([
+        MinedCondition("sex", "eq", 1.0),
+        MinedCondition("age", "gt", 50.0),
+        MinedCondition("HbA1c", "consecutive_rises", 2.0, lookback=2),
+        MinedCondition("PLT", "drop_pct", 0.20),
+    ]), horizon_windows=4, lookback=2, lag=0)
+    r2_std = MinedRule(tuple([MinedCondition("AFP", "consecutive_rises", 2.0, lookback=2)]),
+                       horizon_windows=4, lookback=2, lag=0)
+    mined = mine_rules(SUB, 2, [1, 2])
+    keys = {_canonical_rule(r) for r in mined["rules"]}
+    assert _canonical_rule(r1_std) in keys
+    assert _canonical_rule(r2_std) in keys
+    # 直接对植入规律做 full_hit（含 horizon/lookback/lag + 类型化条件）
+    assert any(full_hit(r, OUT["planted_rules"].r1) for r in mined["rules"])
+    assert any(full_hit(r, OUT["planted_rules"].r2) for r in mined["rules"])
+
+def _unique_pos_neg_frame():
+    """确定性 fixture：唯一正例患者（重复 20 行）+ 唯一负例患者（重复 10 行）。
+    按行数正 20/负 10（旧实现会误判 k>=2），按唯一患者正 1/负 1 → 折数不足。"""
+    import pandas as pd
+    rows = ([{"patient_id": 0, "label": 1, "age": 55, "sex_male": 1,
+              "HbA1c_rises": 2, "PLT_drop_pct": -0.25, "AFP_rises": 0,
+              **{f"{i}_cur": 1.0 for i in cfg.INDICATORS}} for _ in range(20)]
+            + [{"patient_id": 1, "label": 0, "age": 30, "sex_male": 0,
+                "HbA1c_rises": 0, "PLT_drop_pct": 0.0, "AFP_rises": 0,
+                **{f"{i}_cur": 1.0 for i in cfg.INDICATORS}} for _ in range(10)])
+    sub = pd.DataFrame(rows)
+    sub.attrs["horizon_windows"] = 4
+    return sub
+
+def test_fold_validate_unique_patient_denominator():
+    # 唯一正例被 Bootstrap 重复抽中 → 按唯一患者仍仅 1 正例 → 折数不足 → 返回空
+    assert _fold_discover_validate(_unique_pos_neg_frame(), 1, 4) == {}
+
+def test_discover_no_duplicate_rules():
+    # Apriori 逐层 + seen_rules：重复候选（固定网格与分位候选可能重合）不得产生重复规则
+    rules = _discover_frozen(SUB, 1, 4)
+    keys = [_canonical_rule(r) for r in rules]
+    assert len(keys) == len(set(keys))
+
+def test_discover_budget_raises(monkeypatch):
+    # 预算保护按**评估的组合数**（含未通过支持度门槛的组合）——max_candidates 极小 → 显式 raise
+    monkeypatch.setitem(cfg.THRESHOLDS, "max_candidates", 5)
+    with pytest.raises(ValueError):
+        _discover_frozen(SUB, 1, 4)
+
+def test_discover_sorted_by_lift_then_canonical():
+    # 确定性契约：lift 降序主键 + canonical_rule 二级键（并列 lift 不依赖组合枚举顺序）
+    rules = _discover_frozen(SUB, 1, 4)
+    lifts = [_lift(SUB, r) for r in rules]
+    keys = [_canonical_rule(r) for r in rules]
+    assert lifts == sorted(lifts, reverse=True)                       # lift 非升
+    for i in range(len(rules) - 1):
+        if abs(lifts[i] - lifts[i + 1]) < 1e-12:
+            assert keys[i] <= keys[i + 1], (keys[i], keys[i + 1])     # 并列段内 canonical 升序
+    # 同输入两次运行逐位一致（枚举顺序无关）
+    again = _discover_frozen(SUB, 1, 4)
+    assert [_canonical_rule(r) for r in again] == keys
+
+def test_rule_ci_failure_mode():
+    # 确定性失败契约：唯一正例重复抽中 → 全部样本无效 → **必然** "CI 未估计"
+    # （不允许 tuple 兜底模糊——用确定性 fixture 验证失败路径，而非"小样本可退化"）
+    rule = MinedRule((MinedCondition("sex", "eq", 1.0),), 4, 1, 0)
+    ci = _rule_bootstrap_ci(_unique_pos_neg_frame(), rule, b=5, seed=0)
+    assert ci == "CI 未估计"
+
+def test_synthetic_fixture_discovers_r1_full_hit():
+    """确定性 synthetic fixture（不依赖模拟器）：**40 正例（满足 R1 四条件，唯一患者）+
+    20 确定性负例（不满足任何条件，唯一患者）+ 4 困难负例**——负例保证
+    `_fold_discover_validate` 折数可用；折内候选（SHAP top-M + 分位数 + 固定网格）→
+    **Apriori 逐层 + 支持度剪枝**（R1 四条件组合各层支持度均通过 → 必然被枚举）+
+    **(-lift, canonical) 排序**保证 R1 四条件组合（正例全命中、lift 唯一最高）确定性进入
+    top_k → full_hit 确定性成立。"""
+    from rules import mine_rules
+    from evaluator import full_hit
+    sub = _synthetic_fixture()
+    res = mine_rules(sub, 1, [1])
+    assert any(full_hit(r, OUT["planted_rules"].r1) for r in res["rules"])
+
+def test_synthetic_fixture_r1_rule_in_top_k():
+    # 验收 n_rules 依赖链：**R1 canonical 规则必须确定性进入 _discover_frozen 的 top_k**
+    # （"候选全集存在" ≠ "最终结果一定包含"——并列 lift 由 canonical 二级键稳定；
+    # 若规则未进 top-k，Task 14 验收的 n_rules/full_hit 前提即失败，本断言兜底）
+    from rules import _discover_frozen
+    disc = _discover_frozen(_synthetic_fixture(), 1, 4)
+    keys = {_canonical_rule(r) for r in disc}
+    r1_std = MinedRule(tuple([
+        MinedCondition("sex", "eq", 1.0), MinedCondition("age", "gt", 50.0),
+        MinedCondition("HbA1c", "consecutive_rises", 2.0, lookback=2),
+        MinedCondition("PLT", "drop_pct", 0.20),
+    ]), horizon_windows=4, lookback=2, lag=0)
+    assert _canonical_rule(r1_std) in keys
+
+def test_synthetic_fixture_r1_rule_is_unique_max_lift():
+    # R1 四条件组合是 lift **最高**的规则（困难负例覆盖论证的可执行证明）：
+    # 枚举全部候选组合（1..max_conditions，满足支持门槛）后，最大 lift 集合
+    # **包含 R1 标准**且**所有最大 lift 规则都与 R1 命中相同正例集**（等价变体）。
+    # v5.29：允许 SHAP 分位切点的**等价阈值变体并列**（fixture 的 PLT_drop 分位
+    # 全为 -0.25 → 切点 drop 0.25，与网格 0.20 命中相同正例集、lift 完全相同）——
+    # canonical 排序（0.20 < 0.25）保证 R1 标准仍在变体前、确定性进 top_k
+    # （test_synthetic_fixture_r1_rule_in_top_k 已断言）；"唯一"过强（分位切点
+    # 的合法产物），改为"包含 R1 + 全等价"。
+    sub = _synthetic_fixture()
+    cands = _candidate_conditions(sub, seed=1)
+    lifts = {}
+    for k in range(1, cfg.THRESHOLDS["max_conditions"] + 1):
+        for combo in _enumerate_combos(cands, k):
+            rule = MinedRule(tuple(combo), 4, max(c.lookback for c in combo), 0)
+            ev, tot = _support(sub, rule)
+            if ev >= cfg.THRESHOLDS["rule_event_support_min"] and tot >= cfg.THRESHOLDS["rule_total_support_min"]:
+                lifts[_canonical_rule(rule)] = _lift(sub, rule)
+    best = max(lifts.values())
+    max_keys = [k for k, v in lifts.items() if v == best]
+    r1_std = MinedRule(tuple([
+        MinedCondition("sex", "eq", 1.0), MinedCondition("age", "gt", 50.0),
+        MinedCondition("HbA1c", "consecutive_rises", 2.0, lookback=2),
+        MinedCondition("PLT", "drop_pct", 0.20),
+    ]), horizon_windows=4, lookback=2, lag=0)
+    assert _canonical_rule(r1_std) in max_keys          # 最大 lift 包含 R1 标准
+    # 所有最大 lift 规则命中同一正例集（与 R1 等价：困难负例覆盖论证的实质）
+    hits_r1 = _hits(sub, r1_std)
+    for k in max_keys:
+        rule = MinedRule(tuple(MinedCondition(i, op, float(v), lb) for i, op, v, lb in k),
+                         4, max(lb for _, _, _, lb in k), 0)
+        assert np.array_equal(_hits(sub, rule), hits_r1), k
+
+def _synthetic_fixture():
+    """40 正例（满足 R1 四条件，唯一患者）+ 20 简单负例（不满足任何条件）+
+    **4 个困难负例**（R1 四条件各缺一个，其余条件保持正例值）——确定性可发现 R1。
+
+    正例特征（age 55, sex_male 1, HbA1c_rises 2, PLT_drop_pct -0.25）同时蕴含宽松条件
+    age>40 / HbA1c_rises≥1 / PLT_drop≤-0.10，因此正例满足 7 个候选条件；
+    若无困难负例，这 7 个条件的 1–4 组合共 98 条 lift 并列最高，R1 四条件按 canonical 排序
+    约第 60 位，进不了 top_k=20。困难负例使**只有 R1 四条件组合是 lift 严格唯一最高**：
+    任意非 R1 组合至少缺一个 R1 条件（sex1/age50/HbA1c2/PLTdrop0.2），对应困难负例
+    恰好满足"除该条件外其余全部候选条件"→ 命中该组合且不命中 R1。恢复 Apriori 逐层 +
+    确定性排序的验证，**不引入 planted-rule 优先排序**。"""
+    import pandas as pd
+    rows = []
+    for i in range(40):                       # 正例：满足 R1 四条件
+        rows.append({
+            "patient_id": i, "window": 2, "age": 55, "sex_male": 1,
+            "group": "r1_only", "unobservable": False, "admin_end": 8, "label": 1,
+            "HbA1c_rises": 2, "PLT_drop_pct": -0.25, "AFP_rises": 0,
+            **{f"{ind}_cur": 1.0 for ind in cfg.INDICATORS},
+        })
+    for i in range(40, 60):                   # 简单负例：不满足任何条件
+        rows.append({
+            "patient_id": i, "window": 2, "age": 30, "sex_male": 0,
+            "group": "neither", "unobservable": False, "admin_end": 8, "label": 0,
+            "HbA1c_rises": 0, "PLT_drop_pct": 0.0, "AFP_rises": 0,
+            **{f"{ind}_cur": 1.0 for ind in cfg.INDICATORS},
+        })
+    # 困难负例：R1 四条件各缺一个（其余 = 正例值），覆盖所有非 R1 组合
+    hard = [(60, 55, 0, 2, -0.25),     # 缺 sex1
+            (61, 45, 1, 2, -0.25),     # 缺 age50（45 满足 age>40、不满足 >50）
+            (62, 55, 1, 1, -0.25),     # 缺 HbA1c_rises≥2（rises1 满足 ≥1、不满足 ≥2）
+            (63, 55, 1, 2, -0.15)]     # 缺 PLT_drop≤-0.20（-0.15 满足 ≤-0.10、不满足 ≤-0.20）
+    for pid, age, sex, hba1c, drop in hard:
+        rows.append({
+            "patient_id": pid, "window": 2, "age": age, "sex_male": sex,
+            "group": "neither", "unobservable": False, "admin_end": 8, "label": 0,
+            "HbA1c_rises": hba1c, "PLT_drop_pct": drop, "AFP_rises": 0,
+            **{f"{ind}_cur": 1.0 for ind in cfg.INDICATORS},
+        })
+    sub = pd.DataFrame(rows)
+    sub.attrs["horizon_windows"] = 4
+    return sub
