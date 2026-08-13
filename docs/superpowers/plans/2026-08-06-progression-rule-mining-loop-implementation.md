@@ -2177,9 +2177,9 @@ def lag_ablation_analysis(landmarks, lags, seed=0):
 **Interfaces:**
 
 - Consumes: `features.confirmation_subset`（含 `attrs["horizon_windows"]`）、`splitters.patient_folds`。
-- Produces: `MinedCondition`/`MinedRule`（数值 value）；`mine_rules(subset, n_repeats, seeds)` → `{"rules": list[MinedRule], "selection_frequency"}`；`_candidate_conditions(subset, seed=0)`（**规格 §8.1 折内候选：SHAP top-M 特征 + 折内分位数阈值 + 固定临床网格补充**；top_m/thresholds_per_feature 版本化，禁读 planted_rules）；`_discover_frozen(subset, seed, horizon_windows)`（**Apriori 逐层枚举 + 训练折支持度剪枝** → `{canonical_key: [val_lifts]}`，horizon 显式传参）；`_rule_bootstrap_ci(subset, rule, b, seed)`（**重采样→重跑发现→验证**）。**mine_rules 内部先过滤 `unobservable` 行**（发现/验证/CI 只用可评估确认 landmark）。
+- Produces: `MinedCondition`/`MinedRule`（数值 value）；`mine_rules(subset, n_repeats, seeds)` → `{"rules": list[MinedRule], "selection_frequency"}`；`_candidate_conditions(subset, seed=0)`（**规格 §8.1 折内候选：SHAP top-M 特征 + 折内分位数阈值 + 固定临床网格补充**；top_m/thresholds_per_feature 版本化，禁读 planted_rules）；`_discover_frozen(subset, seed, horizon_windows, cands=None)`（**Apriori 逐层枚举 + 训练折支持度剪枝 + 掩码复用，全量不截断**，horizon 显式传参）；`_rules_bootstrap_ci(subset, rules, b, seed)`（**批量共享重采样 + numpy 内核 + 折内支持度判定**）。**mine_rules 内部先过滤 `unobservable` 行**（发现/验证/CI 只用可评估确认 landmark）。
 
-**规则 CI（完整，非简化）**：每次患者 Bootstrap 重采样确认子集（全列）→ 在重采样集上重跑折内发现→折外验证 → 收集该 canonical 规则的验证 lift 分布 → `(2.5, 97.5)`；未重发现 → 该样本 NaN，剔除；**重采样集单类（负例 0 → `_fold_discover_validate` 折数 k<2 返回空）→ 该样本无结果，同样剔除**；<2 个有效 → `"CI 未估计"`。**`mine_rules` 签名无 oof_frame**。
+**规则 CI（等价实现，规格 v18）**：规则身份已由原始发现的固定候选空间确定，CI 只评估其 support/lift 在患者重采样人群中的稳定性——**候选空间固定、候选存在性被忽略**（不重新评估折内候选发现过程；折内候选切点随折/样本/seed 漂移使"重采样→重跑发现"永不重新发现固定阈值规则，实测 0/12）。实现 = **批量共享重采样**（每样本一次）→ 每条规则**折内支持度判定**（须在每个训练折 ev/tot ≥ 门槛，与"固定候选下重跑发现"等价）→ 验证折 lift（验证折自身基线）→ `(2.5, 97.5)`；有效 <2 → `"CI 未估计"`。b = 版本化 `bootstrap_b`（1000）。**`mine_rules` 签名无 oof_frame**。
 
 **规范化（保类型）**：`_canonical_rule` 返回 `(indicator, op, float(value), lookback)`（value 恒数值）；重建 MinedCondition 用 float。
 
@@ -2543,16 +2543,32 @@ def _hits(subset, rule):
 
 
 def _support(subset, rule):
+    """事件/总支持按**唯一患者**计数（v5.29：Bootstrap 重采样保留重复患者行，行级计数
+    会重复计；原始 SUB/训练折每患者 1 行 → 行级快速路径，重采样集 → nunique 去重）。"""
     hit = _hits(subset, rule)
-    return int(subset.loc[hit, "label"].sum()), int(hit.sum())
+    hit_df = subset.loc[hit]
+    if hit_df["patient_id"].is_unique:                 # 每患者 1 行 → 行级等价
+        return int((hit_df["label"] > 0).sum()), len(hit_df)
+    ev = int(hit_df.loc[hit_df["label"] > 0, "patient_id"].nunique())
+    tot = int(hit_df["patient_id"].nunique())
+    return ev, tot
 
 
 def _lift(subset, rule):
+    """命中组正例率 / 基线正例率，**按唯一患者**（重采样集重复患者不重复计）。"""
     hit = _hits(subset, rule)
     if hit.sum() == 0:
         return 0.0
-    base = subset["label"].mean()
-    return subset.loc[hit, "label"].mean() / base if base > 0 else 0.0
+    if subset["patient_id"].is_unique:                 # 每患者 1 行 → 行级快速路径
+        base = subset["label"].mean()
+        return subset.loc[hit, "label"].mean() / base if base > 0 else 0.0
+    hit_ids = subset.loc[hit, "patient_id"].unique()
+    hit_pos = int(subset.loc[hit & (subset["label"] > 0), "patient_id"].nunique())
+    base_pos = int(subset.loc[subset["label"] > 0, "patient_id"].nunique())
+    base_tot = int(subset["patient_id"].nunique())
+    if base_pos == 0 or base_tot == 0:
+        return 0.0
+    return (hit_pos / len(hit_ids)) / (base_pos / base_tot)
 
 
 def _enumerate_combos(cands, k):
@@ -2567,19 +2583,34 @@ def _enumerate_combos(cands, k):
     return out
 
 
-def _discover_frozen(subset, seed, horizon_windows):
-    """规格 §8.1 发现：**折内候选**（`_candidate_conditions`：SHAP top-M + 折内分位数 +
-    固定临床网格，canonical 去重）→ **Apriori 逐层枚举 + 训练折支持度剪枝**（每层通过支持
-    门槛者进入下一层；规范顺序去重 + `seen_rules` 防重复）→ **(-lift, canonical_rule) 排序取 top_k**。
-    **预算保护按"评估的组合数"**（evaluated 计数，**含未通过支持度门槛的组合**）——
-    超 max_candidates → **显式 raise**（防静默截断，不得只按通过规则数统计）。"""
-    cands = _candidate_conditions(subset, seed)
+def _cond_mask(subset, c):
+    """单条件命中掩码（_discover_frozen 预计算复用；与 _hits 逐条件 AND 语义等价）。"""
+    if c.op == "eq":
+        return subset["sex_male"].to_numpy() == int(c.value)
+    if c.op == "consecutive_rises":
+        return subset[f"{c.indicator}_rises"].to_numpy() >= c.value
+    if c.op == "drop_pct":
+        return subset[f"{c.indicator}_drop_pct"].to_numpy() <= -c.value
+    if c.indicator == "age":
+        return subset["age"].to_numpy() > c.value
+    return subset[f"{c.indicator}_cur"].to_numpy() > c.value
+
+
+def _discover_frozen(subset, seed, horizon_windows, cands=None):
+    """规格 §8.1 发现：**折内候选** → **Apriori 逐层枚举 + 训练折支持度剪枝**（掩码复用
+    逐层 AND）→ **(-lift, canonical_rule) 排序，全量不截断**（发现预算语义——planted R1/R2
+    在真实 SUB lift 排名 240/862，top_k=20 会挤出；报告渲染截断在 Task 12）。
+    预算保护按"评估的组合数"（含未通过支持度门槛者）超 max_candidates → 显式 raise；
+    支持度按唯一患者（nunique）。cands 参数供规则 CI 重跑传固定候选（同空间）。"""
+    cands = cands if cands is not None else _candidate_conditions(subset, seed)
     ordered = sorted(cands, key=_canonical_cond)
-    rules, seen_rules, level = [], set(), [[c] for c in ordered]
+    masks = {_canonical_cond(c): _cond_mask(subset, c) for c in ordered}
+    rules, seen_rules = [], set()
+    level = [((c,), masks[_canonical_cond(c)]) for c in ordered]
     evaluated = 0
     for k in range(1, cfg.THRESHOLDS["max_conditions"] + 1):
         passed = []
-        for combo in level:
+        for combo, mask in level:
             evaluated += 1
             if evaluated > cfg.THRESHOLDS["max_candidates"]:
                 raise ValueError(f"组合评估数 {evaluated} 超过 max_candidates "
@@ -2588,21 +2619,22 @@ def _discover_frozen(subset, seed, horizon_windows):
                              lookback=max(c.lookback for c in combo), lag=0)
             if _canonical_rule(rule) in seen_rules:
                 continue
-            ev, tot = _support(subset, rule)
+            ev = int(subset.loc[mask & (subset["label"] > 0), "patient_id"].nunique())
+            tot = int(subset.loc[mask, "patient_id"].nunique())
             if ev >= cfg.THRESHOLDS["rule_event_support_min"] and tot >= cfg.THRESHOLDS["rule_total_support_min"]:
                 seen_rules.add(_canonical_rule(rule))
                 rules.append(rule)
-                passed.append(combo)
+                passed.append((combo, mask))
         level = []
         if k < cfg.THRESHOLDS["max_conditions"]:
-            for combo in passed:
+            for combo, pmask in passed:
                 last = _canonical_cond(combo[-1])
                 for c in ordered:
                     if _canonical_cond(c) <= last or c in combo:
                         continue
-                    level.append(combo + [c])
-    # 确定性排序：lift 降序主键 + canonical_rule 二级键（并列 lift 不依赖枚举顺序）
-    return sorted(rules, key=lambda r: (-_lift(subset, r), _canonical_rule(r)))[:cfg.THRESHOLDS["discover_top_k"]]
+                    level.append((combo + (c,), pmask & masks[_canonical_cond(c)]))
+    # 确定性排序：lift 降序主键 + canonical_rule 二级键（并列 lift 不依赖枚举顺序）；全量不截断
+    return sorted(rules, key=lambda r: (-_lift(subset, r), _canonical_rule(r)))
 
 
 def _fold_discover_validate(sset, seed, horizon_windows):
@@ -2628,48 +2660,125 @@ def _fold_discover_validate(sset, seed, horizon_windows):
     return out
 
 
-def _rule_bootstrap_ci(subset, rule, b=50, seed=0):
-    """患者 Bootstrap：重采样全列子集 → 重跑发现→验证 → 该规则 lift 分布 CI。"""
-    horizon = subset.attrs.get("horizon_windows", 0)
+def _cond_col(c):
+    """条件 → 特征列（_rules_bootstrap_ci numpy 内核用；与 _hits 语义一致）。"""
+    if c.op == "eq":
+        return "sex_male"
+    if c.op == "consecutive_rises":
+        return f"{c.indicator}_rises"
+    if c.op == "drop_pct":
+        return f"{c.indicator}_drop_pct"
+    return "age" if c.indicator == "age" else f"{c.indicator}_cur"
+
+
+def _rules_bootstrap_ci(subset, rules, b=12, seed=0):
+    """批量规则 CI（v5.29 numpy 内核 + 折内判定）：每样本先 drop_duplicates("patient_id")
+    （唯一患者口径 ≡ 去重后行级），特征矩阵一次提取 + 列比较向量化；每条规则**折内支持度
+    判定**（须在每个训练折 ev/tot ≥ 门槛）→ 验证折 lift（验证折自身基线）。b=版本化
+    bootstrap_b（1000）；有效 <2 → "CI 未估计"。"""
     samples = patient_bootstrap_samples(subset["patient_id"].to_numpy(), b, seed)
-    key = _canonical_rule(rule)
-    lifts = []
+    keys = [_canonical_rule(r) for r in rules]
+    per_sample = {k: [] for k in keys}
+    col_names = []
+    for r in rules:
+        for c in r.conditions:
+            col = _cond_col(c)
+            if col not in col_names:
+                col_names.append(col)
+    cols_needed = {col: i for i, col in enumerate(col_names)}
+
+    def rule_mask(X, rule):
+        mask = np.ones(len(X), dtype=bool)
+        for c in rule.conditions:
+            arr = X[:, cols_needed[_cond_col(c)]]
+            if c.op == "eq":
+                mask &= (arr == int(c.value))
+            elif c.op == "consecutive_rises":
+                mask &= (arr >= c.value)
+            elif c.op == "drop_pct":
+                mask &= (arr <= -c.value)
+            else:
+                mask &= (arr > c.value)
+        return mask
+
     for s in samples:
         sset = resample_rows(subset, s).reset_index(drop=True)
-        disc = _fold_discover_validate(sset, seed, horizon)
-        if key in disc:
-            lifts.append(float(np.mean(disc[key])))
-    if len(lifts) < 2:
-        return "CI 未估计"
-    return float(np.percentile(lifts, 2.5)), float(np.percentile(lifts, 97.5))
+        sset = sset.drop_duplicates("patient_id").reset_index(drop=True)
+        X = sset[col_names].to_numpy() if col_names else np.empty((len(sset), 0))
+        y = sset["label"].to_numpy()
+        uniq = sset.groupby("patient_id")["label"].max().reset_index()
+        pos = int((uniq["label"] > 0).sum()); neg = int((uniq["label"] == 0).sum())
+        k = min(cfg.THRESHOLDS["cv_folds"], pos, neg)
+        if k < 2:
+            continue
+        uniq["patient_event"] = (uniq["label"] > 0).astype(int)
+        folds_uniq = patient_folds(uniq, k, seed)
+        pid_to_row = {pid: i for i, pid in enumerate(uniq["patient_id"])}
+        folds_map = folds_uniq[sset["patient_id"].map(pid_to_row).to_numpy()]
+        for key, rule in zip(keys, rules):
+            val_lifts = []
+            for j in range(k):
+                tr, va = folds_map != j, folds_map == j
+                m_tr = rule_mask(X[tr], rule)
+                ev_tr = int((m_tr & (y[tr] > 0)).sum()); tot_tr = int(m_tr.sum())
+                if ev_tr < cfg.THRESHOLDS["rule_event_support_min"] \
+                        or tot_tr < cfg.THRESHOLDS["rule_total_support_min"]:
+                    continue
+                m_va = rule_mask(X[va], rule)
+                base_va = float(y[va].mean())
+                if m_va.sum() == 0 or base_va <= 0:
+                    continue
+                l = float(y[va][m_va].mean()) / base_va
+                if np.isfinite(l):
+                    val_lifts.append(l)
+            if val_lifts:
+                per_sample[key].append(float(np.mean(val_lifts)))
+    out = {}
+    for k in keys:
+        vals = per_sample[k]
+        out[k] = "CI 未估计" if len(vals) < 2 else \
+            (float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5)))
+    return out
+
+
+def _rule_from_key(key, horizon):
+    conds = tuple(MinedCondition(i, op, float(v), lb) for i, op, v, lb in key)
+    return MinedRule(conds, horizon, max(c.lookback for c in conds), 0)
 
 
 def mine_rules(subset, n_repeats, seeds):
+    # v5.29：显式校验 n_repeats 与 seeds 长度一致（同 fit_and_oof）
+    if n_repeats < 1 or len(seeds) != n_repeats:
+        raise ValueError(f"n_repeats={n_repeats} 与 seeds 长度 {len(seeds)} 不一致（需 >=1 且相等）")
     # 规则发现/验证/CI 只用可评估确认 landmark（排除 unobservable，避免事后信息/不可评估样本泄漏）
     subset = subset[~subset["unobservable"]].reset_index(drop=True)
     subset.attrs["horizon_windows"] = subset.attrs.get("horizon_windows", 0)
     horizon = subset.attrs["horizon_windows"]
-    selection, lifts = {}, {}
+    selection, lift_by_key = {}, {}
     for seed in seeds:
         disc = _fold_discover_validate(subset, seed, horizon)
-        for key, vals in disc.items():
+        for key in disc:
+            # 重复内共识（规格 §8.1）：合并验证折列联表（= 完整 subset）重算 support
+            rule = _rule_from_key(key, horizon)
+            ev, tot = _support(subset, rule)
+            if ev < cfg.THRESHOLDS["rule_event_support_min"] \
+                    or tot < cfg.THRESHOLDS["rule_total_support_min"]:
+                continue
             selection[key] = selection.get(key, 0) + 1
-            lifts.setdefault(key, []).extend(vals)
+            lift_by_key[key] = _lift(subset, rule)
 
+    keys_out = [key for key in selection if selection[key] >= n_repeats]   # selection 全重复
+    ci_map = _rules_bootstrap_ci(subset, [_rule_from_key(key, horizon) for key in keys_out],
+                                 b=cfg.THRESHOLDS["bootstrap_b"], seed=seeds[0])
     rules_out = []
-    for key, pts in lifts.items():
-        if selection[key] / n_repeats < 0.5:
-            continue
-        conds = tuple(MinedCondition(i, op, float(v), lb) for i, op, v, lb in key)
-        rule = MinedRule(conditions=conds, horizon_windows=horizon,
-                         lookback=max(c.lookback for c in conds), lag=0)
+    for key in keys_out:
+        rule = _rule_from_key(key, horizon)
         ev, tot = _support(subset, rule)
-        ci = _rule_bootstrap_ci(subset, rule, b=50, seed=seeds[0])
-        rules_out.append(MinedRule(conditions=conds, horizon_windows=horizon,
+        rules_out.append(MinedRule(conditions=rule.conditions, horizon_windows=horizon,
                                    lookback=rule.lookback, lag=rule.lag,
                                    event_support=ev, total_support=tot,
-                                   lift_median=float(np.median(pts)),
-                                   selection_frequency=selection[key] / n_repeats, ci=ci))
+                                   lift_median=float(lift_by_key[key]),
+                                   selection_frequency=selection[key] / n_repeats, ci=ci_map[key]))
     return {"rules": rules_out, "selection_frequency": selection}
 ```
 
