@@ -145,9 +145,11 @@ def test_support_unique_patient_in_resample():
     assert (ev, tot) == (1, 1)          # 唯一患者：1 正例 1 总（行级会是 10/10）
 
 def test_rules_ci_preserves_multiplicity(monkeypatch):
-    """CI 保留 multiplicity（Codex 批次 4 三轮 P2-1）：monkeypatch resample_rows 记录
-    _rules_bootstrap_ci 实际传入的样本，断言其**含重复患者行**（未 drop_duplicates）——
-    锁定的是 CI 函数内部行为，而非 resample_rows 本身。"""
+    """CI 保留 multiplicity（Codex 批次 4 四轮 P2-1）：monkeypatch
+    `pd.DataFrame.drop_duplicates` 记录调用，断言 `_rules_bootstrap_ci` 内部**从未调用**
+    drop_duplicates——直接锁定"CI 后续逻辑保留重复患者行"，而非 resample_rows 的返回。
+    （spy resample_rows 只在返回时检查，即使 CI 后续 drop_duplicates 也会通过——本测试
+    通过 drop_duplicates 调用计数彻底阻断该漏洞。）"""
     import pandas as pd
     import rules as rules_mod
     from rules import _rules_bootstrap_ci
@@ -160,22 +162,15 @@ def test_rules_ci_preserves_multiplicity(monkeypatch):
     sub = pd.DataFrame(rows)
     sub.attrs["horizon_windows"] = 4
     rule = MinedRule((MinedCondition("sex", "eq", 1.0),), 4, 1, 0)
-    # 记录 CI 内部对 resample_rows 结果的后续处理：monkeypatch 让 resample_rows 返回
-    # 含重复患者的样本，并在返回前记录"该样本是否被 drop_duplicates 过"
-    observed = {"saw_duplicate": False, "called": 0}
-    real_resample = rules_mod.resample_rows
-    def spy_resample(frame, sampled_ids):
-        out = real_resample(frame, sampled_ids)
-        observed["called"] += 1
-        if not out["patient_id"].is_unique:
-            observed["saw_duplicate"] = True      # resample_rows 返回含重复患者的样本
-        return out
-    monkeypatch.setattr(rules_mod, "resample_rows", spy_resample)
-    # 若 CI 内部 drop_duplicates，则后续 groupby/计数会基于去重后；此处断言 resample_rows
-    # 返回的含重复样本确实被传入（未在 CI 入口被 drop）。用确定性 b 保证至少一个重复样本。
+    # 锁定：CI 内部（含 resample_rows）不得调用 drop_duplicates
+    calls = []
+    orig_drop = pd.DataFrame.drop_duplicates
+    def spy_drop(self, *args, **kwargs):
+        calls.append(1)
+        return orig_drop(self, *args, **kwargs)
+    monkeypatch.setattr(pd.DataFrame, "drop_duplicates", spy_drop)
     _rules_bootstrap_ci(sub, [rule], b=20, seed=0)
-    assert observed["called"] == 20              # 20 次重采样都走 spy
-    assert observed["saw_duplicate"] is True     # 至少一个样本含重复患者（multiplicity 保留）
+    assert not calls, "CI 内部不得调用 drop_duplicates（须保留 multiplicity）"
 
 def test_unique_patient_consistency_across_paths():
     """全链路唯一患者一致性（Codex 批次 3 三轮 P1-3）：_support/_lift/_discover_frozen
