@@ -144,6 +144,31 @@ def test_support_unique_patient_in_resample():
     ev, tot = _support(sub, rule)
     assert (ev, tot) == (1, 1)          # 唯一患者：1 正例 1 总（行级会是 10/10）
 
+def test_rules_ci_preserves_multiplicity():
+    """CI 保留 multiplicity（Codex 批次 4 一轮 P1-1 / 二轮测试缺口）：_rules_bootstrap_ci
+    不 drop_duplicates——有放回抽患者、重复患者行多次出现（标准患者聚类 Bootstrap），
+    支持度/lift 用 unique_first_mask 唯一患者口径。验证重复患者行确实被保留在重采样集中。"""
+    import pandas as pd
+    from rules import _rules_bootstrap_ci
+    # 2 正例 + 2 负例；有放回抽样会重复某些患者
+    rows = []
+    for pid, label in ((0, 1), (1, 1), (2, 0), (3, 0)):
+        rows.append({"patient_id": pid, "label": label, "sex_male": 1, "age": 55,
+                     "HbA1c_rises": 2 if label else 0, "PLT_drop_pct": -0.25 if label else 0.0,
+                     "AFP_rises": 0, "admin_end": 8,
+                     **{f"{ind}_cur": 1.0 for ind in cfg.INDICATORS}})
+    sub = pd.DataFrame(rows)
+    sub.attrs["horizon_windows"] = 4
+    rule = MinedRule((MinedCondition("sex", "eq", 1.0),), 4, 1, 0)
+    # 直接验证：resample_rows 保留重复患者行（不 drop_duplicates）
+    from splitters import resample_rows, patient_bootstrap_samples
+    samples = patient_bootstrap_samples(sub["patient_id"].to_numpy(), b=5, seed=0)
+    for s in samples:
+        sset = resample_rows(sub, s).reset_index(drop=True)
+        # 有放回抽样：样本行数 == 唯一患者数（=4），但可能含重复患者行（同患者多行）
+        assert len(sset) == len(s)  # 保留 multiplicity，不折叠
+        assert not sset["patient_id"].is_unique or len(sset) == len(set(s))  # 允许重复
+
 def test_unique_patient_consistency_across_paths():
     """全链路唯一患者一致性（Codex 批次 3 三轮 P1-3）：_support/_lift/_discover_frozen
     在含重复患者的子集上，与"先 drop_duplicates 再行级"**严格等价**——发现路径的

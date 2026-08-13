@@ -41,8 +41,10 @@ def render_report(sections: dict) -> str:
     md.append("## 2. 信号验证\n\n"
               f"- 最终平均 OOF 预测 AUC：{_fmt_num(signal.get('auc_point'))}"
               f"（患者聚类 95% CI {_fmt_ci(signal.get('auc_ci'))}）\n"
+              f"- 跨重复 AUC 中位数：{_fmt_num(signal.get('auc_median_across_repeats'))}\n"
               f"- PR-AUC：{_fmt_num(signal.get('pr_auc'))}；"
               f"Brier：{_fmt_num(signal.get('brier'))}\n"
+              + _signal_gate_line(signal)
               + _calibration_block(sections.get("calibration", {})))
     md.append("## 3. 挖回规则列表\n\n" + _rules_table(sections.get("rules", [])))
     md.append("## 4. 植入规则对照表\n\n" + _recovery_block(sections.get("recovery", {}))
@@ -53,6 +55,20 @@ def render_report(sections: dict) -> str:
     md.append("## 7. 规模退化表\n\n" + _scale_block(sections.get("scale", {})))
     md.append("## 8. 局限与下一步\n\n" + _limitations_block(sections.get("limitations", [])))
     return "\n".join(md)
+
+
+def _signal_gate_line(signal):
+    """信号门槛状态（规格 §9"信号门槛通过与否"）：从 AUC CI 下界与版本化门槛判定。
+    有限下界 ≥ 门槛 → 通过；否则（未达/CI 未估计 NaN）→ 未达。"""
+    ci = signal.get("auc_ci")
+    try:
+        auc_lo = float(ci[0]) if ci is not None else float("nan")
+    except (TypeError, ValueError, IndexError):
+        auc_lo = float("nan")
+    gate = cfg.THRESHOLDS["auc_ci_lower_gate"]
+    ok = np.isfinite(auc_lo) and auc_lo >= gate
+    status = "**通过**" if ok else "**未达**（归因与规则挖掘已停止）"
+    return f"- 信号门槛：AUC 患者聚类 95% CI 下界 ≥ {gate} → {status}\n"
 
 
 def _limitations_block(limitations):

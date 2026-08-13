@@ -103,6 +103,22 @@ def test_run_cell_excluded_patient_level_closure():
     assert rec["unknown_landmark_rows"] >= 0
     assert 0 <= rec["excluded_ratio"] <= 1
 
+def test_run_study_disjoint_seed_ranges(monkeypatch):
+    """全局唯一种子区间（Codex 批次 4 一轮 P2-3 / 二轮测试缺口）：不同 (n, f) 单元使用
+    不相交种子区间，避免同 seed 产生相关队列（违反边界 Bootstrap 独立实验单元假设）。"""
+    import scale_study as ss
+    calls = []
+    def fake_run_cell(n, followup_months, horizon_months, repeats, seeds):
+        calls.append((n, followup_months, tuple(seeds)))
+        return {"records": [], "not_estimable": True, "reason": "no_feasible_path_anchor"}
+    monkeypatch.setattr(ss, "run_cell", fake_run_cell)
+    ss.run_study(grid={"n": [150, 300], "followup_months": [36], "horizon_months": 12}, repeats=2)
+    # 两个 n 单元（150、300）的种子区间不相交
+    seeds_by_n = {}
+    for n, f, seeds in calls:
+        seeds_by_n[n] = set(seeds)
+    assert seeds_by_n[150].isdisjoint(seeds_by_n[300])
+
 def test_aggregate_interface():
     results = {"records": [
         {"overall_recovery": 1.0, "r1_recovered": True, "r2_recovered": True, "both_recovered": True},

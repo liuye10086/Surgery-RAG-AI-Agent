@@ -109,6 +109,18 @@ def test_timeline_control_delta_ci_rendered():
         "control_delta": {"PLT": -2.0}, "control_delta_ci": {"PLT": (-3.0, -1.0)}}))
     assert "首次偏离差" in md and "-2.000" in md and "-3.000" in md
 
+def test_signal_gate_and_auc_median_rendered():
+    """信号验证契约（Codex 批次 4 二轮 P2）：报告渲染跨重复 AUC 中位数 + 信号门槛状态
+    （通过/未达 + 门槛值），区分"门槛已通过"和"尚未判断"。"""
+    md = render_report(_sec(signal={"auc_point": 0.8, "auc_ci": (0.75, 0.85),
+                                    "auc_median_across_repeats": 0.79, "pr_auc": 0.7, "brier": 0.2}))
+    assert "跨重复 AUC 中位数" in md and "0.790" in md
+    assert "信号门槛" in md and "通过" in md and "0.65" in md
+    # 低 AUC → 未达
+    md_low = render_report(_sec(signal={"auc_point": 0.6, "auc_ci": (0.5, 0.6),
+                                        "auc_median_across_repeats": 0.55, "pr_auc": 0.5, "brier": 0.4}))
+    assert "未达" in md_low
+
 def test_timeline_unmatched_by_group_rendered():
     """路径级 unmatched 展示（Codex 批次 3 六轮 P2，关闭文档风险）：报告须展示
     unmatched_by_group（路径级），空组 NaN → NA（不得渲染成 100% unmatched）。"""

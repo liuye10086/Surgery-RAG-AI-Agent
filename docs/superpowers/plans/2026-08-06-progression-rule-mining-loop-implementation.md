@@ -2672,10 +2672,11 @@ def _cond_col(c):
 
 
 def _rules_bootstrap_ci(subset, rules, b=12, seed=0):
-    """批量规则 CI（v5.29 numpy 内核 + 折内判定）：每样本先 drop_duplicates("patient_id")
-    （唯一患者口径 ≡ 去重后行级），特征矩阵一次提取 + 列比较向量化；每条规则**折内支持度
-    判定**（须在**至少一个**训练折 ev/tot ≥ 门槛——不达标折 continue）→ 验证折 lift（验证折自身基线）。b=版本化
-    bootstrap_b（1000）；有效 <2 → "CI 未估计"。"""
+    """批量规则 CI（v5.29 numpy 内核 + 折内判定）：**保留 multiplicity**（标准患者聚类
+    Bootstrap——有放回抽患者，重复患者行多次出现）+ **unique_first_mask**（每患者首次
+    出现行）唯一患者口径行级计数；每条规则**折内支持度判定**（须在**至少一个**训练折
+    ev/tot ≥ 门槛——不达标折 continue）→ 验证折 lift（唯一患者等权，验证折自身基线）。
+    b=版本化 bootstrap_b（1000）；有效 <2 → "CI 未估计"。"""
     samples = patient_bootstrap_samples(subset["patient_id"].to_numpy(), b, seed)
     keys = [_canonical_rule(r) for r in rules]
     per_sample = {k: [] for k in keys}
@@ -2703,14 +2704,18 @@ def _rules_bootstrap_ci(subset, rules, b=12, seed=0):
 
     for s in samples:
         sset = resample_rows(subset, s).reset_index(drop=True)
-        sset = sset.drop_duplicates("patient_id").reset_index(drop=True)
+        pids = sset["patient_id"].to_numpy()
+        _, unique_first = np.unique(pids, return_index=True)
+        unique_first_mask = np.zeros(len(sset), dtype=bool)
+        unique_first_mask[unique_first] = True
         X = sset[col_names].to_numpy() if col_names else np.empty((len(sset), 0))
         y = sset["label"].to_numpy()
-        uniq = sset.groupby("patient_id")["label"].max().reset_index()
-        pos = int((uniq["label"] > 0).sum()); neg = int((uniq["label"] == 0).sum())
+        pos = int((unique_first_mask & (y > 0)).sum())
+        neg = int((unique_first_mask & (y == 0)).sum())
         k = min(cfg.THRESHOLDS["cv_folds"], pos, neg)
         if k < 2:
             continue
+        uniq = sset.loc[unique_first_mask, ["patient_id", "label"]].copy()
         uniq["patient_event"] = (uniq["label"] > 0).astype(int)
         folds_uniq = patient_folds(uniq, k, seed)
         pid_to_row = {pid: i for i, pid in enumerate(uniq["patient_id"])}
@@ -2720,15 +2725,21 @@ def _rules_bootstrap_ci(subset, rules, b=12, seed=0):
             for j in range(k):
                 tr, va = folds_map != j, folds_map == j
                 m_tr = rule_mask(X[tr], rule)
-                ev_tr = int((m_tr & (y[tr] > 0)).sum()); tot_tr = int(m_tr.sum())
+                tr_unique = unique_first_mask[tr]
+                ev_tr = int((m_tr & tr_unique & (y[tr] > 0)).sum())
+                tot_tr = int((m_tr & tr_unique).sum())
                 if ev_tr < cfg.THRESHOLDS["rule_event_support_min"] \
                         or tot_tr < cfg.THRESHOLDS["rule_total_support_min"]:
                     continue
                 m_va = rule_mask(X[va], rule)
-                base_va = float(y[va].mean())
-                if m_va.sum() == 0 or base_va <= 0:
+                va_unique = unique_first_mask[va]
+                hit_pos = int((m_va & va_unique & (y[va] > 0)).sum())
+                hit_tot = int((m_va & va_unique).sum())
+                base_pos = int((va_unique & (y[va] > 0)).sum())
+                base_tot = int(va_unique.sum())
+                if hit_tot == 0 or base_pos == 0:
                     continue
-                l = float(y[va][m_va].mean()) / base_va
+                l = (hit_pos / hit_tot) / (base_pos / base_tot)
                 if np.isfinite(l):
                     val_lifts.append(l)
             if val_lifts:
