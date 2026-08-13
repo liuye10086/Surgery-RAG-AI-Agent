@@ -81,6 +81,34 @@ def test_relative_lead_same_for_different_event_windows():
     # 接口键
     assert set(res["unmatched_by_group"]) == {"r1_only", "r2_only", "r1_and_r2"}
 
+def test_unmatched_group_gates_and_analysis_set_consistency():
+    """路径级 unmatched 门槛 + 分析集一致（Codex 批次 3 三轮 P1-4）：
+    某路径组进展者无匹配对照（年龄分箱无对照）→ unmatched_by_group 该组=1.0 →
+    max > 20% → not_estimable；非相关路径患者的极端首偏不影响该指标 control_delta。"""
+    import pandas as pd
+    # r1_only 进展者 age=95（分箱 9，无同箱对照）→ 无匹配；neither 对照 age=60（分箱 6）
+    patients = pd.DataFrame([
+        {"patient_id": 0, "z": "r1", "age": 95, "sex": "male", "group": "r1_only",
+         "confirm_window": 2, "w_r1": 2, "w_a": np.nan, "g": 1, "event_window": 5,
+         "censored": False, "censored_window": np.nan, "admin_end": 8, "unobservable": False},
+        {"patient_id": 1, "z": "none", "age": 60, "sex": "male", "group": "neither",
+         "confirm_window": 2, "w_r1": np.nan, "w_a": np.nan, "g": np.nan, "event_window": np.nan,
+         "censored": False, "censored_window": np.nan, "admin_end": 8, "unobservable": False},
+    ])
+    rows = []
+    for pid, plt in ((0, [100, 100, 50, 30, 20, 15, 15, 15, 15]),
+                     (1, [100, 100, 100, 100, 100, 100, 100, 100, 100])):
+        for w, v in enumerate(plt):
+            row = {"patient_id": pid, "window": w, "PLT": v}
+            for ind in ("ALT", "AST", "GGT", "TBIL", "ALB", "HbA1c", "AFP", "WAIST", "BMI"):
+                row[ind] = 50.0
+            rows.append(row)
+    obs = pd.DataFrame(rows)
+    res = lead_lag_analysis(patients, obs)
+    # r1_only 进展者无同箱对照 → unmatched_by_group["r1_only"] == 1.0 → not_estimable
+    assert res["unmatched_by_group"]["r1_only"] == 1.0
+    assert res["not_estimable"] is True
+
 def test_control_delta_deterministic_fixture():
     """手工 fixture（不依赖随机模拟）：进展者 PLT 于 w2 偏离、对照平缓 → cutoff 被使用、
     control_delta 有限且为负（进展者更早）。"""

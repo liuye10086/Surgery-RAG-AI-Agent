@@ -144,6 +144,36 @@ def test_support_unique_patient_in_resample():
     ev, tot = _support(sub, rule)
     assert (ev, tot) == (1, 1)          # 唯一患者：1 正例 1 总（行级会是 10/10）
 
+def test_unique_patient_consistency_across_paths():
+    """全链路唯一患者一致性（Codex 批次 3 三轮 P1-3）：_support/_lift/_discover_frozen
+    在含重复患者的子集上，与"先 drop_duplicates 再行级"**严格等价**——发现路径的
+    nunique 与 CI 路径的去重后行级是同一唯一患者口径（行顺序变化也不变）。"""
+    import pandas as pd
+    from rules import _support, _lift, _discover_frozen, _canonical_rule
+    # 正例患者 0（重复 3 行）+ 负例患者 1/2/3（各 1 行）+ 打乱行序
+    base = []
+    for pid, label, sex, hba1c, drop in ((0, 1, 1, 2, -0.25), (1, 0, 0, 0, 0.0),
+                                          (2, 0, 1, 2, -0.25), (3, 0, 0, 0, 0.0)):
+        base.append({"patient_id": pid, "label": label, "sex_male": sex,
+                     "age": 55 if label else 30, "HbA1c_rises": hba1c,
+                     "PLT_drop_pct": drop, "AFP_rises": 0,
+                     **{f"{i}_cur": 1.0 for i in cfg.INDICATORS}})
+    dup = base[:1] * 3 + base[1:]                # 患者 0 重复 3 行
+    dup = pd.DataFrame(dup[::-1]).reset_index(drop=True)   # 行序倒转
+    dedup = dup.drop_duplicates("patient_id").reset_index(drop=True)
+    rule = MinedRule((MinedCondition("HbA1c", "consecutive_rises", 2.0, lookback=2),
+                      MinedCondition("sex", "eq", 1.0)), 4, 2, 0)
+    # _support/_lift 唯一患者 == 去重后行级
+    assert _support(dup, rule) == _support(dedup, rule)
+    assert abs(_lift(dup, rule) - _lift(dedup, rule)) < 1e-12
+    # _discover_frozen 的通过规则集（canonical 键）在 dup 与 dedup 上一致
+    # （dup 无 horizon attrs → 直接传显式 horizon；用固定候选避免 SHAP seed 漂移）
+    from rules import _candidate_conditions
+    cands = _candidate_conditions(dedup, seed=1)
+    keys_dup = {_canonical_rule(r) for r in _discover_frozen(dup, 1, 4, cands=cands)}
+    keys_dedup = {_canonical_rule(r) for r in _discover_frozen(dedup, 1, 4, cands=cands)}
+    assert keys_dup == keys_dedup
+
 def test_rules_ci_requires_fold_train_support():
     """CI 折内发现判定（Codex 批次 3 P1-1 反例）：规则须在**每个训练折**支持度 ≥ 门槛
     ——全体事件支持达标（ev=6 ≥ 5）但 3 折训练集各 8 人（正例 ~4 < 5）→ 折内不发现
@@ -193,24 +223,34 @@ def test_candidate_stability_across_seeds():
         assert c in c1 and c in c2, c
     assert len(c1 & c2) >= 0.4 * min(len(c1), len(c2)), (len(c1), len(c2))
 
-def test_selection_requires_fold_consensus(monkeypatch):
-    """折级共识（Codex 批次 3 二轮 P1-2）：单折偶发规则不计入 selection——
-    "任一折发现即计数"会让规则在一个训练折偶然发现就进入该重复（替代 §8.1 共识）。"""
+def test_selection_uses_full_subset_consensus(monkeypatch):
+    """重复内共识（Codex 批次 3 三轮 P1-2，规格 §8.1）：**合并验证折列联表
+    （= 完整 subset，每患者 1 行）重算 support**——单折发现的规则若完整 subset
+    support 达标仍计入（替代二轮"≥2 折发现"heuristic）。"""
     import pandas as pd
     import rules as rules_mod
-    # 手工 disc：键 A 单折（1 个 lift）、键 B 两折（2 个 lift）——A 不计 selection
-    # （canonical 键格式 = 4 元组的元组，同 _canonical_rule；条件用 fixture 真实列）
-    fake = {(("sex", "eq", 1.0, 1),): [1.0],
-            (("HbA1c", "consecutive_rises", 2.0, 2),): [1.0, 2.0]}
-    monkeypatch.setattr(rules_mod, "_fold_discover_validate", lambda *a, **k: fake)
-    sub = pd.DataFrame({"patient_id": [0, 1], "label": [1, 0], "sex_male": [1, 0],
-                        "age": [55, 30], "unobservable": [False, False],
-                        "HbA1c_rises": [2, 0], "PLT_drop_pct": [-0.25, 0.0],
-                        "AFP_rises": [0, 0], "admin_end": [8, 8]})
+    # 25 正例（male）+ 20 负例（female）：sex eq 1.0 → ev=25 tot=25 达标；sex eq 0.0 → ev=0 不足
+    rows = []
+    for i in range(25):
+        rows.append({"patient_id": i, "label": 1, "sex_male": 1, "age": 55,
+                     "unobservable": False, "HbA1c_rises": 2, "PLT_drop_pct": -0.25,
+                     "AFP_rises": 0, "admin_end": 8,
+                     **{f"{ind}_cur": 1.0 for ind in cfg.INDICATORS}})
+    for i in range(25, 45):
+        rows.append({"patient_id": i, "label": 0, "sex_male": 0, "age": 30,
+                     "unobservable": False, "HbA1c_rises": 0, "PLT_drop_pct": 0.0,
+                     "AFP_rises": 0, "admin_end": 8,
+                     **{f"{ind}_cur": 1.0 for ind in cfg.INDICATORS}})
+    sub = pd.DataFrame(rows)
     sub.attrs["horizon_windows"] = 4
+    # 单折发现（各 1 个 lift）——但完整 subset support 才是共识判定
+    fake = {(("sex", "eq", 1.0, 1),): [1.0], (("sex", "eq", 0.0, 1),): [1.0]}
+    monkeypatch.setattr(rules_mod, "_fold_discover_validate", lambda *a, **k: fake)
     res = rules_mod.mine_rules(sub, 1, [1])
-    assert (("sex", "eq", 1.0, 1),) not in res["selection_frequency"]     # 单折偶发不计
-    assert (("HbA1c", "consecutive_rises", 2.0, 2),) in res["selection_frequency"]
+    # sex eq 1.0 完整 subset ev=25 tot=25 达标 → 计入（尽管单折发现）
+    assert (("sex", "eq", 1.0, 1),) in res["selection_frequency"]
+    # sex eq 0.0 完整 subset ev=0 tot=20（ev<5）不足 → 不计入
+    assert (("sex", "eq", 0.0, 1),) not in res["selection_frequency"]
 
 def test_rule_ci_failure_mode():
     # 确定性失败契约：唯一正例重复抽中 → 全部样本无效 → **必然** "CI 未估计"

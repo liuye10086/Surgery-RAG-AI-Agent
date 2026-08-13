@@ -47,26 +47,37 @@ def full_hit(rule, planted_rule) -> bool:
     return _conditions_match(rule.conditions, planted_rule.conditions)
 
 
+def _indicator_op_match(mc, pc):
+    """indicator + 方向（op）一致（不看 value/lookback——§8.3 部分命中语义）。"""
+    return mc.indicator == pc.indicator and mc.op == pc.op
+
+
 def partial_hit(rule, planted_rule) -> bool:
-    """挖掘条件集在 typed 容差下是植入条件集的非空真子集。
-    v5.29（Codex 批次 3 二轮 P2-1）：**每个 mined 条件都必须匹配 planted 某条件**
-    ——含无关条件（如 R1.sex + AFP 条件）→ 非真子集 → False。"""
+    """部分命中（规格 §8.3）：**指标集 + 方向一致**，但时间窗（lookback/horizon/lag）
+    或数值阈值未达 typed 容差，或条件为 planted 的非空真子集。
+    v5.29（Codex 批次 3 三轮 P2-1）：按 indicator+op 维度匹配 planted；无关条件
+    （indicator+op 均不在 planted）→ False；全 typed_match 且数量相等 → full → False。"""
     if not rule.conditions:
         return False
     planted = list(planted_rule.conditions)
-    matched_planted = set()
+    matched_planted = set()           # 被匹配的 planted 索引（indicator+op 维度）
+    any_tolerance_fail = False        # 存在 indicator+op 一致但 typed 容差外（阈值/时间窗）
     for mc in rule.conditions:
         found = False
         for j, pc in enumerate(planted):
             if j in matched_planted:
                 continue
-            if typed_match(mc, pc):
+            if _indicator_op_match(mc, pc):
                 matched_planted.add(j)
                 found = True
+                if not typed_match(mc, pc):        # 时间窗/阈值未达容差
+                    any_tolerance_fail = True
                 break
         if not found:
-            return False                    # 无关条件 → 非 planted 真子集
-    return 0 < len(matched_planted) < len(planted)
+            return False                # 无关条件（indicator+op 不在 planted）
+    if len(matched_planted) < len(planted):
+        return True                     # 条件子集命中（部分）
+    return any_tolerance_fail           # 数量相等但阈值/时间窗容差外 → 部分；全匹配 → False
 
 
 def _rule_hits(subset, rule):

@@ -341,8 +341,6 @@ def _rules_bootstrap_ci(subset, rules, b=12, seed=0):
         folds_uniq = patient_folds(uniq, k, seed)
         pid_to_row = {pid: i for i, pid in enumerate(uniq["patient_id"])}
         folds_map = folds_uniq[sset["patient_id"].map(pid_to_row).to_numpy()]
-        base_pos = int((y > 0).sum())
-        base_tot = len(y)
         for key, rule in zip(keys, rules):
             val_lifts = []
             for j in range(k):
@@ -354,9 +352,10 @@ def _rules_bootstrap_ci(subset, rules, b=12, seed=0):
                         or tot_tr < cfg.THRESHOLDS["rule_total_support_min"]:
                     continue
                 m_va = rule_mask(X[va], rule)
-                if m_va.sum() == 0 or base_pos == 0:
-                    continue
-                l = float(y[va][m_va].mean()) / (base_pos / base_tot)
+                base_va = float(y[va].mean())          # v5.29（Codex 三轮 P1-1）：验证折
+                if m_va.sum() == 0 or base_va <= 0:    # **自身**基线（与原 _lift 折外语义一致；
+                    continue                            # 全样本基线会在折内正例率不同时改变 estimand）
+                l = float(y[va][m_va].mean()) / base_va
                 if np.isfinite(l):
                     val_lifts.append(l)
             if val_lifts:
@@ -384,22 +383,26 @@ def mine_rules(subset, n_repeats, seeds):
     subset = subset[~subset["unobservable"]].reset_index(drop=True)
     subset.attrs["horizon_windows"] = subset.attrs.get("horizon_windows", 0)
     horizon = subset.attrs["horizon_windows"]
-    selection, lifts = {}, {}
+    selection, lift_by_key = {}, {}
     for seed in seeds:
         disc = _fold_discover_validate(subset, seed, horizon)
-        for key, vals in disc.items():
-            # v5.29（Codex 二轮 P1-2）：**折级共识**——该 seed 内 ≥2 折发现才计为
-            # 该重复的一次发现（单折偶发不计；"任一折发现即计数"会让规则在一个
-            # 训练折偶然发现就进入 selection，替代规格 §8.1 重复内共识）
-            if len(vals) < 2:
+        for key in disc:
+            # v5.29（Codex 三轮 P1-2）：**重复内共识（规格 §8.1）**——合并该重复各
+            # 验证折列联表（= 完整 subset，每患者 1 行）按唯一患者重算 support，
+            # 满足门槛才计入该重复共识集（替代二轮的"≥2 折发现"heuristic——它会让
+            # 两折偶发但合并后支持不足的规则进入、让单折发现但合并达标的规则被排除）
+            rule = _rule_from_key(key, horizon)
+            ev, tot = _support(subset, rule)
+            if ev < cfg.THRESHOLDS["rule_event_support_min"] \
+                    or tot < cfg.THRESHOLDS["rule_total_support_min"]:
                 continue
             selection[key] = selection.get(key, 0) + 1
-            lifts.setdefault(key, []).extend(vals)
+            lift_by_key[key] = _lift(subset, rule)     # 合并列联表后的 lift（完整 subset）
 
     # v5.29：selection 门槛 = **全部重复发现**（0.5 在 n_repeats=2 下 = 出现 ≥1 次——
     # 各 seed 的 SHAP 分位切点漂移使"seed 偶发规则"泛滥（实测 5333 条输出），
     # 全部重复符合"跨重复稳定性"设计意图；R1/R2 标准的网格候选跨 seed 固定 ✓）
-    keys_out = [key for key, pts in lifts.items() if selection[key] >= n_repeats]
+    keys_out = [key for key in selection if selection[key] >= n_repeats]
     # v5.29：批量规则 CI（共享重采样 + 直接支持度判定，见 _rules_bootstrap_ci docstring；
     # b = 版本化 bootstrap_b（1000）——12 次重采样的 2.5/97.5 分位由极值决定，CI 不稳定）
     ci_map = _rules_bootstrap_ci(
@@ -414,6 +417,6 @@ def mine_rules(subset, n_repeats, seeds):
         rules_out.append(MinedRule(conditions=conds, horizon_windows=horizon,
                                    lookback=rule.lookback, lag=rule.lag,
                                    event_support=ev, total_support=tot,
-                                   lift_median=float(np.median(lifts[key])),
+                                   lift_median=float(lift_by_key[key]),   # 合并列联表 lift
                                    selection_frequency=selection[key] / n_repeats, ci=ci_map[key]))
     return {"rules": rules_out, "selection_frequency": selection}

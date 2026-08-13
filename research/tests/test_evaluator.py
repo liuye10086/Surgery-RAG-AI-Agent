@@ -72,6 +72,23 @@ def test_partial_hit_rejects_unrelated_condition():
     # 对照：纯 planted 子集仍 True
     assert partial_hit(MinedRule(full.conditions[:2], r1.horizon_windows, r1.lookback, r1.lag), r1) is True
 
+def test_partial_hit_time_window_out_of_tolerance():
+    """时间窗未达容差（Codex 批次 3 三轮 P2-1，规格 §8.3）：indicator+op 一致但
+    lookback 不同（consecutive_rises lookback=1 vs planted 2）→ typed_match False
+    → 部分命中 True（时间窗未达容差）。"""
+    r1 = PR.r1
+    full = _full_rule(r1)
+    # 全条件 indicator+op 一致，但 HbA1c lookback=1（planted 2）
+    conds = []
+    for c in full.conditions:
+        if c.indicator == "HbA1c":
+            conds.append(MinedCondition("HbA1c", "consecutive_rises", c.value, lookback=1))
+        else:
+            conds.append(c)
+    r = MinedRule(tuple(conds), r1.horizon_windows, r1.lookback, r1.lag)
+    assert partial_hit(r, r1) is True        # 时间窗未达容差 → 部分命中
+    assert full_hit(r, r1) is False          # 非完整命中（lookback 不一致）
+
 def test_partial_hit_count_tolerance():
     r1 = PR.r1
     full = _full_rule(r1)
