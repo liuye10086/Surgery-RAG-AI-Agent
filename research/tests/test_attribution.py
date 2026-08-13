@@ -107,6 +107,9 @@ def test_unmatched_group_gates_and_analysis_set_consistency():
     res = lead_lag_analysis(patients, obs)
     # r1_only 进展者无同箱对照 → unmatched_by_group["r1_only"] == 1.0 → not_estimable
     assert res["unmatched_by_group"]["r1_only"] == 1.0
+    # 无进展者的路径组（r2_only/r1_and_r2）→ NaN（分母为 0，不可估计；四轮 P2-2）
+    assert np.isnan(res["unmatched_by_group"]["r2_only"])
+    assert np.isnan(res["unmatched_by_group"]["r1_and_r2"])
     assert res["not_estimable"] is True
 
 def test_control_delta_deterministic_fixture():

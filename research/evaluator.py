@@ -55,13 +55,15 @@ def _indicator_op_match(mc, pc):
 def partial_hit(rule, planted_rule) -> bool:
     """部分命中（规格 §8.3）：**指标集 + 方向一致**，但时间窗（lookback/horizon/lag）
     或数值阈值未达 typed 容差，或条件为 planted 的非空真子集。
-    v5.29（Codex 批次 3 三轮 P2-1）：按 indicator+op 维度匹配 planted；无关条件
-    （indicator+op 均不在 planted）→ False；全 typed_match 且数量相等 → full → False。"""
+    v5.29（Codex 批次 3 四轮 P2-1）：补充**规则级时间字段**——horizon_windows/lag
+    不一致（条件完全一致）→ 时间窗未达容差 → 部分命中（此前两者都 False）。
+    无关条件（indicator+op 均不在 planted）→ False；全 typed_match 且 horizon/lag
+    一致且数量相等 → full → False。"""
     if not rule.conditions:
         return False
     planted = list(planted_rule.conditions)
     matched_planted = set()           # 被匹配的 planted 索引（indicator+op 维度）
-    any_tolerance_fail = False        # 存在 indicator+op 一致但 typed 容差外（阈值/时间窗）
+    any_tolerance_fail = False        # 条件级：indicator+op 一致但 typed 容差外（阈值/lookback）
     for mc in rule.conditions:
         found = False
         for j, pc in enumerate(planted):
@@ -70,14 +72,17 @@ def partial_hit(rule, planted_rule) -> bool:
             if _indicator_op_match(mc, pc):
                 matched_planted.add(j)
                 found = True
-                if not typed_match(mc, pc):        # 时间窗/阈值未达容差
+                if not typed_match(mc, pc):        # 时间窗（lookback）/阈值未达容差
                     any_tolerance_fail = True
                 break
         if not found:
             return False                # 无关条件（indicator+op 不在 planted）
+    # 规则级时间字段：horizon/lag 不一致 → 时间窗未达容差 → 部分（§8.3"horizon/lag 分别比较"）
+    rule_level_mismatch = (rule.horizon_windows != planted_rule.horizon_windows
+                           or rule.lag != planted_rule.lag)
     if len(matched_planted) < len(planted):
         return True                     # 条件子集命中（部分）
-    return any_tolerance_fail           # 数量相等但阈值/时间窗容差外 → 部分；全匹配 → False
+    return any_tolerance_fail or rule_level_mismatch   # 容差外/时间字段错 → 部分；全匹配 → False
 
 
 def _rule_hits(subset, rule):

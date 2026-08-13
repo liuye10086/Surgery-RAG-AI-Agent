@@ -89,6 +89,18 @@ def test_partial_hit_time_window_out_of_tolerance():
     assert partial_hit(r, r1) is True        # 时间窗未达容差 → 部分命中
     assert full_hit(r, r1) is False          # 非完整命中（lookback 不一致）
 
+def test_partial_hit_rule_level_time_fields():
+    """规则级时间字段（Codex 批次 3 四轮 P2-1，规格 §8.3）：条件完全一致但
+    horizon 或 lag 不一致 → 部分命中（时间窗未达容差）；此前 partial/full 均 False。"""
+    r1 = PR.r1
+    full = _full_rule(r1)
+    wrong_horizon = MinedRule(full.conditions, r1.horizon_windows + 1, r1.lookback, r1.lag)
+    assert partial_hit(wrong_horizon, r1) is True
+    assert full_hit(wrong_horizon, r1) is False
+    wrong_lag = MinedRule(full.conditions, r1.horizon_windows, r1.lookback, 1)
+    assert partial_hit(wrong_lag, r1) is True
+    assert full_hit(wrong_lag, r1) is False
+
 def test_partial_hit_count_tolerance():
     r1 = PR.r1
     full = _full_rule(r1)

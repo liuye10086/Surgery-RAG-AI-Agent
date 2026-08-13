@@ -87,7 +87,9 @@ def lead_lag_analysis(patients, obs):
     unmatched_by_group = {}
     for grp in ("r1_only", "r2_only", "r1_and_r2"):
         gids = set(prog[prog["group"] == grp]["patient_id"])
-        unmatched_by_group[grp] = 1 - len(gids & set(matched)) / max(len(gids), 1)
+        # v5.29（Codex 批次 3 四轮 P2-2）：无进展者的路径组 → NaN（分母为 0，不可估计），
+        # 不得报告"100% unmatched"（1 - 0/max(0,1)=1.0 会污染小样本/缺失组报告）
+        unmatched_by_group[grp] = (1 - len(gids & set(matched)) / len(gids)) if gids else np.nan
 
     # 每指标可分析患者（§10 口径）：**该指标相关路径组**进展者中、**有匹配合格对照**且
     # 有限首偏的唯一患者（不是所有观察进展者）——门槛与 §10 第 3 条一致
@@ -182,8 +184,10 @@ def lead_lag_analysis(patients, obs):
             control_delta[ind] = np.nan
             control_delta_ci[ind] = (np.nan, np.nan)
 
+    finite_unmatched = [v for v in unmatched_by_group.values() if np.isfinite(v)]
     not_estimable = (n_inter < cfg.THRESHOLDS["r1r2_intersection_min"]
-                     or max(unmatched_by_group.values()) > cfg.THRESHOLDS["unmatched_max"]
+                     or (finite_unmatched
+                         and max(finite_unmatched) > cfg.THRESHOLDS["unmatched_max"])
                      or any(per_indicator_n.get(i, 0) < cfg.THRESHOLDS["per_indicator_ll_min"]
                             for i in ("PLT", "HbA1c", "AFP")))
     return {"per_path": per_path,
