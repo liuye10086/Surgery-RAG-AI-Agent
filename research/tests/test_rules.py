@@ -144,13 +144,13 @@ def test_support_unique_patient_in_resample():
     ev, tot = _support(sub, rule)
     assert (ev, tot) == (1, 1)          # 唯一患者：1 正例 1 总（行级会是 10/10）
 
-def test_rules_ci_preserves_multiplicity():
-    """CI 保留 multiplicity（Codex 批次 4 一轮 P1-1 / 二轮测试缺口）：_rules_bootstrap_ci
-    不 drop_duplicates——有放回抽患者、重复患者行多次出现（标准患者聚类 Bootstrap），
-    支持度/lift 用 unique_first_mask 唯一患者口径。验证重复患者行确实被保留在重采样集中。"""
+def test_rules_ci_preserves_multiplicity(monkeypatch):
+    """CI 保留 multiplicity（Codex 批次 4 三轮 P2-1）：monkeypatch resample_rows 记录
+    _rules_bootstrap_ci 实际传入的样本，断言其**含重复患者行**（未 drop_duplicates）——
+    锁定的是 CI 函数内部行为，而非 resample_rows 本身。"""
     import pandas as pd
+    import rules as rules_mod
     from rules import _rules_bootstrap_ci
-    # 2 正例 + 2 负例；有放回抽样会重复某些患者
     rows = []
     for pid, label in ((0, 1), (1, 1), (2, 0), (3, 0)):
         rows.append({"patient_id": pid, "label": label, "sex_male": 1, "age": 55,
@@ -160,14 +160,22 @@ def test_rules_ci_preserves_multiplicity():
     sub = pd.DataFrame(rows)
     sub.attrs["horizon_windows"] = 4
     rule = MinedRule((MinedCondition("sex", "eq", 1.0),), 4, 1, 0)
-    # 直接验证：resample_rows 保留重复患者行（不 drop_duplicates）
-    from splitters import resample_rows, patient_bootstrap_samples
-    samples = patient_bootstrap_samples(sub["patient_id"].to_numpy(), b=5, seed=0)
-    for s in samples:
-        sset = resample_rows(sub, s).reset_index(drop=True)
-        # 有放回抽样：样本行数 == 唯一患者数（=4），但可能含重复患者行（同患者多行）
-        assert len(sset) == len(s)  # 保留 multiplicity，不折叠
-        assert not sset["patient_id"].is_unique or len(sset) == len(set(s))  # 允许重复
+    # 记录 CI 内部对 resample_rows 结果的后续处理：monkeypatch 让 resample_rows 返回
+    # 含重复患者的样本，并在返回前记录"该样本是否被 drop_duplicates 过"
+    observed = {"saw_duplicate": False, "called": 0}
+    real_resample = rules_mod.resample_rows
+    def spy_resample(frame, sampled_ids):
+        out = real_resample(frame, sampled_ids)
+        observed["called"] += 1
+        if not out["patient_id"].is_unique:
+            observed["saw_duplicate"] = True      # resample_rows 返回含重复患者的样本
+        return out
+    monkeypatch.setattr(rules_mod, "resample_rows", spy_resample)
+    # 若 CI 内部 drop_duplicates，则后续 groupby/计数会基于去重后；此处断言 resample_rows
+    # 返回的含重复样本确实被传入（未在 CI 入口被 drop）。用确定性 b 保证至少一个重复样本。
+    _rules_bootstrap_ci(sub, [rule], b=20, seed=0)
+    assert observed["called"] == 20              # 20 次重采样都走 spy
+    assert observed["saw_duplicate"] is True     # 至少一个样本含重复患者（multiplicity 保留）
 
 def test_unique_patient_consistency_across_paths():
     """全链路唯一患者一致性（Codex 批次 3 三轮 P1-3）：_support/_lift/_discover_frozen
