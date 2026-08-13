@@ -2179,7 +2179,7 @@ def lag_ablation_analysis(landmarks, lags, seed=0):
 - Consumes: `features.confirmation_subset`（含 `attrs["horizon_windows"]`）、`splitters.patient_folds`。
 - Produces: `MinedCondition`/`MinedRule`（数值 value）；`mine_rules(subset, n_repeats, seeds)` → `{"rules": list[MinedRule], "selection_frequency"}`；`_candidate_conditions(subset, seed=0)`（**规格 §8.1 折内候选：SHAP top-M 特征 + 折内分位数阈值 + 固定临床网格补充**；top_m/thresholds_per_feature 版本化，禁读 planted_rules）；`_discover_frozen(subset, seed, horizon_windows, cands=None)`（**Apriori 逐层枚举 + 训练折支持度剪枝 + 掩码复用，全量不截断**，horizon 显式传参）；`_rules_bootstrap_ci(subset, rules, b, seed)`（**批量共享重采样 + numpy 内核 + 折内支持度判定**）。**mine_rules 内部先过滤 `unobservable` 行**（发现/验证/CI 只用可评估确认 landmark）。
 
-**规则 CI（等价实现，规格 v18）**：规则身份已由原始发现的固定候选空间确定，CI 只评估其 support/lift 在患者重采样人群中的稳定性——**候选空间固定、候选存在性被忽略**（不重新评估折内候选发现过程；折内候选切点随折/样本/seed 漂移使"重采样→重跑发现"永不重新发现固定阈值规则，实测 0/12）。实现 = **批量共享重采样**（每样本一次）→ 每条规则**折内支持度判定**（须在每个训练折 ev/tot ≥ 门槛，与"固定候选下重跑发现"等价）→ 验证折 lift（验证折自身基线）→ `(2.5, 97.5)`；有效 <2 → `"CI 未估计"`。b = 版本化 `bootstrap_b`（1000）。**`mine_rules` 签名无 oof_frame**。
+**规则 CI（等价实现，规格 v18）**：规则身份已由原始发现的固定候选空间确定，CI 只评估其 support/lift 在患者重采样人群中的稳定性——**候选空间固定、候选存在性被忽略**（不重新评估折内候选发现过程；折内候选切点随折/样本/seed 漂移使"重采样→重跑发现"永不重新发现固定阈值规则，实测 0/12）。实现 = **批量共享重采样**（每样本一次）→ 每条规则**折内支持度判定**（须在**至少一个**训练折 ev/tot ≥ 门槛——折内发现逐折进行，规则在任一卷折被重新发现即"该重采样样本上重新发现"；不达标折 continue、达标折产生验证 lift，与"固定候选下重跑发现"等价）→ 验证折 lift（验证折自身基线）→ `(2.5, 97.5)`；有效 <2 → `"CI 未估计"`。b = 版本化 `bootstrap_b`（1000）。**`mine_rules` 签名无 oof_frame**。
 
 **规范化（保类型）**：`_canonical_rule` 返回 `(indicator, op, float(value), lookback)`（value 恒数值）；重建 MinedCondition 用 float。
 
@@ -2674,7 +2674,7 @@ def _cond_col(c):
 def _rules_bootstrap_ci(subset, rules, b=12, seed=0):
     """批量规则 CI（v5.29 numpy 内核 + 折内判定）：每样本先 drop_duplicates("patient_id")
     （唯一患者口径 ≡ 去重后行级），特征矩阵一次提取 + 列比较向量化；每条规则**折内支持度
-    判定**（须在每个训练折 ev/tot ≥ 门槛）→ 验证折 lift（验证折自身基线）。b=版本化
+    判定**（须在**至少一个**训练折 ev/tot ≥ 门槛——不达标折 continue）→ 验证折 lift（验证折自身基线）。b=版本化
     bootstrap_b（1000）；有效 <2 → "CI 未估计"。"""
     samples = patient_bootstrap_samples(subset["patient_id"].to_numpy(), b, seed)
     keys = [_canonical_rule(r) for r in rules]

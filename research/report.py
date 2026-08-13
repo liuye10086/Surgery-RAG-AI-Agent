@@ -82,13 +82,27 @@ def _fmt_ci(ci):
 def _rules_table(rules):
     if not rules:
         return "- 未挖出规则\n"
-    lines = ["| 条件 | lift 中位 | 支持事件 | 总支持 | 选中频率 | CI |", "| --- | --- | --- | --- | --- | --- |"]
-    for r in rules:
+    # v5.29（Codex 批次 4 一轮 P2-1）：只渲染 top 20 + 汇总（v18"报告只渲染 top 20"）；
+    # 规则表展示 horizon/lookback/lag（§9 挖回规则列表要求）
+    lines = ["| 条件 | horizon | lookback | lag | lift 中位 | 支持事件 | 总支持 | 选中频率 | CI |",
+             "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+    shown = rules[:20]
+    for r in shown:
         conds = "; ".join(_cond_str(c) for c in _rget(r, "conditions", []))   # 兼容 tuple 与 MinedCondition
         ci = _rget(r, "ci")
         ci_s = "CI 未估计" if isinstance(ci, str) else _fmt_ci(ci)
-        lines.append(f"| {conds} | {_rget(r, 'lift_median', 0):.2f} | {_rget(r, 'event_support', 0)} "
+        lines.append(f"| {conds} | {_rget(r, 'horizon_windows', 0)} | {_rget(r, 'lookback', 0)} "
+                     f"| {_rget(r, 'lag', 0)} | {_rget(r, 'lift_median', 0):.2f} | {_rget(r, 'event_support', 0)} "
                      f"| {_rget(r, 'total_support', 0)} | {_rget(r, 'selection_frequency', 0):.2f} | {ci_s} |")
+    if len(rules) > len(shown):
+        lifts = [_rget(r, 'lift_median', float('nan')) for r in rules]
+        lifts = [x for x in lifts if isinstance(x, (int, float))]
+        extra = len(rules) - len(shown)
+        if lifts:
+            lines.append(f"\n- 另有 {extra} 条规则未列出（lift 中位范围 "
+                         f"[{min(lifts):.2f}, {max(lifts):.2f}]）。")
+        else:
+            lines.append(f"\n- 另有 {extra} 条规则未列出。")
     return "\n".join(lines) + "\n"
 
 
@@ -150,12 +164,20 @@ def _timeline_block(tt):
     lines = [f"- early_median：{order.get('early_median')}；afp_median：{order.get('afp_median')}",
              f"- afp_after_early：{order.get('afp_after_early')}；tiebreak：{order.get('tiebreak_by_event_count')}",
              f"- 交集患者：{tt.get('n_intersection')}；unmatched：{_fmt_num(tt.get('unmatched_rate'))}"]
-    # v5.29（Codex 批次 3 六轮 P2，关闭文档风险）：路径级 unmatched_by_group 展示，
-    # 空组 NaN → NA（不得渲染成 100% unmatched）；全局 unmatched_rate 仅作汇总对照
+    # v5.29（Codex 批次 3 六轮 P2）：路径级 unmatched_by_group（空组 NaN → NA）
     ubg = (tt or {}).get("unmatched_by_group", {})
     if ubg:
         parts = ", ".join(f"{grp}={_fmt_num(v)}" for grp, v in ubg.items())
         lines.append(f"- 路径级 unmatched（空组 NA）：{parts}")
+    # v5.29（Codex 批次 4 一轮 P2-1）：进展组 vs 匹配对照差异（control_delta）及配对差异 CI
+    cd = (tt or {}).get("control_delta", {})
+    cd_ci = (tt or {}).get("control_delta_ci", {})
+    if cd:
+        parts = []
+        for ind, v in cd.items():
+            ci_s = _fmt_ci(cd_ci.get(ind)) if ind in cd_ci else "NA"
+            parts.append(f"{ind}={_fmt_num(v)}（CI {ci_s}）")
+        lines.append(f"- 进展组 vs 匹配对照首次偏离差（负=进展者更早）：{'; '.join(parts)}")
     return "\n".join(lines) + "\n"
 
 
@@ -188,6 +210,11 @@ def _scale_block(scale):
     lines = ["| 单元 | 重复 | 总体恢复率(CI) | 排除比例 | R1 频率 | R2 频率 | 双命中 | 精度 |",
              "| --- | --- | --- | --- | --- | --- | --- | --- |"]
     for k, agg in cells.items():
+        if agg.get("not_estimable"):
+            # v5.29（Codex 批次 4 一轮 P1-4）：不可估单元单列"不可估 + reason"，
+            # 不得渲染成 NaN/0.00/达标（误导）
+            lines.append(f"| {k} | 不可估 | — | — | — | — | — | **不可估**（{agg.get('reason', '')}） |")
+            continue
         prec = "**精度目标未达到**" if agg.get("precision_not_met") else "达标"
         lines.append(f"| {k} | {agg.get('repeats')} | {agg.get('overall_mean', float('nan')):.2f} "
                      f"({_fmt_ci(agg.get('overall_ci'))}) | {agg.get('excluded_ratio_mean', float('nan')):.2f} "

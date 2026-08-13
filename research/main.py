@@ -95,8 +95,10 @@ def run_method_validation(seed=7, out_dir="outputs", scale=None):
 
 
 def _small_scale_study():
-    """缩小网格跑一次规模退化（供报告 §7；不覆盖全局配置）。"""
-    return run_study(grid={"n": [150], "followup_months": [24], "horizon_months": 12}, repeats=2)
+    """缩小网格跑一次规模退化（供报告 §7；不覆盖全局配置）。
+    v5.29（Codex 批次 4 一轮 P1-3）：followup=36（24 月单元 _cell_feasible 不可估，
+    会产生空的 not_estimable 单元，报告 §7 无真实规模退化记录）。"""
+    return run_study(grid={"n": [150], "followup_months": [36], "horizon_months": 12}, repeats=2)
 
 
 def main(argv=None):

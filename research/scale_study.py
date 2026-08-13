@@ -250,7 +250,13 @@ def reliability_boundary(records_all_cells, followup_months):
             grid_vals[gi].append(v)
         valid += 1
         cb = _cross_boundary(fitted, grid, lo_bound)
+        # v5.29（Codex 批次 4 一轮 P1-2）：删失方向纠正——"首次达 50% 所需事件数"口径下：
+        # 全程 ≥50%（最小事件数已达标）→ **左删失**（边界 ≤ 最小网格，编码 -inf）；
+        # 全程 <50%（最大事件数仍不达）→ **右删失**（边界 > 最大网格，编码 +inf）。
+        # 旧实现把两者颠倒（≥50% 编码 +inf、<50% 丢弃），系统性推高边界 CI 且删掉真右删失。
         if cb == "not_observed":
+            boundary_samples.append(-float("inf"))
+        elif cb is None:
             boundary_samples.append(float("inf"))
         elif isinstance(cb, float):
             boundary_samples.append(cb)
@@ -287,11 +293,18 @@ def run_study(grid=None, repeats=None):
     grid = grid if grid is not None else cfg.GRID["scale_down"]
     repeats = repeats if repeats is not None else cfg.GRID["repeats"]
     out = {"cells": {}, "reliability_boundaries": {}}
+    # v5.29（Codex 批次 4 一轮 P2-3）：**全局唯一种子空间**——每个 (n, f) 单元分配
+    # 不相交的种子区间（`seed_offset = cell_index * repeats_max`），避免不同 N 下同 seed
+    # 产生相关队列（simulate 随机流结构相似），违反边界 Bootstrap 的独立实验单元假设
+    cell_index = 0
     for f in grid["followup_months"]:
         cell_records = []
         for n in grid["n"]:
+            seed_offset = cell_index * cfg.GRID["repeats_max"]
+            cell_index += 1
             res = run_cell(n=n, followup_months=f, horizon_months=grid["horizon_months"],
-                           repeats=repeats, seeds=list(range(repeats)))
+                           repeats=repeats,
+                           seeds=list(range(seed_offset, seed_offset + repeats)))
             if res.get("not_estimable"):          # v5.22：几何不可行单元 → 单列标记、
                 out["cells"][f"n{n}_f{f}"] = {"not_estimable": True, "reason": res["reason"]}
                 continue                          # **不进聚合与可靠性边界统计**（Codex 二轮 P1-4）
@@ -300,7 +313,7 @@ def run_study(grid=None, repeats=None):
             while not _meet_halfwidth(agg) and r < cfg.GRID["repeats_max"]:
                 r *= 2
                 res = run_cell(n=n, followup_months=f, horizon_months=grid["horizon_months"],
-                               repeats=r, seeds=list(range(r)))
+                               repeats=r, seeds=list(range(seed_offset, seed_offset + r)))
                 agg = aggregate_cell(res)
             agg["precision_not_met"] = not _meet_halfwidth(agg)   # 达 repeats_max 仍未满足半宽 → 标记
             out["cells"][f"n{n}_f{f}"] = agg

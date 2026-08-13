@@ -292,13 +292,15 @@ def _rules_bootstrap_ci(subset, rules, b=12, seed=0):
     每条输出规则（**不重跑组合枚举发现**）：
     - **"重新发现" = 规则在重采样集上支持度 ≥ 门槛**（固定切点下与"重跑发现 +
       该规则出现"数学等价——发现枚举所有通过组合）；
-    - **折内发现判定**（Codex 批次 3 P1-1）：规则须在该**训练折**上支持度 ≥ 门槛
-      （全体样本达标 ≠ 每训练折达标，如规则 ev=5 但某折无事件）；
+    - **折内发现判定**（Codex 批次 3 P1-1 + 批次 4 P2-2）：规则须在**至少一个**训练折上
+      支持度 ≥ 门槛（不达标折 continue——折内发现逐折进行，规则在任一卷折被重新发现即
+      "该样本上重新发现"；全体样本达标但每折都不达标 → 无验证 lift → CI 未估计，如规则
+      ev=5 但 3 折训练集各正例 <5）；
     - **折外验证**：验证折 lift 均值（与 _fold_discover_validate 同机制）；
     - 未重新发现/有效 <2 → 该规则 "CI 未估计"。
     **v5.29 numpy 内核**：每样本一次特征矩阵提取、规则掩码列比较向量化
     （pandas 逐规则开销在 b=1000 × 规则 × 折 下实测 653s/CI 不可行）；
-    **先按患者去重**——唯一患者口径支持度 ≡ 去重后行级支持度（严格等价）。"""
+    **保留 multiplicity + unique_first_mask**（唯一患者口径行级计数，样本结构正确）。"""
     samples = patient_bootstrap_samples(subset["patient_id"].to_numpy(), b, seed)
     keys = [_canonical_rule(r) for r in rules]
     per_sample = {k: [] for k in keys}
@@ -327,35 +329,49 @@ def _rules_bootstrap_ci(subset, rules, b=12, seed=0):
 
     for s in samples:
         sset = resample_rows(subset, s).reset_index(drop=True)
-        sset = sset.drop_duplicates("patient_id").reset_index(drop=True)
+        # v5.29（Codex 批次 4 一轮 P1-1）：**保留 multiplicity**（标准患者聚类 Bootstrap——
+        # 有放回抽患者，同一患者抽中多次其行多次出现；drop_duplicates 会折叠成"出现过的
+        # 患者集合"，改变抽样分布）。支持度/lift 按**唯一患者**口径 = `unique_first_mask`
+        # （每患者首次出现行）行级计数——数值等价于 nunique，但样本结构正确。
+        pids = sset["patient_id"].to_numpy()
+        _, unique_first = np.unique(pids, return_index=True)
+        unique_first_mask = np.zeros(len(sset), dtype=bool)
+        unique_first_mask[unique_first] = True
         X = sset[col_names].to_numpy() if col_names else np.empty((len(sset), 0))
         y = sset["label"].to_numpy()
-        # 患者折（折内发现→折外验证；与 _fold_discover_validate 同机制）
-        uniq = sset.groupby("patient_id")["label"].max().reset_index()
-        pos = int((uniq["label"] > 0).sum())
-        neg = int((uniq["label"] == 0).sum())
+        # 患者折（折内发现→折外验证；与 _fold_discover_validate 同机制；唯一患者数 = unique_first_mask.sum()）
+        pos = int((unique_first_mask & (y > 0)).sum())
+        neg = int((unique_first_mask & (y == 0)).sum())
         k = min(cfg.THRESHOLDS["cv_folds"], pos, neg)
         if k < 2:
             continue
+        uniq = sset.loc[unique_first_mask, ["patient_id", "label"]].copy()
         uniq["patient_event"] = (uniq["label"] > 0).astype(int)
         folds_uniq = patient_folds(uniq, k, seed)
         pid_to_row = {pid: i for i, pid in enumerate(uniq["patient_id"])}
         folds_map = folds_uniq[sset["patient_id"].map(pid_to_row).to_numpy()]
+        # 折归属掩码（行级；唯一患者口径 = fold_mask & unique_first_mask）
         for key, rule in zip(keys, rules):
             val_lifts = []
             for j in range(k):
                 tr, va = folds_map != j, folds_map == j
                 m_tr = rule_mask(X[tr], rule)
-                ev_tr = int((m_tr & (y[tr] > 0)).sum())
-                tot_tr = int(m_tr.sum())
+                tr_unique = unique_first_mask[tr]
+                ev_tr = int((m_tr & tr_unique & (y[tr] > 0)).sum())
+                tot_tr = int((m_tr & tr_unique).sum())
                 if ev_tr < cfg.THRESHOLDS["rule_event_support_min"] \
                         or tot_tr < cfg.THRESHOLDS["rule_total_support_min"]:
                     continue
                 m_va = rule_mask(X[va], rule)
-                base_va = float(y[va].mean())          # v5.29（Codex 三轮 P1-1）：验证折
-                if m_va.sum() == 0 or base_va <= 0:    # **自身**基线（与原 _lift 折外语义一致；
-                    continue                            # 全样本基线会在折内正例率不同时改变 estimand）
-                l = float(y[va][m_va].mean()) / base_va
+                va_unique = unique_first_mask[va]
+                hit_pos = int((m_va & va_unique & (y[va] > 0)).sum())
+                hit_tot = int((m_va & va_unique).sum())
+                base_pos = int((va_unique & (y[va] > 0)).sum())
+                base_tot = int(va_unique.sum())
+                if hit_tot == 0 or base_pos == 0:
+                    continue
+                # 唯一患者 lift：命中正例/命中总 除以 基线正例/基线总（验证折自身基线）
+                l = (hit_pos / hit_tot) / (base_pos / base_tot)
                 if np.isfinite(l):
                     val_lifts.append(l)
             if val_lifts:

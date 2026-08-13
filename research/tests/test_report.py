@@ -83,6 +83,32 @@ def test_calibration_block_renders():
     md_bad = render_report(_sec(calibration=cal_bad))
     assert "校准未达标" in md_bad
 
+def test_scale_block_not_estimable_cell():
+    """不可估单元单列"不可估 + reason"（Codex 批次 4 一轮 P1-4）：不得渲染成
+    NaN/0.00/达标（默认 CLI 唯一规模单元的实际报告内容）。"""
+    scale = {"cells": {"n150_f24": {"not_estimable": True, "reason": "no_feasible_path_anchor"}}}
+    md = render_report(_sec(scale=scale))
+    assert "不可估" in md and "no_feasible_path_anchor" in md
+    assert "nan" not in md
+
+def test_rules_table_top20_and_time_fields():
+    """规则表 top 20 + horizon/lookback/lag 列（Codex 批次 4 一轮 P2-1，v18 报告契约）。"""
+    rules = [{"conditions": [("sex", "eq", 1.0)], "horizon_windows": 4, "lookback": 1,
+              "lag": 0, "lift_median": 2.0, "event_support": 10, "total_support": 30,
+              "selection_frequency": 1.0, "ci": (1.5, 2.5)}] * 25   # 25 条 → top 20 + 汇总
+    md = render_report(_sec(rules=rules))
+    assert "horizon" in md and "lookback" in md and "lag" in md
+    assert "另有 5 条规则未列出" in md
+
+def test_timeline_control_delta_ci_rendered():
+    """第 5 节展示进展组 vs 匹配对照差异 + control_delta_ci（Codex 批次 4 一轮 P2-1）。"""
+    md = render_report(_sec(timeline={
+        "order": {"early_median": 2.0, "afp_median": 1.0, "afp_after_early": True,
+                  "tiebreak_by_event_count": 0},
+        "n_intersection": 30, "unmatched_rate": 0.0,
+        "control_delta": {"PLT": -2.0}, "control_delta_ci": {"PLT": (-3.0, -1.0)}}))
+    assert "首次偏离差" in md and "-2.000" in md and "-3.000" in md
+
 def test_timeline_unmatched_by_group_rendered():
     """路径级 unmatched 展示（Codex 批次 3 六轮 P2，关闭文档风险）：报告须展示
     unmatched_by_group（路径级），空组 NaN → NA（不得渲染成 100% unmatched）。"""

@@ -174,5 +174,10 @@ def test_boundary_point_high_ci_lower_crosses():
     assert b["point_boundary_events"] == "not_observed"   # 原始点达标（诊断）
     assert b["status"] == "observed"                       # CI 下界曲线跨 50% → observed
     assert 0 < b["boundary_events"] < 20                   # 边界在低箱(grid 0)与高箱(grid 20)之间
-    assert b["boundary_ci"][0] <= b["boundary_events"] <= b["boundary_ci"][1]
-    assert np.isfinite(b["boundary_ci"][0])                # 下界恒有限（无有效 not_observed 样本时）
+    # v5.29（Codex 批次 4 一轮 P1-2）：删失方向纠正——大部分 Bootstrap 样本全程 ≥50%
+    # → **左删失**（边界 ≤ 最小网格，编码 -inf）；boundary_ci[0] = -inf 是正确的左删失标志
+    # （旧实现把 ≥50% 误编码 +inf 会推高 CI）。boundary_ci[1] 有限（跨 50% 样本存在）。
+    # boundary_events（CI 下界曲线首达点）与 boundary_ci（每次样本边界值分布）非同一量，
+    # 不再断言嵌套包含。
+    assert b["boundary_ci"][0] == -float("inf")
+    assert np.isfinite(b["boundary_ci"][1])
