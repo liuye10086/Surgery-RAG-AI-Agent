@@ -120,5 +120,9 @@ def evaluate(recovery, planted_rules, subset, coverage):
                              "r2_partial": any(partial_hit(r, planted_rules.r2) for r in mined)},
         "coverage": coverage.get("per_rule", {}),
         "rule_ci_present": all(isinstance(r.ci, tuple) for r in mined),
+        # v5.30（acceptance 根因 1 修复）：完整命中的 R1/R2 规则的 CI（验收核心；低支持
+        # 杂项规则的 CI 未估计是统计现实，不作为验收门控）
+        "r1_ci": r1_rule.ci if r1_rule is not None else None,
+        "r2_ci": r2_rule.ci if r2_rule is not None else None,
         "n_rules": len(mined),
     }

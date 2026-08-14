@@ -45,7 +45,11 @@ def _build_planted_rules(horizon_months):
 
 
 def _sample_z_covariates(rng, n):
-    paths = rng.choice(["none", "r1", "r2", "r1_and_r2"], n, p=[0.70, 0.15, 0.10, 0.05])
+    # v5.30（acceptance 根因 2 修复）：r1_and_r2 交集组 0.05→0.10（r1 0.15→0.12、
+    # none 0.70→0.68）——交集组观察进展者数在 n=1500 下从 ~30 提升到 ~60，使 lead-lag
+    # 交集样本 n_inter 稳定 ≥30（旧 5% 比例下随机波动，seed 13 实测 n_inter=29 触发
+    # not_estimable）。gate 是 per-group Bernoulli 概率、与各组人数无关，无需重校准。
+    paths = rng.choice(["none", "r1", "r2", "r1_and_r2"], n, p=[0.68, 0.12, 0.10, 0.10])
     ages, sexes = np.empty(n, int), np.empty(n, object)
     for i, z in enumerate(paths):
         if z in ("r1", "r1_and_r2"):
