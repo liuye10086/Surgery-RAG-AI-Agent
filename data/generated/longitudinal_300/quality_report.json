@@ -1,0 +1,6690 @@
+{
+  "actual_rule_signal_counts": {
+    "neither": 212,
+    "r1": 36,
+    "r1_r2": 21,
+    "r2": 73
+  },
+  "assigned_path_mismatches": [],
+  "base_generator_version": "1.3.1",
+  "baseline_artifact_hashes": {
+    "extracted_cases": "9a94c7750f4f7c3a5c09c695a17e18fa940f40a553b4ca03b6203e726274f5e6",
+    "patients": "b70630801c12ae2c3e013c90616ec248b52039bd750061338209324ec240b4f9",
+    "provenance": "19ec61a5d9fa418b9f6d782f83c62d94f7027553b6669c4e69ba93c5e759d548",
+    "quality": "1395a1e6ef457e4c763ccf0ef8ee56652217bf9cfa674a82897c1873b0ad28c6",
+    "visits": "39e162fec121423d346ef2f6b7834586b4463f07ef62109802007901921b14d2"
+  },
+  "baseline_directory": "longitudinal_150",
+  "baseline_patient_count": 150,
+  "baseline_patient_ids": [
+    "P001",
+    "P002",
+    "P003",
+    "P004",
+    "P005",
+    "P006",
+    "P007",
+    "P008",
+    "P009",
+    "P010",
+    "P011",
+    "P012",
+    "P013",
+    "P014",
+    "P015",
+    "P016",
+    "P017",
+    "P018",
+    "P019",
+    "P020",
+    "P021",
+    "P022",
+    "P023",
+    "P024",
+    "P025",
+    "P026",
+    "P027",
+    "P028",
+    "P029",
+    "P030",
+    "P031",
+    "P032",
+    "P033",
+    "P034",
+    "P035",
+    "P036",
+    "P037",
+    "P038",
+    "P039",
+    "P040",
+    "P041",
+    "P042",
+    "P043",
+    "P044",
+    "P045",
+    "P046",
+    "P047",
+    "P048",
+    "P049",
+    "P050",
+    "P051",
+    "P052",
+    "P053",
+    "P054",
+    "P055",
+    "P056",
+    "P057",
+    "P058",
+    "P059",
+    "P060",
+    "P061",
+    "P062",
+    "P063",
+    "P064",
+    "P065",
+    "P066",
+    "P067",
+    "P068",
+    "P069",
+    "P070",
+    "P071",
+    "P072",
+    "P073",
+    "P074",
+    "P075",
+    "P076",
+    "P077",
+    "P078",
+    "P079",
+    "P080",
+    "P081",
+    "P082",
+    "P083",
+    "P084",
+    "P085",
+    "P086",
+    "P087",
+    "P088",
+    "P089",
+    "P090",
+    "P091",
+    "P092",
+    "P093",
+    "P094",
+    "P095",
+    "P096",
+    "P097",
+    "P098",
+    "P099",
+    "P100",
+    "P101",
+    "P102",
+    "P103",
+    "P104",
+    "P105",
+    "P106",
+    "P107",
+    "P108",
+    "P109",
+    "P110",
+    "P111",
+    "P112",
+    "P113",
+    "P114",
+    "P115",
+    "P116",
+    "P117",
+    "P118",
+    "P119",
+    "P120",
+    "P121",
+    "P122",
+    "P123",
+    "P124",
+    "P125",
+    "P126",
+    "P127",
+    "P128",
+    "P129",
+    "P130",
+    "P131",
+    "P132",
+    "P133",
+    "P134",
+    "P135",
+    "P136",
+    "P137",
+    "P138",
+    "P139",
+    "P140",
+    "P141",
+    "P142",
+    "P143",
+    "P144",
+    "P145",
+    "P146",
+    "P147",
+    "P148",
+    "P149",
+    "P150"
+  ],
+  "baseline_visit_count": 692,
+  "cohort_classification_reasons": {
+    "P001": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A1-1"
+    },
+    "P002": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A2-1"
+    },
+    "P003": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A3-1"
+    },
+    "P004": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A4-1"
+    },
+    "P005": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A5-1"
+    },
+    "P006": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "insufficient_patient_level_narrative"
+      ],
+      "source_case_id": "A6-1"
+    },
+    "P007": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A7-1"
+    },
+    "P008": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "competing_alcohol_related_liver_disease"
+      ],
+      "source_case_id": "A8-1"
+    },
+    "P009": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A9-1"
+    },
+    "P010": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A10-1"
+    },
+    "P011": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A11-1"
+    },
+    "P012": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A12-1"
+    },
+    "P013": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A13-1"
+    },
+    "P014": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A14-1"
+    },
+    "P015": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "competing_drug_induced_liver_injury"
+      ],
+      "source_case_id": "A15-1"
+    },
+    "P016": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A16-1"
+    },
+    "P017": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A17-1"
+    },
+    "P018": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "insufficient_fatty_liver_evidence",
+        "competing_pregnancy_acute_fatty_liver"
+      ],
+      "source_case_id": "A17-2"
+    },
+    "P019": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A18-1"
+    },
+    "P020": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A19-1"
+    },
+    "P021": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A20-1"
+    },
+    "P022": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A21-1"
+    },
+    "P023": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A22-1"
+    },
+    "P024": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A23-1"
+    },
+    "P025": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "insufficient_fatty_liver_evidence",
+        "competing_pregnancy_acute_fatty_liver"
+      ],
+      "source_case_id": "A24-1"
+    },
+    "P026": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A25-1"
+    },
+    "P027": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "insufficient_fatty_liver_evidence",
+        "metabolic_comorbidity_hypertension",
+        "competing_pregnancy_acute_fatty_liver"
+      ],
+      "source_case_id": "A26-1"
+    },
+    "P028": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A26-2"
+    },
+    "P029": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A28-1"
+    },
+    "P030": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A29-1"
+    },
+    "P031": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "competing_viral_hepatitis"
+      ],
+      "source_case_id": "A31-1"
+    },
+    "P032": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A33-1"
+    },
+    "P033": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "hcc_first_presentation_without_documented_progression"
+      ],
+      "source_case_id": "A36-1"
+    },
+    "P034": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A37-1"
+    },
+    "P035": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A38-1"
+    },
+    "P036": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A38-2"
+    },
+    "P037": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A39-1"
+    },
+    "P038": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A40-1"
+    },
+    "P039": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A41-1"
+    },
+    "P040": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A42-1"
+    },
+    "P041": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "insufficient_fatty_liver_evidence"
+      ],
+      "source_case_id": "A43-1"
+    },
+    "P042": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A44-1"
+    },
+    "P043": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A45-1"
+    },
+    "P044": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "competing_alcohol_related_liver_disease"
+      ],
+      "source_case_id": "A46-1"
+    },
+    "P045": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A47-1"
+    },
+    "P046": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A48-1"
+    },
+    "P047": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A49-1"
+    },
+    "P048": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "competing_genetic_or_mitochondrial_disease"
+      ],
+      "source_case_id": "A50-1"
+    },
+    "P049": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "competing_genetic_or_mitochondrial_disease"
+      ],
+      "source_case_id": "A51-1"
+    },
+    "P050": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A52-1"
+    },
+    "P051": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A53-1"
+    },
+    "P052": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A54-1"
+    },
+    "P053": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "competing_alcohol_related_liver_disease"
+      ],
+      "source_case_id": "A55-1"
+    },
+    "P054": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A56-1"
+    },
+    "P055": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A57-1"
+    },
+    "P056": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "competing_alcohol_related_liver_disease"
+      ],
+      "source_case_id": "A58-1"
+    },
+    "P057": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A59-1"
+    },
+    "P058": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A60-1"
+    },
+    "P059": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A61-1"
+    },
+    "P060": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A62-1"
+    },
+    "P061": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A63-1"
+    },
+    "P062": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A64-1"
+    },
+    "P063": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A65-1"
+    },
+    "P064": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A66-1"
+    },
+    "P065": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A67-1"
+    },
+    "P066": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A68-1"
+    },
+    "P067": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A69-1"
+    },
+    "P068": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A70-1"
+    },
+    "P069": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A71-1"
+    },
+    "P070": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A72-1"
+    },
+    "P071": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "competing_alcohol_related_liver_disease"
+      ],
+      "source_case_id": "A73-1"
+    },
+    "P072": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A74-1"
+    },
+    "P073": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A75-1"
+    },
+    "P074": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A76-1"
+    },
+    "P075": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "competing_alcohol_related_liver_disease"
+      ],
+      "source_case_id": "A77-1"
+    },
+    "P076": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A78-1"
+    },
+    "P077": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "A78-2"
+    },
+    "P078": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B1-1"
+    },
+    "P079": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "advanced_stage_without_fatty_prephase"
+      ],
+      "source_case_id": "B2-1"
+    },
+    "P080": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B3-1"
+    },
+    "P081": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B4-1"
+    },
+    "P082": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B5-1"
+    },
+    "P083": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B6-1"
+    },
+    "P084": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B7-1"
+    },
+    "P085": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B8-1"
+    },
+    "P086": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "competing_liver_abscess"
+      ],
+      "source_case_id": "B9-1"
+    },
+    "P087": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B10-1"
+    },
+    "P088": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B11-1"
+    },
+    "P089": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B12-1"
+    },
+    "P090": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "competing_genetic_or_mitochondrial_disease"
+      ],
+      "source_case_id": "B13-1"
+    },
+    "P091": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B14-1"
+    },
+    "P092": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B15-1"
+    },
+    "P093": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B16-1"
+    },
+    "P094": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B17-1"
+    },
+    "P095": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B18-1"
+    },
+    "P096": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B19-1"
+    },
+    "P097": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "competing_genetic_or_mitochondrial_disease"
+      ],
+      "source_case_id": "B20-1"
+    },
+    "P098": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B21-1"
+    },
+    "P099": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B22-1"
+    },
+    "P100": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B23-1"
+    },
+    "P101": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B24-1"
+    },
+    "P102": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B25-1"
+    },
+    "P103": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B26-1"
+    },
+    "P104": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B27-1"
+    },
+    "P105": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B28-1"
+    },
+    "P106": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B29-1"
+    },
+    "P107": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "insufficient_fatty_liver_evidence",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia"
+      ],
+      "source_case_id": "B30-1"
+    },
+    "P108": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B31-1"
+    },
+    "P109": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B32-1"
+    },
+    "P110": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B33-1"
+    },
+    "P111": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "competing_viral_hepatitis"
+      ],
+      "source_case_id": "B34-1"
+    },
+    "P112": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B35-1"
+    },
+    "P113": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B36-1"
+    },
+    "P114": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B37-1"
+    },
+    "P115": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B38-1"
+    },
+    "P116": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B39-1"
+    },
+    "P117": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B40-1"
+    },
+    "P118": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_pcos",
+        "competing_genetic_or_mitochondrial_disease"
+      ],
+      "source_case_id": "B41-1"
+    },
+    "P119": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "competing_viral_hepatitis"
+      ],
+      "source_case_id": "B42-1"
+    },
+    "P120": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B43-1"
+    },
+    "P121": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B44-1"
+    },
+    "P122": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B45-1"
+    },
+    "P123": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "insufficient_fatty_liver_evidence",
+        "metabolic_comorbidity_diabetes"
+      ],
+      "source_case_id": "B46-1"
+    },
+    "P124": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B47-1"
+    },
+    "P125": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B48-1"
+    },
+    "P126": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B49-1"
+    },
+    "P127": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B50-1"
+    },
+    "P128": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B51-1"
+    },
+    "P129": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B52-1"
+    },
+    "P130": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "competing_non_hcc_liver_cancer"
+      ],
+      "source_case_id": "B53-1"
+    },
+    "P131": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B54-1"
+    },
+    "P132": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_sleep_apnea",
+        "competing_genetic_or_mitochondrial_disease"
+      ],
+      "source_case_id": "B55-1"
+    },
+    "P133": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B56-1"
+    },
+    "P134": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B57-1"
+    },
+    "P135": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B58-1"
+    },
+    "P136": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B59-1"
+    },
+    "P137": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "competing_viral_hepatitis"
+      ],
+      "source_case_id": "B60-1"
+    },
+    "P138": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B61-1"
+    },
+    "P139": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B62-1"
+    },
+    "P140": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "competing_drug_induced_liver_injury"
+      ],
+      "source_case_id": "B63-1"
+    },
+    "P141": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B64-1"
+    },
+    "P142": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B65-1"
+    },
+    "P143": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "competing_drug_induced_liver_injury",
+        "competing_autoimmune_hepatitis",
+        "advanced_stage_without_fatty_prephase"
+      ],
+      "source_case_id": "B66-1"
+    },
+    "P144": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B67-1"
+    },
+    "P145": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "competing_viral_hepatitis",
+        "advanced_stage_without_fatty_prephase"
+      ],
+      "source_case_id": "B68-1"
+    },
+    "P146": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B69-1"
+    },
+    "P147": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B70-1"
+    },
+    "P148": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B71-1"
+    },
+    "P149": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "competing_alcohol_related_liver_disease"
+      ],
+      "source_case_id": "B72-1"
+    },
+    "P150": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": "B73-1"
+    },
+    "P151": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P152": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P153": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P154": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P155": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P156": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P157": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "advanced_stage_without_fatty_prephase",
+        "competing_viral_hepatitis",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes"
+      ],
+      "source_case_id": null
+    },
+    "P158": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P159": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P160": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_viral_hepatitis",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity"
+      ],
+      "source_case_id": null
+    },
+    "P161": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P162": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P163": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P164": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_viral_hepatitis",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension"
+      ],
+      "source_case_id": null
+    },
+    "P165": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P166": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P167": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_alcohol_related_liver_disease",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension"
+      ],
+      "source_case_id": null
+    },
+    "P168": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P169": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P170": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "advanced_stage_without_fatty_prephase",
+        "documented_fatty_liver"
+      ],
+      "source_case_id": null
+    },
+    "P171": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P172": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P173": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P174": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P175": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P176": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P177": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P178": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P179": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_non_hcc_liver_cancer",
+        "documented_fatty_liver"
+      ],
+      "source_case_id": null
+    },
+    "P180": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P181": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P182": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P183": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P184": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_alcohol_related_liver_disease",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity"
+      ],
+      "source_case_id": null
+    },
+    "P185": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P186": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P187": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "advanced_stage_without_fatty_prephase",
+        "competing_viral_hepatitis",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes"
+      ],
+      "source_case_id": null
+    },
+    "P188": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P189": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P190": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P191": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P192": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P193": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P194": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P195": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_alcohol_related_liver_disease",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity"
+      ],
+      "source_case_id": null
+    },
+    "P196": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P197": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P198": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P199": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_genetic_or_mitochondrial_disease",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia"
+      ],
+      "source_case_id": null
+    },
+    "P200": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_liver_abscess",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes"
+      ],
+      "source_case_id": null
+    },
+    "P201": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P202": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P203": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P204": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P205": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P206": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P207": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P208": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P209": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P210": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "advanced_stage_without_fatty_prephase",
+        "competing_viral_hepatitis",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes"
+      ],
+      "source_case_id": null
+    },
+    "P211": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "insufficient_fatty_liver_evidence"
+      ],
+      "source_case_id": null
+    },
+    "P212": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P213": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P214": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P215": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P216": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P217": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_viral_hepatitis",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity"
+      ],
+      "source_case_id": null
+    },
+    "P218": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P219": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P220": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P221": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_viral_hepatitis",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension"
+      ],
+      "source_case_id": null
+    },
+    "P222": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P223": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_viral_hepatitis",
+        "documented_fatty_liver"
+      ],
+      "source_case_id": null
+    },
+    "P224": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P225": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P226": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_drug_induced_liver_injury",
+        "documented_fatty_liver"
+      ],
+      "source_case_id": null
+    },
+    "P227": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P228": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_viral_hepatitis",
+        "documented_fatty_liver"
+      ],
+      "source_case_id": null
+    },
+    "P229": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P230": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P231": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P232": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P233": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P234": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P235": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P236": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P237": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P238": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P239": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P240": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_alcohol_related_liver_disease",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity"
+      ],
+      "source_case_id": null
+    },
+    "P241": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "insufficient_fatty_liver_evidence",
+        "metabolic_comorbidity_diabetes"
+      ],
+      "source_case_id": null
+    },
+    "P242": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_pregnancy_acute_fatty_liver",
+        "insufficient_fatty_liver_evidence",
+        "metabolic_comorbidity_hypertension"
+      ],
+      "source_case_id": null
+    },
+    "P243": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P244": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_viral_hepatitis",
+        "documented_fatty_liver"
+      ],
+      "source_case_id": null
+    },
+    "P245": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P246": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_viral_hepatitis",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity"
+      ],
+      "source_case_id": null
+    },
+    "P247": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P248": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P249": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P250": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_liver_abscess",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes"
+      ],
+      "source_case_id": null
+    },
+    "P251": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "insufficient_fatty_liver_evidence",
+        "metabolic_comorbidity_diabetes"
+      ],
+      "source_case_id": null
+    },
+    "P252": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P253": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P254": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_drug_induced_liver_injury",
+        "documented_fatty_liver"
+      ],
+      "source_case_id": null
+    },
+    "P255": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P256": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P257": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P258": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P259": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P260": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P261": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P262": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P263": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P264": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P265": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P266": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P267": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P268": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P269": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P270": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_alcohol_related_liver_disease",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension"
+      ],
+      "source_case_id": null
+    },
+    "P271": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P272": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P273": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "documented_fatty_liver",
+        "hcc_first_presentation_without_documented_progression",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension"
+      ],
+      "source_case_id": null
+    },
+    "P274": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P275": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_pregnancy_acute_fatty_liver",
+        "insufficient_fatty_liver_evidence"
+      ],
+      "source_case_id": null
+    },
+    "P276": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P277": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P278": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P279": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P280": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_viral_hepatitis",
+        "documented_fatty_liver"
+      ],
+      "source_case_id": null
+    },
+    "P281": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P282": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_hypertension",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P283": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P284": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_pcos",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P285": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_dyslipidemia",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P286": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P287": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P288": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P289": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P290": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P291": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P292": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P293": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P294": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P295": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_pcos",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P296": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_sleep_apnea",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P297": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_hypertension",
+        "metabolic_comorbidity_metabolic_syndrome",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P298": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_genetic_or_mitochondrial_disease",
+        "documented_fatty_liver",
+        "metabolic_comorbidity_obesity",
+        "metabolic_comorbidity_sleep_apnea"
+      ],
+      "source_case_id": null
+    },
+    "P299": {
+      "cohort_group": "fatty_liver_progression",
+      "reasons": [
+        "documented_fatty_liver",
+        "metabolic_comorbidity_diabetes",
+        "metabolic_comorbidity_dyslipidemia",
+        "metabolic_comorbidity_obesity",
+        "eligible_no_competing_etiology"
+      ],
+      "source_case_id": null
+    },
+    "P300": {
+      "cohort_group": "mixed",
+      "reasons": [
+        "competing_pregnancy_acute_fatty_liver",
+        "insufficient_fatty_liver_evidence",
+        "metabolic_comorbidity_hypertension"
+      ],
+      "source_case_id": null
+    }
+  },
+  "cohort_counts": {
+    "fatty_liver_progression": 236,
+    "mixed": 64
+  },
+  "cohort_rule_signal_counts": {
+    "fatty_liver_progression": {
+      "neither": 165,
+      "r1": 30,
+      "r1_r2": 17,
+      "r2": 58
+    },
+    "mixed": {
+      "neither": 47,
+      "r1": 6,
+      "r1_r2": 4,
+      "r2": 15
+    }
+  },
+  "cohort_stage_cross_counts": {
+    "fatty_liver_progression|cirrhosis": 83,
+    "fatty_liver_progression|fatty_liver": 107,
+    "fatty_liver_progression|hcc": 46,
+    "mixed|cirrhosis": 17,
+    "mixed|fatty_liver": 43,
+    "mixed|hcc": 4
+  },
+  "duplicate_check": {
+    "complete_duplicate_groups": [],
+    "patient_only_duplicate_group_count": 3,
+    "trajectory_only_duplicate_group_count": 0
+  },
+  "embedded_rule_paths": [
+    "r1",
+    "r2",
+    "r1_r2"
+  ],
+  "extension_cohort_counts": {
+    "fatty_liver_progression": 118,
+    "mixed": 32
+  },
+  "extension_generated_lost_to_followup_ids": [
+    "P157",
+    "P162",
+    "P207",
+    "P241"
+  ],
+  "extension_generated_outcome_ids": {
+    "cirrhosis": [
+      "P153",
+      "P158",
+      "P164",
+      "P169",
+      "P176",
+      "P177",
+      "P179",
+      "P180",
+      "P181",
+      "P182",
+      "P188",
+      "P191",
+      "P192",
+      "P196",
+      "P197",
+      "P198",
+      "P199",
+      "P201",
+      "P204",
+      "P206",
+      "P210",
+      "P211",
+      "P223",
+      "P226",
+      "P229",
+      "P230",
+      "P231",
+      "P233",
+      "P234",
+      "P235",
+      "P241",
+      "P246",
+      "P251",
+      "P261",
+      "P263",
+      "P264",
+      "P265",
+      "P268",
+      "P269",
+      "P273",
+      "P274",
+      "P275",
+      "P276",
+      "P277",
+      "P281",
+      "P288",
+      "P289",
+      "P291",
+      "P295",
+      "P298"
+    ],
+    "fatty_liver": [
+      "P151",
+      "P155",
+      "P157",
+      "P159",
+      "P160",
+      "P163",
+      "P165",
+      "P166",
+      "P167",
+      "P168",
+      "P170",
+      "P171",
+      "P173",
+      "P174",
+      "P183",
+      "P184",
+      "P185",
+      "P187",
+      "P189",
+      "P190",
+      "P193",
+      "P195",
+      "P202",
+      "P203",
+      "P205",
+      "P208",
+      "P209",
+      "P212",
+      "P213",
+      "P214",
+      "P215",
+      "P216",
+      "P217",
+      "P218",
+      "P220",
+      "P221",
+      "P222",
+      "P227",
+      "P228",
+      "P232",
+      "P237",
+      "P238",
+      "P239",
+      "P242",
+      "P244",
+      "P245",
+      "P247",
+      "P248",
+      "P249",
+      "P250",
+      "P253",
+      "P255",
+      "P256",
+      "P257",
+      "P258",
+      "P260",
+      "P262",
+      "P266",
+      "P267",
+      "P270",
+      "P272",
+      "P278",
+      "P280",
+      "P283",
+      "P284",
+      "P285",
+      "P287",
+      "P290",
+      "P292",
+      "P293",
+      "P294",
+      "P296",
+      "P297",
+      "P299",
+      "P300"
+    ],
+    "hcc": [
+      "P152",
+      "P154",
+      "P156",
+      "P161",
+      "P162",
+      "P172",
+      "P175",
+      "P178",
+      "P186",
+      "P194",
+      "P200",
+      "P207",
+      "P219",
+      "P224",
+      "P225",
+      "P236",
+      "P240",
+      "P243",
+      "P252",
+      "P254",
+      "P259",
+      "P271",
+      "P279",
+      "P282",
+      "P286"
+    ]
+  },
+  "extension_path_counts": {
+    "non_rule_progression": 47,
+    "r1": 8,
+    "r1_r2": 10,
+    "r2": 10,
+    "stable": 75
+  },
+  "extension_patient_count": 150,
+  "extension_source_components": {
+    "P151": {
+      "baseline_trajectory_patient_id": "P148",
+      "demographics_patient_id": "P046",
+      "reason_template_patient_id": "P127"
+    },
+    "P152": {
+      "baseline_trajectory_patient_id": "P042",
+      "demographics_patient_id": "P139",
+      "reason_template_patient_id": "P091"
+    },
+    "P153": {
+      "baseline_trajectory_patient_id": "P144",
+      "demographics_patient_id": "P004",
+      "reason_template_patient_id": "P085"
+    },
+    "P154": {
+      "baseline_trajectory_patient_id": "P088",
+      "demographics_patient_id": "P034",
+      "reason_template_patient_id": "P022"
+    },
+    "P155": {
+      "baseline_trajectory_patient_id": "P021",
+      "demographics_patient_id": "P102",
+      "reason_template_patient_id": "P124"
+    },
+    "P156": {
+      "baseline_trajectory_patient_id": "P112",
+      "demographics_patient_id": "P082",
+      "reason_template_patient_id": "P078"
+    },
+    "P157": {
+      "baseline_trajectory_patient_id": "P107",
+      "demographics_patient_id": "P031",
+      "reason_template_patient_id": "P145"
+    },
+    "P158": {
+      "baseline_trajectory_patient_id": "P102",
+      "demographics_patient_id": "P092",
+      "reason_template_patient_id": "P060"
+    },
+    "P159": {
+      "baseline_trajectory_patient_id": "P109",
+      "demographics_patient_id": "P026",
+      "reason_template_patient_id": "P128"
+    },
+    "P160": {
+      "baseline_trajectory_patient_id": "P008",
+      "demographics_patient_id": "P041",
+      "reason_template_patient_id": "P119"
+    },
+    "P161": {
+      "baseline_trajectory_patient_id": "P034",
+      "demographics_patient_id": "P124",
+      "reason_template_patient_id": "P020"
+    },
+    "P162": {
+      "baseline_trajectory_patient_id": "P124",
+      "demographics_patient_id": "P116",
+      "reason_template_patient_id": "P034"
+    },
+    "P163": {
+      "baseline_trajectory_patient_id": "P101",
+      "demographics_patient_id": "P017",
+      "reason_template_patient_id": "P043"
+    },
+    "P164": {
+      "baseline_trajectory_patient_id": "P018",
+      "demographics_patient_id": "P149",
+      "reason_template_patient_id": "P111"
+    },
+    "P165": {
+      "baseline_trajectory_patient_id": "P069",
+      "demographics_patient_id": "P106",
+      "reason_template_patient_id": "P023"
+    },
+    "P166": {
+      "baseline_trajectory_patient_id": "P084",
+      "demographics_patient_id": "P023",
+      "reason_template_patient_id": "P054"
+    },
+    "P167": {
+      "baseline_trajectory_patient_id": "P107",
+      "demographics_patient_id": "P006",
+      "reason_template_patient_id": "P008"
+    },
+    "P168": {
+      "baseline_trajectory_patient_id": "P036",
+      "demographics_patient_id": "P134",
+      "reason_template_patient_id": "P072"
+    },
+    "P169": {
+      "baseline_trajectory_patient_id": "P096",
+      "demographics_patient_id": "P004",
+      "reason_template_patient_id": "P121"
+    },
+    "P170": {
+      "baseline_trajectory_patient_id": "P143",
+      "demographics_patient_id": "P145",
+      "reason_template_patient_id": "P079"
+    },
+    "P171": {
+      "baseline_trajectory_patient_id": "P113",
+      "demographics_patient_id": "P113",
+      "reason_template_patient_id": "P101"
+    },
+    "P172": {
+      "baseline_trajectory_patient_id": "P052",
+      "demographics_patient_id": "P078",
+      "reason_template_patient_id": "P101"
+    },
+    "P173": {
+      "baseline_trajectory_patient_id": "P109",
+      "demographics_patient_id": "P005",
+      "reason_template_patient_id": "P098"
+    },
+    "P174": {
+      "baseline_trajectory_patient_id": "P109",
+      "demographics_patient_id": "P147",
+      "reason_template_patient_id": "P096"
+    },
+    "P175": {
+      "baseline_trajectory_patient_id": "P138",
+      "demographics_patient_id": "P133",
+      "reason_template_patient_id": "P115"
+    },
+    "P176": {
+      "baseline_trajectory_patient_id": "P032",
+      "demographics_patient_id": "P010",
+      "reason_template_patient_id": "P084"
+    },
+    "P177": {
+      "baseline_trajectory_patient_id": "P100",
+      "demographics_patient_id": "P082",
+      "reason_template_patient_id": "P007"
+    },
+    "P178": {
+      "baseline_trajectory_patient_id": "P120",
+      "demographics_patient_id": "P150",
+      "reason_template_patient_id": "P019"
+    },
+    "P179": {
+      "baseline_trajectory_patient_id": "P053",
+      "demographics_patient_id": "P149",
+      "reason_template_patient_id": "P130"
+    },
+    "P180": {
+      "baseline_trajectory_patient_id": "P059",
+      "demographics_patient_id": "P034",
+      "reason_template_patient_id": "P058"
+    },
+    "P181": {
+      "baseline_trajectory_patient_id": "P131",
+      "demographics_patient_id": "P116",
+      "reason_template_patient_id": "P098"
+    },
+    "P182": {
+      "baseline_trajectory_patient_id": "P144",
+      "demographics_patient_id": "P139",
+      "reason_template_patient_id": "P122"
+    },
+    "P183": {
+      "baseline_trajectory_patient_id": "P080",
+      "demographics_patient_id": "P120",
+      "reason_template_patient_id": "P103"
+    },
+    "P184": {
+      "baseline_trajectory_patient_id": "P119",
+      "demographics_patient_id": "P107",
+      "reason_template_patient_id": "P149"
+    },
+    "P185": {
+      "baseline_trajectory_patient_id": "P070",
+      "demographics_patient_id": "P150",
+      "reason_template_patient_id": "P065"
+    },
+    "P186": {
+      "baseline_trajectory_patient_id": "P050",
+      "demographics_patient_id": "P003",
+      "reason_template_patient_id": "P029"
+    },
+    "P187": {
+      "baseline_trajectory_patient_id": "P107",
+      "demographics_patient_id": "P049",
+      "reason_template_patient_id": "P145"
+    },
+    "P188": {
+      "baseline_trajectory_patient_id": "P081",
+      "demographics_patient_id": "P091",
+      "reason_template_patient_id": "P127"
+    },
+    "P189": {
+      "baseline_trajectory_patient_id": "P135",
+      "demographics_patient_id": "P010",
+      "reason_template_patient_id": "P120"
+    },
+    "P190": {
+      "baseline_trajectory_patient_id": "P030",
+      "demographics_patient_id": "P064",
+      "reason_template_patient_id": "P081"
+    },
+    "P191": {
+      "baseline_trajectory_patient_id": "P012",
+      "demographics_patient_id": "P010",
+      "reason_template_patient_id": "P099"
+    },
+    "P192": {
+      "baseline_trajectory_patient_id": "P070",
+      "demographics_patient_id": "P092",
+      "reason_template_patient_id": "P126"
+    },
+    "P193": {
+      "baseline_trajectory_patient_id": "P113",
+      "demographics_patient_id": "P128",
+      "reason_template_patient_id": "P099"
+    },
+    "P194": {
+      "baseline_trajectory_patient_id": "P024",
+      "demographics_patient_id": "P020",
+      "reason_template_patient_id": "P058"
+    },
+    "P195": {
+      "baseline_trajectory_patient_id": "P006",
+      "demographics_patient_id": "P140",
+      "reason_template_patient_id": "P056"
+    },
+    "P196": {
+      "baseline_trajectory_patient_id": "P144",
+      "demographics_patient_id": "P105",
+      "reason_template_patient_id": "P039"
+    },
+    "P197": {
+      "baseline_trajectory_patient_id": "P106",
+      "demographics_patient_id": "P136",
+      "reason_template_patient_id": "P126"
+    },
+    "P198": {
+      "baseline_trajectory_patient_id": "P061",
+      "demographics_patient_id": "P062",
+      "reason_template_patient_id": "P070"
+    },
+    "P199": {
+      "baseline_trajectory_patient_id": "P097",
+      "demographics_patient_id": "P018",
+      "reason_template_patient_id": "P048"
+    },
+    "P200": {
+      "baseline_trajectory_patient_id": "P071",
+      "demographics_patient_id": "P123",
+      "reason_template_patient_id": "P086"
+    },
+    "P201": {
+      "baseline_trajectory_patient_id": "P045",
+      "demographics_patient_id": "P029",
+      "reason_template_patient_id": "P032"
+    },
+    "P202": {
+      "baseline_trajectory_patient_id": "P026",
+      "demographics_patient_id": "P081",
+      "reason_template_patient_id": "P126"
+    },
+    "P203": {
+      "baseline_trajectory_patient_id": "P051",
+      "demographics_patient_id": "P014",
+      "reason_template_patient_id": "P032"
+    },
+    "P204": {
+      "baseline_trajectory_patient_id": "P102",
+      "demographics_patient_id": "P146",
+      "reason_template_patient_id": "P144"
+    },
+    "P205": {
+      "baseline_trajectory_patient_id": "P038",
+      "demographics_patient_id": "P066",
+      "reason_template_patient_id": "P036"
+    },
+    "P206": {
+      "baseline_trajectory_patient_id": "P001",
+      "demographics_patient_id": "P050",
+      "reason_template_patient_id": "P020"
+    },
+    "P207": {
+      "baseline_trajectory_patient_id": "P039",
+      "demographics_patient_id": "P068",
+      "reason_template_patient_id": "P028"
+    },
+    "P208": {
+      "baseline_trajectory_patient_id": "P088",
+      "demographics_patient_id": "P129",
+      "reason_template_patient_id": "P127"
+    },
+    "P209": {
+      "baseline_trajectory_patient_id": "P062",
+      "demographics_patient_id": "P030",
+      "reason_template_patient_id": "P046"
+    },
+    "P210": {
+      "baseline_trajectory_patient_id": "P075",
+      "demographics_patient_id": "P118",
+      "reason_template_patient_id": "P145"
+    },
+    "P211": {
+      "baseline_trajectory_patient_id": "P097",
+      "demographics_patient_id": "P140",
+      "reason_template_patient_id": "P041"
+    },
+    "P212": {
+      "baseline_trajectory_patient_id": "P063",
+      "demographics_patient_id": "P124",
+      "reason_template_patient_id": "P057"
+    },
+    "P213": {
+      "baseline_trajectory_patient_id": "P083",
+      "demographics_patient_id": "P024",
+      "reason_template_patient_id": "P098"
+    },
+    "P214": {
+      "baseline_trajectory_patient_id": "P074",
+      "demographics_patient_id": "P148",
+      "reason_template_patient_id": "P074"
+    },
+    "P215": {
+      "baseline_trajectory_patient_id": "P050",
+      "demographics_patient_id": "P095",
+      "reason_template_patient_id": "P139"
+    },
+    "P216": {
+      "baseline_trajectory_patient_id": "P106",
+      "demographics_patient_id": "P060",
+      "reason_template_patient_id": "P099"
+    },
+    "P217": {
+      "baseline_trajectory_patient_id": "P025",
+      "demographics_patient_id": "P118",
+      "reason_template_patient_id": "P119"
+    },
+    "P218": {
+      "baseline_trajectory_patient_id": "P055",
+      "demographics_patient_id": "P035",
+      "reason_template_patient_id": "P135"
+    },
+    "P219": {
+      "baseline_trajectory_patient_id": "P134",
+      "demographics_patient_id": "P014",
+      "reason_template_patient_id": "P030"
+    },
+    "P220": {
+      "baseline_trajectory_patient_id": "P035",
+      "demographics_patient_id": "P122",
+      "reason_template_patient_id": "P121"
+    },
+    "P221": {
+      "baseline_trajectory_patient_id": "P111",
+      "demographics_patient_id": "P137",
+      "reason_template_patient_id": "P111"
+    },
+    "P222": {
+      "baseline_trajectory_patient_id": "P040",
+      "demographics_patient_id": "P066",
+      "reason_template_patient_id": "P004"
+    },
+    "P223": {
+      "baseline_trajectory_patient_id": "P075",
+      "demographics_patient_id": "P071",
+      "reason_template_patient_id": "P031"
+    },
+    "P224": {
+      "baseline_trajectory_patient_id": "P002",
+      "demographics_patient_id": "P023",
+      "reason_template_patient_id": "P067"
+    },
+    "P225": {
+      "baseline_trajectory_patient_id": "P136",
+      "demographics_patient_id": "P109",
+      "reason_template_patient_id": "P061"
+    },
+    "P226": {
+      "baseline_trajectory_patient_id": "P033",
+      "demographics_patient_id": "P025",
+      "reason_template_patient_id": "P015"
+    },
+    "P227": {
+      "baseline_trajectory_patient_id": "P106",
+      "demographics_patient_id": "P085",
+      "reason_template_patient_id": "P129"
+    },
+    "P228": {
+      "baseline_trajectory_patient_id": "P119",
+      "demographics_patient_id": "P015",
+      "reason_template_patient_id": "P031"
+    },
+    "P229": {
+      "baseline_trajectory_patient_id": "P040",
+      "demographics_patient_id": "P110",
+      "reason_template_patient_id": "P139"
+    },
+    "P230": {
+      "baseline_trajectory_patient_id": "P099",
+      "demographics_patient_id": "P034",
+      "reason_template_patient_id": "P114"
+    },
+    "P231": {
+      "baseline_trajectory_patient_id": "P045",
+      "demographics_patient_id": "P002",
+      "reason_template_patient_id": "P024"
+    },
+    "P232": {
+      "baseline_trajectory_patient_id": "P148",
+      "demographics_patient_id": "P020",
+      "reason_template_patient_id": "P144"
+    },
+    "P233": {
+      "baseline_trajectory_patient_id": "P028",
+      "demographics_patient_id": "P005",
+      "reason_template_patient_id": "P043"
+    },
+    "P234": {
+      "baseline_trajectory_patient_id": "P122",
+      "demographics_patient_id": "P095",
+      "reason_template_patient_id": "P005"
+    },
+    "P235": {
+      "baseline_trajectory_patient_id": "P093",
+      "demographics_patient_id": "P109",
+      "reason_template_patient_id": "P069"
+    },
+    "P236": {
+      "baseline_trajectory_patient_id": "P115",
+      "demographics_patient_id": "P034",
+      "reason_template_patient_id": "P087"
+    },
+    "P237": {
+      "baseline_trajectory_patient_id": "P112",
+      "demographics_patient_id": "P115",
+      "reason_template_patient_id": "P023"
+    },
+    "P238": {
+      "baseline_trajectory_patient_id": "P043",
+      "demographics_patient_id": "P112",
+      "reason_template_patient_id": "P129"
+    },
+    "P239": {
+      "baseline_trajectory_patient_id": "P092",
+      "demographics_patient_id": "P136",
+      "reason_template_patient_id": "P147"
+    },
+    "P240": {
+      "baseline_trajectory_patient_id": "P123",
+      "demographics_patient_id": "P041",
+      "reason_template_patient_id": "P044"
+    },
+    "P241": {
+      "baseline_trajectory_patient_id": "P027",
+      "demographics_patient_id": "P041",
+      "reason_template_patient_id": "P123"
+    },
+    "P242": {
+      "baseline_trajectory_patient_id": "P097",
+      "demographics_patient_id": "P015",
+      "reason_template_patient_id": "P027"
+    },
+    "P243": {
+      "baseline_trajectory_patient_id": "P094",
+      "demographics_patient_id": "P038",
+      "reason_template_patient_id": "P142"
+    },
+    "P244": {
+      "baseline_trajectory_patient_id": "P031",
+      "demographics_patient_id": "P033",
+      "reason_template_patient_id": "P031"
+    },
+    "P245": {
+      "baseline_trajectory_patient_id": "P007",
+      "demographics_patient_id": "P098",
+      "reason_template_patient_id": "P081"
+    },
+    "P246": {
+      "baseline_trajectory_patient_id": "P015",
+      "demographics_patient_id": "P044",
+      "reason_template_patient_id": "P119"
+    },
+    "P247": {
+      "baseline_trajectory_patient_id": "P034",
+      "demographics_patient_id": "P004",
+      "reason_template_patient_id": "P139"
+    },
+    "P248": {
+      "baseline_trajectory_patient_id": "P061",
+      "demographics_patient_id": "P122",
+      "reason_template_patient_id": "P004"
+    },
+    "P249": {
+      "baseline_trajectory_patient_id": "P106",
+      "demographics_patient_id": "P020",
+      "reason_template_patient_id": "P072"
+    },
+    "P250": {
+      "baseline_trajectory_patient_id": "P056",
+      "demographics_patient_id": "P027",
+      "reason_template_patient_id": "P086"
+    },
+    "P251": {
+      "baseline_trajectory_patient_id": "P137",
+      "demographics_patient_id": "P140",
+      "reason_template_patient_id": "P123"
+    },
+    "P252": {
+      "baseline_trajectory_patient_id": "P047",
+      "demographics_patient_id": "P052",
+      "reason_template_patient_id": "P036"
+    },
+    "P253": {
+      "baseline_trajectory_patient_id": "P046",
+      "demographics_patient_id": "P061",
+      "reason_template_patient_id": "P065"
+    },
+    "P254": {
+      "baseline_trajectory_patient_id": "P053",
+      "demographics_patient_id": "P090",
+      "reason_template_patient_id": "P015"
+    },
+    "P255": {
+      "baseline_trajectory_patient_id": "P007",
+      "demographics_patient_id": "P083",
+      "reason_template_patient_id": "P069"
+    },
+    "P256": {
+      "baseline_trajectory_patient_id": "P007",
+      "demographics_patient_id": "P062",
+      "reason_template_patient_id": "P073"
+    },
+    "P257": {
+      "baseline_trajectory_patient_id": "P116",
+      "demographics_patient_id": "P142",
+      "reason_template_patient_id": "P064"
+    },
+    "P258": {
+      "baseline_trajectory_patient_id": "P032",
+      "demographics_patient_id": "P019",
+      "reason_template_patient_id": "P092"
+    },
+    "P259": {
+      "baseline_trajectory_patient_id": "P147",
+      "demographics_patient_id": "P113",
+      "reason_template_patient_id": "P114"
+    },
+    "P260": {
+      "baseline_trajectory_patient_id": "P115",
+      "demographics_patient_id": "P100",
+      "reason_template_patient_id": "P063"
+    },
+    "P261": {
+      "baseline_trajectory_patient_id": "P047",
+      "demographics_patient_id": "P096",
+      "reason_template_patient_id": "P115"
+    },
+    "P262": {
+      "baseline_trajectory_patient_id": "P036",
+      "demographics_patient_id": "P064",
+      "reason_template_patient_id": "P117"
+    },
+    "P263": {
+      "baseline_trajectory_patient_id": "P144",
+      "demographics_patient_id": "P036",
+      "reason_template_patient_id": "P005"
+    },
+    "P264": {
+      "baseline_trajectory_patient_id": "P070",
+      "demographics_patient_id": "P016",
+      "reason_template_patient_id": "P050"
+    },
+    "P265": {
+      "baseline_trajectory_patient_id": "P023",
+      "demographics_patient_id": "P124",
+      "reason_template_patient_id": "P063"
+    },
+    "P266": {
+      "baseline_trajectory_patient_id": "P046",
+      "demographics_patient_id": "P136",
+      "reason_template_patient_id": "P076"
+    },
+    "P267": {
+      "baseline_trajectory_patient_id": "P129",
+      "demographics_patient_id": "P081",
+      "reason_template_patient_id": "P040"
+    },
+    "P268": {
+      "baseline_trajectory_patient_id": "P026",
+      "demographics_patient_id": "P073",
+      "reason_template_patient_id": "P081"
+    },
+    "P269": {
+      "baseline_trajectory_patient_id": "P120",
+      "demographics_patient_id": "P091",
+      "reason_template_patient_id": "P064"
+    },
+    "P270": {
+      "baseline_trajectory_patient_id": "P097",
+      "demographics_patient_id": "P049",
+      "reason_template_patient_id": "P008"
+    },
+    "P271": {
+      "baseline_trajectory_patient_id": "P089",
+      "demographics_patient_id": "P076",
+      "reason_template_patient_id": "P050"
+    },
+    "P272": {
+      "baseline_trajectory_patient_id": "P039",
+      "demographics_patient_id": "P002",
+      "reason_template_patient_id": "P052"
+    },
+    "P273": {
+      "baseline_trajectory_patient_id": "P027",
+      "demographics_patient_id": "P071",
+      "reason_template_patient_id": "P033"
+    },
+    "P274": {
+      "baseline_trajectory_patient_id": "P059",
+      "demographics_patient_id": "P146",
+      "reason_template_patient_id": "P074"
+    },
+    "P275": {
+      "baseline_trajectory_patient_id": "P025",
+      "demographics_patient_id": "P090",
+      "reason_template_patient_id": "P018"
+    },
+    "P276": {
+      "baseline_trajectory_patient_id": "P076",
+      "demographics_patient_id": "P039",
+      "reason_template_patient_id": "P063"
+    },
+    "P277": {
+      "baseline_trajectory_patient_id": "P002",
+      "demographics_patient_id": "P016",
+      "reason_template_patient_id": "P080"
+    },
+    "P278": {
+      "baseline_trajectory_patient_id": "P076",
+      "demographics_patient_id": "P112",
+      "reason_template_patient_id": "P082"
+    },
+    "P279": {
+      "baseline_trajectory_patient_id": "P078",
+      "demographics_patient_id": "P100",
+      "reason_template_patient_id": "P040"
+    },
+    "P280": {
+      "baseline_trajectory_patient_id": "P056",
+      "demographics_patient_id": "P097",
+      "reason_template_patient_id": "P137"
+    },
+    "P281": {
+      "baseline_trajectory_patient_id": "P135",
+      "demographics_patient_id": "P112",
+      "reason_template_patient_id": "P126"
+    },
+    "P282": {
+      "baseline_trajectory_patient_id": "P005",
+      "demographics_patient_id": "P092",
+      "reason_template_patient_id": "P098"
+    },
+    "P283": {
+      "baseline_trajectory_patient_id": "P109",
+      "demographics_patient_id": "P122",
+      "reason_template_patient_id": "P141"
+    },
+    "P284": {
+      "baseline_trajectory_patient_id": "P062",
+      "demographics_patient_id": "P046",
+      "reason_template_patient_id": "P101"
+    },
+    "P285": {
+      "baseline_trajectory_patient_id": "P091",
+      "demographics_patient_id": "P068",
+      "reason_template_patient_id": "P099"
+    },
+    "P286": {
+      "baseline_trajectory_patient_id": "P024",
+      "demographics_patient_id": "P001",
+      "reason_template_patient_id": "P115"
+    },
+    "P287": {
+      "baseline_trajectory_patient_id": "P047",
+      "demographics_patient_id": "P063",
+      "reason_template_patient_id": "P046"
+    },
+    "P288": {
+      "baseline_trajectory_patient_id": "P024",
+      "demographics_patient_id": "P051",
+      "reason_template_patient_id": "P022"
+    },
+    "P289": {
+      "baseline_trajectory_patient_id": "P061",
+      "demographics_patient_id": "P096",
+      "reason_template_patient_id": "P131"
+    },
+    "P290": {
+      "baseline_trajectory_patient_id": "P054",
+      "demographics_patient_id": "P024",
+      "reason_template_patient_id": "P021"
+    },
+    "P291": {
+      "baseline_trajectory_patient_id": "P024",
+      "demographics_patient_id": "P051",
+      "reason_template_patient_id": "P127"
+    },
+    "P292": {
+      "baseline_trajectory_patient_id": "P063",
+      "demographics_patient_id": "P083",
+      "reason_template_patient_id": "P034"
+    },
+    "P293": {
+      "baseline_trajectory_patient_id": "P065",
+      "demographics_patient_id": "P109",
+      "reason_template_patient_id": "P142"
+    },
+    "P294": {
+      "baseline_trajectory_patient_id": "P077",
+      "demographics_patient_id": "P013",
+      "reason_template_patient_id": "P001"
+    },
+    "P295": {
+      "baseline_trajectory_patient_id": "P045",
+      "demographics_patient_id": "P105",
+      "reason_template_patient_id": "P062"
+    },
+    "P296": {
+      "baseline_trajectory_patient_id": "P134",
+      "demographics_patient_id": "P021",
+      "reason_template_patient_id": "P135"
+    },
+    "P297": {
+      "baseline_trajectory_patient_id": "P046",
+      "demographics_patient_id": "P078",
+      "reason_template_patient_id": "P011"
+    },
+    "P298": {
+      "baseline_trajectory_patient_id": "P132",
+      "demographics_patient_id": "P056",
+      "reason_template_patient_id": "P132"
+    },
+    "P299": {
+      "baseline_trajectory_patient_id": "P026",
+      "demographics_patient_id": "P068",
+      "reason_template_patient_id": "P043"
+    },
+    "P300": {
+      "baseline_trajectory_patient_id": "P015",
+      "demographics_patient_id": "P048",
+      "reason_template_patient_id": "P027"
+    }
+  },
+  "extension_stage_counts": {
+    "cirrhosis": 50,
+    "fatty_liver": 75,
+    "hcc": 25
+  },
+  "extension_version": "1.0.0",
+  "extension_visit_count": 662,
+  "followup_months": {
+    "max": 60.025,
+    "median": 36.172,
+    "min": 23.984,
+    "p25": 24.016,
+    "p75": 48.961
+  },
+  "generated_extension_patient_ids": [
+    "P151",
+    "P152",
+    "P153",
+    "P154",
+    "P155",
+    "P156",
+    "P157",
+    "P158",
+    "P159",
+    "P160",
+    "P161",
+    "P162",
+    "P163",
+    "P164",
+    "P165",
+    "P166",
+    "P167",
+    "P168",
+    "P169",
+    "P170",
+    "P171",
+    "P172",
+    "P173",
+    "P174",
+    "P175",
+    "P176",
+    "P177",
+    "P178",
+    "P179",
+    "P180",
+    "P181",
+    "P182",
+    "P183",
+    "P184",
+    "P185",
+    "P186",
+    "P187",
+    "P188",
+    "P189",
+    "P190",
+    "P191",
+    "P192",
+    "P193",
+    "P194",
+    "P195",
+    "P196",
+    "P197",
+    "P198",
+    "P199",
+    "P200",
+    "P201",
+    "P202",
+    "P203",
+    "P204",
+    "P205",
+    "P206",
+    "P207",
+    "P208",
+    "P209",
+    "P210",
+    "P211",
+    "P212",
+    "P213",
+    "P214",
+    "P215",
+    "P216",
+    "P217",
+    "P218",
+    "P219",
+    "P220",
+    "P221",
+    "P222",
+    "P223",
+    "P224",
+    "P225",
+    "P226",
+    "P227",
+    "P228",
+    "P229",
+    "P230",
+    "P231",
+    "P232",
+    "P233",
+    "P234",
+    "P235",
+    "P236",
+    "P237",
+    "P238",
+    "P239",
+    "P240",
+    "P241",
+    "P242",
+    "P243",
+    "P244",
+    "P245",
+    "P246",
+    "P247",
+    "P248",
+    "P249",
+    "P250",
+    "P251",
+    "P252",
+    "P253",
+    "P254",
+    "P255",
+    "P256",
+    "P257",
+    "P258",
+    "P259",
+    "P260",
+    "P261",
+    "P262",
+    "P263",
+    "P264",
+    "P265",
+    "P266",
+    "P267",
+    "P268",
+    "P269",
+    "P270",
+    "P271",
+    "P272",
+    "P273",
+    "P274",
+    "P275",
+    "P276",
+    "P277",
+    "P278",
+    "P279",
+    "P280",
+    "P281",
+    "P282",
+    "P283",
+    "P284",
+    "P285",
+    "P286",
+    "P287",
+    "P288",
+    "P289",
+    "P290",
+    "P291",
+    "P292",
+    "P293",
+    "P294",
+    "P295",
+    "P296",
+    "P297",
+    "P298",
+    "P299",
+    "P300"
+  ],
+  "generated_lost_to_followup_ids": [
+    "P052",
+    "P065",
+    "P078",
+    "P117",
+    "P157",
+    "P162",
+    "P207",
+    "P241"
+  ],
+  "generated_outcome_ids": {
+    "cirrhosis": [
+      "P009",
+      "P011",
+      "P013",
+      "P016",
+      "P029",
+      "P030",
+      "P038",
+      "P039",
+      "P045",
+      "P046",
+      "P047",
+      "P051",
+      "P055",
+      "P057",
+      "P059",
+      "P061",
+      "P062",
+      "P063",
+      "P073",
+      "P074",
+      "P080",
+      "P082",
+      "P083",
+      "P087",
+      "P088",
+      "P091",
+      "P093",
+      "P094",
+      "P095",
+      "P096",
+      "P104",
+      "P106",
+      "P116",
+      "P121",
+      "P124",
+      "P127",
+      "P129",
+      "P134",
+      "P138",
+      "P139",
+      "P141",
+      "P144",
+      "P147",
+      "P148",
+      "P150",
+      "P153",
+      "P158",
+      "P164",
+      "P169",
+      "P176",
+      "P177",
+      "P179",
+      "P180",
+      "P181",
+      "P182",
+      "P188",
+      "P191",
+      "P192",
+      "P196",
+      "P197",
+      "P198",
+      "P199",
+      "P201",
+      "P204",
+      "P206",
+      "P210",
+      "P211",
+      "P223",
+      "P226",
+      "P229",
+      "P230",
+      "P231",
+      "P233",
+      "P234",
+      "P235",
+      "P241",
+      "P246",
+      "P251",
+      "P261",
+      "P263",
+      "P264",
+      "P265",
+      "P268",
+      "P269",
+      "P273",
+      "P274",
+      "P275",
+      "P276",
+      "P277",
+      "P281",
+      "P288",
+      "P289",
+      "P291",
+      "P295",
+      "P298"
+    ],
+    "fatty_liver": [
+      "P005",
+      "P006",
+      "P008",
+      "P012",
+      "P014",
+      "P015",
+      "P017",
+      "P018",
+      "P025",
+      "P027",
+      "P031",
+      "P036",
+      "P040",
+      "P041",
+      "P043",
+      "P044",
+      "P048",
+      "P049",
+      "P050",
+      "P052",
+      "P053",
+      "P054",
+      "P056",
+      "P058",
+      "P060",
+      "P064",
+      "P065",
+      "P066",
+      "P067",
+      "P068",
+      "P069",
+      "P070",
+      "P071",
+      "P072",
+      "P075",
+      "P076",
+      "P077",
+      "P078",
+      "P084",
+      "P085",
+      "P086",
+      "P089",
+      "P090",
+      "P097",
+      "P098",
+      "P099",
+      "P100",
+      "P101",
+      "P102",
+      "P105",
+      "P107",
+      "P108",
+      "P109",
+      "P110",
+      "P111",
+      "P112",
+      "P114",
+      "P115",
+      "P117",
+      "P118",
+      "P119",
+      "P120",
+      "P123",
+      "P125",
+      "P126",
+      "P128",
+      "P131",
+      "P132",
+      "P133",
+      "P135",
+      "P137",
+      "P140",
+      "P142",
+      "P146",
+      "P149",
+      "P151",
+      "P155",
+      "P157",
+      "P159",
+      "P160",
+      "P163",
+      "P165",
+      "P166",
+      "P167",
+      "P168",
+      "P170",
+      "P171",
+      "P173",
+      "P174",
+      "P183",
+      "P184",
+      "P185",
+      "P187",
+      "P189",
+      "P190",
+      "P193",
+      "P195",
+      "P202",
+      "P203",
+      "P205",
+      "P208",
+      "P209",
+      "P212",
+      "P213",
+      "P214",
+      "P215",
+      "P216",
+      "P217",
+      "P218",
+      "P220",
+      "P221",
+      "P222",
+      "P227",
+      "P228",
+      "P232",
+      "P237",
+      "P238",
+      "P239",
+      "P242",
+      "P244",
+      "P245",
+      "P247",
+      "P248",
+      "P249",
+      "P250",
+      "P253",
+      "P255",
+      "P256",
+      "P257",
+      "P258",
+      "P260",
+      "P262",
+      "P266",
+      "P267",
+      "P270",
+      "P272",
+      "P278",
+      "P280",
+      "P283",
+      "P284",
+      "P285",
+      "P287",
+      "P290",
+      "P292",
+      "P293",
+      "P294",
+      "P296",
+      "P297",
+      "P299",
+      "P300"
+    ],
+    "hcc": [
+      "P001",
+      "P002",
+      "P004",
+      "P007",
+      "P019",
+      "P020",
+      "P021",
+      "P022",
+      "P023",
+      "P024",
+      "P026",
+      "P028",
+      "P032",
+      "P034",
+      "P035",
+      "P037",
+      "P042",
+      "P081",
+      "P092",
+      "P103",
+      "P113",
+      "P122",
+      "P136",
+      "P152",
+      "P154",
+      "P156",
+      "P161",
+      "P162",
+      "P172",
+      "P175",
+      "P178",
+      "P186",
+      "P194",
+      "P200",
+      "P207",
+      "P219",
+      "P224",
+      "P225",
+      "P236",
+      "P240",
+      "P243",
+      "P252",
+      "P254",
+      "P259",
+      "P271",
+      "P279",
+      "P282",
+      "P286"
+    ]
+  },
+  "indicator_quantiles": {
+    "afp": {
+      "max": 46.3,
+      "median": 3.92,
+      "min": 2.16,
+      "p25": 3.64,
+      "p75": 4.28
+    },
+    "alb": {
+      "max": 64.2,
+      "median": 41.815,
+      "min": 10.0,
+      "p25": 38.617,
+      "p75": 44.333
+    },
+    "alt": {
+      "max": 1562.3,
+      "median": 49.95,
+      "min": 1.0,
+      "p25": 40.1,
+      "p75": 83.425
+    },
+    "ast": {
+      "max": 1934.0,
+      "median": 38.6,
+      "min": 6.8,
+      "p25": 30.4,
+      "p75": 53.6
+    },
+    "bmi": {
+      "max": 73.67,
+      "median": 28.04,
+      "min": 14.49,
+      "p25": 25.65,
+      "p75": 31.35
+    },
+    "ggt": {
+      "max": 1171.7,
+      "median": 53.1,
+      "min": 10.3,
+      "p25": 44.4,
+      "p75": 67.8
+    },
+    "hba1c": {
+      "max": 15.99,
+      "median": 7.35,
+      "min": 4.5,
+      "p25": 6.49,
+      "p75": 9.075
+    },
+    "plt": {
+      "max": 674.0,
+      "median": 224.8,
+      "min": 22.0,
+      "p25": 207.25,
+      "p75": 240.1
+    },
+    "tbil": {
+      "max": 480.0,
+      "median": 13.995,
+      "min": 4.91,
+      "p25": 12.44,
+      "p75": 16.04
+    },
+    "waist": {
+      "max": 143.8,
+      "median": 96.3,
+      "min": 45.0,
+      "p25": 90.0,
+      "p75": 104.5
+    }
+  },
+  "intended_use": [
+    "data_import_pipeline_testing",
+    "rule_mining_workflow_mechanism_validation",
+    "ui_and_statistical_function_demonstration",
+    "stratified_sensitivity_and_regression_testing"
+  ],
+  "lost_to_followup_counts": {
+    "no": 292,
+    "yes": 8
+  },
+  "missing_rates": {
+    "afp": 0.0,
+    "alb": 0.0517,
+    "alt": 0.0369,
+    "ast": 0.0451,
+    "bmi": 0.0687,
+    "ggt": 0.062,
+    "hba1c": 0.0,
+    "plt": 0.0,
+    "tbil": 0.0517,
+    "waist": 0.0923
+  },
+  "outcome_assignment_audit": {
+    "P001": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A1-1"
+    },
+    "P002": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A2-1"
+    },
+    "P003": {
+      "final_stage": "cirrhosis",
+      "source": "explicit_cirrhosis",
+      "source_case_id": "A3-1"
+    },
+    "P004": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A4-1"
+    },
+    "P005": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A5-1"
+    },
+    "P006": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A6-1"
+    },
+    "P007": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A7-1"
+    },
+    "P008": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A8-1"
+    },
+    "P009": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A9-1"
+    },
+    "P010": {
+      "final_stage": "hcc",
+      "source": "explicit_hcc",
+      "source_case_id": "A10-1"
+    },
+    "P011": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A11-1"
+    },
+    "P012": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A12-1"
+    },
+    "P013": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A13-1"
+    },
+    "P014": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A14-1"
+    },
+    "P015": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A15-1"
+    },
+    "P016": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A16-1"
+    },
+    "P017": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A17-1"
+    },
+    "P018": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A17-2"
+    },
+    "P019": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A18-1"
+    },
+    "P020": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A19-1"
+    },
+    "P021": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A20-1"
+    },
+    "P022": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A21-1"
+    },
+    "P023": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A22-1"
+    },
+    "P024": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A23-1"
+    },
+    "P025": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A24-1"
+    },
+    "P026": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A25-1"
+    },
+    "P027": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A26-1"
+    },
+    "P028": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A26-2"
+    },
+    "P029": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A28-1"
+    },
+    "P030": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A29-1"
+    },
+    "P031": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A31-1"
+    },
+    "P032": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A33-1"
+    },
+    "P033": {
+      "final_stage": "hcc",
+      "source": "explicit_hcc",
+      "source_case_id": "A36-1"
+    },
+    "P034": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A37-1"
+    },
+    "P035": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A38-1"
+    },
+    "P036": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A38-2"
+    },
+    "P037": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A39-1"
+    },
+    "P038": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A40-1"
+    },
+    "P039": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A41-1"
+    },
+    "P040": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A42-1"
+    },
+    "P041": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A43-1"
+    },
+    "P042": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A44-1"
+    },
+    "P043": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A45-1"
+    },
+    "P044": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A46-1"
+    },
+    "P045": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A47-1"
+    },
+    "P046": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A48-1"
+    },
+    "P047": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A49-1"
+    },
+    "P048": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A50-1"
+    },
+    "P049": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A51-1"
+    },
+    "P050": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A52-1"
+    },
+    "P051": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A53-1"
+    },
+    "P052": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A54-1"
+    },
+    "P053": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A55-1"
+    },
+    "P054": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A56-1"
+    },
+    "P055": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A57-1"
+    },
+    "P056": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A58-1"
+    },
+    "P057": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A59-1"
+    },
+    "P058": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A60-1"
+    },
+    "P059": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A61-1"
+    },
+    "P060": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A62-1"
+    },
+    "P061": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A63-1"
+    },
+    "P062": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A64-1"
+    },
+    "P063": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A65-1"
+    },
+    "P064": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A66-1"
+    },
+    "P065": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A67-1"
+    },
+    "P066": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A68-1"
+    },
+    "P067": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A69-1"
+    },
+    "P068": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A70-1"
+    },
+    "P069": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A71-1"
+    },
+    "P070": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A72-1"
+    },
+    "P071": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A73-1"
+    },
+    "P072": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A74-1"
+    },
+    "P073": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A75-1"
+    },
+    "P074": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A76-1"
+    },
+    "P075": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A77-1"
+    },
+    "P076": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A78-1"
+    },
+    "P077": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "A78-2"
+    },
+    "P078": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B1-1"
+    },
+    "P079": {
+      "final_stage": "cirrhosis",
+      "source": "explicit_cirrhosis",
+      "source_case_id": "B2-1"
+    },
+    "P080": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B3-1"
+    },
+    "P081": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B4-1"
+    },
+    "P082": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B5-1"
+    },
+    "P083": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B6-1"
+    },
+    "P084": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B7-1"
+    },
+    "P085": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B8-1"
+    },
+    "P086": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B9-1"
+    },
+    "P087": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B10-1"
+    },
+    "P088": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B11-1"
+    },
+    "P089": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B12-1"
+    },
+    "P090": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B13-1"
+    },
+    "P091": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B14-1"
+    },
+    "P092": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B15-1"
+    },
+    "P093": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B16-1"
+    },
+    "P094": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B17-1"
+    },
+    "P095": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B18-1"
+    },
+    "P096": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B19-1"
+    },
+    "P097": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B20-1"
+    },
+    "P098": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B21-1"
+    },
+    "P099": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B22-1"
+    },
+    "P100": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B23-1"
+    },
+    "P101": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B24-1"
+    },
+    "P102": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B25-1"
+    },
+    "P103": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B26-1"
+    },
+    "P104": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B27-1"
+    },
+    "P105": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B28-1"
+    },
+    "P106": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B29-1"
+    },
+    "P107": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B30-1"
+    },
+    "P108": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B31-1"
+    },
+    "P109": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B32-1"
+    },
+    "P110": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B33-1"
+    },
+    "P111": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B34-1"
+    },
+    "P112": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B35-1"
+    },
+    "P113": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B36-1"
+    },
+    "P114": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B37-1"
+    },
+    "P115": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B38-1"
+    },
+    "P116": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B39-1"
+    },
+    "P117": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B40-1"
+    },
+    "P118": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B41-1"
+    },
+    "P119": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B42-1"
+    },
+    "P120": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B43-1"
+    },
+    "P121": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B44-1"
+    },
+    "P122": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B45-1"
+    },
+    "P123": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B46-1"
+    },
+    "P124": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B47-1"
+    },
+    "P125": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B48-1"
+    },
+    "P126": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B49-1"
+    },
+    "P127": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B50-1"
+    },
+    "P128": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B51-1"
+    },
+    "P129": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B52-1"
+    },
+    "P130": {
+      "final_stage": "cirrhosis",
+      "source": "explicit_cirrhosis",
+      "source_case_id": "B53-1"
+    },
+    "P131": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B54-1"
+    },
+    "P132": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B55-1"
+    },
+    "P133": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B56-1"
+    },
+    "P134": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B57-1"
+    },
+    "P135": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B58-1"
+    },
+    "P136": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B59-1"
+    },
+    "P137": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B60-1"
+    },
+    "P138": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B61-1"
+    },
+    "P139": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B62-1"
+    },
+    "P140": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B63-1"
+    },
+    "P141": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B64-1"
+    },
+    "P142": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B65-1"
+    },
+    "P143": {
+      "final_stage": "cirrhosis",
+      "source": "explicit_cirrhosis",
+      "source_case_id": "B66-1"
+    },
+    "P144": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B67-1"
+    },
+    "P145": {
+      "final_stage": "cirrhosis",
+      "source": "explicit_cirrhosis",
+      "source_case_id": "B68-1"
+    },
+    "P146": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B69-1"
+    },
+    "P147": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B70-1"
+    },
+    "P148": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B71-1"
+    },
+    "P149": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B72-1"
+    },
+    "P150": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": "B73-1"
+    },
+    "P151": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P152": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P153": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P154": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P155": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P156": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P157": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P158": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P159": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P160": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P161": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P162": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P163": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P164": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P165": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P166": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P167": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P168": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P169": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P170": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P171": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P172": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P173": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P174": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P175": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P176": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P177": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P178": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P179": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P180": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P181": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P182": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P183": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P184": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P185": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P186": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P187": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P188": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P189": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P190": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P191": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P192": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P193": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P194": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P195": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P196": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P197": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P198": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P199": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P200": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P201": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P202": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P203": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P204": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P205": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P206": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P207": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P208": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P209": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P210": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P211": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P212": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P213": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P214": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P215": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P216": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P217": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P218": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P219": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P220": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P221": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P222": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P223": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P224": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P225": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P226": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P227": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P228": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P229": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P230": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P231": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P232": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P233": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P234": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P235": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P236": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P237": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P238": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P239": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P240": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P241": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P242": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P243": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P244": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P245": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P246": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P247": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P248": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P249": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P250": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P251": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P252": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P253": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P254": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P255": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P256": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P257": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P258": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P259": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P260": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P261": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P262": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P263": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P264": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P265": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P266": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P267": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P268": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P269": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P270": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P271": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P272": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P273": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P274": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P275": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P276": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P277": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P278": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P279": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P280": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P281": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P282": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P283": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P284": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P285": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P286": {
+      "final_stage": "hcc",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P287": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P288": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P289": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P290": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P291": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P292": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P293": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P294": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P295": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P296": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P297": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P298": {
+      "final_stage": "cirrhosis",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P299": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    },
+    "P300": {
+      "final_stage": "fatty_liver",
+      "source": "generated_stage_assignment",
+      "source_case_id": null
+    }
+  },
+  "path_assignments": {
+    "P001": "baseline_audited_path",
+    "P002": "baseline_audited_path",
+    "P003": "baseline_audited_path",
+    "P004": "baseline_audited_path",
+    "P005": "baseline_audited_path",
+    "P006": "baseline_audited_path",
+    "P007": "baseline_audited_path",
+    "P008": "baseline_audited_path",
+    "P009": "baseline_audited_path",
+    "P010": "baseline_audited_path",
+    "P011": "baseline_audited_path",
+    "P012": "baseline_audited_path",
+    "P013": "baseline_audited_path",
+    "P014": "baseline_audited_path",
+    "P015": "baseline_audited_path",
+    "P016": "baseline_audited_path",
+    "P017": "baseline_audited_path",
+    "P018": "baseline_audited_path",
+    "P019": "baseline_audited_path",
+    "P020": "baseline_audited_path",
+    "P021": "baseline_audited_path",
+    "P022": "baseline_audited_path",
+    "P023": "baseline_audited_path",
+    "P024": "baseline_audited_path",
+    "P025": "baseline_audited_path",
+    "P026": "baseline_audited_path",
+    "P027": "baseline_audited_path",
+    "P028": "baseline_audited_path",
+    "P029": "baseline_audited_path",
+    "P030": "baseline_audited_path",
+    "P031": "baseline_audited_path",
+    "P032": "baseline_audited_path",
+    "P033": "baseline_audited_path",
+    "P034": "baseline_audited_path",
+    "P035": "baseline_audited_path",
+    "P036": "baseline_audited_path",
+    "P037": "baseline_audited_path",
+    "P038": "baseline_audited_path",
+    "P039": "baseline_audited_path",
+    "P040": "baseline_audited_path",
+    "P041": "baseline_audited_path",
+    "P042": "baseline_audited_path",
+    "P043": "baseline_audited_path",
+    "P044": "baseline_audited_path",
+    "P045": "baseline_audited_path",
+    "P046": "baseline_audited_path",
+    "P047": "baseline_audited_path",
+    "P048": "baseline_audited_path",
+    "P049": "baseline_audited_path",
+    "P050": "baseline_audited_path",
+    "P051": "baseline_audited_path",
+    "P052": "baseline_audited_path",
+    "P053": "baseline_audited_path",
+    "P054": "baseline_audited_path",
+    "P055": "baseline_audited_path",
+    "P056": "baseline_audited_path",
+    "P057": "baseline_audited_path",
+    "P058": "baseline_audited_path",
+    "P059": "baseline_audited_path",
+    "P060": "baseline_audited_path",
+    "P061": "baseline_audited_path",
+    "P062": "baseline_audited_path",
+    "P063": "baseline_audited_path",
+    "P064": "baseline_audited_path",
+    "P065": "baseline_audited_path",
+    "P066": "baseline_audited_path",
+    "P067": "baseline_audited_path",
+    "P068": "baseline_audited_path",
+    "P069": "baseline_audited_path",
+    "P070": "baseline_audited_path",
+    "P071": "baseline_audited_path",
+    "P072": "baseline_audited_path",
+    "P073": "baseline_audited_path",
+    "P074": "baseline_audited_path",
+    "P075": "baseline_audited_path",
+    "P076": "baseline_audited_path",
+    "P077": "baseline_audited_path",
+    "P078": "baseline_audited_path",
+    "P079": "baseline_audited_path",
+    "P080": "baseline_audited_path",
+    "P081": "baseline_audited_path",
+    "P082": "baseline_audited_path",
+    "P083": "baseline_audited_path",
+    "P084": "baseline_audited_path",
+    "P085": "baseline_audited_path",
+    "P086": "baseline_audited_path",
+    "P087": "baseline_audited_path",
+    "P088": "baseline_audited_path",
+    "P089": "baseline_audited_path",
+    "P090": "baseline_audited_path",
+    "P091": "baseline_audited_path",
+    "P092": "baseline_audited_path",
+    "P093": "baseline_audited_path",
+    "P094": "baseline_audited_path",
+    "P095": "baseline_audited_path",
+    "P096": "baseline_audited_path",
+    "P097": "baseline_audited_path",
+    "P098": "baseline_audited_path",
+    "P099": "baseline_audited_path",
+    "P100": "baseline_audited_path",
+    "P101": "baseline_audited_path",
+    "P102": "baseline_audited_path",
+    "P103": "baseline_audited_path",
+    "P104": "baseline_audited_path",
+    "P105": "baseline_audited_path",
+    "P106": "baseline_audited_path",
+    "P107": "baseline_audited_path",
+    "P108": "baseline_audited_path",
+    "P109": "baseline_audited_path",
+    "P110": "baseline_audited_path",
+    "P111": "baseline_audited_path",
+    "P112": "baseline_audited_path",
+    "P113": "baseline_audited_path",
+    "P114": "baseline_audited_path",
+    "P115": "baseline_audited_path",
+    "P116": "baseline_audited_path",
+    "P117": "baseline_audited_path",
+    "P118": "baseline_audited_path",
+    "P119": "baseline_audited_path",
+    "P120": "baseline_audited_path",
+    "P121": "baseline_audited_path",
+    "P122": "baseline_audited_path",
+    "P123": "baseline_audited_path",
+    "P124": "baseline_audited_path",
+    "P125": "baseline_audited_path",
+    "P126": "baseline_audited_path",
+    "P127": "baseline_audited_path",
+    "P128": "baseline_audited_path",
+    "P129": "baseline_audited_path",
+    "P130": "baseline_audited_path",
+    "P131": "baseline_audited_path",
+    "P132": "baseline_audited_path",
+    "P133": "baseline_audited_path",
+    "P134": "baseline_audited_path",
+    "P135": "baseline_audited_path",
+    "P136": "baseline_audited_path",
+    "P137": "baseline_audited_path",
+    "P138": "baseline_audited_path",
+    "P139": "baseline_audited_path",
+    "P140": "baseline_audited_path",
+    "P141": "baseline_audited_path",
+    "P142": "baseline_audited_path",
+    "P143": "baseline_audited_path",
+    "P144": "baseline_audited_path",
+    "P145": "baseline_audited_path",
+    "P146": "baseline_audited_path",
+    "P147": "baseline_audited_path",
+    "P148": "baseline_audited_path",
+    "P149": "baseline_audited_path",
+    "P150": "baseline_audited_path",
+    "P151": "stable",
+    "P152": "non_rule_progression",
+    "P153": "non_rule_progression",
+    "P154": "non_rule_progression",
+    "P155": "stable",
+    "P156": "r1_r2",
+    "P157": "stable",
+    "P158": "non_rule_progression",
+    "P159": "stable",
+    "P160": "stable",
+    "P161": "r1_r2",
+    "P162": "r1_r2",
+    "P163": "stable",
+    "P164": "r1_r2",
+    "P165": "stable",
+    "P166": "stable",
+    "P167": "stable",
+    "P168": "stable",
+    "P169": "r1",
+    "P170": "stable",
+    "P171": "stable",
+    "P172": "r2",
+    "P173": "stable",
+    "P174": "stable",
+    "P175": "non_rule_progression",
+    "P176": "non_rule_progression",
+    "P177": "r1",
+    "P178": "non_rule_progression",
+    "P179": "non_rule_progression",
+    "P180": "r1",
+    "P181": "non_rule_progression",
+    "P182": "non_rule_progression",
+    "P183": "stable",
+    "P184": "stable",
+    "P185": "stable",
+    "P186": "non_rule_progression",
+    "P187": "stable",
+    "P188": "r1_r2",
+    "P189": "stable",
+    "P190": "stable",
+    "P191": "non_rule_progression",
+    "P192": "r1",
+    "P193": "stable",
+    "P194": "r2",
+    "P195": "stable",
+    "P196": "non_rule_progression",
+    "P197": "non_rule_progression",
+    "P198": "non_rule_progression",
+    "P199": "non_rule_progression",
+    "P200": "r2",
+    "P201": "non_rule_progression",
+    "P202": "stable",
+    "P203": "stable",
+    "P204": "non_rule_progression",
+    "P205": "stable",
+    "P206": "non_rule_progression",
+    "P207": "non_rule_progression",
+    "P208": "stable",
+    "P209": "stable",
+    "P210": "non_rule_progression",
+    "P211": "r1",
+    "P212": "stable",
+    "P213": "stable",
+    "P214": "stable",
+    "P215": "stable",
+    "P216": "stable",
+    "P217": "stable",
+    "P218": "stable",
+    "P219": "non_rule_progression",
+    "P220": "stable",
+    "P221": "stable",
+    "P222": "stable",
+    "P223": "non_rule_progression",
+    "P224": "non_rule_progression",
+    "P225": "r2",
+    "P226": "non_rule_progression",
+    "P227": "stable",
+    "P228": "stable",
+    "P229": "non_rule_progression",
+    "P230": "non_rule_progression",
+    "P231": "non_rule_progression",
+    "P232": "stable",
+    "P233": "non_rule_progression",
+    "P234": "non_rule_progression",
+    "P235": "non_rule_progression",
+    "P236": "r1_r2",
+    "P237": "stable",
+    "P238": "stable",
+    "P239": "stable",
+    "P240": "r1_r2",
+    "P241": "r1_r2",
+    "P242": "stable",
+    "P243": "non_rule_progression",
+    "P244": "stable",
+    "P245": "stable",
+    "P246": "r1",
+    "P247": "stable",
+    "P248": "stable",
+    "P249": "stable",
+    "P250": "stable",
+    "P251": "non_rule_progression",
+    "P252": "r2",
+    "P253": "stable",
+    "P254": "r2",
+    "P255": "stable",
+    "P256": "stable",
+    "P257": "stable",
+    "P258": "stable",
+    "P259": "r2",
+    "P260": "stable",
+    "P261": "r1",
+    "P262": "stable",
+    "P263": "non_rule_progression",
+    "P264": "non_rule_progression",
+    "P265": "r1_r2",
+    "P266": "stable",
+    "P267": "stable",
+    "P268": "non_rule_progression",
+    "P269": "non_rule_progression",
+    "P270": "stable",
+    "P271": "r2",
+    "P272": "stable",
+    "P273": "r1_r2",
+    "P274": "non_rule_progression",
+    "P275": "non_rule_progression",
+    "P276": "non_rule_progression",
+    "P277": "non_rule_progression",
+    "P278": "stable",
+    "P279": "r2",
+    "P280": "stable",
+    "P281": "non_rule_progression",
+    "P282": "non_rule_progression",
+    "P283": "stable",
+    "P284": "stable",
+    "P285": "stable",
+    "P286": "r2",
+    "P287": "stable",
+    "P288": "non_rule_progression",
+    "P289": "r1",
+    "P290": "stable",
+    "P291": "non_rule_progression",
+    "P292": "stable",
+    "P293": "stable",
+    "P294": "stable",
+    "P295": "non_rule_progression",
+    "P296": "stable",
+    "P297": "stable",
+    "P298": "non_rule_progression",
+    "P299": "stable",
+    "P300": "stable"
+  },
+  "path_counts": {
+    "non_rule_progression": 89,
+    "r1": 17,
+    "r1_r2": 19,
+    "r2": 25,
+    "stable": 150
+  },
+  "patient_count": 300,
+  "prohibited_uses": [
+    "clinical_rule_discovery_claims",
+    "real_world_clinical_evidence_claims",
+    "diagnostic_or_treatment_decisions",
+    "claims_that_extension_patients_came_from_source_documents"
+  ],
+  "seed": 20260819,
+  "stage_counts": {
+    "cirrhosis": 100,
+    "fatty_liver": 150,
+    "hcc": 50
+  },
+  "validation": {
+    "error_count": 0,
+    "errors": []
+  },
+  "visit_count": 1354,
+  "visit_count_distribution": {
+    "3": 68,
+    "4": 80,
+    "5": 82,
+    "6": 70
+  }
+}
