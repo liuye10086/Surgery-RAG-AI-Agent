@@ -1,0 +1,3781 @@
+{
+  "allowed_uses": [
+    "data_import_pipeline_testing",
+    "rule_detection_mechanism_validation",
+    "statistical_and_ui_regression_testing",
+    "synthetic_longitudinal_workflow_demonstration"
+  ],
+  "assigned_path_mismatches": [],
+  "baseline_artifact_sha256": {
+    "extracted_cases": "4a9132f7365b1cb9262c01bba7fd1d2c063e3d69538902b726d8684560d703c4",
+    "patients": "0c3a0b5fb0f27b09f06996d5f40083f3ccde541d8c5721605b5f5d3be1c50b06",
+    "provenance": "a2ec9a5ea72b9aea9c5bc64b3e3059f95e3150cb144e8a446c1a4fa8694ee9bb",
+    "quality": "ee212cb57fdfe4bd7376bc7910ec059a1848e23b2d601e3a29ff0bb7b5769e64",
+    "visits": "31dc61f540eb1a9d61a9599362d75d33ccbe3b6a229e8529c971e61e65798052"
+  },
+  "baseline_cohort_counts": {
+    "ad_progression": 124,
+    "mixed": 26
+  },
+  "baseline_directory": "ad_longitudinal_150",
+  "baseline_generator_version": "1.0.0",
+  "baseline_path_counts": {
+    "non_rule_progression": 45,
+    "r1": 25,
+    "r1_r2": 25,
+    "r2": 25,
+    "stable": 30
+  },
+  "baseline_patient_count": 150,
+  "baseline_patient_ids": [
+    "P001",
+    "P002",
+    "P003",
+    "P004",
+    "P005",
+    "P006",
+    "P007",
+    "P008",
+    "P009",
+    "P010",
+    "P011",
+    "P012",
+    "P013",
+    "P014",
+    "P015",
+    "P016",
+    "P017",
+    "P018",
+    "P019",
+    "P020",
+    "P021",
+    "P022",
+    "P023",
+    "P024",
+    "P025",
+    "P026",
+    "P027",
+    "P028",
+    "P029",
+    "P030",
+    "P031",
+    "P032",
+    "P033",
+    "P034",
+    "P035",
+    "P036",
+    "P037",
+    "P038",
+    "P039",
+    "P040",
+    "P041",
+    "P042",
+    "P043",
+    "P044",
+    "P045",
+    "P046",
+    "P047",
+    "P048",
+    "P049",
+    "P050",
+    "P051",
+    "P052",
+    "P053",
+    "P054",
+    "P055",
+    "P056",
+    "P057",
+    "P058",
+    "P059",
+    "P060",
+    "P061",
+    "P062",
+    "P063",
+    "P064",
+    "P065",
+    "P066",
+    "P067",
+    "P068",
+    "P069",
+    "P070",
+    "P071",
+    "P072",
+    "P073",
+    "P074",
+    "P075",
+    "P076",
+    "P077",
+    "P078",
+    "P079",
+    "P080",
+    "P081",
+    "P082",
+    "P083",
+    "P084",
+    "P085",
+    "P086",
+    "P087",
+    "P088",
+    "P089",
+    "P090",
+    "P091",
+    "P092",
+    "P093",
+    "P094",
+    "P095",
+    "P096",
+    "P097",
+    "P098",
+    "P099",
+    "P100",
+    "P101",
+    "P102",
+    "P103",
+    "P104",
+    "P105",
+    "P106",
+    "P107",
+    "P108",
+    "P109",
+    "P110",
+    "P111",
+    "P112",
+    "P113",
+    "P114",
+    "P115",
+    "P116",
+    "P117",
+    "P118",
+    "P119",
+    "P120",
+    "P121",
+    "P122",
+    "P123",
+    "P124",
+    "P125",
+    "P126",
+    "P127",
+    "P128",
+    "P129",
+    "P130",
+    "P131",
+    "P132",
+    "P133",
+    "P134",
+    "P135",
+    "P136",
+    "P137",
+    "P138",
+    "P139",
+    "P140",
+    "P141",
+    "P142",
+    "P143",
+    "P144",
+    "P145",
+    "P146",
+    "P147",
+    "P148",
+    "P149",
+    "P150"
+  ],
+  "baseline_stage_counts": {
+    "0": 5,
+    "0.5": 10,
+    "1": 55,
+    "2": 45,
+    "3": 35
+  },
+  "baseline_visit_count": 672,
+  "cohort_counts": {
+    "ad_progression": 248,
+    "mixed": 52
+  },
+  "dataset_summaries": {
+    "baseline": {
+      "cohort_counts": {
+        "ad_progression": 124,
+        "mixed": 26
+      },
+      "followup_span_days_summary": {
+        "max": 1758.0,
+        "median": 1255.5,
+        "min": 773.0,
+        "p25": 1043.25,
+        "p75": 1450.25
+      },
+      "lost_to_followup_counts": {
+        "no": 145,
+        "yes": 5
+      },
+      "missing_rate_by_field": {
+        "abeta40": 0.776786,
+        "abeta42": 0.776786,
+        "abeta_ratio": 0.776786,
+        "cdr": 0.0,
+        "crp": 0.0,
+        "gfap": 0.0,
+        "homocysteine": 0.0,
+        "mmse": 0.0,
+        "moca": 0.0,
+        "plasma_nfl": 0.776786,
+        "plasma_ptau217": 0.776786,
+        "ptau181": 0.776786,
+        "strem2": 0.776786,
+        "ttau": 0.776786,
+        "ykl40": 0.776786
+      },
+      "numeric_summary": {
+        "abeta40": {
+          "max": 18662.0,
+          "median": 7091.995,
+          "min": 4388.59,
+          "p25": 5850.0075,
+          "p75": 8654.7975
+        },
+        "abeta42": {
+          "max": 906.3,
+          "median": 473.16,
+          "min": 172.0,
+          "p25": 371.9575,
+          "p75": 640.6725
+        },
+        "abeta_ratio": {
+          "max": 0.1395,
+          "median": 0.06545,
+          "min": 0.0164,
+          "p25": 0.051,
+          "p75": 0.087775
+        },
+        "cdr": {
+          "max": 3.0,
+          "median": 0.5,
+          "min": 0.0,
+          "p25": 0.5,
+          "p75": 1.0
+        },
+        "crp": {
+          "max": 7.48,
+          "median": 2.375,
+          "min": 0.1,
+          "p25": 1.59,
+          "p75": 3.1925
+        },
+        "gfap": {
+          "max": 345.4,
+          "median": 136.3,
+          "min": 73.4,
+          "p25": 106.625,
+          "p75": 166.85
+        },
+        "homocysteine": {
+          "max": 21.61,
+          "median": 12.01,
+          "min": 7.49,
+          "p25": 10.0375,
+          "p75": 14.145
+        },
+        "mmse": {
+          "max": 30.0,
+          "median": 19.95,
+          "min": 0.0,
+          "p25": 12.275,
+          "p75": 23.6
+        },
+        "moca": {
+          "max": 28.1,
+          "median": 17.6,
+          "min": 0.0,
+          "p25": 10.5,
+          "p75": 22.7
+        },
+        "plasma_nfl": {
+          "max": 47.93,
+          "median": 28.95,
+          "min": 12.64,
+          "p25": 20.525,
+          "p75": 39.54
+        },
+        "plasma_ptau217": {
+          "max": 2.79,
+          "median": 1.555,
+          "min": 0.27,
+          "p25": 0.925,
+          "p75": 2.185
+        },
+        "ptau181": {
+          "max": 217.0,
+          "median": 108.9,
+          "min": 11.1,
+          "p25": 79.07,
+          "p75": 139.9425
+        },
+        "strem2": {
+          "max": 8.95,
+          "median": 5.07,
+          "min": 2.03,
+          "p25": 3.5125,
+          "p75": 7.2925
+        },
+        "ttau": {
+          "max": 1300.0,
+          "median": 630.445,
+          "min": 189.0,
+          "p25": 415.8875,
+          "p75": 774.005
+        },
+        "ykl40": {
+          "max": 189.67,
+          "median": 127.025,
+          "min": 56.12,
+          "p25": 89.3975,
+          "p75": 164.18
+        }
+      },
+      "path_counts": {
+        "non_rule_progression": 45,
+        "r1": 25,
+        "r1_r2": 25,
+        "r2": 25,
+        "stable": 30
+      },
+      "patient_count": 150,
+      "stage_counts": {
+        "0": 5,
+        "0.5": 10,
+        "1": 55,
+        "2": 45,
+        "3": 35
+      },
+      "visit_count": 672,
+      "visit_count_distribution": {
+        "3": 41,
+        "4": 33,
+        "5": 39,
+        "6": 37
+      },
+      "visit_count_summary": {
+        "max": 6.0,
+        "median": 5.0,
+        "min": 3.0,
+        "p25": 3.0,
+        "p75": 5.0
+      }
+    },
+    "extension": {
+      "cohort_counts": {
+        "ad_progression": 124,
+        "mixed": 26
+      },
+      "followup_span_days_summary": {
+        "max": 1827.0,
+        "median": 1288.5,
+        "min": 730.0,
+        "p25": 1025.0,
+        "p75": 1533.0
+      },
+      "lost_to_followup_counts": {
+        "no": 147,
+        "yes": 3
+      },
+      "missing_rate_by_field": {
+        "abeta40": 0.78355,
+        "abeta42": 0.78355,
+        "abeta_ratio": 0.78355,
+        "cdr": 0.0,
+        "crp": 0.0,
+        "gfap": 0.0,
+        "homocysteine": 0.0,
+        "mmse": 0.0,
+        "moca": 0.0,
+        "plasma_nfl": 0.78355,
+        "plasma_ptau217": 0.78355,
+        "ptau181": 0.78355,
+        "strem2": 0.78355,
+        "ttau": 0.78355,
+        "ykl40": 0.78355
+      },
+      "numeric_summary": {
+        "abeta40": {
+          "max": 19868.0,
+          "median": 6856.235,
+          "min": 4052.74,
+          "p25": 5800.7775,
+          "p75": 8061.74
+        },
+        "abeta42": {
+          "max": 808.81,
+          "median": 560.0,
+          "min": 315.94,
+          "p25": 520.0,
+          "p75": 560.0
+        },
+        "abeta_ratio": {
+          "max": 0.1439,
+          "median": 0.08105,
+          "min": 0.0357,
+          "p25": 0.0633,
+          "p75": 0.09415
+        },
+        "cdr": {
+          "max": 3.0,
+          "median": 0.5,
+          "min": 0.0,
+          "p25": 0.5,
+          "p75": 1.0
+        },
+        "crp": {
+          "max": 5.6,
+          "median": 2.42,
+          "min": 0.17,
+          "p25": 1.59,
+          "p75": 3.12
+        },
+        "gfap": {
+          "max": 336.5,
+          "median": 145.4,
+          "min": 67.6,
+          "p25": 112.4,
+          "p75": 168.6
+        },
+        "homocysteine": {
+          "max": 20.63,
+          "median": 11.86,
+          "min": 6.78,
+          "p25": 9.93,
+          "p75": 13.91
+        },
+        "mmse": {
+          "max": 30.0,
+          "median": 22.2,
+          "min": 0.0,
+          "p25": 15.4,
+          "p75": 25.0
+        },
+        "moca": {
+          "max": 28.3,
+          "median": 21.9,
+          "min": 0.0,
+          "p25": 15.8,
+          "p75": 23.6
+        },
+        "plasma_nfl": {
+          "max": 49.73,
+          "median": 29.46,
+          "min": 12.17,
+          "p25": 20.9625,
+          "p75": 39.8525
+        },
+        "plasma_ptau217": {
+          "max": 2.86,
+          "median": 1.5,
+          "min": 0.27,
+          "p25": 0.855,
+          "p75": 2.1425
+        },
+        "ptau181": {
+          "max": 220.04,
+          "median": 106.59,
+          "min": 34.71,
+          "p25": 83.0275,
+          "p75": 138.16
+        },
+        "strem2": {
+          "max": 9.32,
+          "median": 5.01,
+          "min": 2.01,
+          "p25": 3.4,
+          "p75": 6.945
+        },
+        "ttau": {
+          "max": 1362.02,
+          "median": 642.77,
+          "min": 195.4,
+          "p25": 435.1625,
+          "p75": 818.825
+        },
+        "ykl40": {
+          "max": 201.67,
+          "median": 120.625,
+          "min": 52.01,
+          "p25": 91.305,
+          "p75": 162.825
+        }
+      },
+      "path_counts": {
+        "non_rule_progression": 45,
+        "r1": 25,
+        "r1_r2": 25,
+        "r2": 25,
+        "stable": 30
+      },
+      "patient_count": 150,
+      "stage_counts": {
+        "0": 5,
+        "0.5": 10,
+        "1": 55,
+        "2": 45,
+        "3": 35
+      },
+      "visit_count": 693,
+      "visit_count_distribution": {
+        "3": 29,
+        "4": 41,
+        "5": 38,
+        "6": 42
+      },
+      "visit_count_summary": {
+        "max": 6.0,
+        "median": 5.0,
+        "min": 3.0,
+        "p25": 4.0,
+        "p75": 6.0
+      }
+    },
+    "overall": {
+      "cohort_counts": {
+        "ad_progression": 248,
+        "mixed": 52
+      },
+      "followup_span_days_summary": {
+        "max": 1827.0,
+        "median": 1276.0,
+        "min": 730.0,
+        "p25": 1039.75,
+        "p75": 1492.25
+      },
+      "lost_to_followup_counts": {
+        "no": 292,
+        "yes": 8
+      },
+      "missing_rate_by_field": {
+        "abeta40": 0.78022,
+        "abeta42": 0.78022,
+        "abeta_ratio": 0.78022,
+        "cdr": 0.0,
+        "crp": 0.0,
+        "gfap": 0.0,
+        "homocysteine": 0.0,
+        "mmse": 0.0,
+        "moca": 0.0,
+        "plasma_nfl": 0.78022,
+        "plasma_ptau217": 0.78022,
+        "ptau181": 0.78022,
+        "strem2": 0.78022,
+        "ttau": 0.78022,
+        "ykl40": 0.78022
+      },
+      "numeric_summary": {
+        "abeta40": {
+          "max": 19868.0,
+          "median": 6976.36,
+          "min": 4052.74,
+          "p25": 5838.6975,
+          "p75": 8343.79
+        },
+        "abeta42": {
+          "max": 906.3,
+          "median": 549.16,
+          "min": 172.0,
+          "p25": 437.2775,
+          "p75": 567.4525
+        },
+        "abeta_ratio": {
+          "max": 0.1439,
+          "median": 0.07525,
+          "min": 0.0164,
+          "p25": 0.0562,
+          "p75": 0.092025
+        },
+        "cdr": {
+          "max": 3.0,
+          "median": 0.5,
+          "min": 0.0,
+          "p25": 0.5,
+          "p75": 1.0
+        },
+        "crp": {
+          "max": 7.48,
+          "median": 2.39,
+          "min": 0.1,
+          "p25": 1.59,
+          "p75": 3.16
+        },
+        "gfap": {
+          "max": 345.4,
+          "median": 140.0,
+          "min": 67.6,
+          "p25": 110.4,
+          "p75": 167.9
+        },
+        "homocysteine": {
+          "max": 21.61,
+          "median": 11.92,
+          "min": 6.78,
+          "p25": 10.01,
+          "p75": 14.01
+        },
+        "mmse": {
+          "max": 30.0,
+          "median": 21.0,
+          "min": 0.0,
+          "p25": 13.5,
+          "p75": 24.6
+        },
+        "moca": {
+          "max": 28.3,
+          "median": 20.4,
+          "min": 0.0,
+          "p25": 12.3,
+          "p75": 23.3
+        },
+        "plasma_nfl": {
+          "max": 49.73,
+          "median": 29.3,
+          "min": 12.17,
+          "p25": 20.735,
+          "p75": 39.675
+        },
+        "plasma_ptau217": {
+          "max": 2.86,
+          "median": 1.535,
+          "min": 0.27,
+          "p25": 0.9,
+          "p75": 2.17
+        },
+        "ptau181": {
+          "max": 220.04,
+          "median": 108.085,
+          "min": 11.1,
+          "p25": 80.225,
+          "p75": 139.7425
+        },
+        "strem2": {
+          "max": 9.32,
+          "median": 5.04,
+          "min": 2.01,
+          "p25": 3.4675,
+          "p75": 7.065
+        },
+        "ttau": {
+          "max": 1362.02,
+          "median": 633.335,
+          "min": 189.0,
+          "p25": 431.6925,
+          "p75": 781.1675
+        },
+        "ykl40": {
+          "max": 201.67,
+          "median": 124.45,
+          "min": 52.01,
+          "p25": 90.5875,
+          "p75": 164.0675
+        }
+      },
+      "path_counts": {
+        "non_rule_progression": 90,
+        "r1": 50,
+        "r1_r2": 50,
+        "r2": 50,
+        "stable": 60
+      },
+      "patient_count": 300,
+      "stage_counts": {
+        "0": 10,
+        "0.5": 20,
+        "1": 110,
+        "2": 90,
+        "3": 70
+      },
+      "visit_count": 1365,
+      "visit_count_distribution": {
+        "3": 70,
+        "4": 74,
+        "5": 77,
+        "6": 79
+      },
+      "visit_count_summary": {
+        "max": 6.0,
+        "median": 5.0,
+        "min": 3.0,
+        "p25": 4.0,
+        "p75": 6.0
+      }
+    }
+  },
+  "duplicate_check": {
+    "complete_duplicate_groups": []
+  },
+  "extension_cohort_counts": {
+    "ad_progression": 124,
+    "mixed": 26
+  },
+  "extension_generated_lost_to_followup_ids": [
+    "P206",
+    "P274",
+    "P283"
+  ],
+  "extension_outcome_assignment_audit": {
+    "P151": {
+      "assigned_final_stage": "0.5",
+      "source": "generated_stage_assignment"
+    },
+    "P152": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P153": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P154": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P155": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P156": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P157": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P158": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P159": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P160": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P161": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P162": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P163": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P164": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P165": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P166": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P167": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P168": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P169": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P170": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P171": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P172": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P173": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P174": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P175": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P176": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P177": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P178": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P179": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P180": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P181": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P182": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P183": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P184": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P185": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P186": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P187": {
+      "assigned_final_stage": "0.5",
+      "source": "generated_stage_assignment"
+    },
+    "P188": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P189": {
+      "assigned_final_stage": "0.5",
+      "source": "generated_stage_assignment"
+    },
+    "P190": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P191": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P192": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P193": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P194": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P195": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P196": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P197": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P198": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P199": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P200": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P201": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P202": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P203": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P204": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P205": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P206": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P207": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P208": {
+      "assigned_final_stage": "0",
+      "source": "generated_stage_assignment"
+    },
+    "P209": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P210": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P211": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P212": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P213": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P214": {
+      "assigned_final_stage": "0.5",
+      "source": "generated_stage_assignment"
+    },
+    "P215": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P216": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P217": {
+      "assigned_final_stage": "0",
+      "source": "generated_stage_assignment"
+    },
+    "P218": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P219": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P220": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P221": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P222": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P223": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P224": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P225": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P226": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P227": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P228": {
+      "assigned_final_stage": "0",
+      "source": "generated_stage_assignment"
+    },
+    "P229": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P230": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P231": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P232": {
+      "assigned_final_stage": "0",
+      "source": "generated_stage_assignment"
+    },
+    "P233": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P234": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P235": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P236": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P237": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P238": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P239": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P240": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P241": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P242": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P243": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P244": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P245": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P246": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P247": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P248": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P249": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P250": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P251": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P252": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P253": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P254": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P255": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P256": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P257": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P258": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P259": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P260": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P261": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P262": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P263": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P264": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P265": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P266": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P267": {
+      "assigned_final_stage": "0.5",
+      "source": "generated_stage_assignment"
+    },
+    "P268": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P269": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P270": {
+      "assigned_final_stage": "0",
+      "source": "generated_stage_assignment"
+    },
+    "P271": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P272": {
+      "assigned_final_stage": "0.5",
+      "source": "generated_stage_assignment"
+    },
+    "P273": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P274": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P275": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P276": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P277": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P278": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P279": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P280": {
+      "assigned_final_stage": "0.5",
+      "source": "generated_stage_assignment"
+    },
+    "P281": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P282": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P283": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P284": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P285": {
+      "assigned_final_stage": "0.5",
+      "source": "generated_stage_assignment"
+    },
+    "P286": {
+      "assigned_final_stage": "3",
+      "source": "generated_stage_assignment"
+    },
+    "P287": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P288": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P289": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P290": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P291": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P292": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P293": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P294": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P295": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P296": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P297": {
+      "assigned_final_stage": "0.5",
+      "source": "generated_stage_assignment"
+    },
+    "P298": {
+      "assigned_final_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P299": {
+      "assigned_final_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P300": {
+      "assigned_final_stage": "0.5",
+      "source": "generated_stage_assignment"
+    }
+  },
+  "extension_path_counts": {
+    "non_rule_progression": 45,
+    "r1": 25,
+    "r1_r2": 25,
+    "r2": 25,
+    "stable": 30
+  },
+  "extension_patient_count": 150,
+  "extension_seed": 20260819,
+  "extension_source_components": {
+    "P151": {
+      "baseline_biomarker_patient_id": "P072",
+      "classification_reason_patient_id": "P110",
+      "demographics_patient_id": "P067",
+      "static_marker_patient_id": "P105",
+      "trajectory_patient_id": "P106"
+    },
+    "P152": {
+      "baseline_biomarker_patient_id": "P077",
+      "classification_reason_patient_id": "P024",
+      "demographics_patient_id": "P010",
+      "static_marker_patient_id": "P096",
+      "trajectory_patient_id": "P133"
+    },
+    "P153": {
+      "baseline_biomarker_patient_id": "P032",
+      "classification_reason_patient_id": "P113",
+      "demographics_patient_id": "P114",
+      "static_marker_patient_id": "P062",
+      "trajectory_patient_id": "P143"
+    },
+    "P154": {
+      "baseline_biomarker_patient_id": "P052",
+      "classification_reason_patient_id": "P080",
+      "demographics_patient_id": "P025",
+      "static_marker_patient_id": "P008",
+      "trajectory_patient_id": "P067"
+    },
+    "P155": {
+      "baseline_biomarker_patient_id": "P120",
+      "classification_reason_patient_id": "P084",
+      "demographics_patient_id": "P077",
+      "static_marker_patient_id": "P083",
+      "trajectory_patient_id": "P030"
+    },
+    "P156": {
+      "baseline_biomarker_patient_id": "P110",
+      "classification_reason_patient_id": "P086",
+      "demographics_patient_id": "P102",
+      "static_marker_patient_id": "P141",
+      "trajectory_patient_id": "P009"
+    },
+    "P157": {
+      "baseline_biomarker_patient_id": "P135",
+      "classification_reason_patient_id": "P111",
+      "demographics_patient_id": "P082",
+      "static_marker_patient_id": "P023",
+      "trajectory_patient_id": "P094"
+    },
+    "P158": {
+      "baseline_biomarker_patient_id": "P032",
+      "classification_reason_patient_id": "P080",
+      "demographics_patient_id": "P060",
+      "static_marker_patient_id": "P055",
+      "trajectory_patient_id": "P149"
+    },
+    "P159": {
+      "baseline_biomarker_patient_id": "P014",
+      "classification_reason_patient_id": "P054",
+      "demographics_patient_id": "P133",
+      "static_marker_patient_id": "P060",
+      "trajectory_patient_id": "P010"
+    },
+    "P160": {
+      "baseline_biomarker_patient_id": "P027",
+      "classification_reason_patient_id": "P125",
+      "demographics_patient_id": "P042",
+      "static_marker_patient_id": "P063",
+      "trajectory_patient_id": "P107"
+    },
+    "P161": {
+      "baseline_biomarker_patient_id": "P047",
+      "classification_reason_patient_id": "P053",
+      "demographics_patient_id": "P068",
+      "static_marker_patient_id": "P004",
+      "trajectory_patient_id": "P071"
+    },
+    "P162": {
+      "baseline_biomarker_patient_id": "P046",
+      "classification_reason_patient_id": "P037",
+      "demographics_patient_id": "P010",
+      "static_marker_patient_id": "P133",
+      "trajectory_patient_id": "P060"
+    },
+    "P163": {
+      "baseline_biomarker_patient_id": "P114",
+      "classification_reason_patient_id": "P112",
+      "demographics_patient_id": "P020",
+      "static_marker_patient_id": "P041",
+      "trajectory_patient_id": "P127"
+    },
+    "P164": {
+      "baseline_biomarker_patient_id": "P138",
+      "classification_reason_patient_id": "P088",
+      "demographics_patient_id": "P108",
+      "static_marker_patient_id": "P018",
+      "trajectory_patient_id": "P067"
+    },
+    "P165": {
+      "baseline_biomarker_patient_id": "P102",
+      "classification_reason_patient_id": "P070",
+      "demographics_patient_id": "P029",
+      "static_marker_patient_id": "P048",
+      "trajectory_patient_id": "P061"
+    },
+    "P166": {
+      "baseline_biomarker_patient_id": "P102",
+      "classification_reason_patient_id": "P127",
+      "demographics_patient_id": "P079",
+      "static_marker_patient_id": "P122",
+      "trajectory_patient_id": "P108"
+    },
+    "P167": {
+      "baseline_biomarker_patient_id": "P019",
+      "classification_reason_patient_id": "P129",
+      "demographics_patient_id": "P078",
+      "static_marker_patient_id": "P011",
+      "trajectory_patient_id": "P103"
+    },
+    "P168": {
+      "baseline_biomarker_patient_id": "P066",
+      "classification_reason_patient_id": "P049",
+      "demographics_patient_id": "P149",
+      "static_marker_patient_id": "P130",
+      "trajectory_patient_id": "P097"
+    },
+    "P169": {
+      "baseline_biomarker_patient_id": "P007",
+      "classification_reason_patient_id": "P052",
+      "demographics_patient_id": "P116",
+      "static_marker_patient_id": "P091",
+      "trajectory_patient_id": "P004"
+    },
+    "P170": {
+      "baseline_biomarker_patient_id": "P065",
+      "classification_reason_patient_id": "P084",
+      "demographics_patient_id": "P040",
+      "static_marker_patient_id": "P056",
+      "trajectory_patient_id": "P146"
+    },
+    "P171": {
+      "baseline_biomarker_patient_id": "P046",
+      "classification_reason_patient_id": "P072",
+      "demographics_patient_id": "P101",
+      "static_marker_patient_id": "P038",
+      "trajectory_patient_id": "P058"
+    },
+    "P172": {
+      "baseline_biomarker_patient_id": "P149",
+      "classification_reason_patient_id": "P066",
+      "demographics_patient_id": "P037",
+      "static_marker_patient_id": "P062",
+      "trajectory_patient_id": "P101"
+    },
+    "P173": {
+      "baseline_biomarker_patient_id": "P060",
+      "classification_reason_patient_id": "P127",
+      "demographics_patient_id": "P079",
+      "static_marker_patient_id": "P113",
+      "trajectory_patient_id": "P138"
+    },
+    "P174": {
+      "baseline_biomarker_patient_id": "P081",
+      "classification_reason_patient_id": "P102",
+      "demographics_patient_id": "P028",
+      "static_marker_patient_id": "P083",
+      "trajectory_patient_id": "P040"
+    },
+    "P175": {
+      "baseline_biomarker_patient_id": "P108",
+      "classification_reason_patient_id": "P083",
+      "demographics_patient_id": "P010",
+      "static_marker_patient_id": "P056",
+      "trajectory_patient_id": "P053"
+    },
+    "P176": {
+      "baseline_biomarker_patient_id": "P018",
+      "classification_reason_patient_id": "P141",
+      "demographics_patient_id": "P142",
+      "static_marker_patient_id": "P108",
+      "trajectory_patient_id": "P033"
+    },
+    "P177": {
+      "baseline_biomarker_patient_id": "P059",
+      "classification_reason_patient_id": "P003",
+      "demographics_patient_id": "P073",
+      "static_marker_patient_id": "P144",
+      "trajectory_patient_id": "P145"
+    },
+    "P178": {
+      "baseline_biomarker_patient_id": "P130",
+      "classification_reason_patient_id": "P022",
+      "demographics_patient_id": "P113",
+      "static_marker_patient_id": "P080",
+      "trajectory_patient_id": "P049"
+    },
+    "P179": {
+      "baseline_biomarker_patient_id": "P023",
+      "classification_reason_patient_id": "P063",
+      "demographics_patient_id": "P019",
+      "static_marker_patient_id": "P111",
+      "trajectory_patient_id": "P001"
+    },
+    "P180": {
+      "baseline_biomarker_patient_id": "P005",
+      "classification_reason_patient_id": "P080",
+      "demographics_patient_id": "P108",
+      "static_marker_patient_id": "P133",
+      "trajectory_patient_id": "P077"
+    },
+    "P181": {
+      "baseline_biomarker_patient_id": "P072",
+      "classification_reason_patient_id": "P143",
+      "demographics_patient_id": "P032",
+      "static_marker_patient_id": "P147",
+      "trajectory_patient_id": "P126"
+    },
+    "P182": {
+      "baseline_biomarker_patient_id": "P097",
+      "classification_reason_patient_id": "P070",
+      "demographics_patient_id": "P046",
+      "static_marker_patient_id": "P150",
+      "trajectory_patient_id": "P002"
+    },
+    "P183": {
+      "baseline_biomarker_patient_id": "P109",
+      "classification_reason_patient_id": "P087",
+      "demographics_patient_id": "P054",
+      "static_marker_patient_id": "P002",
+      "trajectory_patient_id": "P134"
+    },
+    "P184": {
+      "baseline_biomarker_patient_id": "P137",
+      "classification_reason_patient_id": "P064",
+      "demographics_patient_id": "P129",
+      "static_marker_patient_id": "P019",
+      "trajectory_patient_id": "P023"
+    },
+    "P185": {
+      "baseline_biomarker_patient_id": "P037",
+      "classification_reason_patient_id": "P079",
+      "demographics_patient_id": "P049",
+      "static_marker_patient_id": "P138",
+      "trajectory_patient_id": "P067"
+    },
+    "P186": {
+      "baseline_biomarker_patient_id": "P006",
+      "classification_reason_patient_id": "P033",
+      "demographics_patient_id": "P109",
+      "static_marker_patient_id": "P105",
+      "trajectory_patient_id": "P018"
+    },
+    "P187": {
+      "baseline_biomarker_patient_id": "P111",
+      "classification_reason_patient_id": "P042",
+      "demographics_patient_id": "P136",
+      "static_marker_patient_id": "P001",
+      "trajectory_patient_id": "P129"
+    },
+    "P188": {
+      "baseline_biomarker_patient_id": "P016",
+      "classification_reason_patient_id": "P045",
+      "demographics_patient_id": "P007",
+      "static_marker_patient_id": "P113",
+      "trajectory_patient_id": "P109"
+    },
+    "P189": {
+      "baseline_biomarker_patient_id": "P142",
+      "classification_reason_patient_id": "P145",
+      "demographics_patient_id": "P127",
+      "static_marker_patient_id": "P034",
+      "trajectory_patient_id": "P089"
+    },
+    "P190": {
+      "baseline_biomarker_patient_id": "P021",
+      "classification_reason_patient_id": "P147",
+      "demographics_patient_id": "P142",
+      "static_marker_patient_id": "P045",
+      "trajectory_patient_id": "P140"
+    },
+    "P191": {
+      "baseline_biomarker_patient_id": "P012",
+      "classification_reason_patient_id": "P114",
+      "demographics_patient_id": "P070",
+      "static_marker_patient_id": "P087",
+      "trajectory_patient_id": "P021"
+    },
+    "P192": {
+      "baseline_biomarker_patient_id": "P141",
+      "classification_reason_patient_id": "P054",
+      "demographics_patient_id": "P033",
+      "static_marker_patient_id": "P126",
+      "trajectory_patient_id": "P101"
+    },
+    "P193": {
+      "baseline_biomarker_patient_id": "P100",
+      "classification_reason_patient_id": "P065",
+      "demographics_patient_id": "P122",
+      "static_marker_patient_id": "P008",
+      "trajectory_patient_id": "P105"
+    },
+    "P194": {
+      "baseline_biomarker_patient_id": "P113",
+      "classification_reason_patient_id": "P028",
+      "demographics_patient_id": "P112",
+      "static_marker_patient_id": "P068",
+      "trajectory_patient_id": "P005"
+    },
+    "P195": {
+      "baseline_biomarker_patient_id": "P103",
+      "classification_reason_patient_id": "P125",
+      "demographics_patient_id": "P023",
+      "static_marker_patient_id": "P111",
+      "trajectory_patient_id": "P042"
+    },
+    "P196": {
+      "baseline_biomarker_patient_id": "P112",
+      "classification_reason_patient_id": "P047",
+      "demographics_patient_id": "P140",
+      "static_marker_patient_id": "P084",
+      "trajectory_patient_id": "P123"
+    },
+    "P197": {
+      "baseline_biomarker_patient_id": "P050",
+      "classification_reason_patient_id": "P014",
+      "demographics_patient_id": "P041",
+      "static_marker_patient_id": "P068",
+      "trajectory_patient_id": "P098"
+    },
+    "P198": {
+      "baseline_biomarker_patient_id": "P144",
+      "classification_reason_patient_id": "P015",
+      "demographics_patient_id": "P048",
+      "static_marker_patient_id": "P139",
+      "trajectory_patient_id": "P039"
+    },
+    "P199": {
+      "baseline_biomarker_patient_id": "P107",
+      "classification_reason_patient_id": "P135",
+      "demographics_patient_id": "P027",
+      "static_marker_patient_id": "P026",
+      "trajectory_patient_id": "P023"
+    },
+    "P200": {
+      "baseline_biomarker_patient_id": "P111",
+      "classification_reason_patient_id": "P023",
+      "demographics_patient_id": "P026",
+      "static_marker_patient_id": "P124",
+      "trajectory_patient_id": "P019"
+    },
+    "P201": {
+      "baseline_biomarker_patient_id": "P003",
+      "classification_reason_patient_id": "P121",
+      "demographics_patient_id": "P055",
+      "static_marker_patient_id": "P044",
+      "trajectory_patient_id": "P079"
+    },
+    "P202": {
+      "baseline_biomarker_patient_id": "P005",
+      "classification_reason_patient_id": "P105",
+      "demographics_patient_id": "P015",
+      "static_marker_patient_id": "P059",
+      "trajectory_patient_id": "P147"
+    },
+    "P203": {
+      "baseline_biomarker_patient_id": "P121",
+      "classification_reason_patient_id": "P098",
+      "demographics_patient_id": "P074",
+      "static_marker_patient_id": "P030",
+      "trajectory_patient_id": "P051"
+    },
+    "P204": {
+      "baseline_biomarker_patient_id": "P122",
+      "classification_reason_patient_id": "P145",
+      "demographics_patient_id": "P057",
+      "static_marker_patient_id": "P142",
+      "trajectory_patient_id": "P134"
+    },
+    "P205": {
+      "baseline_biomarker_patient_id": "P096",
+      "classification_reason_patient_id": "P066",
+      "demographics_patient_id": "P016",
+      "static_marker_patient_id": "P018",
+      "trajectory_patient_id": "P034"
+    },
+    "P206": {
+      "baseline_biomarker_patient_id": "P146",
+      "classification_reason_patient_id": "P060",
+      "demographics_patient_id": "P030",
+      "static_marker_patient_id": "P141",
+      "trajectory_patient_id": "P004"
+    },
+    "P207": {
+      "baseline_biomarker_patient_id": "P039",
+      "classification_reason_patient_id": "P115",
+      "demographics_patient_id": "P138",
+      "static_marker_patient_id": "P006",
+      "trajectory_patient_id": "P012"
+    },
+    "P208": {
+      "baseline_biomarker_patient_id": "P024",
+      "classification_reason_patient_id": "P017",
+      "demographics_patient_id": "P150",
+      "static_marker_patient_id": "P041",
+      "trajectory_patient_id": "P056"
+    },
+    "P209": {
+      "baseline_biomarker_patient_id": "P106",
+      "classification_reason_patient_id": "P037",
+      "demographics_patient_id": "P142",
+      "static_marker_patient_id": "P143",
+      "trajectory_patient_id": "P131"
+    },
+    "P210": {
+      "baseline_biomarker_patient_id": "P111",
+      "classification_reason_patient_id": "P043",
+      "demographics_patient_id": "P063",
+      "static_marker_patient_id": "P026",
+      "trajectory_patient_id": "P125"
+    },
+    "P211": {
+      "baseline_biomarker_patient_id": "P017",
+      "classification_reason_patient_id": "P112",
+      "demographics_patient_id": "P061",
+      "static_marker_patient_id": "P010",
+      "trajectory_patient_id": "P050"
+    },
+    "P212": {
+      "baseline_biomarker_patient_id": "P141",
+      "classification_reason_patient_id": "P117",
+      "demographics_patient_id": "P014",
+      "static_marker_patient_id": "P029",
+      "trajectory_patient_id": "P040"
+    },
+    "P213": {
+      "baseline_biomarker_patient_id": "P015",
+      "classification_reason_patient_id": "P086",
+      "demographics_patient_id": "P089",
+      "static_marker_patient_id": "P006",
+      "trajectory_patient_id": "P002"
+    },
+    "P214": {
+      "baseline_biomarker_patient_id": "P049",
+      "classification_reason_patient_id": "P067",
+      "demographics_patient_id": "P117",
+      "static_marker_patient_id": "P018",
+      "trajectory_patient_id": "P096"
+    },
+    "P215": {
+      "baseline_biomarker_patient_id": "P038",
+      "classification_reason_patient_id": "P045",
+      "demographics_patient_id": "P092",
+      "static_marker_patient_id": "P044",
+      "trajectory_patient_id": "P102"
+    },
+    "P216": {
+      "baseline_biomarker_patient_id": "P060",
+      "classification_reason_patient_id": "P120",
+      "demographics_patient_id": "P085",
+      "static_marker_patient_id": "P056",
+      "trajectory_patient_id": "P143"
+    },
+    "P217": {
+      "baseline_biomarker_patient_id": "P036",
+      "classification_reason_patient_id": "P125",
+      "demographics_patient_id": "P095",
+      "static_marker_patient_id": "P019",
+      "trajectory_patient_id": "P129"
+    },
+    "P218": {
+      "baseline_biomarker_patient_id": "P083",
+      "classification_reason_patient_id": "P016",
+      "demographics_patient_id": "P010",
+      "static_marker_patient_id": "P040",
+      "trajectory_patient_id": "P090"
+    },
+    "P219": {
+      "baseline_biomarker_patient_id": "P062",
+      "classification_reason_patient_id": "P083",
+      "demographics_patient_id": "P131",
+      "static_marker_patient_id": "P035",
+      "trajectory_patient_id": "P099"
+    },
+    "P220": {
+      "baseline_biomarker_patient_id": "P097",
+      "classification_reason_patient_id": "P083",
+      "demographics_patient_id": "P030",
+      "static_marker_patient_id": "P122",
+      "trajectory_patient_id": "P131"
+    },
+    "P221": {
+      "baseline_biomarker_patient_id": "P063",
+      "classification_reason_patient_id": "P095",
+      "demographics_patient_id": "P125",
+      "static_marker_patient_id": "P019",
+      "trajectory_patient_id": "P136"
+    },
+    "P222": {
+      "baseline_biomarker_patient_id": "P075",
+      "classification_reason_patient_id": "P017",
+      "demographics_patient_id": "P149",
+      "static_marker_patient_id": "P106",
+      "trajectory_patient_id": "P049"
+    },
+    "P223": {
+      "baseline_biomarker_patient_id": "P095",
+      "classification_reason_patient_id": "P129",
+      "demographics_patient_id": "P036",
+      "static_marker_patient_id": "P026",
+      "trajectory_patient_id": "P063"
+    },
+    "P224": {
+      "baseline_biomarker_patient_id": "P088",
+      "classification_reason_patient_id": "P037",
+      "demographics_patient_id": "P142",
+      "static_marker_patient_id": "P126",
+      "trajectory_patient_id": "P146"
+    },
+    "P225": {
+      "baseline_biomarker_patient_id": "P038",
+      "classification_reason_patient_id": "P040",
+      "demographics_patient_id": "P109",
+      "static_marker_patient_id": "P096",
+      "trajectory_patient_id": "P115"
+    },
+    "P226": {
+      "baseline_biomarker_patient_id": "P036",
+      "classification_reason_patient_id": "P103",
+      "demographics_patient_id": "P135",
+      "static_marker_patient_id": "P069",
+      "trajectory_patient_id": "P111"
+    },
+    "P227": {
+      "baseline_biomarker_patient_id": "P030",
+      "classification_reason_patient_id": "P108",
+      "demographics_patient_id": "P100",
+      "static_marker_patient_id": "P119",
+      "trajectory_patient_id": "P112"
+    },
+    "P228": {
+      "baseline_biomarker_patient_id": "P064",
+      "classification_reason_patient_id": "P094",
+      "demographics_patient_id": "P103",
+      "static_marker_patient_id": "P082",
+      "trajectory_patient_id": "P042"
+    },
+    "P229": {
+      "baseline_biomarker_patient_id": "P028",
+      "classification_reason_patient_id": "P032",
+      "demographics_patient_id": "P143",
+      "static_marker_patient_id": "P020",
+      "trajectory_patient_id": "P092"
+    },
+    "P230": {
+      "baseline_biomarker_patient_id": "P143",
+      "classification_reason_patient_id": "P102",
+      "demographics_patient_id": "P086",
+      "static_marker_patient_id": "P045",
+      "trajectory_patient_id": "P060"
+    },
+    "P231": {
+      "baseline_biomarker_patient_id": "P029",
+      "classification_reason_patient_id": "P031",
+      "demographics_patient_id": "P010",
+      "static_marker_patient_id": "P138",
+      "trajectory_patient_id": "P100"
+    },
+    "P232": {
+      "baseline_biomarker_patient_id": "P074",
+      "classification_reason_patient_id": "P054",
+      "demographics_patient_id": "P010",
+      "static_marker_patient_id": "P142",
+      "trajectory_patient_id": "P035"
+    },
+    "P233": {
+      "baseline_biomarker_patient_id": "P091",
+      "classification_reason_patient_id": "P022",
+      "demographics_patient_id": "P059",
+      "static_marker_patient_id": "P060",
+      "trajectory_patient_id": "P104"
+    },
+    "P234": {
+      "baseline_biomarker_patient_id": "P145",
+      "classification_reason_patient_id": "P008",
+      "demographics_patient_id": "P080",
+      "static_marker_patient_id": "P096",
+      "trajectory_patient_id": "P097"
+    },
+    "P235": {
+      "baseline_biomarker_patient_id": "P004",
+      "classification_reason_patient_id": "P109",
+      "demographics_patient_id": "P030",
+      "static_marker_patient_id": "P041",
+      "trajectory_patient_id": "P116"
+    },
+    "P236": {
+      "baseline_biomarker_patient_id": "P149",
+      "classification_reason_patient_id": "P046",
+      "demographics_patient_id": "P084",
+      "static_marker_patient_id": "P096",
+      "trajectory_patient_id": "P119"
+    },
+    "P237": {
+      "baseline_biomarker_patient_id": "P061",
+      "classification_reason_patient_id": "P065",
+      "demographics_patient_id": "P075",
+      "static_marker_patient_id": "P143",
+      "trajectory_patient_id": "P008"
+    },
+    "P238": {
+      "baseline_biomarker_patient_id": "P147",
+      "classification_reason_patient_id": "P146",
+      "demographics_patient_id": "P144",
+      "static_marker_patient_id": "P131",
+      "trajectory_patient_id": "P114"
+    },
+    "P239": {
+      "baseline_biomarker_patient_id": "P099",
+      "classification_reason_patient_id": "P105",
+      "demographics_patient_id": "P006",
+      "static_marker_patient_id": "P088",
+      "trajectory_patient_id": "P048"
+    },
+    "P240": {
+      "baseline_biomarker_patient_id": "P078",
+      "classification_reason_patient_id": "P136",
+      "demographics_patient_id": "P129",
+      "static_marker_patient_id": "P125",
+      "trajectory_patient_id": "P064"
+    },
+    "P241": {
+      "baseline_biomarker_patient_id": "P124",
+      "classification_reason_patient_id": "P023",
+      "demographics_patient_id": "P137",
+      "static_marker_patient_id": "P069",
+      "trajectory_patient_id": "P107"
+    },
+    "P242": {
+      "baseline_biomarker_patient_id": "P063",
+      "classification_reason_patient_id": "P137",
+      "demographics_patient_id": "P135",
+      "static_marker_patient_id": "P011",
+      "trajectory_patient_id": "P111"
+    },
+    "P243": {
+      "baseline_biomarker_patient_id": "P066",
+      "classification_reason_patient_id": "P139",
+      "demographics_patient_id": "P046",
+      "static_marker_patient_id": "P071",
+      "trajectory_patient_id": "P010"
+    },
+    "P244": {
+      "baseline_biomarker_patient_id": "P063",
+      "classification_reason_patient_id": "P043",
+      "demographics_patient_id": "P093",
+      "static_marker_patient_id": "P078",
+      "trajectory_patient_id": "P124"
+    },
+    "P245": {
+      "baseline_biomarker_patient_id": "P088",
+      "classification_reason_patient_id": "P105",
+      "demographics_patient_id": "P143",
+      "static_marker_patient_id": "P119",
+      "trajectory_patient_id": "P089"
+    },
+    "P246": {
+      "baseline_biomarker_patient_id": "P111",
+      "classification_reason_patient_id": "P125",
+      "demographics_patient_id": "P124",
+      "static_marker_patient_id": "P136",
+      "trajectory_patient_id": "P019"
+    },
+    "P247": {
+      "baseline_biomarker_patient_id": "P045",
+      "classification_reason_patient_id": "P024",
+      "demographics_patient_id": "P148",
+      "static_marker_patient_id": "P057",
+      "trajectory_patient_id": "P099"
+    },
+    "P248": {
+      "baseline_biomarker_patient_id": "P009",
+      "classification_reason_patient_id": "P047",
+      "demographics_patient_id": "P053",
+      "static_marker_patient_id": "P110",
+      "trajectory_patient_id": "P098"
+    },
+    "P249": {
+      "baseline_biomarker_patient_id": "P029",
+      "classification_reason_patient_id": "P079",
+      "demographics_patient_id": "P116",
+      "static_marker_patient_id": "P076",
+      "trajectory_patient_id": "P096"
+    },
+    "P250": {
+      "baseline_biomarker_patient_id": "P044",
+      "classification_reason_patient_id": "P049",
+      "demographics_patient_id": "P008",
+      "static_marker_patient_id": "P143",
+      "trajectory_patient_id": "P127"
+    },
+    "P251": {
+      "baseline_biomarker_patient_id": "P069",
+      "classification_reason_patient_id": "P136",
+      "demographics_patient_id": "P001",
+      "static_marker_patient_id": "P063",
+      "trajectory_patient_id": "P135"
+    },
+    "P252": {
+      "baseline_biomarker_patient_id": "P041",
+      "classification_reason_patient_id": "P146",
+      "demographics_patient_id": "P052",
+      "static_marker_patient_id": "P014",
+      "trajectory_patient_id": "P101"
+    },
+    "P253": {
+      "baseline_biomarker_patient_id": "P076",
+      "classification_reason_patient_id": "P062",
+      "demographics_patient_id": "P048",
+      "static_marker_patient_id": "P051",
+      "trajectory_patient_id": "P109"
+    },
+    "P254": {
+      "baseline_biomarker_patient_id": "P111",
+      "classification_reason_patient_id": "P069",
+      "demographics_patient_id": "P136",
+      "static_marker_patient_id": "P001",
+      "trajectory_patient_id": "P125"
+    },
+    "P255": {
+      "baseline_biomarker_patient_id": "P105",
+      "classification_reason_patient_id": "P035",
+      "demographics_patient_id": "P044",
+      "static_marker_patient_id": "P070",
+      "trajectory_patient_id": "P038"
+    },
+    "P256": {
+      "baseline_biomarker_patient_id": "P143",
+      "classification_reason_patient_id": "P055",
+      "demographics_patient_id": "P134",
+      "static_marker_patient_id": "P029",
+      "trajectory_patient_id": "P066"
+    },
+    "P257": {
+      "baseline_biomarker_patient_id": "P081",
+      "classification_reason_patient_id": "P074",
+      "demographics_patient_id": "P084",
+      "static_marker_patient_id": "P024",
+      "trajectory_patient_id": "P037"
+    },
+    "P258": {
+      "baseline_biomarker_patient_id": "P046",
+      "classification_reason_patient_id": "P015",
+      "demographics_patient_id": "P118",
+      "static_marker_patient_id": "P039",
+      "trajectory_patient_id": "P061"
+    },
+    "P259": {
+      "baseline_biomarker_patient_id": "P054",
+      "classification_reason_patient_id": "P040",
+      "demographics_patient_id": "P041",
+      "static_marker_patient_id": "P014",
+      "trajectory_patient_id": "P084"
+    },
+    "P260": {
+      "baseline_biomarker_patient_id": "P065",
+      "classification_reason_patient_id": "P044",
+      "demographics_patient_id": "P007",
+      "static_marker_patient_id": "P037",
+      "trajectory_patient_id": "P122"
+    },
+    "P261": {
+      "baseline_biomarker_patient_id": "P141",
+      "classification_reason_patient_id": "P083",
+      "demographics_patient_id": "P085",
+      "static_marker_patient_id": "P080",
+      "trajectory_patient_id": "P077"
+    },
+    "P262": {
+      "baseline_biomarker_patient_id": "P033",
+      "classification_reason_patient_id": "P067",
+      "demographics_patient_id": "P044",
+      "static_marker_patient_id": "P130",
+      "trajectory_patient_id": "P101"
+    },
+    "P263": {
+      "baseline_biomarker_patient_id": "P149",
+      "classification_reason_patient_id": "P079",
+      "demographics_patient_id": "P105",
+      "static_marker_patient_id": "P020",
+      "trajectory_patient_id": "P049"
+    },
+    "P264": {
+      "baseline_biomarker_patient_id": "P070",
+      "classification_reason_patient_id": "P144",
+      "demographics_patient_id": "P139",
+      "static_marker_patient_id": "P054",
+      "trajectory_patient_id": "P035"
+    },
+    "P265": {
+      "baseline_biomarker_patient_id": "P081",
+      "classification_reason_patient_id": "P073",
+      "demographics_patient_id": "P123",
+      "static_marker_patient_id": "P038",
+      "trajectory_patient_id": "P044"
+    },
+    "P266": {
+      "baseline_biomarker_patient_id": "P047",
+      "classification_reason_patient_id": "P046",
+      "demographics_patient_id": "P149",
+      "static_marker_patient_id": "P145",
+      "trajectory_patient_id": "P114"
+    },
+    "P267": {
+      "baseline_biomarker_patient_id": "P025",
+      "classification_reason_patient_id": "P047",
+      "demographics_patient_id": "P126",
+      "static_marker_patient_id": "P068",
+      "trajectory_patient_id": "P143"
+    },
+    "P268": {
+      "baseline_biomarker_patient_id": "P109",
+      "classification_reason_patient_id": "P029",
+      "demographics_patient_id": "P128",
+      "static_marker_patient_id": "P030",
+      "trajectory_patient_id": "P143"
+    },
+    "P269": {
+      "baseline_biomarker_patient_id": "P028",
+      "classification_reason_patient_id": "P038",
+      "demographics_patient_id": "P077",
+      "static_marker_patient_id": "P116",
+      "trajectory_patient_id": "P075"
+    },
+    "P270": {
+      "baseline_biomarker_patient_id": "P137",
+      "classification_reason_patient_id": "P042",
+      "demographics_patient_id": "P078",
+      "static_marker_patient_id": "P107",
+      "trajectory_patient_id": "P093"
+    },
+    "P271": {
+      "baseline_biomarker_patient_id": "P020",
+      "classification_reason_patient_id": "P028",
+      "demographics_patient_id": "P038",
+      "static_marker_patient_id": "P044",
+      "trajectory_patient_id": "P068"
+    },
+    "P272": {
+      "baseline_biomarker_patient_id": "P112",
+      "classification_reason_patient_id": "P092",
+      "demographics_patient_id": "P096",
+      "static_marker_patient_id": "P020",
+      "trajectory_patient_id": "P127"
+    },
+    "P273": {
+      "baseline_biomarker_patient_id": "P053",
+      "classification_reason_patient_id": "P105",
+      "demographics_patient_id": "P055",
+      "static_marker_patient_id": "P114",
+      "trajectory_patient_id": "P058"
+    },
+    "P274": {
+      "baseline_biomarker_patient_id": "P102",
+      "classification_reason_patient_id": "P008",
+      "demographics_patient_id": "P005",
+      "static_marker_patient_id": "P028",
+      "trajectory_patient_id": "P133"
+    },
+    "P275": {
+      "baseline_biomarker_patient_id": "P008",
+      "classification_reason_patient_id": "P017",
+      "demographics_patient_id": "P038",
+      "static_marker_patient_id": "P115",
+      "trajectory_patient_id": "P072"
+    },
+    "P276": {
+      "baseline_biomarker_patient_id": "P142",
+      "classification_reason_patient_id": "P075",
+      "demographics_patient_id": "P003",
+      "static_marker_patient_id": "P121",
+      "trajectory_patient_id": "P149"
+    },
+    "P277": {
+      "baseline_biomarker_patient_id": "P150",
+      "classification_reason_patient_id": "P062",
+      "demographics_patient_id": "P099",
+      "static_marker_patient_id": "P121",
+      "trajectory_patient_id": "P087"
+    },
+    "P278": {
+      "baseline_biomarker_patient_id": "P091",
+      "classification_reason_patient_id": "P060",
+      "demographics_patient_id": "P058",
+      "static_marker_patient_id": "P010",
+      "trajectory_patient_id": "P020"
+    },
+    "P279": {
+      "baseline_biomarker_patient_id": "P148",
+      "classification_reason_patient_id": "P076",
+      "demographics_patient_id": "P149",
+      "static_marker_patient_id": "P146",
+      "trajectory_patient_id": "P074"
+    },
+    "P280": {
+      "baseline_biomarker_patient_id": "P129",
+      "classification_reason_patient_id": "P011",
+      "demographics_patient_id": "P019",
+      "static_marker_patient_id": "P078",
+      "trajectory_patient_id": "P026"
+    },
+    "P281": {
+      "baseline_biomarker_patient_id": "P018",
+      "classification_reason_patient_id": "P058",
+      "demographics_patient_id": "P127",
+      "static_marker_patient_id": "P014",
+      "trajectory_patient_id": "P101"
+    },
+    "P282": {
+      "baseline_biomarker_patient_id": "P021",
+      "classification_reason_patient_id": "P022",
+      "demographics_patient_id": "P090",
+      "static_marker_patient_id": "P091",
+      "trajectory_patient_id": "P049"
+    },
+    "P283": {
+      "baseline_biomarker_patient_id": "P133",
+      "classification_reason_patient_id": "P115",
+      "demographics_patient_id": "P008",
+      "static_marker_patient_id": "P101",
+      "trajectory_patient_id": "P127"
+    },
+    "P284": {
+      "baseline_biomarker_patient_id": "P140",
+      "classification_reason_patient_id": "P101",
+      "demographics_patient_id": "P123",
+      "static_marker_patient_id": "P117",
+      "trajectory_patient_id": "P108"
+    },
+    "P285": {
+      "baseline_biomarker_patient_id": "P134",
+      "classification_reason_patient_id": "P117",
+      "demographics_patient_id": "P141",
+      "static_marker_patient_id": "P059",
+      "trajectory_patient_id": "P007"
+    },
+    "P286": {
+      "baseline_biomarker_patient_id": "P062",
+      "classification_reason_patient_id": "P004",
+      "demographics_patient_id": "P029",
+      "static_marker_patient_id": "P073",
+      "trajectory_patient_id": "P113"
+    },
+    "P287": {
+      "baseline_biomarker_patient_id": "P087",
+      "classification_reason_patient_id": "P060",
+      "demographics_patient_id": "P127",
+      "static_marker_patient_id": "P006",
+      "trajectory_patient_id": "P030"
+    },
+    "P288": {
+      "baseline_biomarker_patient_id": "P020",
+      "classification_reason_patient_id": "P100",
+      "demographics_patient_id": "P106",
+      "static_marker_patient_id": "P116",
+      "trajectory_patient_id": "P140"
+    },
+    "P289": {
+      "baseline_biomarker_patient_id": "P017",
+      "classification_reason_patient_id": "P070",
+      "demographics_patient_id": "P133",
+      "static_marker_patient_id": "P105",
+      "trajectory_patient_id": "P030"
+    },
+    "P290": {
+      "baseline_biomarker_patient_id": "P140",
+      "classification_reason_patient_id": "P072",
+      "demographics_patient_id": "P118",
+      "static_marker_patient_id": "P049",
+      "trajectory_patient_id": "P121"
+    },
+    "P291": {
+      "baseline_biomarker_patient_id": "P131",
+      "classification_reason_patient_id": "P084",
+      "demographics_patient_id": "P029",
+      "static_marker_patient_id": "P076",
+      "trajectory_patient_id": "P003"
+    },
+    "P292": {
+      "baseline_biomarker_patient_id": "P015",
+      "classification_reason_patient_id": "P007",
+      "demographics_patient_id": "P114",
+      "static_marker_patient_id": "P008",
+      "trajectory_patient_id": "P056"
+    },
+    "P293": {
+      "baseline_biomarker_patient_id": "P113",
+      "classification_reason_patient_id": "P089",
+      "demographics_patient_id": "P142",
+      "static_marker_patient_id": "P099",
+      "trajectory_patient_id": "P024"
+    },
+    "P294": {
+      "baseline_biomarker_patient_id": "P079",
+      "classification_reason_patient_id": "P074",
+      "demographics_patient_id": "P126",
+      "static_marker_patient_id": "P052",
+      "trajectory_patient_id": "P077"
+    },
+    "P295": {
+      "baseline_biomarker_patient_id": "P099",
+      "classification_reason_patient_id": "P101",
+      "demographics_patient_id": "P022",
+      "static_marker_patient_id": "P086",
+      "trajectory_patient_id": "P080"
+    },
+    "P296": {
+      "baseline_biomarker_patient_id": "P057",
+      "classification_reason_patient_id": "P088",
+      "demographics_patient_id": "P053",
+      "static_marker_patient_id": "P007",
+      "trajectory_patient_id": "P140"
+    },
+    "P297": {
+      "baseline_biomarker_patient_id": "P052",
+      "classification_reason_patient_id": "P102",
+      "demographics_patient_id": "P113",
+      "static_marker_patient_id": "P007",
+      "trajectory_patient_id": "P099"
+    },
+    "P298": {
+      "baseline_biomarker_patient_id": "P011",
+      "classification_reason_patient_id": "P064",
+      "demographics_patient_id": "P069",
+      "static_marker_patient_id": "P095",
+      "trajectory_patient_id": "P042"
+    },
+    "P299": {
+      "baseline_biomarker_patient_id": "P120",
+      "classification_reason_patient_id": "P110",
+      "demographics_patient_id": "P076",
+      "static_marker_patient_id": "P102",
+      "trajectory_patient_id": "P083"
+    },
+    "P300": {
+      "baseline_biomarker_patient_id": "P107",
+      "classification_reason_patient_id": "P137",
+      "demographics_patient_id": "P093",
+      "static_marker_patient_id": "P082",
+      "trajectory_patient_id": "P125"
+    }
+  },
+  "extension_stage_counts": {
+    "0": 5,
+    "0.5": 10,
+    "1": 55,
+    "2": 45,
+    "3": 35
+  },
+  "extension_version": "1.0.0",
+  "extension_visit_count": 693,
+  "generated_extension_patient_ids": [
+    "P151",
+    "P152",
+    "P153",
+    "P154",
+    "P155",
+    "P156",
+    "P157",
+    "P158",
+    "P159",
+    "P160",
+    "P161",
+    "P162",
+    "P163",
+    "P164",
+    "P165",
+    "P166",
+    "P167",
+    "P168",
+    "P169",
+    "P170",
+    "P171",
+    "P172",
+    "P173",
+    "P174",
+    "P175",
+    "P176",
+    "P177",
+    "P178",
+    "P179",
+    "P180",
+    "P181",
+    "P182",
+    "P183",
+    "P184",
+    "P185",
+    "P186",
+    "P187",
+    "P188",
+    "P189",
+    "P190",
+    "P191",
+    "P192",
+    "P193",
+    "P194",
+    "P195",
+    "P196",
+    "P197",
+    "P198",
+    "P199",
+    "P200",
+    "P201",
+    "P202",
+    "P203",
+    "P204",
+    "P205",
+    "P206",
+    "P207",
+    "P208",
+    "P209",
+    "P210",
+    "P211",
+    "P212",
+    "P213",
+    "P214",
+    "P215",
+    "P216",
+    "P217",
+    "P218",
+    "P219",
+    "P220",
+    "P221",
+    "P222",
+    "P223",
+    "P224",
+    "P225",
+    "P226",
+    "P227",
+    "P228",
+    "P229",
+    "P230",
+    "P231",
+    "P232",
+    "P233",
+    "P234",
+    "P235",
+    "P236",
+    "P237",
+    "P238",
+    "P239",
+    "P240",
+    "P241",
+    "P242",
+    "P243",
+    "P244",
+    "P245",
+    "P246",
+    "P247",
+    "P248",
+    "P249",
+    "P250",
+    "P251",
+    "P252",
+    "P253",
+    "P254",
+    "P255",
+    "P256",
+    "P257",
+    "P258",
+    "P259",
+    "P260",
+    "P261",
+    "P262",
+    "P263",
+    "P264",
+    "P265",
+    "P266",
+    "P267",
+    "P268",
+    "P269",
+    "P270",
+    "P271",
+    "P272",
+    "P273",
+    "P274",
+    "P275",
+    "P276",
+    "P277",
+    "P278",
+    "P279",
+    "P280",
+    "P281",
+    "P282",
+    "P283",
+    "P284",
+    "P285",
+    "P286",
+    "P287",
+    "P288",
+    "P289",
+    "P290",
+    "P291",
+    "P292",
+    "P293",
+    "P294",
+    "P295",
+    "P296",
+    "P297",
+    "P298",
+    "P299",
+    "P300"
+  ],
+  "generated_lost_to_followup_ids": [
+    "P029",
+    "P058",
+    "P087",
+    "P116",
+    "P145",
+    "P206",
+    "P274",
+    "P283"
+  ],
+  "path_assignment_audit": {
+    "P001": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P002": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P003": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P004": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P005": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P006": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P007": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P008": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P009": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P010": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P011": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P012": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P013": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P014": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P015": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P016": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P017": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P018": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P019": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P020": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P021": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P022": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P023": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P024": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P025": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P026": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P027": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P028": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P029": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P030": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P031": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P032": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P033": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P034": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P035": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P036": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P037": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P038": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P039": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P040": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P041": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P042": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P043": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P044": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P045": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P046": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P047": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P048": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P049": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P050": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P051": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P052": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P053": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P054": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P055": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P056": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P057": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P058": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P059": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P060": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P061": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P062": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P063": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P064": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P065": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P066": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P067": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P068": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P069": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P070": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P071": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P072": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P073": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P074": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P075": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P076": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P077": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P078": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P079": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P080": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P081": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P082": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P083": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P084": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P085": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P086": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P087": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P088": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P089": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P090": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P091": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P092": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P093": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P094": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P095": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P096": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P097": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P098": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P099": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P100": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P101": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P102": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P103": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P104": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P105": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P106": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P107": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P108": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P109": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P110": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P111": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P112": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P113": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P114": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P115": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P116": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P117": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P118": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P119": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P120": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P121": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P122": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P123": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P124": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P125": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P126": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P127": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P128": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P129": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P130": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P131": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P132": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P133": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P134": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P135": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P136": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P137": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P138": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P139": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P140": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P141": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P142": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P143": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P144": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P145": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P146": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P147": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P148": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P149": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P150": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P151": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P152": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P153": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P154": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P155": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P156": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P157": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P158": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P159": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P160": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P161": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P162": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P163": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P164": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P165": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P166": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P167": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P168": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P169": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P170": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P171": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P172": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P173": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P174": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P175": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P176": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P177": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P178": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P179": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P180": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P181": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P182": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P183": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P184": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P185": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P186": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P187": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P188": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P189": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P190": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P191": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P192": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P193": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P194": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P195": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P196": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P197": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P198": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P199": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P200": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P201": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P202": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P203": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P204": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P205": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P206": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P207": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P208": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P209": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P210": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P211": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P212": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P213": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P214": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P215": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P216": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P217": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P218": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P219": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P220": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P221": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P222": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P223": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P224": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P225": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P226": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P227": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P228": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P229": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P230": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P231": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P232": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P233": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P234": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P235": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P236": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P237": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P238": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P239": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P240": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P241": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P242": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P243": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P244": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P245": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P246": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P247": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P248": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P249": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P250": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P251": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P252": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P253": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P254": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P255": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P256": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P257": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P258": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P259": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P260": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P261": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P262": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P263": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P264": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P265": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P266": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P267": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P268": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P269": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P270": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P271": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P272": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P273": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P274": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P275": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P276": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P277": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P278": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P279": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P280": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P281": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P282": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P283": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P284": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P285": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P286": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P287": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P288": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P289": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P290": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P291": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P292": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P293": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P294": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P295": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P296": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P297": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P298": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P299": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P300": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    }
+  },
+  "path_counts": {
+    "non_rule_progression": 90,
+    "r1": 50,
+    "r1_r2": 50,
+    "r2": 50,
+    "stable": 60
+  },
+  "patient_count": 300,
+  "prohibited_uses": [
+    "real_world_clinical_evidence_claims",
+    "diagnostic_or_treatment_decisions",
+    "unlabelled_clinical_research_source_data",
+    "claims_that_extension_patients_came_from_new_case_documents",
+    "claims_that_r1_or_r2_are_independent_clinical_discoveries"
+  ],
+  "stage_counts": {
+    "0": 10,
+    "0.5": 20,
+    "1": 110,
+    "2": 90,
+    "3": 70
+  },
+  "validation": {
+    "error_count": 0,
+    "errors": []
+  },
+  "visit_count": 1365
+}
