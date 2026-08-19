@@ -1,0 +1,4072 @@
+[
+  {
+    "anchors": {
+      "mmse": 14.0,
+      "moca": 9.0,
+      "ttau": 290.83
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 50,
+    "extracted_sex": "female",
+    "gene_mutation": "MAPT",
+    "heading": "病例1",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P001",
+    "record_type": "source_case",
+    "source_case_id": "A1-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "1"
+  },
+  {
+    "anchors": {
+      "mmse": 7.0,
+      "moca": 1.0,
+      "ptau181": 141.66,
+      "ttau": 772.82
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 70,
+    "extracted_sex": "female",
+    "gene_mutation": "SORL1",
+    "heading": "病例2",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P002",
+    "record_type": "source_case",
+    "source_case_id": "A2-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "2"
+  },
+  {
+    "anchors": {
+      "mmse": 8.0,
+      "ptau181": 193.0,
+      "ttau": 708.84
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 44,
+    "extracted_sex": "male",
+    "gene_mutation": "SORL1",
+    "heading": "病例3",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P003",
+    "record_type": "source_case",
+    "source_case_id": "A3-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "3"
+  },
+  {
+    "anchors": {
+      "homocysteine": 14.8,
+      "mmse": 4.0,
+      "ptau181": 193.0,
+      "ttau": 708.84
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2017-07-01",
+      "2018-07-01"
+    ],
+    "extracted_age": 65,
+    "extracted_sex": "female",
+    "gene_mutation": "SORL1",
+    "heading": "病例4",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P004",
+    "record_type": "source_case",
+    "source_case_id": "A4-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "4"
+  },
+  {
+    "anchors": {},
+    "apoe": "3/3",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 60,
+    "extracted_sex": "female",
+    "gene_mutation": "SORL1",
+    "heading": "病例5",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P005",
+    "record_type": "source_case",
+    "source_case_id": "A5-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "5"
+  },
+  {
+    "anchors": {
+      "mmse": 15.0
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 59,
+    "extracted_sex": "male",
+    "gene_mutation": "SORL1",
+    "heading": "病例6",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P006",
+    "record_type": "source_case",
+    "source_case_id": "A6-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "6"
+  },
+  {
+    "anchors": {
+      "ptau181": 108.52,
+      "ttau": 975.42
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2021-05-12"
+    ],
+    "extracted_age": 69,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例7",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "functional_moderate",
+    "patient_id": "P007",
+    "record_type": "source_case",
+    "source_case_id": "A7-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "7"
+  },
+  {
+    "anchors": {
+      "abeta40": 6358.0,
+      "abeta42": 320.0,
+      "abeta_ratio": 0.05,
+      "ptau181": 38.41,
+      "ttau": 189.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 55,
+    "extracted_sex": "female",
+    "gene_mutation": "SORL1",
+    "heading": "病例8",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "functional_severe",
+    "patient_id": "P008",
+    "record_type": "source_case",
+    "source_case_id": "A8-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "8"
+  },
+  {
+    "anchors": {
+      "cdr": 1.0,
+      "mmse": 12.0,
+      "moca": 11.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 61,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例9",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P009",
+    "record_type": "source_case",
+    "source_case_id": "A9-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "9"
+  },
+  {
+    "anchors": {
+      "cdr": 2.0,
+      "mmse": 9.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 38,
+    "extracted_sex": "female",
+    "gene_mutation": "PSEN1",
+    "heading": "病例10",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P010",
+    "record_type": "source_case",
+    "source_case_id": "A10-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "10"
+  },
+  {
+    "anchors": {
+      "mmse": 20.0,
+      "moca": 17.0,
+      "ptau181": 16.61,
+      "ttau": 273.94
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 60,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例11",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P011",
+    "record_type": "source_case",
+    "source_case_id": "A11-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "11"
+  },
+  {
+    "anchors": {
+      "mmse": 28.0,
+      "ttau": 717.43
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 60,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例12",
+    "inferred_stage": "0.5",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P012",
+    "record_type": "source_case",
+    "source_case_id": "A12-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "12"
+  },
+  {
+    "anchors": {
+      "abeta_ratio": 0.06,
+      "mmse": 15.0,
+      "ptau181": 193.0,
+      "ttau": 949.92
+    },
+    "apoe": "2/3",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 51,
+    "extracted_sex": "female",
+    "gene_mutation": "GRN",
+    "heading": "病例13",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P013",
+    "record_type": "source_case",
+    "source_case_id": "A13-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "13"
+  },
+  {
+    "anchors": {
+      "homocysteine": 9.0,
+      "ptau181": 103.0
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2016-07-01",
+      "2018-07-01",
+      "2019-07-01"
+    ],
+    "extracted_age": 61,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例14",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "functional_severe",
+    "patient_id": "P014",
+    "record_type": "source_case",
+    "source_case_id": "A14-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "14"
+  },
+  {
+    "anchors": {
+      "abeta_ratio": 0.08,
+      "homocysteine": 14.0,
+      "ptau181": 75.27,
+      "ttau": 629.86
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2020-07-01",
+      "2021-07-01"
+    ],
+    "extracted_age": 39,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例15",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "functional_moderate",
+    "patient_id": "P015",
+    "record_type": "source_case",
+    "source_case_id": "A15-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "15"
+  },
+  {
+    "anchors": {
+      "mmse": 8.0,
+      "moca": 3.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2010-07-01",
+      "2020-07-01",
+      "2021-07-01"
+    ],
+    "extracted_age": 63,
+    "extracted_sex": "female",
+    "gene_mutation": "PSEN2",
+    "heading": "病例16",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P016",
+    "record_type": "source_case",
+    "source_case_id": "A16-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "16"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 87,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例17",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "functional_severe",
+    "patient_id": "P017",
+    "record_type": "source_case",
+    "source_case_id": "A17-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "17"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 76,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例18",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "title_mild",
+    "patient_id": "P018",
+    "record_type": "source_case",
+    "source_case_id": "A18-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "18"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [
+      "2016-08-01",
+      "2018-07-01"
+    ],
+    "extracted_age": 66,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例19",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "functional_severe",
+    "patient_id": "P019",
+    "record_type": "source_case",
+    "source_case_id": "A19-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "19"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2022-05-10"
+    ],
+    "extracted_age": 100,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例20",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "functional_moderate",
+    "patient_id": "P020",
+    "record_type": "source_case",
+    "source_case_id": "A20-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "20"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 76,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例21",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "title_moderate",
+    "patient_id": "P021",
+    "record_type": "source_case",
+    "source_case_id": "A21-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "21"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 79,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例22",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "functional_moderate",
+    "patient_id": "P022",
+    "record_type": "source_case",
+    "source_case_id": "A22-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "22"
+  },
+  {
+    "anchors": {
+      "mmse": 28.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 78,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例23",
+    "inferred_stage": "0.5",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P023",
+    "record_type": "source_case",
+    "source_case_id": "A23-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "23"
+  },
+  {
+    "anchors": {
+      "ttau": 688.78
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 37,
+    "extracted_sex": "male",
+    "gene_mutation": "PSEN1",
+    "heading": "病例24",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P024",
+    "record_type": "source_case",
+    "source_case_id": "A24-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "24"
+  },
+  {
+    "anchors": {
+      "abeta_ratio": 0.1,
+      "cdr": 0.5,
+      "mmse": 29.0,
+      "moca": 22.0,
+      "ptau181": 72.73,
+      "ttau": 692.22
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "0.5",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 64,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例25",
+    "inferred_stage": "0.5",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P025",
+    "record_type": "source_case",
+    "source_case_id": "A25-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "25"
+  },
+  {
+    "anchors": {
+      "cdr": 2.0,
+      "mmse": 14.0
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [
+      "2020-01-01",
+      "2023-01-01"
+    ],
+    "extracted_age": 66,
+    "extracted_sex": "male",
+    "gene_mutation": "C9ORF72",
+    "heading": "病例26",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P026",
+    "record_type": "source_case",
+    "source_case_id": "A26-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "26"
+  },
+  {
+    "anchors": {
+      "cdr": 2.0,
+      "mmse": 12.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 59,
+    "extracted_sex": "female",
+    "gene_mutation": "C9ORF72",
+    "heading": "病例27",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P027",
+    "record_type": "source_case",
+    "source_case_id": "A27-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "27"
+  },
+  {
+    "anchors": {
+      "ptau181": 139.8,
+      "ttau": 1104.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2014-06-01",
+      "2017-12-01"
+    ],
+    "extracted_age": 33,
+    "extracted_sex": "male",
+    "gene_mutation": "PSEN1",
+    "heading": "病例28",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P028",
+    "record_type": "source_case",
+    "source_case_id": "A28-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "28"
+  },
+  {
+    "anchors": {
+      "mmse": 27.0,
+      "moca": 24.0,
+      "plasma_nfl": 25.0,
+      "ptau181": 35.0,
+      "ttau": 335.0
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 42,
+    "extracted_sex": "female",
+    "gene_mutation": "PSEN1",
+    "heading": "病例29",
+    "inferred_stage": "0.5",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P029",
+    "record_type": "source_case",
+    "source_case_id": "A29-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "29"
+  },
+  {
+    "anchors": {
+      "mmse": 25.0,
+      "moca": 24.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 62,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例30",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P030",
+    "record_type": "source_case",
+    "source_case_id": "A30-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "30"
+  },
+  {
+    "anchors": {
+      "ptau181": 217.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 78,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例31",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "functional_moderate",
+    "patient_id": "P031",
+    "record_type": "source_case",
+    "source_case_id": "A31-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "31"
+  },
+  {
+    "anchors": {
+      "abeta42": 755.0,
+      "abeta_ratio": 0.039,
+      "mmse": 17.0,
+      "moca": 14.0,
+      "ptau181": 161.54,
+      "ttau": 841.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2019-07-01"
+    ],
+    "extracted_age": 69,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例32",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P032",
+    "record_type": "source_case",
+    "source_case_id": "A32-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "32"
+  },
+  {
+    "anchors": {
+      "mmse": 17.0,
+      "moca": 13.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 62,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例33",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P033",
+    "record_type": "source_case",
+    "source_case_id": "A33-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "33"
+  },
+  {
+    "anchors": {
+      "gfap": 337.32,
+      "mmse": 18.0,
+      "moca": 13.0
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 77,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例34",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P034",
+    "record_type": "source_case",
+    "source_case_id": "A34-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "34"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 59,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例35",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "functional_severe",
+    "patient_id": "P035",
+    "record_type": "source_case",
+    "source_case_id": "A35-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "35"
+  },
+  {
+    "anchors": {
+      "mmse": 12.0,
+      "moca": 9.0,
+      "ttau": 673.0
+    },
+    "apoe": "4/4",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [
+      "2019-07-01",
+      "2019-12-01",
+      "2022-03-01",
+      "2022-07-01"
+    ],
+    "extracted_age": 61,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例36",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P036",
+    "record_type": "source_case",
+    "source_case_id": "A36-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "36"
+  },
+  {
+    "anchors": {
+      "cdr": 2.0,
+      "mmse": 13.0
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 76,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例37",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P037",
+    "record_type": "source_case",
+    "source_case_id": "A37-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "37"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2002-07-01",
+      "2004-07-01"
+    ],
+    "extracted_age": 79,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例38",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "functional_severe",
+    "patient_id": "P038",
+    "record_type": "source_case",
+    "source_case_id": "A38-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "38"
+  },
+  {
+    "anchors": {
+      "abeta_ratio": 0.0436,
+      "ptau181": 181.0
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "0",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 76,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例39",
+    "inferred_stage": "0",
+    "occurrence": 1,
+    "outcome_source": "title_preclinical_or_normal",
+    "patient_id": "P039",
+    "record_type": "source_case",
+    "source_case_id": "A39-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "39"
+  },
+  {
+    "anchors": {
+      "mmse": 0.0,
+      "ptau181": 87.73
+    },
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 65,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例40",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "title_severe",
+    "patient_id": "P040",
+    "record_type": "source_case",
+    "source_case_id": "A40-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "40"
+  },
+  {
+    "anchors": {
+      "mmse": 1.0,
+      "moca": 0.0
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 63,
+    "extracted_sex": "male",
+    "gene_mutation": "PSEN2",
+    "heading": "病例41",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P041",
+    "record_type": "source_case",
+    "source_case_id": "A41-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "41"
+  },
+  {
+    "anchors": {
+      "mmse": 4.0,
+      "moca": 0.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 49,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例42",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P042",
+    "record_type": "source_case",
+    "source_case_id": "A42-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "42"
+  },
+  {
+    "anchors": {
+      "mmse": 2.0,
+      "moca": 1.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 79,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例43",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P043",
+    "record_type": "source_case",
+    "source_case_id": "A43-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "43"
+  },
+  {
+    "anchors": {},
+    "apoe": "3/3",
+    "assigned_final_stage": "0",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 36,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例44",
+    "inferred_stage": "0",
+    "occurrence": 1,
+    "outcome_source": "title_preclinical_or_normal",
+    "patient_id": "P044",
+    "record_type": "source_case",
+    "source_case_id": "A44-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "44"
+  },
+  {
+    "anchors": {},
+    "apoe": "3/4",
+    "assigned_final_stage": "0",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 35,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例45",
+    "inferred_stage": "0",
+    "occurrence": 1,
+    "outcome_source": "title_preclinical_or_normal",
+    "patient_id": "P045",
+    "record_type": "source_case",
+    "source_case_id": "A45-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "45"
+  },
+  {
+    "anchors": {
+      "mmse": 14.0,
+      "moca": 11.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 58,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例46",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "title_mild",
+    "patient_id": "P046",
+    "record_type": "source_case",
+    "source_case_id": "A46-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "46"
+  },
+  {
+    "anchors": {
+      "homocysteine": 20.56,
+      "mmse": 14.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 84,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例47",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P047",
+    "record_type": "source_case",
+    "source_case_id": "A47-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "47"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2019-07-01",
+      "2020-07-01",
+      "2021-07-01"
+    ],
+    "extracted_age": 70,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例48",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "title_moderate",
+    "patient_id": "P048",
+    "record_type": "source_case",
+    "source_case_id": "A48-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "48"
+  },
+  {
+    "anchors": {
+      "mmse": 22.0,
+      "moca": 14.0,
+      "plasma_ptau217": 1.38,
+      "ptau181": 217.0
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2023-03-01",
+      "2024-04-01"
+    ],
+    "extracted_age": 57,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例49",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P049",
+    "record_type": "source_case",
+    "source_case_id": "A49-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "49"
+  },
+  {
+    "anchors": {
+      "moca": 17.0
+    },
+    "apoe": "2/4",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 78,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例50",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "title_mild",
+    "patient_id": "P050",
+    "record_type": "source_case",
+    "source_case_id": "A50-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "50"
+  },
+  {
+    "anchors": {
+      "mmse": 22.0,
+      "moca": 17.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 76,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例51",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "title_moderate",
+    "patient_id": "P051",
+    "record_type": "source_case",
+    "source_case_id": "A51-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "51"
+  },
+  {
+    "anchors": {
+      "mmse": 20.0,
+      "moca": 15.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 69,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例52",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "title_moderate",
+    "patient_id": "P052",
+    "record_type": "source_case",
+    "source_case_id": "A52-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "52"
+  },
+  {
+    "anchors": {
+      "mmse": 15.0,
+      "moca": 11.0
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 71,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例53",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P053",
+    "record_type": "source_case",
+    "source_case_id": "A53-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "53"
+  },
+  {
+    "anchors": {
+      "cdr": 1.0,
+      "mmse": 27.0,
+      "moca": 21.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 63,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例54",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P054",
+    "record_type": "source_case",
+    "source_case_id": "A54-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "54"
+  },
+  {
+    "anchors": {
+      "abeta42": 172.0,
+      "mmse": 17.0,
+      "moca": 14.0,
+      "ptau181": 68.0,
+      "ttau": 376.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 60,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例55",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P055",
+    "record_type": "source_case",
+    "source_case_id": "A55-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "55"
+  },
+  {
+    "anchors": {
+      "abeta42": 405.0,
+      "mmse": 2.0,
+      "moca": 1.0,
+      "ptau181": 103.0,
+      "ttau": 880.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 55,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例56",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P056",
+    "record_type": "source_case",
+    "source_case_id": "A56-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "56"
+  },
+  {
+    "anchors": {
+      "abeta42": 435.0,
+      "mmse": 11.0,
+      "moca": 9.0,
+      "ptau181": 182.0,
+      "ttau": 854.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 52,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例57",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P057",
+    "record_type": "source_case",
+    "source_case_id": "A57-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "57"
+  },
+  {
+    "anchors": {
+      "cdr": 3.0,
+      "moca": 15.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2014-07-01"
+    ],
+    "extracted_age": 78,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例58",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P058",
+    "record_type": "source_case",
+    "source_case_id": "A58-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "58"
+  },
+  {
+    "anchors": {
+      "mmse": 12.0,
+      "moca": 10.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 59,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例59",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P059",
+    "record_type": "source_case",
+    "source_case_id": "A59-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "59"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2023-04-01"
+    ],
+    "extracted_age": 55,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例60",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P060",
+    "record_type": "source_case",
+    "source_case_id": "A60-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "60"
+  },
+  {
+    "anchors": {
+      "ptau181": 181.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 78,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例61",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "title_severe",
+    "patient_id": "P061",
+    "record_type": "source_case",
+    "source_case_id": "A61-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "61"
+  },
+  {
+    "anchors": {
+      "mmse": 25.0,
+      "moca": 27.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 75,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例62",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P062",
+    "record_type": "source_case",
+    "source_case_id": "A62-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "62"
+  },
+  {
+    "anchors": {
+      "cdr": 1.0,
+      "mmse": 24.0,
+      "moca": 17.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 78,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例63",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P063",
+    "record_type": "source_case",
+    "source_case_id": "A63-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "63"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 60,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例64",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P064",
+    "record_type": "source_case",
+    "source_case_id": "A64-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "64"
+  },
+  {
+    "anchors": {
+      "mmse": 11.0,
+      "moca": 4.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2022-07-01"
+    ],
+    "extracted_age": 83,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例65",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P065",
+    "record_type": "source_case",
+    "source_case_id": "A65-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "65"
+  },
+  {
+    "anchors": {
+      "cdr": 3.0,
+      "mmse": 5.0,
+      "moca": 6.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 55,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例66",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P066",
+    "record_type": "source_case",
+    "source_case_id": "A66-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "66"
+  },
+  {
+    "anchors": {
+      "homocysteine": 16.7,
+      "mmse": 16.0,
+      "moca": 12.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 58,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例67",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P067",
+    "record_type": "source_case",
+    "source_case_id": "A67-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "67"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2016-07-01",
+      "2021-07-01"
+    ],
+    "extracted_age": 72,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例68",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P068",
+    "record_type": "source_case",
+    "source_case_id": "A68-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "68"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [
+      "2021-07-01"
+    ],
+    "extracted_age": 72,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例69",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P069",
+    "record_type": "source_case",
+    "source_case_id": "A69-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "69"
+  },
+  {
+    "anchors": {
+      "mmse": 15.0,
+      "moca": 11.0
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 71,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例69",
+    "inferred_stage": "2",
+    "occurrence": 2,
+    "outcome_source": "mmse",
+    "patient_id": "P070",
+    "record_type": "source_case",
+    "source_case_id": "A69-2",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "69"
+  },
+  {
+    "anchors": {
+      "mmse": 17.0,
+      "moca": 13.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2019-07-01"
+    ],
+    "extracted_age": 72,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例70",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P071",
+    "record_type": "source_case",
+    "source_case_id": "A70-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "70"
+  },
+  {
+    "anchors": {
+      "moca": 26.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2020-07-01",
+      "2021-07-01",
+      "2022-07-01"
+    ],
+    "extracted_age": 58,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例71",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P072",
+    "record_type": "source_case",
+    "source_case_id": "A71-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "71"
+  },
+  {
+    "anchors": {
+      "mmse": 26.0,
+      "moca": 23.0,
+      "ptau181": 70.71,
+      "ttau": 369.82
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 71,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例72",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "title_mild",
+    "patient_id": "P073",
+    "record_type": "source_case",
+    "source_case_id": "A72-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "72"
+  },
+  {
+    "anchors": {
+      "mmse": 12.0,
+      "moca": 5.0
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 59,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "病例72",
+    "inferred_stage": "2",
+    "occurrence": 2,
+    "outcome_source": "mmse",
+    "patient_id": "P074",
+    "record_type": "source_case",
+    "source_case_id": "A72-2",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "72"
+  },
+  {
+    "anchors": {
+      "mmse": 21.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 69,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "病例73",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "title_mild",
+    "patient_id": "P075",
+    "record_type": "source_case",
+    "source_case_id": "A73-1",
+    "source_components": {},
+    "source_document": "AD病例（1-73例）.docx",
+    "source_number": "73"
+  },
+  {
+    "anchors": {
+      "abeta42": 410.0,
+      "mmse": 12.5,
+      "ptau181": 190.9,
+      "ttau": 1190.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 68,
+    "extracted_sex": "female",
+    "gene_mutation": "HNRNPA1",
+    "heading": "1病例：遗传相关早发性痴呆",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P076",
+    "record_type": "source_case",
+    "source_case_id": "B1-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "1"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 65,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "2病例：伴自体部位失认的后皮质萎缩型阿尔茨海默病",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "title_severe",
+    "patient_id": "P077",
+    "record_type": "source_case",
+    "source_case_id": "B2-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "2"
+  },
+  {
+    "anchors": {
+      "mmse": 16.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 58,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "3病例：抗 ITPR1 自身免疫性脑炎（模拟阿尔茨海默病）",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "title_severe",
+    "patient_id": "P078",
+    "record_type": "source_case",
+    "source_case_id": "B3-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "3"
+  },
+  {
+    "anchors": {
+      "cdr": 2.0,
+      "mmse": 18.0,
+      "moca": 15.0
+    },
+    "apoe": "2/3",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 46,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "4病例：PSEN/APP 致病基因突变早发型阿尔茨海默病（7 例汇总典型病例）",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P079",
+    "record_type": "source_case",
+    "source_case_id": "B4-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "4"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "0",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 50,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "5病例：后皮质萎缩型阿尔茨海默病（PCA 变异型）",
+    "inferred_stage": "0",
+    "occurrence": 1,
+    "outcome_source": "title_preclinical_or_normal",
+    "patient_id": "P080",
+    "record_type": "source_case",
+    "source_case_id": "B5-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "5"
+  },
+  {
+    "anchors": {
+      "mmse": 27.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 59,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "5病例：后皮质萎缩型阿尔茨海默病（伴同向性偏盲）",
+    "inferred_stage": "0.5",
+    "occurrence": 2,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P081",
+    "record_type": "source_case",
+    "source_case_id": "B5-2",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "5"
+  },
+  {
+    "anchors": {
+      "mmse": 19.0
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "0.5",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 82,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "6病例：阿尔茨海默病合并克雅病（CJD，以癫痫持续状态为核心表现）",
+    "inferred_stage": "0",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P082",
+    "record_type": "source_case",
+    "source_case_id": "B6-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "6"
+  },
+  {
+    "anchors": {
+      "abeta42": 328.0,
+      "abeta_ratio": 0.059,
+      "ptau181": 84.0,
+      "ttau": 1300.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "0.5",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": null,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "7 病例：早期阿尔茨海默病首发局灶非惊厥癫痫持续状态",
+    "inferred_stage": "0",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P083",
+    "record_type": "source_case",
+    "source_case_id": "B7-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "7"
+  },
+  {
+    "anchors": {
+      "cdr": 1.0,
+      "mmse": 15.0,
+      "moca": 10.0
+    },
+    "apoe": "2/3",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 70,
+    "extracted_sex": null,
+    "gene_mutation": "",
+    "heading": "8 病例：莱卡奈单抗治疗后出现 ARIA（淀粉样相关影像异常）",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P084",
+    "record_type": "source_case",
+    "source_case_id": "B8-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "8"
+  },
+  {
+    "anchors": {
+      "cdr": 1.0,
+      "mmse": 25.0,
+      "moca": 18.0
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 75,
+    "extracted_sex": null,
+    "gene_mutation": "",
+    "heading": "9病例：莱卡奈单抗治疗后轻度 ARIA-H",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P085",
+    "record_type": "source_case",
+    "source_case_id": "B9-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "9"
+  },
+  {
+    "anchors": {
+      "abeta_ratio": 0.036,
+      "mmse": 20.0,
+      "moca": 17.0,
+      "ptau181": 175.0
+    },
+    "apoe": "4/4",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 47,
+    "extracted_sex": "male",
+    "gene_mutation": "PRNP",
+    "heading": "10病例：携带 PRNP-V180I 变异、APOE ε4 纯合子家族性早发性阿尔茨海默病",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P086",
+    "record_type": "source_case",
+    "source_case_id": "B10-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "10"
+  },
+  {
+    "anchors": {
+      "mmse": 16.0,
+      "moca": 9.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2016-07-01",
+      "2018-07-01",
+      "2019-07-01"
+    ],
+    "extracted_age": 63,
+    "extracted_sex": "female",
+    "gene_mutation": "SORL1",
+    "heading": "11 病例：以首发精神病为表现、SORL1 突变早发性阿尔茨海默病（初诊晚发性精神分裂症）",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P087",
+    "record_type": "source_case",
+    "source_case_id": "B11-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "11"
+  },
+  {
+    "anchors": {
+      "mmse": 21.0
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 70,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "12 病例：合并未破裂颅内动脉瘤、多发微出血 APOE ε3/ε4 杂合轻度阿尔茨海默病，莱卡奈单抗靶向治疗",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "title_mild",
+    "patient_id": "P088",
+    "record_type": "source_case",
+    "source_case_id": "B12-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "12"
+  },
+  {
+    "anchors": {
+      "cdr": 3.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2019-07-01",
+      "2020-02-01"
+    ],
+    "extracted_age": 73,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "13 病例：重度阿尔茨海默病伴多种 BPSD，分参数重复经颅磁刺激（rTMS）个体化治疗",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P089",
+    "record_type": "source_case",
+    "source_case_id": "B13-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "13"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 82,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "14 病例 ：多靶点经颅直流电刺激（tDCS）联合认知训练治疗轻度阿尔茨海默病",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "title_mild",
+    "patient_id": "P090",
+    "record_type": "source_case",
+    "source_case_id": "B14-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "14"
+  },
+  {
+    "anchors": {
+      "mmse": 14.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 75,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "15 病例：非流利型进行性失语为首发病理确诊阿尔茨海默病（纵向随访 2 年）",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P091",
+    "record_type": "source_case",
+    "source_case_id": "B15-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "15"
+  },
+  {
+    "anchors": {
+      "cdr": 0.5,
+      "mmse": 21.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "0.5",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 75,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "16病例：微量大麻提取物改善轻度阿尔茨海默病记忆与精神症状",
+    "inferred_stage": "0.5",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P092",
+    "record_type": "source_case",
+    "source_case_id": "B16-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "16"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 37,
+    "extracted_sex": null,
+    "gene_mutation": "",
+    "heading": "17病例： 医源性脑淀粉样血管病 3 例系列 - 病例 1",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P093",
+    "record_type": "source_case",
+    "source_case_id": "B17-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "17"
+  },
+  {
+    "anchors": {
+      "abeta_ratio": 0.077,
+      "ptau181": 11.1
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [
+      "2006-07-01"
+    ],
+    "extracted_age": 49,
+    "extracted_sex": null,
+    "gene_mutation": "",
+    "heading": "18病例：医源性脑淀粉样血管",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P094",
+    "record_type": "source_case",
+    "source_case_id": "B18-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "18"
+  },
+  {
+    "anchors": {
+      "abeta_ratio": 0.042
+    },
+    "apoe": "",
+    "assigned_final_stage": "0.5",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 42,
+    "extracted_sex": null,
+    "gene_mutation": "",
+    "heading": "19病例： 医源性脑淀粉样血管病（合并阿尔茨海默病共病理）",
+    "inferred_stage": "0",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P095",
+    "record_type": "source_case",
+    "source_case_id": "B19-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "19"
+  },
+  {
+    "anchors": {},
+    "apoe": "3/3",
+    "assigned_final_stage": "0.5",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 45,
+    "extracted_sex": "male",
+    "gene_mutation": "PSEN1",
+    "heading": "20病例：PSEN1 p.L392V 突变 - 临床前 AD（45 岁男性，自杀尸检）",
+    "inferred_stage": "0",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P096",
+    "record_type": "source_case",
+    "source_case_id": "B20-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "20"
+  },
+  {
+    "anchors": {
+      "mmse": 20.0
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "0.5",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 57,
+    "extracted_sex": "male",
+    "gene_mutation": "PSEN1",
+    "heading": "21病例： PSEN1 p.L392V 突变 - 晚期家族性 AD（57 岁，病例 4 兄长）",
+    "inferred_stage": "0",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P097",
+    "record_type": "source_case",
+    "source_case_id": "B21-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "21"
+  },
+  {
+    "anchors": {
+      "abeta42": 283.0,
+      "abeta_ratio": 0.034,
+      "mmse": 21.0,
+      "ttau": 1141.0
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 44,
+    "extracted_sex": "male",
+    "gene_mutation": "PSEN1",
+    "heading": "22 病例：PSEN1 M139V 突变德国家系先证者（44 岁男性）",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "title_severe",
+    "patient_id": "P098",
+    "record_type": "source_case",
+    "source_case_id": "B22-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "22"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 57,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "23病例：以行为变异额颞叶痴呆样症状起病、尸检证实合并杏仁核优势路易病理的阿尔茨海默病",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "functional_severe",
+    "patient_id": "P099",
+    "record_type": "source_case",
+    "source_case_id": "B23-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "23"
+  },
+  {
+    "anchors": {
+      "mmse": 23.0
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 73,
+    "extracted_sex": null,
+    "gene_mutation": "SORL1",
+    "heading": "24-26病例（家系子病例 1）",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P100",
+    "record_type": "source_case",
+    "source_case_id": "B24-26-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "24"
+  },
+  {
+    "anchors": {
+      "mmse": 23.0
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 76,
+    "extracted_sex": null,
+    "gene_mutation": "SORL1",
+    "heading": "24-26病例（家系子病例 2）",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P101",
+    "record_type": "source_case",
+    "source_case_id": "B24-26-2",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "25"
+  },
+  {
+    "anchors": {},
+    "apoe": "3/4",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 85,
+    "extracted_sex": null,
+    "gene_mutation": "SORL1",
+    "heading": "24-26病例（家系子病例 3）",
+    "inferred_stage": "0",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P102",
+    "record_type": "source_case",
+    "source_case_id": "B24-26-3",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "26"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 77,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "27病例：混合阿尔茨海默病合并血管性痴呆",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P103",
+    "record_type": "source_case",
+    "source_case_id": "B27-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "27"
+  },
+  {
+    "anchors": {
+      "mmse": 21.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 32,
+    "extracted_sex": "male",
+    "gene_mutation": "PSEN1",
+    "heading": "28 病例：新发 PSEN1 p.P117L 突变罕见早发型家族性阿尔茨海默病",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P104",
+    "record_type": "source_case",
+    "source_case_id": "B28-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "28"
+  },
+  {
+    "anchors": {
+      "ptau181": 66.0,
+      "ttau": 340.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": null,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "29 病例：以记忆复述虚构 + 持续性似曾亲历（Déjà vécu）为首发表现的阿尔茨海默病",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P105",
+    "record_type": "source_case",
+    "source_case_id": "B29-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "29"
+  },
+  {
+    "anchors": {
+      "mmse": 10.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 66,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "30 病例：不对称脑受累、酷似行为变异额颞叶痴呆的额叶型阿尔茨海默病",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P106",
+    "record_type": "source_case",
+    "source_case_id": "B30-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "30"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [
+      "2016-07-01"
+    ],
+    "extracted_age": 84,
+    "extracted_sex": "male",
+    "gene_mutation": "FMR1",
+    "heading": "31 病例：脆性 X 相关震颤共济失调综合征（FXTAS）合并阿尔茨海默病共病，快速进展型神经认知障碍",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "functional_severe",
+    "patient_id": "P107",
+    "record_type": "source_case",
+    "source_case_id": "B31-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "31"
+  },
+  {
+    "anchors": {
+      "cdr": 1.0,
+      "mmse": 15.0,
+      "moca": 11.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 90,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "32 病例：阿尔茨海默病合并复发性艰难梭菌感染，经两次粪菌移植（FMT）后认知功能显著改善",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P108",
+    "record_type": "source_case",
+    "source_case_id": "B32-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "32"
+  },
+  {
+    "anchors": {
+      "abeta42": 718.0,
+      "ptau181": 97.0,
+      "ttau": 837.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2010-07-01",
+      "2013-05-01",
+      "2014-01-01",
+      "2014-07-01",
+      "2014-12-01",
+      "2015-01-01",
+      "2015-07-01",
+      "2015-12-01"
+    ],
+    "extracted_age": 61,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "33 病例：额叶型阿尔茨海默病（fv-AD），以社会认知损害为核心纵向随访病例",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P109",
+    "record_type": "source_case",
+    "source_case_id": "B33-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "33"
+  },
+  {
+    "anchors": {
+      "abeta42": 268.0,
+      "ptau181": 139.8,
+      "ttau": 1104.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2014-06-01",
+      "2015-07-01",
+      "2016-07-01",
+      "2017-10-01",
+      "2017-12-01"
+    ],
+    "extracted_age": 33,
+    "extracted_sex": "male",
+    "gene_mutation": "PSEN1",
+    "heading": "34 病例：PSEN1 p.I213F 杂合突变极早发型家族性阿尔茨海默病（33 岁起病，快速进展合并锥体外系、小脑、癫痫多系统损害）",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P110",
+    "record_type": "source_case",
+    "source_case_id": "B34-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "34"
+  },
+  {
+    "anchors": {
+      "mmse": 21.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [
+      "2013-02-01",
+      "2013-02-20",
+      "2013-07-01",
+      "2014-02-01",
+      "2014-08-01",
+      "2015-06-01"
+    ],
+    "extracted_age": 69,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "35 病例：阿尔茨海默病合并小脑型多系统萎缩（MSA-C），脑十字征早于多系统萎缩临床确诊",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P111",
+    "record_type": "source_case",
+    "source_case_id": "B35-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "35"
+  },
+  {
+    "anchors": {
+      "mmse": 18.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 70,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "36 病例：以错认妄想、抑郁为突出精神症状的中度晚发型阿尔茨海默病",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "title_moderate",
+    "patient_id": "P112",
+    "record_type": "source_case",
+    "source_case_id": "B36-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "36"
+  },
+  {
+    "anchors": {
+      "abeta42": 406.0,
+      "abeta_ratio": 0.052,
+      "ptau181": 65.8,
+      "ttau": 445.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis",
+      "ad_phenotype_and_ad_biomarker_priority_over_c9orf72_background"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 54,
+    "extracted_sex": "female",
+    "gene_mutation": "C9ORF72",
+    "heading": "37 病例：携带 C9ORF72 六核苷酸重复扩增，呈阿尔茨海默病样表型的早发患者（三代多表型家系）",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P113",
+    "record_type": "source_case",
+    "source_case_id": "B37-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "37"
+  },
+  {
+    "anchors": {
+      "mmse": 29.0,
+      "ptau181": 181.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 63,
+    "extracted_sex": null,
+    "gene_mutation": "",
+    "heading": "38 病例：具备完整自知力的眼科医师，遗忘型轻度认知损害（阿尔茨海默病病理基础）",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "title_mild",
+    "patient_id": "P114",
+    "record_type": "source_case",
+    "source_case_id": "B38-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "38"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 68,
+    "extracted_sex": null,
+    "gene_mutation": "",
+    "heading": "39 病例：自知力缺损的内科专科医师，遗忘型轻度认知损害（AD 病理）",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "title_mild",
+    "patient_id": "P115",
+    "record_type": "source_case",
+    "source_case_id": "B39-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "39"
+  },
+  {
+    "anchors": {
+      "cdr": 0.5,
+      "mmse": 24.0
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "0.5",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 64,
+    "extracted_sex": "female",
+    "gene_mutation": "PSEN2",
+    "heading": "40 病例：PSEN2 c.166G>A（Gly56Ser）新发杂合突变早发型阿尔茨海默病",
+    "inferred_stage": "0.5",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P116",
+    "record_type": "source_case",
+    "source_case_id": "B40-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "40"
+  },
+  {
+    "anchors": {},
+    "apoe": "3/3",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 61,
+    "extracted_sex": "female",
+    "gene_mutation": "PSEN2",
+    "heading": "41病例：PSEN2 Gly34Ser 家系对照补充（同基因 N 端磷酸化型突变参照病例）",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "functional_moderate",
+    "patient_id": "P117",
+    "record_type": "source_case",
+    "source_case_id": "B41-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "41"
+  },
+  {
+    "anchors": {
+      "abeta42": 906.3,
+      "mmse": 10.0,
+      "ttau": 379.9
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 56,
+    "extracted_sex": "female",
+    "gene_mutation": "PSEN2",
+    "heading": "42 病例：PSEN2 c.1259C>T（Thr421Met）杂合突变早发型阿尔茨海默病",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P118",
+    "record_type": "source_case",
+    "source_case_id": "B42-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "42"
+  },
+  {
+    "anchors": {
+      "cdr": 0.5,
+      "mmse": 21.0
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "0.5",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 46,
+    "extracted_sex": "female",
+    "gene_mutation": "PSEN1",
+    "heading": "43 病例：PSEN1 Tyr389His（c.1165T>C）杂合突变早发型家族阿尔茨海默病",
+    "inferred_stage": "0.5",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P119",
+    "record_type": "source_case",
+    "source_case_id": "B43-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "43"
+  },
+  {
+    "anchors": {},
+    "apoe": "3/3",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 59,
+    "extracted_sex": "female",
+    "gene_mutation": "PSEN2",
+    "heading": "44 病例：全新 PSEN2 c.677T>C（Val226Ala）杂合突变，非典型早发型阿尔茨海默病",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "functional_severe",
+    "patient_id": "P120",
+    "record_type": "source_case",
+    "source_case_id": "B44-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "44"
+  },
+  {
+    "anchors": {
+      "crp": 0.43,
+      "mmse": 25.0,
+      "moca": 27.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 75,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "45 病例：晚发散发性阿尔茨海默病伴类双相周期性情绪波动",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P121",
+    "record_type": "source_case",
+    "source_case_id": "B45-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "45"
+  },
+  {
+    "anchors": {
+      "moca": 26.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2009-07-01",
+      "2021-07-01"
+    ],
+    "extracted_age": 78,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "46 病例：病理确诊阿尔茨海默病，临床全程酷似特发性帕金森病（AD 帕金森变异型，完整量化指标）",
+    "inferred_stage": "0",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P122",
+    "record_type": "source_case",
+    "source_case_id": "B46-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "46"
+  },
+  {
+    "anchors": {
+      "cdr": 3.0
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 84,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "47 百岁女性复合神经病理阿尔茨海默病尸检病例",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P123",
+    "record_type": "source_case",
+    "source_case_id": "B47-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "47"
+  },
+  {
+    "anchors": {},
+    "apoe": "3/3",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 79,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "48 病例：退役职业中后卫足球运动员，CTE 合并 AD、海马硬化、TDP-43 蛋白病混合痴呆",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "functional_severe",
+    "patient_id": "P124",
+    "record_type": "source_case",
+    "source_case_id": "B48-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "48"
+  },
+  {
+    "anchors": {
+      "cdr": 0.5,
+      "mmse": 28.0
+    },
+    "apoe": "2/3",
+    "assigned_final_stage": "0.5",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 68,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "49 病例：临床遗忘型综合征，尸检确诊 Pick 病（FTLD-tau 3R-tau）",
+    "inferred_stage": "0.5",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P125",
+    "record_type": "source_case",
+    "source_case_id": "B49-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "49"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 74,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "50 病例：语言 - 视觉重叠型不典型阿尔茨海默病（同时兼具对数性进行性失语 lvPPA、后皮层萎缩 PCA 双重临床表型）",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P126",
+    "record_type": "source_case",
+    "source_case_id": "B50-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "50"
+  },
+  {
+    "anchors": {
+      "mmse": 26.0
+    },
+    "apoe": "3/4",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 96,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "51 病例：边缘优势型晚发性阿尔茨海默病合并全新斑块相关 TDP-43 蛋白病（AD-TDP，尸检确诊复合多蛋白病理）",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P127",
+    "record_type": "source_case",
+    "source_case_id": "B51-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "51"
+  },
+  {
+    "anchors": {},
+    "apoe": "3/3",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 65,
+    "extracted_sex": "male",
+    "gene_mutation": "PSEN1",
+    "heading": "52 病例：PSEN1 p.A396T（c.1186G>A）常染色体显性早发 AD 合并广泛弥漫路易体病（DLBD），生前临床单纯阿尔茨海默病表型，",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "functional_severe",
+    "patient_id": "P128",
+    "record_type": "source_case",
+    "source_case_id": "B52-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "52"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 64,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "53病例：退役橄榄球四分卫，临床拟诊可能性慢性创伤性脑病（CTE）合并阿尔茨海默病（AD）",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "documented_ad_unspecified",
+    "patient_id": "P129",
+    "record_type": "source_case",
+    "source_case_id": "B53-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "53"
+  },
+  {
+    "anchors": {
+      "moca": 24.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 68,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "54 病例：遗忘型单域轻度认知损害（MCI，合并脑小血管病、广泛性焦虑障碍）",
+    "inferred_stage": "0.5",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P130",
+    "record_type": "source_case",
+    "source_case_id": "B54-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "54"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 72,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "55 病例：高认知储备老年男性，临床三阶段诊断演变（先拟诊 AD→淀粉 PET 阴性修正 SNAP→尸检确诊 AD 合并 LATE-NC 伴海马硬化）",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "functional_severe",
+    "patient_id": "P131",
+    "record_type": "source_case",
+    "source_case_id": "B55-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "55"
+  },
+  {
+    "anchors": {
+      "abeta42": 386.0,
+      "mmse": 24.0,
+      "ttau": 415.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2008-07-01"
+    ],
+    "extracted_age": 37,
+    "extracted_sex": "male",
+    "gene_mutation": "PSEN1",
+    "heading": "56 病例：PSEN1 c.347C>A（Thr116Asn）常染色体显性早发性家族阿尔茨海默病（尸检确诊，伴大量棉絮样斑块、无脊髓痉挛）",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P132",
+    "record_type": "source_case",
+    "source_case_id": "B56-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "56"
+  },
+  {
+    "anchors": {
+      "ttau": 436.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": null,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "57 病例：纯词聋为首发不典型早发性阿尔茨海默病",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "functional_severe",
+    "patient_id": "P133",
+    "record_type": "source_case",
+    "source_case_id": "B57-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "57"
+  },
+  {
+    "anchors": {
+      "abeta42": 439.33,
+      "abeta_ratio": 0.07,
+      "cdr": 0.0,
+      "mmse": 24.0,
+      "moca": 22.0
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "0",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 35,
+    "extracted_sex": "female",
+    "gene_mutation": "PSEN2/ABCA7",
+    "heading": "58 病例：PSEN2 p.V214L 合并 ABCA7 p.V950M 双变异，35 岁临床前早发性阿尔茨海默病",
+    "inferred_stage": "0",
+    "occurrence": 1,
+    "outcome_source": "explicit_cdr",
+    "patient_id": "P134",
+    "record_type": "source_case",
+    "source_case_id": "B58-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "58"
+  },
+  {
+    "anchors": {
+      "abeta42": 664.0,
+      "mmse": 23.0,
+      "ptau181": 95.0,
+      "ttau": 854.0
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 77,
+    "extracted_sex": "female",
+    "gene_mutation": "PDGFB",
+    "heading": "59 病例：PDGFB 基因缺失型家族性脑钙化（PFBC）合并晚发型阿尔茨海默病",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P135",
+    "record_type": "source_case",
+    "source_case_id": "B59-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "59"
+  },
+  {
+    "anchors": {
+      "abeta42": 695.0,
+      "mmse": 23.0,
+      "ptau181": 190.0,
+      "ttau": 1093.0
+    },
+    "apoe": "4/4",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 69,
+    "extracted_sex": "female",
+    "gene_mutation": "SLC20A2",
+    "heading": "60 病例：SLC20A2 突变家族性脑钙化（PFBC）合并阿尔茨海默病（APOE ε4 纯合）",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "mmse",
+    "patient_id": "P136",
+    "record_type": "source_case",
+    "source_case_id": "B60-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "60"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "explicit_competing_diagnosis"
+    ],
+    "cohort_group": "mixed",
+    "date_anchors": [],
+    "extracted_age": 64,
+    "extracted_sex": "male",
+    "gene_mutation": "NOTCH3",
+    "heading": "61 病例：NOTCH3 R169C 突变 CADASIL 合并阿尔茨海默病",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P137",
+    "record_type": "source_case",
+    "source_case_id": "B61-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "61"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2014-07-01",
+      "2019-08-01",
+      "2020-09-01",
+      "2020-11-01"
+    ],
+    "extracted_age": 55,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "62 病例：散发性早发性阿尔茨海默病合并无症状新冠感染，难治性激越攻击行为",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "functional_moderate",
+    "patient_id": "P138",
+    "record_type": "source_case",
+    "source_case_id": "B62-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "62"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 88,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "63 病例：阿尔茨海默病伴癫痫发作诱发应激性心尖球形综合征（Takotsubo 心肌病）",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P139",
+    "record_type": "source_case",
+    "source_case_id": "B63-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "63"
+  },
+  {
+    "anchors": {
+      "mmse": 6.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 34,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "64 病例：34 岁以重度抑郁为首发家族型早发性阿尔茨海默病（青年起病不典型 AD）",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "title_severe",
+    "patient_id": "P140",
+    "record_type": "source_case",
+    "source_case_id": "B64-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "64"
+  },
+  {
+    "anchors": {
+      "mmse": 19.0,
+      "moca": 13.0
+    },
+    "apoe": "3/3",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 24,
+    "extracted_sex": "male",
+    "gene_mutation": "PSEN1",
+    "heading": "65 病例：PSEN1 p.V391G 新发突变超早发型阿尔茨海默病，以锥体外系症状为首发不典型表型",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P141",
+    "record_type": "source_case",
+    "source_case_id": "B65-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "65"
+  },
+  {
+    "anchors": {
+      "abeta40": 18662.0,
+      "abeta42": 716.0,
+      "abeta_ratio": 0.038,
+      "homocysteine": 16.5,
+      "ptau181": 118.0,
+      "ttau": 505.0
+    },
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2000-07-01",
+      "2018-01-01",
+      "2018-07-01"
+    ],
+    "extracted_age": 77,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "66 病例：轻度遗忘型阿尔茨海默病合并长期持续性 KCNA2（Kv1.2）神经元自身抗体",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "title_mild",
+    "patient_id": "P142",
+    "record_type": "source_case",
+    "source_case_id": "B66-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "66"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 64,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "67 病例：21 三体嵌合体（mT21）伴早发性阿尔茨海默病，尸检多重神经血管病理证实",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P143",
+    "record_type": "source_case",
+    "source_case_id": "B67-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "67"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 69,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "68 病例：69 岁女性 轻度阿尔茨海默病合并非惊厥性癫痫持续状态（NCSE）",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "title_mild",
+    "patient_id": "P144",
+    "record_type": "source_case",
+    "source_case_id": "B68-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "68"
+  },
+  {
+    "anchors": {},
+    "apoe": "",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 70,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "69 病例：70 岁男性 AD 相关轻度认知损害合并非惊厥性癫痫持续状态（NCSE）",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "title_mild",
+    "patient_id": "P145",
+    "record_type": "source_case",
+    "source_case_id": "B69-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "69"
+  },
+  {
+    "anchors": {},
+    "apoe": "3/4",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 71,
+    "extracted_sex": "female",
+    "gene_mutation": "",
+    "heading": "70 病例：额叶变异型阿尔茨海默病（fv-AD）",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "functional_moderate",
+    "patient_id": "P146",
+    "record_type": "source_case",
+    "source_case_id": "B70-1",
+    "source_components": {},
+    "source_document": "AD病例70例.docx",
+    "source_number": "70"
+  },
+  {
+    "anchors": {},
+    "apoe": "3/3",
+    "assigned_final_stage": "1",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 44,
+    "extracted_sex": "male",
+    "gene_mutation": "",
+    "heading": "分层重组病例 1",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "title_mild",
+    "patient_id": "P147",
+    "record_type": "stratified_recombination",
+    "source_case_id": null,
+    "source_components": {
+      "biomarkers": "B2-1",
+      "demographics": "A3-1",
+      "diagnosis": "B39-1"
+    },
+    "source_document": "stratified_recombination",
+    "source_number": null
+  },
+  {
+    "anchors": {},
+    "apoe": "3/4",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [
+      "2014-07-01",
+      "2019-08-01",
+      "2020-09-01",
+      "2020-11-01"
+    ],
+    "extracted_age": 37,
+    "extracted_sex": "male",
+    "gene_mutation": "SORL1",
+    "heading": "分层重组病例 2",
+    "inferred_stage": "2",
+    "occurrence": 1,
+    "outcome_source": "functional_moderate",
+    "patient_id": "P148",
+    "record_type": "stratified_recombination",
+    "source_case_id": null,
+    "source_components": {
+      "biomarkers": "B24-26-3",
+      "demographics": "A24-1",
+      "diagnosis": "B62-1"
+    },
+    "source_document": "stratified_recombination",
+    "source_number": null
+  },
+  {
+    "anchors": {},
+    "apoe": "3/3",
+    "assigned_final_stage": "3",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 76,
+    "extracted_sex": "female",
+    "gene_mutation": "PSEN2",
+    "heading": "分层重组病例 3",
+    "inferred_stage": "3",
+    "occurrence": 1,
+    "outcome_source": "title_severe",
+    "patient_id": "P149",
+    "record_type": "stratified_recombination",
+    "source_case_id": null,
+    "source_components": {
+      "biomarkers": "B44-1",
+      "demographics": "A39-1",
+      "diagnosis": "B64-1"
+    },
+    "source_document": "stratified_recombination",
+    "source_number": null
+  },
+  {
+    "anchors": {},
+    "apoe": "3/3",
+    "assigned_final_stage": "2",
+    "classification_reasons": [
+      "documented_or_biomarker_supported_ad",
+      "no_primary_competing_diagnosis"
+    ],
+    "cohort_group": "ad_progression",
+    "date_anchors": [],
+    "extracted_age": 58,
+    "extracted_sex": "male",
+    "gene_mutation": "PSEN1",
+    "heading": "分层重组病例 4",
+    "inferred_stage": "1",
+    "occurrence": 1,
+    "outcome_source": "generated_stage_assignment",
+    "patient_id": "P150",
+    "record_type": "stratified_recombination",
+    "source_case_id": null,
+    "source_components": {
+      "biomarkers": "B52-1",
+      "demographics": "A71-1",
+      "diagnosis": "B67-1"
+    },
+    "source_document": "stratified_recombination",
+    "source_number": null
+  }
+]

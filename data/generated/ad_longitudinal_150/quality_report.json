@@ -1,0 +1,1508 @@
+{
+  "assigned_path_mismatches": [],
+  "calibration": {
+    "abeta42_threshold_pg_ml": 540.0,
+    "cohort_targets": {
+      "ad_progression": 124,
+      "mixed": 26
+    },
+    "ptau181_threshold_pg_ml": 58.0,
+    "stage_targets": {
+      "0": 5,
+      "0.5": 10,
+      "1": 55,
+      "2": 45,
+      "3": 35
+    }
+  },
+  "cohort_counts": {
+    "ad_progression": 124,
+    "mixed": 26
+  },
+  "generator_version": "1.0.0",
+  "indicator_summary": {
+    "abeta40": {
+      "max": 18662.0,
+      "median": 7091.995,
+      "min": 4388.59,
+      "missing_rate": 0.776786
+    },
+    "abeta42": {
+      "max": 906.3,
+      "median": 473.15999999999997,
+      "min": 172.0,
+      "missing_rate": 0.776786
+    },
+    "abeta_ratio": {
+      "max": 0.1395,
+      "median": 0.06545000000000001,
+      "min": 0.0164,
+      "missing_rate": 0.776786
+    },
+    "cdr": {
+      "max": 3.0,
+      "median": 0.5,
+      "min": 0.0,
+      "missing_rate": 0.0
+    },
+    "crp": {
+      "max": 7.48,
+      "median": 2.375,
+      "min": 0.1,
+      "missing_rate": 0.0
+    },
+    "gfap": {
+      "max": 345.4,
+      "median": 136.3,
+      "min": 73.4,
+      "missing_rate": 0.0
+    },
+    "homocysteine": {
+      "max": 21.61,
+      "median": 12.01,
+      "min": 7.49,
+      "missing_rate": 0.0
+    },
+    "mmse": {
+      "max": 30.0,
+      "median": 19.95,
+      "min": 0.0,
+      "missing_rate": 0.0
+    },
+    "moca": {
+      "max": 28.1,
+      "median": 17.6,
+      "min": 0.0,
+      "missing_rate": 0.0
+    },
+    "plasma_nfl": {
+      "max": 47.93,
+      "median": 28.95,
+      "min": 12.64,
+      "missing_rate": 0.776786
+    },
+    "plasma_ptau217": {
+      "max": 2.79,
+      "median": 1.5550000000000002,
+      "min": 0.27,
+      "missing_rate": 0.776786
+    },
+    "ptau181": {
+      "max": 217.0,
+      "median": 108.9,
+      "min": 11.1,
+      "missing_rate": 0.776786
+    },
+    "strem2": {
+      "max": 8.95,
+      "median": 5.07,
+      "min": 2.03,
+      "missing_rate": 0.776786
+    },
+    "ttau": {
+      "max": 1300.0,
+      "median": 630.4449999999999,
+      "min": 189.0,
+      "missing_rate": 0.776786
+    },
+    "ykl40": {
+      "max": 189.67,
+      "median": 127.025,
+      "min": 56.12,
+      "missing_rate": 0.776786
+    }
+  },
+  "input_documents": [
+    {
+      "name": "AD病例（1-73例）.docx",
+      "sha256": "46718fec6cef8df183ac0dffa1c5fbe6e412843432adc62514949cfdcf533a29"
+    },
+    {
+      "name": "AD病例70例.docx",
+      "sha256": "8b8c77719dc66f2f0a5dbfd200a7b10487f2ff9e7cb1b1c57da16a50b17e0e80"
+    }
+  ],
+  "outcome_assignment_audit": {
+    "P001": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P002": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "mmse"
+    },
+    "P003": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "mmse"
+    },
+    "P004": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "mmse"
+    },
+    "P005": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P006": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P007": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "functional_moderate"
+    },
+    "P008": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "functional_severe"
+    },
+    "P009": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "explicit_cdr"
+    },
+    "P010": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "explicit_cdr"
+    },
+    "P011": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P012": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "0.5",
+      "source": "generated_stage_assignment"
+    },
+    "P013": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P014": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "functional_severe"
+    },
+    "P015": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "functional_moderate"
+    },
+    "P016": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "mmse"
+    },
+    "P017": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "functional_severe"
+    },
+    "P018": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "title_mild"
+    },
+    "P019": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "functional_severe"
+    },
+    "P020": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "functional_moderate"
+    },
+    "P021": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "title_moderate"
+    },
+    "P022": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "functional_moderate"
+    },
+    "P023": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "0.5",
+      "source": "generated_stage_assignment"
+    },
+    "P024": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P025": {
+      "assigned_final_stage": "0.5",
+      "inferred_stage": "0.5",
+      "source": "explicit_cdr"
+    },
+    "P026": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "explicit_cdr"
+    },
+    "P027": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "explicit_cdr"
+    },
+    "P028": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P029": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "0.5",
+      "source": "generated_stage_assignment"
+    },
+    "P030": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "mmse"
+    },
+    "P031": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "functional_moderate"
+    },
+    "P032": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P033": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P034": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P035": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "functional_severe"
+    },
+    "P036": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P037": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "explicit_cdr"
+    },
+    "P038": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "functional_severe"
+    },
+    "P039": {
+      "assigned_final_stage": "0",
+      "inferred_stage": "0",
+      "source": "title_preclinical_or_normal"
+    },
+    "P040": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "title_severe"
+    },
+    "P041": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "mmse"
+    },
+    "P042": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "mmse"
+    },
+    "P043": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "mmse"
+    },
+    "P044": {
+      "assigned_final_stage": "0",
+      "inferred_stage": "0",
+      "source": "title_preclinical_or_normal"
+    },
+    "P045": {
+      "assigned_final_stage": "0",
+      "inferred_stage": "0",
+      "source": "title_preclinical_or_normal"
+    },
+    "P046": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "title_mild"
+    },
+    "P047": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P048": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "title_moderate"
+    },
+    "P049": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "mmse"
+    },
+    "P050": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "title_mild"
+    },
+    "P051": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "title_moderate"
+    },
+    "P052": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "title_moderate"
+    },
+    "P053": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P054": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "explicit_cdr"
+    },
+    "P055": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P056": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "mmse"
+    },
+    "P057": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P058": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "explicit_cdr"
+    },
+    "P059": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P060": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P061": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "title_severe"
+    },
+    "P062": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "mmse"
+    },
+    "P063": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "explicit_cdr"
+    },
+    "P064": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P065": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P066": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "explicit_cdr"
+    },
+    "P067": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P068": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P069": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P070": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P071": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P072": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P073": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "title_mild"
+    },
+    "P074": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P075": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "title_mild"
+    },
+    "P076": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P077": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "title_severe"
+    },
+    "P078": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "title_severe"
+    },
+    "P079": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "explicit_cdr"
+    },
+    "P080": {
+      "assigned_final_stage": "0",
+      "inferred_stage": "0",
+      "source": "title_preclinical_or_normal"
+    },
+    "P081": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "0.5",
+      "source": "generated_stage_assignment"
+    },
+    "P082": {
+      "assigned_final_stage": "0.5",
+      "inferred_stage": "0",
+      "source": "generated_stage_assignment"
+    },
+    "P083": {
+      "assigned_final_stage": "0.5",
+      "inferred_stage": "0",
+      "source": "generated_stage_assignment"
+    },
+    "P084": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "explicit_cdr"
+    },
+    "P085": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "explicit_cdr"
+    },
+    "P086": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P087": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P088": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "title_mild"
+    },
+    "P089": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "explicit_cdr"
+    },
+    "P090": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "title_mild"
+    },
+    "P091": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "mmse"
+    },
+    "P092": {
+      "assigned_final_stage": "0.5",
+      "inferred_stage": "0.5",
+      "source": "explicit_cdr"
+    },
+    "P093": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P094": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P095": {
+      "assigned_final_stage": "0.5",
+      "inferred_stage": "0",
+      "source": "generated_stage_assignment"
+    },
+    "P096": {
+      "assigned_final_stage": "0.5",
+      "inferred_stage": "0",
+      "source": "generated_stage_assignment"
+    },
+    "P097": {
+      "assigned_final_stage": "0.5",
+      "inferred_stage": "0",
+      "source": "generated_stage_assignment"
+    },
+    "P098": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "title_severe"
+    },
+    "P099": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "functional_severe"
+    },
+    "P100": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "mmse"
+    },
+    "P101": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "mmse"
+    },
+    "P102": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "0",
+      "source": "generated_stage_assignment"
+    },
+    "P103": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P104": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "mmse"
+    },
+    "P105": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P106": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P107": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "functional_severe"
+    },
+    "P108": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "explicit_cdr"
+    },
+    "P109": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P110": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P111": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "mmse"
+    },
+    "P112": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "title_moderate"
+    },
+    "P113": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P114": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "title_mild"
+    },
+    "P115": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "title_mild"
+    },
+    "P116": {
+      "assigned_final_stage": "0.5",
+      "inferred_stage": "0.5",
+      "source": "explicit_cdr"
+    },
+    "P117": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "functional_moderate"
+    },
+    "P118": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P119": {
+      "assigned_final_stage": "0.5",
+      "inferred_stage": "0.5",
+      "source": "explicit_cdr"
+    },
+    "P120": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "functional_severe"
+    },
+    "P121": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "mmse"
+    },
+    "P122": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "0",
+      "source": "generated_stage_assignment"
+    },
+    "P123": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "explicit_cdr"
+    },
+    "P124": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "functional_severe"
+    },
+    "P125": {
+      "assigned_final_stage": "0.5",
+      "inferred_stage": "0.5",
+      "source": "explicit_cdr"
+    },
+    "P126": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P127": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "mmse"
+    },
+    "P128": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "functional_severe"
+    },
+    "P129": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "documented_ad_unspecified"
+    },
+    "P130": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "0.5",
+      "source": "generated_stage_assignment"
+    },
+    "P131": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "functional_severe"
+    },
+    "P132": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "mmse"
+    },
+    "P133": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "functional_severe"
+    },
+    "P134": {
+      "assigned_final_stage": "0",
+      "inferred_stage": "0",
+      "source": "explicit_cdr"
+    },
+    "P135": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "mmse"
+    },
+    "P136": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "mmse"
+    },
+    "P137": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P138": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "functional_moderate"
+    },
+    "P139": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P140": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "title_severe"
+    },
+    "P141": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "2",
+      "source": "generated_stage_assignment"
+    },
+    "P142": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "title_mild"
+    },
+    "P143": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "1",
+      "source": "generated_stage_assignment"
+    },
+    "P144": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "title_mild"
+    },
+    "P145": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "title_mild"
+    },
+    "P146": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "functional_moderate"
+    },
+    "P147": {
+      "assigned_final_stage": "1",
+      "inferred_stage": "1",
+      "source": "title_mild"
+    },
+    "P148": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "2",
+      "source": "functional_moderate"
+    },
+    "P149": {
+      "assigned_final_stage": "3",
+      "inferred_stage": "3",
+      "source": "title_severe"
+    },
+    "P150": {
+      "assigned_final_stage": "2",
+      "inferred_stage": "1",
+      "source": "generated_stage_assignment"
+    }
+  },
+  "path_assignment_audit": {
+    "P001": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P002": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P003": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P004": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P005": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P006": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P007": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P008": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P009": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P010": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P011": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P012": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P013": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P014": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P015": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P016": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P017": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P018": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P019": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P020": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P021": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P022": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P023": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P024": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P025": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P026": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P027": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P028": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P029": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P030": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P031": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P032": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P033": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P034": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P035": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P036": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P037": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P038": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P039": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P040": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P041": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P042": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P043": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P044": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P045": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P046": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P047": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P048": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P049": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P050": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P051": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P052": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P053": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P054": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P055": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P056": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P057": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P058": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P059": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P060": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P061": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P062": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P063": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P064": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P065": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P066": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P067": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P068": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P069": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P070": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P071": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P072": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P073": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P074": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P075": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P076": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P077": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P078": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P079": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P080": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P081": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P082": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P083": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P084": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P085": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P086": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P087": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P088": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P089": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P090": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P091": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P092": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P093": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P094": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P095": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P096": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P097": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P098": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P099": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P100": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P101": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P102": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P103": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P104": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P105": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P106": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P107": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P108": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P109": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P110": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P111": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P112": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P113": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P114": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P115": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P116": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P117": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P118": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P119": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P120": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P121": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P122": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P123": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P124": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P125": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P126": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P127": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P128": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P129": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P130": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P131": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P132": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P133": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P134": {
+      "assigned_path": "stable",
+      "detected_path": "stable"
+    },
+    "P135": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P136": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P137": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P138": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P139": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P140": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P141": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P142": {
+      "assigned_path": "r2",
+      "detected_path": "r2"
+    },
+    "P143": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P144": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P145": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P146": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P147": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    },
+    "P148": {
+      "assigned_path": "r1",
+      "detected_path": "r1"
+    },
+    "P149": {
+      "assigned_path": "non_rule_progression",
+      "detected_path": "non_rule_progression"
+    },
+    "P150": {
+      "assigned_path": "r1_r2",
+      "detected_path": "r1_r2"
+    }
+  },
+  "path_counts": {
+    "non_rule_progression": 45,
+    "r1": 25,
+    "r1_r2": 25,
+    "r2": 25,
+    "stable": 30
+  },
+  "patient_count": 150,
+  "recombination_count": 4,
+  "seed": 20260819,
+  "source_case_count": 146,
+  "stage_counts": {
+    "0": 5,
+    "0.5": 10,
+    "1": 55,
+    "2": 45,
+    "3": 35
+  },
+  "validation": {
+    "error_count": 0,
+    "errors": []
+  },
+  "visit_count": 672,
+  "visit_count_distribution": {
+    "3": 41,
+    "4": 33,
+    "5": 39,
+    "6": 37
+  }
+}
