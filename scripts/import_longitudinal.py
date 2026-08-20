@@ -1,0 +1,365 @@
+"""纵向数据集导入 AI 操作者端 case_records。
+
+每访视一行快照：每位患者的每次 visit 导入为一条 CaseRecord，
+patient_label = patient_id，indicators 为该次访视非空指标，
+case_metadata 承载 visit_date/结局/人口学/溯源语义。
+
+支持幂等重跑（同一 (source_dataset, patient_label, visit_date) 不重复插入）
+与 --reset（按 source_dataset 删除已导入行后重导）。
+
+用法:
+    python scripts/import_longitudinal.py [--dataset fatty_liver|ad|all] [--reset] [--db-url URL]
+"""
+import argparse
+import csv
+import json
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+IMPORT_VERSION = "1.0.0"
+
+DATASETS = {
+    "fatty_liver": {
+        "dir": "data/generated/longitudinal_300",
+        "disease_name": "脂肪肝",
+        "synthetic_from": 151,  # P151-P300 为分层重组合成（见 DATA_PROVENANCE）
+        "final_stage_fields": {"cirrhosis", "hcc"},
+    },
+    "ad": {
+        "dir": "data/generated/ad_longitudinal_300",
+        "disease_name": "阿尔茨海默病",
+        "synthetic_from": 151,
+        "final_stage_fields": None,  # final_stage 为 CDR 分级数值
+    },
+}
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+if str(ROOT / "backend") not in sys.path:
+    sys.path.insert(0, str(ROOT / "backend"))
+
+
+def load_patients(csv_path: Path) -> list[dict]:
+    with csv_path.open(encoding="utf-8", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def load_visits(csv_path: Path) -> list[dict]:
+    with csv_path.open(encoding="utf-8", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def load_source_documents(dataset_dir: Path) -> dict[str, str]:
+    """从 extracted_cases.json 读取 patient_id -> source_document 溯源映射。
+
+    仅当该条记录存在非空 source_document 时才收录（合成病例无原始文档；
+    脂肪肝数据集 extracted_cases.json 不含该字段，返回空字典）。
+    """
+    path = dataset_dir / "extracted_cases.json"
+    if not path.is_file():
+        return {}
+    with path.open(encoding="utf-8") as handle:
+        records = json.load(handle)
+    return {
+        record["patient_id"]: record["source_document"]
+        for record in records
+        if record.get("patient_id") and record.get("source_document")
+    }
+
+
+def group_visits_by_patient(visits: list[dict]) -> dict[str, list[dict]]:
+    grouped: dict[str, list[dict]] = defaultdict(list)
+    for row in visits:
+        grouped[row["patient_id"]].append(row)
+    return dict(grouped)
+
+
+def build_indicators(visit_row: dict) -> list[dict]:
+    """从单次访视行构造 indicators，只保留非空字段。
+
+    visit_row 中的 patient_id/visit_date 被排除；其余列名作为指标名。
+    """
+    indicators = []
+    for name, value in visit_row.items():
+        if name in ("patient_id", "visit_date"):
+            continue
+        if value is None or value == "":
+            continue
+        indicators.append({"name": name, "value": float(value), "unit": ""})
+    return indicators
+
+
+_EVENT_DATE_FIELDS = {
+    "fatty_liver": ("cirrhosis_date", "hcc_date"),
+    "ad": ("dementia_date",),
+}
+
+
+def _to_int(value) -> int | None:
+    """安全转换为 int；缺失或非法值返回 None（不抛错，年龄非核心字段）。"""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def build_case_metadata(
+    dataset: str,
+    patient: dict,
+    visit: dict,
+    visit_index: int,
+    total_visits: int,
+    is_synthetic: bool,
+    source_document: str | None = None,
+) -> dict:
+    """构造承载纵向语义的 case_metadata（JSONB）。
+
+    source_document 仅在有原始病例文档溯源时传入（如 AD 数据集 P001-P150），
+    合成病例或无该字段的数据集（如脂肪肝）不写入此键。
+    """
+    event_dates = {}
+    for field in _EVENT_DATE_FIELDS[dataset]:
+        if patient.get(field):
+            event_dates[field] = patient[field]
+    metadata = {
+        "visit_date": visit["visit_date"],
+        "visit_index": visit_index,
+        "total_visits": total_visits,
+        "patient_age": _to_int(patient.get("age")),
+        "sex": patient.get("sex"),
+        "cohort_group": patient.get("cohort_group"),
+        "final_stage": patient.get("final_stage"),
+        "event_dates": event_dates,
+        "source_dataset": DATASETS[dataset]["dir"].split("/")[-1],
+        "is_synthetic": is_synthetic,
+        "import_version": IMPORT_VERSION,
+    }
+    if source_document:
+        metadata["source_document"] = source_document
+    return metadata
+
+
+def is_synthetic(dataset: str, patient_id: str) -> bool:
+    """P151-P300 为分层重组合成患者（DATA_PROVENANCE 边界）。"""
+    return int(patient_id[1:]) >= DATASETS[dataset]["synthetic_from"]
+
+
+def should_mark_confirmed(dataset: str, final_stage: str) -> bool:
+    """按最终结局标记 confirmed：进展/确诊样本为 true，stable 为 false。
+
+    脂肪肝：final_stage ∈ {cirrhosis, hcc} → true；
+    AD：final_stage 为 CDR 分级数值 ≥ 1 → true。
+    """
+    fields = DATASETS[dataset]["final_stage_fields"]
+    if fields is not None:
+        return final_stage in fields
+    try:
+        return float(final_stage) >= 1
+    except (TypeError, ValueError):
+        return False
+
+
+def _existing_signatures(db, dataset: str) -> set[tuple[str, str, str]]:
+    """查询该数据集已导入的 (source_dataset, patient_label, visit_date) 签名。"""
+    from backend.app.db.models import CaseRecord
+
+    source_dataset = DATASETS[dataset]["dir"].split("/")[-1]
+    rows = (
+        db.query(CaseRecord)
+        .filter(CaseRecord.case_metadata.op("->>")("source_dataset") == source_dataset)
+        .all()
+    )
+    return {
+        (
+            (r.case_metadata or {}).get("source_dataset"),
+            r.patient_label,
+            (r.case_metadata or {}).get("visit_date"),
+        )
+        for r in rows
+    }
+
+
+def import_dataset(
+    db,
+    dataset: str,
+    patients: list | None = None,
+    visits: list | None = None,
+    source_documents: dict[str, str] | None = None,
+) -> dict:
+    """把某数据集导入 case_records。幂等：已存在签名跳过。
+
+    patients/visits/source_documents 可注入便于测试；缺省从 DATASETS 目录
+    加载真实 CSV 与 extracted_cases.json 溯源映射。
+    """
+    from backend.app.db.models import CaseRecord, Disease
+
+    cfg = DATASETS[dataset]
+    dataset_dir = ROOT / cfg["dir"]
+    if patients is None:
+        patients = load_patients(dataset_dir / "patients.csv")
+    if visits is None:
+        visits = load_visits(dataset_dir / "visits.csv")
+    if source_documents is None:
+        source_documents = load_source_documents(dataset_dir)
+
+    disease = db.query(Disease).filter(Disease.name == cfg["disease_name"]).first()
+    if disease is None:
+        disease = Disease(name=cfg["disease_name"])
+        db.add(disease)
+        db.flush()
+
+    existing = _existing_signatures(db, dataset)
+    patient_map = {p["patient_id"]: p for p in patients}
+    grouped = group_visits_by_patient(visits)
+
+    inserted = 0
+    skipped = 0
+    for patient_id, patient_rows in sorted(grouped.items()):
+        patient = patient_map[patient_id]
+        ordered = sorted(patient_rows, key=lambda r: r["visit_date"])
+        total = len(ordered)
+        for index, visit in enumerate(ordered, start=1):
+            signature = (
+                cfg["dir"].split("/")[-1],
+                patient_id,
+                visit["visit_date"],
+            )
+            if signature in existing:
+                skipped += 1
+                continue
+            record = CaseRecord(
+                disease_id=disease.id,
+                patient_label=patient_id,
+                indicators=build_indicators(visit),
+                confirmed=should_mark_confirmed(dataset, patient["final_stage"]),
+                case_metadata=build_case_metadata(
+                    dataset=dataset,
+                    patient=patient,
+                    visit=visit,
+                    visit_index=index,
+                    total_visits=total,
+                    is_synthetic=is_synthetic(dataset, patient_id),
+                    source_document=source_documents.get(patient_id),
+                ),
+            )
+            db.add(record)
+            existing.add(signature)
+            inserted += 1
+
+    db.flush()
+    return {
+        "dataset": dataset,
+        "disease_id": disease.id,
+        "disease_name": cfg["disease_name"],
+        "inserted": inserted,
+        "skipped": skipped,
+    }
+
+
+def reset_dataset(db, dataset: str) -> int:
+    """删除该数据集已导入的 case 记录（按 metadata.source_dataset 匹配）。
+
+    删除后立即 flush：确保同一事务内紧接着的 import_dataset 查询
+    （_existing_signatures，autoflush 可能被禁用）能看到删除结果，
+    不会把待删记录误判为"已存在"而跳过重新插入。
+    """
+    from backend.app.db.models import CaseRecord
+
+    source_dataset = DATASETS[dataset]["dir"].split("/")[-1]
+    rows = (
+        db.query(CaseRecord)
+        .filter(CaseRecord.case_metadata.op("->>")("source_dataset") == source_dataset)
+        .all()
+    )
+    for r in rows:
+        db.delete(r)
+    db.flush()
+    return len(rows)
+
+
+def reset_and_import(
+    db,
+    dataset: str,
+    reset: bool = False,
+    patients: list | None = None,
+    visits: list | None = None,
+    source_documents: dict[str, str] | None = None,
+) -> dict:
+    """在同一事务内完成（可选）重置与重新导入。
+
+    调用方负责提交/回滚：任一环节抛异常时，调用方 rollback() 即可
+    同时撤销 reset 的删除和本次导入的新增，不会出现"旧数据已删、
+    新数据未导入成功"的中间态。
+    """
+    removed = reset_dataset(db, dataset) if reset else 0
+    result = import_dataset(
+        db, dataset, patients=patients, visits=visits, source_documents=source_documents
+    )
+    result["removed"] = removed
+    return result
+
+
+def _load_settings() -> str:
+    """从 backend/.env 读取 DATABASE_URL；不存在则抛错。"""
+    env_path = ROOT / "backend" / ".env"
+    if not env_path.is_file():
+        raise RuntimeError(f"未找到 {env_path}，请提供 --db-url")
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line.startswith("DATABASE_URL="):
+            return line.split("=", 1)[1].strip().strip('"').strip("'")
+    raise RuntimeError(f"{env_path} 中未找到 DATABASE_URL")
+
+
+def main(argv: list | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="导入纵向数据集到 AI 操作者端 case_records（每访视一行快照）"
+    )
+    parser.add_argument(
+        "--dataset",
+        choices=["fatty_liver", "ad", "all"],
+        default="all",
+        help="要导入的数据集（默认 all）",
+    )
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="先删除该数据集已导入的 case 记录再重新导入",
+    )
+    parser.add_argument(
+        "--db-url",
+        default=None,
+        help="DATABASE_URL；缺省从 backend/.env 读取",
+    )
+    args = parser.parse_args(argv)
+
+    db_url = args.db_url or _load_settings()
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    engine = create_engine(db_url, future=True)
+    Session = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
+
+    names = ["fatty_liver", "ad"] if args.dataset == "all" else [args.dataset]
+    for name in names:
+        with Session() as db:
+            try:
+                result = reset_and_import(db, name, reset=args.reset)
+            except Exception:
+                db.rollback()
+                raise
+            db.commit()
+            if args.reset:
+                print(f"[{name}] --reset 删除 {result['removed']} 条已导入记录")
+            print(
+                f"[{result['dataset']}] {result['disease_name']} "
+                f"(disease_id={result['disease_id']}): "
+                f"新增 {result['inserted']} 条，跳过 {result['skipped']} 条"
+            )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
