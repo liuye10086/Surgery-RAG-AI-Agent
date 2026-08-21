@@ -115,6 +115,7 @@ async def create_and_generate_report(
                 disease_id=request.disease_id,
                 indicators=[i.model_dump() for i in request.indicators],
                 patient_summary=request.patient_summary,
+                patient_sex=request.patient_sex,
             ):
                 yield sse_event
         except (asyncio.CancelledError, GeneratorExit):

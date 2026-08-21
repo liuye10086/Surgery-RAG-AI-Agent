@@ -8,11 +8,12 @@ import asyncio
 import json
 import logging
 import time as _time
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import AsyncGenerator, Optional
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -78,26 +79,50 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-def _range_map(ranges: list[ReferenceRange]) -> dict[str, dict]:
+def _range_map(ranges: list[ReferenceRange], patient_sex: str | None = None) -> dict[str, dict]:
     """ReferenceRange → analyze_indicators 需要的 ranges dict。
 
     必须透传 inclusive 字段——否则 analyze_indicators 读 `ref.get("lower_inclusive", True)`
     会默认按含边界处理，导致真实预测链路里 `<21` 退化成 `≤21`。
 
-    选择契约：同一指标名可能存在多条（不同文档/类别），输入须已按 created_at 降序排列，
-    此处**保留第一条（最新定义）**，避免 dict comprehension 折叠成"最后一条赢"的不确定行为。
+    选择契约：同一指标名可能存在多条（不同性别/文档/类别），输入须已按 created_at
+    降序排列，同一 (指标名, 性别) 组合内**保留第一条（最新定义）**。
+
+    性别解析规则（部分标准如脂肪肝 ALT 按男女分列）：
+    - 若患者传了 patient_sex 且存在该性别的专属范围 → 使用该范围；
+    - 否则若存在性别无关（sex=None）的通用范围 → 使用通用范围；
+    - 否则（该指标只有性别专属范围，但未传 patient_sex，或只有异性范围）→
+      该指标视为无可用范围，不写入结果（调用方据此报"缺少参考范围"）。
+
+    键使用小写指标名，以支持大小写不敏感匹配；返回值额外携带 "_row"
+    （原始 ReferenceRange 对象），供调用方构建来源引用时按已解析口径取用，
+    避免来源展示与实际计算口径不一致。
     """
-    result: dict[str, dict] = {}
+    by_key: dict[tuple[str, str | None], ReferenceRange] = {}
     for r in ranges:
-        if r.indicator_name in result:
+        key = (r.indicator_name.strip().lower(), r.sex)
+        if key in by_key:
             continue
-        result[r.indicator_name] = {
+        by_key[key] = r
+
+    names = {k[0] for k in by_key}
+    result: dict[str, dict] = {}
+    for name in names:
+        r = None
+        if patient_sex and (name, patient_sex) in by_key:
+            r = by_key[(name, patient_sex)]
+        elif (name, None) in by_key:
+            r = by_key[(name, None)]
+        if r is None:
+            continue
+        result[name] = {
             "name": r.indicator_name,
             "unit": r.unit,
             "lower": r.lower,
             "upper": r.upper,
             "lower_inclusive": bool(r.lower_inclusive),
             "upper_inclusive": bool(r.upper_inclusive),
+            "_row": r,
         }
     return result
 
@@ -118,9 +143,78 @@ def _format_range(
     return f"{lower}~{upper}{u}"
 
 
+def _parse_visit_date(raw) -> "date | None":
+    """尽力将 visit_date 解析为 date 用于排序；解析失败返回 None（视为最早）。
+
+    纵向导入脚本统一写入 ISO 格式字符串（YYYY-MM-DD），但防御性处理
+    非字符串/非法格式，避免与 "" 混合比较时抛 TypeError 或按字典序
+    错误排序（如 "2020-2-01" 与 "2020-10-01"）。
+    """
+    if isinstance(raw, date):
+        return raw
+    if isinstance(raw, datetime):
+        return raw.date()
+    if isinstance(raw, str) and raw.strip():
+        try:
+            return date.fromisoformat(raw.strip())
+        except ValueError:
+            return None
+    return None
+
+
+def _sort_key(case: dict) -> tuple[int, "date", int]:
+    """返回排序键：(是否有可解析日期, 日期, id)，降序比较取最新访视。
+
+    无日期或日期非法时排最早（有日期的记录优先胜出），同分组内再按 id 兜底。
+    """
+    visit_date = _parse_visit_date((case.get("case_metadata") or {}).get("visit_date"))
+    record_id = case.get("id") or 0
+    if visit_date is None:
+        return (0, date.min, record_id)
+    return (1, visit_date, record_id)
+
+
+def deduplicate_by_patient(cases: list[dict]) -> list[dict]:
+    """按 (source_dataset, patient_label) 复合键去重：同患者只保留最新访视。
+
+    - 只对纵向导入数据（case_metadata 含非空 source_dataset）去重；
+    - 旧手工病例（metadata 为空或无 source_dataset）全部独立保留；
+    - patient_label 为空/None/全空格时不参与去重，每条独立保留；
+    - source_dataset/patient_label 统一 strip 后按原始大小写比较——
+      两者均为程序生成的内部标识（非用户自由输入），不做大小写归一化，
+      避免把恰好同名但不同大小写的独立数据集意外合并。
+
+    排序：visit_date DESC > id DESC（二级排序，结果稳定）。
+    """
+    keyed: dict[tuple[str, str], dict] = {}  # (source_dataset, patient_label) -> case
+    unlabeled: list[dict] = []
+
+    for case in cases:
+        label = (case.get("patient_label") or "").strip()
+        source = ((case.get("case_metadata") or {}).get("source_dataset") or "").strip()
+
+        if not label or not source:
+            # 旧手工病例或无标签记录，独立保留
+            unlabeled.append(case)
+            continue
+
+        key = (source, label)
+        existing = keyed.get(key)
+        if existing is None or _sort_key(case) > _sort_key(existing):
+            keyed[key] = case
+
+    return list(keyed.values()) + unlabeled
+
+
 def _cases_to_dicts(cases: list[CaseRecord]) -> list[dict]:
     return [
-        {"id": c.id, "disease_id": c.disease_id, "indicators": c.indicators or []}
+        {
+            "id": c.id,
+            "disease_id": c.disease_id,
+            "indicators": c.indicators or [],
+            "patient_label": c.patient_label,
+            "case_metadata": c.case_metadata or {}
+        }
         for c in cases
     ]
 
@@ -168,6 +262,7 @@ async def generate_prediction(
     disease_id: int,
     indicators: list[dict],
     patient_summary: Optional[str] = None,
+    patient_sex: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """预测报告主入口。"""
     # 1. 校验疾病与范围
@@ -178,15 +273,17 @@ async def generate_prediction(
         return
 
     indicator_names = [i["name"] for i in indicators]
+    # 大小写不敏感查询：用户可能输入 alt，数据库存储为 ALT
+    indicator_names_lower = [name.strip().lower() for name in indicator_names]
     ranges = (
         db.query(ReferenceRange)
-        .filter(ReferenceRange.indicator_name.in_(indicator_names))
+        .filter(func.lower(ReferenceRange.indicator_name).in_(indicator_names_lower))
         # 同一指标多条时取最新定义（created_at 降序，_range_map 保留首条）
         .order_by(ReferenceRange.created_at.desc())
         .all()
     )
-    range_by_name = _range_map(ranges)
-    missing = [n for n in indicator_names if n not in range_by_name]
+    range_by_name = _range_map(ranges, patient_sex=patient_sex)
+    missing = [n for n in indicator_names if n.strip().lower() not in range_by_name]
     if missing:
         _persist_failed(db, report_id, "", f"以下指标缺少参考范围: {missing}")
         yield _sse("error", {"error": f"缺少参考范围: {missing}"})
@@ -197,11 +294,13 @@ async def generate_prediction(
         .filter(CaseRecord.disease_id == disease_id, CaseRecord.confirmed.is_(True))
         .all()
     )
-    total_cases = len(cases)
+    cases_dict = _cases_to_dicts(cases)
+    confirmed_cases = deduplicate_by_patient(cases_dict)
+    total_cases = len(confirmed_cases)
 
     # 2. 代码层统计
     yield _sse("stage", {"stage": "analyzing", "message": "正在对照参考标准与病例库分析指标..."})
-    analyses = analyze_indicators(indicators, range_by_name, _cases_to_dicts(cases))
+    analyses = analyze_indicators(indicators, range_by_name, confirmed_cases)
     probability = compute_composite_probability(analyses, total_cases)
 
     # 先落库统计结果：即使后续 LLM 流失败，prediction_result 也保留
@@ -211,18 +310,13 @@ async def generate_prediction(
     yield _sse("stage", {"stage": "generating", "message": "正在生成预测报告..."})
 
     # 3. 选取代表性病例 + 构建来源
-    # 报告/来源必须只展示与计算口径一致的"最新定义"范围——若直接用全量 ranges，
-    # 同一指标的多条旧范围（冲突值）会被传给 LLM/来源卡片，而计算用的是最新一条。
-    used_ranges: list[ReferenceRange] = []
-    seen_names: set[str] = set()
-    for r in ranges:  # 已按 created_at desc 排序（见上文查询）
-        if r.indicator_name in seen_names:
-            continue
-        seen_names.add(r.indicator_name)
-        used_ranges.append(r)
+    # 报告/来源必须只展示与计算口径一致的范围——直接从 range_by_name 取回
+    # _range_map 实际解析出的 ReferenceRange 行（已按小写指标名+性别解析），
+    # 避免像之前那样重新按大小写敏感的 indicator_name 去重，与计算口径脱节。
+    used_ranges: list[ReferenceRange] = [v["_row"] for v in range_by_name.values()]
 
     abnormal_names = {a["name"] for a in analyses if a["is_abnormal"]}
-    representative = select_representative_cases(_cases_to_dicts(cases), abnormal_names, top_n=5)
+    representative = select_representative_cases(confirmed_cases, abnormal_names, top_n=5)
     sources = _build_sources(analyses, representative, used_ranges)
 
     indicator_table = "\n".join(

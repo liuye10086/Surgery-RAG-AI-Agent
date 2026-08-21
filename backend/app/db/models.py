@@ -165,6 +165,9 @@ class ReferenceRange(Base):
     # 区间 3.5-9.5 → 两端 True。见 Global Constraints「参考范围边界语义」。
     lower_inclusive = Column(Boolean, nullable=False, default=True, server_default="true")
     upper_inclusive = Column(Boolean, nullable=False, default=True, server_default="true")
+    # 部分标准按性别分列（如脂肪肝 ALT 男性9-50/女性7-40）；None 表示通用范围，
+    # 不区分性别。与 indicator_name 一起构成同一文档内的逻辑唯一键。
+    sex = Column(String(10))
     category = Column(String(100))
     # 删除语义：参考标准文档删除时，其解析出的范围**级联删除**（CASCADE）。
     # 若用 SET NULL，文档删除后范围变孤儿仍参与预测，会基于已删除标准给出误导结果；

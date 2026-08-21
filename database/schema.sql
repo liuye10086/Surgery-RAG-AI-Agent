@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS reference_ranges (
     upper DOUBLE PRECISION,
     lower_inclusive BOOLEAN NOT NULL DEFAULT TRUE,
     upper_inclusive BOOLEAN NOT NULL DEFAULT TRUE,
+    sex VARCHAR(10),
     category VARCHAR(100),
     document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

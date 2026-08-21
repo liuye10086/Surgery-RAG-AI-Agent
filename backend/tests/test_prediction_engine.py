@@ -52,7 +52,8 @@ class ClassifyIndicatorTests(unittest.TestCase):
 class AnalyzeIndicatorsTests(unittest.TestCase):
     def test_matches_abnormality_rate_from_cases(self):
         patient = [{"name": "TBIL", "value": 35.0, "unit": "μmol/L"}]
-        ranges = {"TBIL": _range("TBIL", upper=21.0, unit="μmol/L")}
+        # ranges 的键约定为小写指标名（见 prediction_generator._range_map）
+        ranges = {"tbil": _range("TBIL", upper=21.0, unit="μmol/L")}
         cases = [
             {"indicators": [{"name": "TBIL", "value": 38.0, "unit": "μmol/L"}]},
             {"indicators": [{"name": "TBIL", "value": 25.0, "unit": "μmol/L"}]},
@@ -69,6 +70,26 @@ class AnalyzeIndicatorsTests(unittest.TestCase):
         patient = [{"name": "UNKNOWN", "value": 5.0, "unit": "x"}]
         analyses = analyze_indicators(patient, {}, [])
         self.assertEqual(analyses, [])
+
+    def test_patient_input_case_differs_from_range_key_still_matches(self):
+        # 患者输入 ALT（大写），ranges 字典键为小写 alt（_range_map 的真实契约）
+        patient = [{"name": "ALT", "value": 60.0, "unit": "U/L"}]
+        ranges = {"alt": _range("ALT", upper=40.0, unit="U/L")}
+        analyses = analyze_indicators(patient, ranges, [])
+        self.assertEqual(len(analyses), 1)
+        self.assertTrue(analyses[0]["is_abnormal"])
+
+    def test_case_indicator_name_case_differs_from_patient_input(self):
+        # 病例存的指标名大小写与患者输入不同（alt vs ALT），异常率统计仍应匹配
+        patient = [{"name": "ALT", "value": 60.0, "unit": "U/L"}]
+        ranges = {"alt": _range("ALT", upper=40.0, unit="U/L")}
+        cases = [
+            {"indicators": [{"name": "alt", "value": 55.0, "unit": "U/L"}]},
+            {"indicators": [{"name": "alt", "value": 20.0, "unit": "U/L"}]},
+        ]
+        analyses = analyze_indicators(patient, ranges, cases)
+        self.assertEqual(analyses[0]["present_rate_in_cases"], 1.0)
+        self.assertEqual(analyses[0]["abnormal_rate_in_cases"], 0.5)
 
 
 class CompositeProbabilityTests(unittest.TestCase):
@@ -105,6 +126,15 @@ class RepresentativeCaseTests(unittest.TestCase):
         ]
         selected = select_representative_cases(cases, {"TBIL"}, top_n=1)
         self.assertEqual(selected[0]["id"], 1)
+
+    def test_overlap_matching_is_case_insensitive(self):
+        # abnormal_indicator_names 大写，病例指标名小写，仍应命中重叠
+        cases = [
+            {"id": 1, "indicators": [{"name": "tbil", "value": 38.0}]},
+            {"id": 2, "indicators": [{"name": "alt", "value": 30.0}]},
+        ]
+        selected = select_representative_cases(cases, {"TBIL"}, top_n=5)
+        self.assertEqual([c["id"] for c in selected], [1])
 
 
 if __name__ == "__main__":

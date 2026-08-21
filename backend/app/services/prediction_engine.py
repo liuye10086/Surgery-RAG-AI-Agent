@@ -56,7 +56,9 @@ def analyze_indicators(
     """
     results: list[dict] = []
     for ind in patient_indicators:
-        ref = ranges.get(ind["name"])
+        # ranges 的键统一为小写指标名（见 prediction_generator._range_map），
+        # 患者输入的大小写可能与之不同（如 ALT vs alt），需归一化后再查找。
+        ref = ranges.get(ind["name"].strip().lower())
         if not ref:
             continue
         lower = ref.get("lower")
@@ -68,12 +70,13 @@ def analyze_indicators(
             value, lower, upper, lower_inclusive, upper_inclusive,
         )
 
+        ind_key = ind["name"].strip().lower()
         present_count = 0
         abnormal_count = 0
         for case in confirmed_cases:
             matched = None
             for ci in case.get("indicators") or []:
-                if ci.get("name") == ind["name"]:
+                if (ci.get("name") or "").strip().lower() == ind_key:
                     matched = ci
                     break
             if matched is None:
@@ -171,10 +174,16 @@ def select_representative_cases(
     abnormal_indicator_names: set[str],
     top_n: int = 5,
 ) -> list[dict]:
-    """选取与患者异常指标重叠最多的确诊病例，作为报告引用来源。"""
+    """选取与患者异常指标重叠最多的确诊病例，作为报告引用来源。
+
+    abnormal_indicator_names 与病例指标名按小写归一化后比较，避免
+    大小写不一致（如 ALT vs alt）导致重叠计数偏低。
+    """
+    abnormal_lower = {n.strip().lower() for n in abnormal_indicator_names}
+
     def overlap(case):
-        names = {ci.get("name") for ci in case.get("indicators") or []}
-        return len(names & abnormal_indicator_names)
+        names = {(ci.get("name") or "").strip().lower() for ci in case.get("indicators") or []}
+        return len(names & abnormal_lower)
 
     ranked = sorted(confirmed_cases, key=overlap, reverse=True)
     return [c for c in ranked[:top_n] if overlap(c) > 0]

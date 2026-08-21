@@ -40,6 +40,9 @@ class PredictRequest(BaseModel):
     disease_id: int
     indicators: list[IndicatorInput] = Field(..., min_length=1, max_length=30)
     patient_summary: Optional[str] = Field(None, max_length=2000)
+    # 部分标准按性别分列参考范围（如脂肪肝 ALT）。不传时按通用范围匹配，
+    # 对性别分列的指标会在缺少范围时报错，提示补充性别。
+    patient_sex: Optional[str] = Field(None, pattern="^(male|female)$")
 
 
 class CaseRecordIn(BaseModel):
@@ -74,6 +77,7 @@ class ReferenceRangeOut(BaseModel):
     # 暴露 inclusive，前端才能区分 "<21" 与 "≤21" 的展示
     lower_inclusive: bool = True
     upper_inclusive: bool = True
+    sex: Optional[str] = None
     category: Optional[str]
     document_id: Optional[int]
 
