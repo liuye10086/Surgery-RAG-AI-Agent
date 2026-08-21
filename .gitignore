@@ -57,3 +57,6 @@ Thumbs.db
 /uploads/
 /uploads/
 /data/uploads/
+
+# Reproducible ML model artifacts (metadata remains trackable)
+/backend/app/ml_models/*.joblib

@@ -118,15 +118,7 @@
           <el-input v-model="caseForm.patient_label" placeholder="如：病例 A / 门诊样本 7" maxlength="100" />
         </el-form-item>
         <el-form-item label="指标">
-          <div class="case-indicator-form">
-            <div v-for="(row, idx) in caseIndicatorRows" :key="idx" class="case-indicator-row">
-              <el-input v-model="row.name" placeholder="指标名" style="width: 130px" />
-              <el-input v-model.number="row.value" type="number" placeholder="数值" style="width: 110px" />
-              <el-input v-model="row.unit" placeholder="单位" style="width: 90px" />
-              <el-button :icon="Delete" text @click="removeCaseIndicator(idx)" />
-            </div>
-            <el-button size="small" :icon="Plus" text @click="addCaseIndicator">添加指标</el-button>
-          </div>
+          <IndicatorRowsEditor v-model="caseIndicatorRows" />
         </el-form-item>
         <el-form-item label="确诊">
           <el-switch v-model="caseForm.confirmed" />
@@ -143,7 +135,8 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Edit, Delete, Plus } from '@element-plus/icons-vue'
+import { Edit, Delete } from '@element-plus/icons-vue'
+import IndicatorRowsEditor from '@/components/IndicatorRowsEditor.vue'
 import { useOperatorStore } from '@/stores/operator'
 import {
   createDisease,
@@ -180,11 +173,11 @@ const caseForm = reactive<{
   patient_label: string
   confirmed: boolean
 }>({ disease_id: null, patient_label: '', confirmed: true })
-const caseIndicatorRows = reactive<IndicatorInput[]>([])
+const caseIndicatorRows = ref<IndicatorInput[]>([])
 
 const canSaveCase = computed(() => {
   if (!caseForm.disease_id) return false
-  return caseIndicatorRows.some(
+  return caseIndicatorRows.value.some(
     (r) => r.name.trim() && r.value !== null && r.value !== undefined && r.unit.trim(),
   )
 })
@@ -262,38 +255,26 @@ function openCaseForm(row?: CaseRecord) {
     caseForm.disease_id = row.disease_id
     caseForm.patient_label = row.patient_label || ''
     caseForm.confirmed = row.confirmed
-    caseIndicatorRows.splice(0, caseIndicatorRows.length, ...(row.indicators || []).map((i: any) => ({
+    caseIndicatorRows.value = (row.indicators || []).map((i: any) => ({
       name: i.name || '',
-      value: i.value ?? (null as unknown as number),
+      value: i.value ?? null,
       unit: i.unit || '',
-    })))
-    if (!caseIndicatorRows.length) {
-      caseIndicatorRows.push({ name: '', value: null as unknown as number, unit: '' })
+    }))
+    if (!caseIndicatorRows.value.length) {
+      caseIndicatorRows.value = [{ name: '', value: null, unit: '' }]
     }
   } else {
     editingCaseId.value = null
     caseForm.disease_id = null
     caseForm.patient_label = ''
     caseForm.confirmed = true
-    caseIndicatorRows.splice(0, caseIndicatorRows.length, { name: '', value: null as unknown as number, unit: '' })
+    caseIndicatorRows.value = [{ name: '', value: null, unit: '' }]
   }
   caseFormVisible.value = true
 }
 
-function addCaseIndicator() {
-  caseIndicatorRows.push({ name: '', value: null as unknown as number, unit: '' })
-}
-
-function removeCaseIndicator(idx: number) {
-  if (caseIndicatorRows.length <= 1) {
-    caseIndicatorRows.splice(0, 1, { name: '', value: null as unknown as number, unit: '' })
-    return
-  }
-  caseIndicatorRows.splice(idx, 1)
-}
-
 async function saveCase() {
-  const validRows = caseIndicatorRows.filter(
+  const validRows = caseIndicatorRows.value.filter(
     (r) => r.name.trim() && r.value !== null && r.value !== undefined && r.unit.trim(),
   )
   if (!caseForm.disease_id || !validRows.length) return
@@ -403,17 +384,6 @@ onMounted(async () => {
   align-items: center;
   gap: var(--space-2);
   margin-bottom: var(--space-4);
-}
-
-.case-indicator-form {
-  width: 100%;
-}
-
-.case-indicator-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
 }
 
 .sync-hint {

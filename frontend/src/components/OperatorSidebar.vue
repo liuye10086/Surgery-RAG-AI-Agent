@@ -27,6 +27,9 @@
             <div :class="['nav-item', { active: activeView === 'predict' }]" @click="$emit('navigate', 'predict')">
               <el-icon :size="15"><TrendCharts /></el-icon><span>预测分析</span>
             </div>
+            <div :class="['nav-item', { active: activeView === 'progression' }]" @click="$emit('navigate', 'progression')">
+              <el-icon :size="15"><DataLine /></el-icon><span>进展预测</span>
+            </div>
             <div :class="['nav-item', { active: activeView === 'cases' }]" @click="$emit('navigate', 'cases')">
               <el-icon :size="15"><FolderOpened /></el-icon><span>病例库</span>
             </div>
@@ -149,7 +152,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Plus, SwitchButton, Fold, Expand, MoreFilled, Delete, DataAnalysis, TrendCharts, FolderOpened } from '@element-plus/icons-vue'
+import { Plus, SwitchButton, Fold, Expand, MoreFilled, Delete, DataAnalysis, TrendCharts, DataLine, FolderOpened } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import type { ReportListItem } from '@/api/operator'
 
@@ -159,7 +162,7 @@ defineProps<{
   collapsed: boolean
   loading: boolean
   generating: boolean
-  activeView: 'predict' | 'cases'
+  activeView: 'predict' | 'progression' | 'cases'
 }>()
 
 defineEmits<{
@@ -167,7 +170,7 @@ defineEmits<{
   select: [id: number]
   'new-analysis': []
   delete: [id: number]
-  navigate: [view: 'predict' | 'cases']
+  navigate: [view: 'predict' | 'progression' | 'cases']
 }>()
 
 const authStore = useAuthStore()
@@ -300,12 +303,13 @@ function handleLogout() {
 /* ===== 顶部导航（预测分析 / 病例库） ===== */
 .nav-row {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   padding: 0 var(--space-3) var(--space-3);
 }
 
 .nav-item {
-  flex: 1;
+  flex: 1 1 calc(50% - var(--space-2));
   display: flex;
   align-items: center;
   justify-content: center;

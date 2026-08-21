@@ -3,8 +3,39 @@ import request from './request'
 // ===== 预测分析类型 =====
 export interface IndicatorInput {
   name: string
-  value: number
+  value: number | null
   unit: string
+}
+
+export interface ProgressionVisitInput {
+  visit_date: string
+  indicators: IndicatorInput[]
+}
+
+export interface ProgressionPredictionRequest {
+  disease_id: number
+  visits: ProgressionVisitInput[]
+}
+
+export interface ProgressionFeatureSummary {
+  indicator: string
+  first: number
+  last: number
+  slope: number | null
+  rises_count: number
+}
+
+export interface ProgressionPredictionOut {
+  risk_band: string
+  risk_score: number
+  feature_summary: ProgressionFeatureSummary[]
+  model_meta: {
+    trained_on: number
+    cv_auc_mean: number
+    cv_auc_std: number
+  }
+  disclaimer: string
+  model_caveat: string
 }
 
 export interface Disease {
@@ -141,6 +172,12 @@ export function updateCase(id: number, data: unknown): Promise<CaseRecord> {
 
 export function deleteCase(id: number): Promise<void> {
   return request.delete(`/v1/operator/cases/${id}`)
+}
+
+export function predictProgression(
+  data: ProgressionPredictionRequest,
+): Promise<ProgressionPredictionOut> {
+  return request.post('/v1/operator/progression-predictions', data)
 }
 
 // 返回类型含 dropped：后端 sync_reference_ranges 返回 {inserted, dropped, document_id}

@@ -6,6 +6,7 @@ import {
   deleteReport,
   generateReportStream,
   generatePredictionStream,
+  predictProgression,
   listDiseases,
   listCases,
   type ReportListItem,
@@ -15,6 +16,8 @@ import {
   type IndicatorInput,
   type PredictionResult,
   type IndicatorAnalysis,
+  type ProgressionPredictionRequest,
+  type ProgressionPredictionOut,
 } from '@/api/operator'
 
 export const useOperatorStore = defineStore('operator', () => {
@@ -31,6 +34,8 @@ export const useOperatorStore = defineStore('operator', () => {
   const cases = ref<CaseRecord[]>([])
   const predictionResult = ref<PredictionResult | null>(null)
   const indicatorAnalyses = ref<IndicatorAnalysis[]>([])
+  const progressionResult = ref<ProgressionPredictionOut | null>(null)
+  const progressionLoading = ref(false)
 
   let cancelFn: (() => void) | null = null
 
@@ -158,6 +163,21 @@ export const useOperatorStore = defineStore('operator', () => {
     currentStage.value = 'cancelled'
   }
 
+  async function predictLongitudinalProgression(request: ProgressionPredictionRequest) {
+    progressionLoading.value = true
+    progressionResult.value = null
+    try {
+      progressionResult.value = await predictProgression(request)
+      return progressionResult.value
+    } finally {
+      progressionLoading.value = false
+    }
+  }
+
+  function clearProgression() {
+    progressionResult.value = null
+  }
+
   function clearCurrent() {
     currentReport.value = null
     generatedContent.value = ''
@@ -180,6 +200,8 @@ export const useOperatorStore = defineStore('operator', () => {
     cases,
     predictionResult,
     indicatorAnalyses,
+    progressionResult,
+    progressionLoading,
 
     fetchReports,
     fetchReport,
@@ -190,5 +212,7 @@ export const useOperatorStore = defineStore('operator', () => {
     generatePrediction,
     cancelGeneration,
     clearCurrent,
+    predictLongitudinalProgression,
+    clearProgression,
   }
 })
