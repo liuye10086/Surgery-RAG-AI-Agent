@@ -1,4 +1,18 @@
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text, func, text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
@@ -19,6 +33,9 @@ class User(Base):
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user")
     reports = relationship("AIReport", back_populates="user", cascade="all, delete-orphan")
+    operator_cases = relationship(
+        "OperatorCase", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Department(Base):
@@ -131,6 +148,9 @@ class Disease(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     case_records = relationship("CaseRecord", back_populates="disease", cascade="all, delete-orphan")
+    operator_cases = relationship(
+        "OperatorCase", back_populates="disease", cascade="all, delete-orphan"
+    )
 
 
 class CaseRecord(Base):
@@ -149,6 +169,72 @@ class CaseRecord(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     disease = relationship("Disease", back_populates="case_records")
+
+
+class OperatorCase(Base):
+    """A longitudinal case entered by an AI operator.
+
+    ``CaseRecord`` remains the imported/reference-case model.  Operator cases
+    are owned by a user and retain their own visit timeline for prediction.
+    """
+
+    __tablename__ = "operator_cases"
+    __table_args__ = (
+        Index("ix_operator_cases_user_id", "user_id"),
+        Index("ix_operator_cases_disease_id", "disease_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="CASCADE"), nullable=False)
+    patient_label = Column(String(100), nullable=False)
+    sex = Column(String(10))
+    baseline_stage = Column(String(100))
+    notes = Column(Text)
+    status = Column(String(50), nullable=False, default="active", server_default="active")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user = relationship("User", back_populates="operator_cases")
+    disease = relationship("Disease", back_populates="operator_cases")
+    visits = relationship(
+        "OperatorCaseVisit",
+        back_populates="case",
+        cascade="all, delete-orphan",
+        order_by="OperatorCaseVisit.visit_date",
+    )
+    reports = relationship("AIReport", back_populates="operator_case")
+
+
+class OperatorCaseVisit(Base):
+    """One dated observation in an operator-owned longitudinal case."""
+
+    __tablename__ = "operator_case_visits"
+    __table_args__ = (
+        UniqueConstraint(
+            "case_id",
+            "visit_date",
+            name="uq_operator_case_visits_case_date",
+        ),
+        Index("ix_operator_case_visits_case_id", "case_id"),
+        Index("ix_operator_case_visits_visit_date", "visit_date"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    case_id = Column(
+        Integer,
+        ForeignKey("operator_cases.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    visit_date = Column(Date, nullable=False)
+    visit_index = Column(Integer, nullable=False)
+    indicators = Column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
+    notes = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    case = relationship("OperatorCase", back_populates="visits")
 
 
 class ReferenceRange(Base):
@@ -182,6 +268,7 @@ class AIReport(Base):
         Index("ix_ai_reports_user_id", "user_id"),
         Index("ix_ai_reports_created_at", "created_at"),
         Index("ix_ai_reports_status", "status"),
+        Index("ix_ai_reports_operator_case_id", "operator_case_id"),
     )
 
     id = Column(Integer, primary_key=True)
@@ -200,16 +287,23 @@ class AIReport(Base):
     # 预测分析新列（旧数据兼容：全部 nullable/default，旧报告以 analysis_type='retrospective' 标记）
     analysis_type = Column(String(50), nullable=False, default="retrospective", server_default="retrospective")
     disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="SET NULL"), nullable=True)
+    operator_case_id = Column(
+        Integer,
+        ForeignKey("operator_cases.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     # server_default 保证 0006 迁移后旧报告行这两列回填为 []/{}，不出现 NULL
     # （Task 10 按 list[dict]/dict 输出时旧报告才不会被 Pydantic 校验失败）。
     indicators = Column(JSONB, default=list, server_default=text("'[]'::jsonb"))
     prediction_result = Column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
+    input_snapshot = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     user = relationship("User", back_populates="reports")
+    operator_case = relationship("OperatorCase", back_populates="reports")
 
 
 class AuditLog(Base):

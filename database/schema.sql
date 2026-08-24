@@ -98,7 +98,38 @@ CREATE TABLE IF NOT EXISTS reference_ranges (
 
 CREATE INDEX IF NOT EXISTS ix_reference_ranges_indicator ON reference_ranges(indicator_name);
 
--- 7. AI 操作者报告表（0004 创建；0006 追加预测分析列）
+-- 7. AI 操作者纵向病例和访视表（0008）
+CREATE TABLE IF NOT EXISTS operator_cases (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    disease_id INTEGER NOT NULL REFERENCES diseases(id) ON DELETE CASCADE,
+    patient_label VARCHAR(100) NOT NULL,
+    sex VARCHAR(10),
+    baseline_stage VARCHAR(100),
+    notes TEXT,
+    status VARCHAR(50) NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS ix_operator_cases_user_id ON operator_cases(user_id);
+CREATE INDEX IF NOT EXISTS ix_operator_cases_disease_id ON operator_cases(disease_id);
+
+CREATE TABLE IF NOT EXISTS operator_case_visits (
+    id SERIAL PRIMARY KEY,
+    case_id INTEGER NOT NULL REFERENCES operator_cases(id) ON DELETE CASCADE,
+    visit_date DATE NOT NULL,
+    visit_index INTEGER NOT NULL,
+    indicators JSONB NOT NULL DEFAULT '[]',
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT uq_operator_case_visits_case_date UNIQUE (case_id, visit_date)
+);
+
+CREATE INDEX IF NOT EXISTS ix_operator_case_visits_case_id ON operator_case_visits(case_id);
+CREATE INDEX IF NOT EXISTS ix_operator_case_visits_visit_date ON operator_case_visits(visit_date);
+
+-- 8. AI 操作者报告表（0004 创建；0006/0008 追加预测分析列）
 CREATE TABLE IF NOT EXISTS ai_reports (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -113,8 +144,10 @@ CREATE TABLE IF NOT EXISTS ai_reports (
     download_count INTEGER DEFAULT 0,
     analysis_type VARCHAR(50) NOT NULL DEFAULT 'retrospective',
     disease_id INTEGER REFERENCES diseases(id) ON DELETE SET NULL,
+    operator_case_id INTEGER REFERENCES operator_cases(id) ON DELETE SET NULL,
     indicators JSONB DEFAULT '[]',
     prediction_result JSONB DEFAULT '{}',
+    input_snapshot JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -122,8 +155,9 @@ CREATE TABLE IF NOT EXISTS ai_reports (
 CREATE INDEX IF NOT EXISTS ix_ai_reports_user_id ON ai_reports(user_id);
 CREATE INDEX IF NOT EXISTS ix_ai_reports_created_at ON ai_reports(created_at);
 CREATE INDEX IF NOT EXISTS ix_ai_reports_status ON ai_reports(status);
+CREATE INDEX IF NOT EXISTS ix_ai_reports_operator_case_id ON ai_reports(operator_case_id);
 
--- 8. 会话表
+-- 9. 会话表
 CREATE TABLE IF NOT EXISTS sessions (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -132,7 +166,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 9. 消息表（新增 lc_message JSONB 用于 LangChain 标准消息格式）
+-- 10. 消息表（新增 lc_message JSONB 用于 LangChain 标准消息格式）
 CREATE TABLE IF NOT EXISTS messages (
     id SERIAL PRIMARY KEY,
     session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -157,7 +191,7 @@ CREATE INDEX IF NOT EXISTS ix_chunks_document_id ON chunks(document_id);
 CREATE INDEX IF NOT EXISTS ix_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS ix_messages_session_id ON messages(session_id);
 
--- 10. 审计日志表
+-- 11. 审计日志表
 CREATE TABLE IF NOT EXISTS audit_logs (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -174,7 +208,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS ix_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS ix_audit_logs_session_id ON audit_logs(session_id);
 
--- 11. 全文检索索引
+-- 12. 全文检索索引
 --    langchain-postgres 自动管理 langchain_pg_collection 和 langchain_pg_embedding 表。
 --    启动时由 ensure_vectorstore_tables() 在 langchain_pg_embedding.document 列上
 --    创建 pg_trgm GIN 索引（idx_langchain_embedding_document_trgm），
