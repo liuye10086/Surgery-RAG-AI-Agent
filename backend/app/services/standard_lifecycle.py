@@ -6,9 +6,12 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
 
-from app.db.models import ReferenceStandardVersion, StandardChangeLog, StandardRule
+from app.db.models import ReferenceRange, ReferenceStandardVersion, StandardChangeLog, StandardRule
 from app.schemas.standard import RulePatch
 from app.services.standard_validation import validate_version_rules
+import hashlib
+import json
+from types import SimpleNamespace
 
 
 class ImmutableVersionError(ValueError):
@@ -74,3 +77,64 @@ def transition_version(db, admin_id: int, version_id: int, target_status: str):
     db.commit()
     db.refresh(version)
     return version
+
+
+def _projection_hash(rule: Any) -> str:
+    payload = json.dumps(getattr(rule, "applicability", {}) or {}, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _projection_from_rule(version: Any, rule: Any) -> Any:
+    return ReferenceRange(
+        standard_id=version.standard_id,
+        standard_version_id=version.id,
+        standard_rule_id=rule.id,
+        indicator_name=getattr(getattr(rule, "indicator", None), "name_en", None) or getattr(getattr(rule, "indicator", None), "canonical_key", ""),
+        name_cn=getattr(getattr(rule, "indicator", None), "name_cn", None),
+        unit=rule.unit,
+        lower=rule.lower,
+        upper=rule.upper,
+        lower_inclusive=rule.lower_inclusive,
+        upper_inclusive=rule.upper_inclusive,
+        sex=rule.sex,
+        category=rule.category,
+        applicability_hash=_projection_hash(rule),
+        is_current_projection=True,
+    )
+
+
+def publish_approved_version(db, admin_id: int, version_id: int):
+    version = db.query(ReferenceStandardVersion).filter(ReferenceStandardVersion.id == version_id).first()
+    if version is None:
+        raise ValueError("标准版本不存在")
+    if version.status != "review":
+        raise ValueError("只有 review 版本可以批准")
+    report = validate_version_rules(list(version.rules or []))
+    if not report.can_publish:
+        raise ValueError("标准版本存在阻止发布的校验错误")
+    previous = getattr(getattr(version, "standard", None), "current_version", None)
+    if previous is not None and previous.id != version.id:
+        previous.status = "retired"
+        previous.retired_at = datetime.now(timezone.utc)
+    version.status = "approved"
+    version.approved_by = admin_id
+    version.approved_at = datetime.now(timezone.utc)
+    version.effective_from = version.approved_at
+    projections = []
+    for rule in version.rules or []:
+        if validate_rule_actionability(rule) != "calculable":
+            continue
+        projection = _projection_from_rule(version, rule)
+        db.add(projection)
+        projections.append(projection)
+    if getattr(version, "standard", None) is not None:
+        version.standard.current_version = version
+        version.standard.current_version_id = version.id
+    db.commit()
+    db.refresh(version)
+    return SimpleNamespace(version=version, projections=projections)
+
+
+def validate_rule_actionability(rule: Any) -> str:
+    from app.services.standard_validation import validate_rule
+    return validate_rule(rule).actionability
