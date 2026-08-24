@@ -4,7 +4,6 @@ import {
   listReports,
   getReport,
   deleteReport,
-  generateReportStream,
   generatePredictionStream,
   listLongitudinalCases,
   createLongitudinalCase,
@@ -77,52 +76,6 @@ export const useOperatorStore = defineStore('operator', () => {
       currentReport.value = null
       generatedContent.value = ''
     }
-  }
-
-  function generateReport(
-    query: string,
-    departmentIds: number[] | null,
-    analysisBackend: string = 'llm',
-  ) {
-    // 重置状态
-    generating.value = true
-    generatedContent.value = ''
-    currentStage.value = ''
-    stageMessage.value = ''
-    currentSources.value = []
-
-    cancelFn = generateReportStream(
-      query,
-      departmentIds,
-      analysisBackend,
-      {
-        onStage(stage, message) {
-          currentStage.value = stage
-          stageMessage.value = message
-        },
-        onDelta(content) {
-          generatedContent.value += content
-        },
-        onSources(sources) {
-          currentSources.value = sources
-        },
-        onDone(reportId) {
-          generating.value = false
-          currentStage.value = 'done'
-          // 清空流式缓存，切换到完整报告视图
-          generatedContent.value = ''
-          // 拉取完整报告（含 sources），刷新列表
-          fetchReports()
-          fetchReport(reportId)
-        },
-        onError(_error) {
-          generating.value = false
-          currentStage.value = 'error'
-          // 刷新列表以获取 failed 状态的报告
-          fetchReports()
-        },
-      },
-    )
   }
 
   async function fetchDiseases() {
@@ -254,7 +207,6 @@ export const useOperatorStore = defineStore('operator', () => {
     fetchReports,
     fetchReport,
     removeReport,
-    generateReport,
     fetchDiseases,
     fetchCases,
     generatePrediction,
