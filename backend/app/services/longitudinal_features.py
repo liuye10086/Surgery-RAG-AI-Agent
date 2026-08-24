@@ -198,16 +198,10 @@ def summarize_observation(visits: Iterable[dict[str, Any]]) -> dict[str, Any]:
             "n_observations": len(values),
             "latest_reference_status": _reference_status(latest_raw, last),
         }
-        display_name = str(raw[name][0].get("name") or "").strip()
-        if display_name and display_name != name:
-            indicator_summary[display_name] = dict(indicator_summary[name])
     missingness = {}
     for name, entries in raw.items():
         ratio = 1 - (len(observations.get(name, [])) / total_visits)
         missingness[name] = ratio
-        display_name = str(entries[0].get("name") or "").strip()
-        if display_name and display_name != name:
-            missingness[display_name] = ratio
     first_date = _visit_date(ordered[0]["visit_date"]) if ordered else None
     last_date = _visit_date(ordered[-1]["visit_date"]) if ordered else None
     return {

@@ -13,6 +13,42 @@ def _sse(event: str, data: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def _format_number(value: Any) -> str:
+    if value is None:
+        return "未估计"
+    try:
+        return f"{float(value):.2f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _format_reference_range(source: dict[str, Any]) -> str:
+    lower = source.get("lower")
+    upper = source.get("upper")
+    lower_mark = "[" if source.get("lower_inclusive", True) else "("
+    upper_mark = "]" if source.get("upper_inclusive", True) else ")"
+    if lower is None and upper is None:
+        bounds = "范围未提供"
+    elif lower is None:
+        bounds = f"(-∞, {_format_number(upper)}{upper_mark}"
+    elif upper is None:
+        bounds = f"{lower_mark}{_format_number(lower)}, +∞)"
+    else:
+        bounds = f"{lower_mark}{_format_number(lower)}, {_format_number(upper)}{upper_mark}"
+    unit = source.get("unit") or "单位未提供"
+    return f"参考范围：{source.get('indicator', '未命名指标')}（{unit}），{bounds}（{source.get('provenance', 'reference')}）"
+
+
+def _render_source(source: dict[str, Any]) -> str:
+    if source.get("source_type") == "reference_range":
+        return _format_reference_range(source)
+    if source.get("source_type") == "similar_case":
+        features = "、".join(source.get("overlap_features") or []) or "未注明"
+        warning = f"；{source['display_warning']}" if source.get("display_warning") else ""
+        return f"相似病例：{source.get('patient_label') or '未标记病例'}；关联指标：{features}（{source.get('provenance', 'reference')}）{warning}"
+    return f"参考病例：{source.get('patient_label', '未标记来源')}（{source.get('provenance', 'reference')}）"
+
+
 def render_longitudinal_markdown(prediction: dict[str, Any], sources: list[dict[str, Any]] | None = None) -> str:
     outcome = prediction["outcome_prediction"]
     stage = outcome["stage_projection"]
@@ -20,7 +56,7 @@ def render_longitudinal_markdown(prediction: dict[str, Any], sources: list[dict[
         "# 纵向进展预测报告",
         "",
         "## 1. 报告摘要",
-        f"模型风险等级：{outcome.get('risk_band') or '未估计'}。模型分数：{outcome.get('risk_score') if outcome.get('risk_score') is not None else '未估计'}，不代表临床概率。",
+        f"模型风险等级：{outcome.get('risk_band') or '未估计'}。模型分数：{_format_number(outcome.get('risk_score'))}，不代表临床概率。",
         "",
         "## 2. 病例与数据概况",
         f"疾病：{prediction['disease'].get('name')}；访视次数：{prediction['observation'].get('visit_count')}；观察跨度：{prediction['observation'].get('observation_span_days')} 天。",
@@ -28,7 +64,7 @@ def render_longitudinal_markdown(prediction: dict[str, Any], sources: list[dict[
         "## 3. 已观察到的纵向变化",
     ]
     for name, item in prediction["observation"].get("indicators", {}).items():
-        lines.append(f"- {name}: 首次 {item.get('first')}，最近 {item.get('last')}，变化 {item.get('delta')}，趋势斜率 {item.get('slope')}。")
+        lines.append(f"- {name}: 首次 {_format_number(item.get('first'))}，最近 {_format_number(item.get('last'))}，变化 {_format_number(item.get('delta'))}，趋势斜率 {_format_number(item.get('slope'))}。")
     lines.extend(["", "## 4. 未来指标趋势预测"])
     for item in prediction.get("trend_predictions", []):
         forecast = item["forecast"]
@@ -37,7 +73,7 @@ def render_longitudinal_markdown(prediction: dict[str, Any], sources: list[dict[
     lines.extend([f"- {item['indicator']}: {item['importance'].get('role')}" for item in prediction.get("trend_predictions", [])])
     lines.extend(["", "## 7. 相似病例与参考依据"])
     for source in sources or []:
-        lines.append(f"- {source.get('patient_label', '参考病例')}（{source.get('provenance', 'reference')}）")
+        lines.append(f"- {_render_source(source)}")
     lines.extend(["", "## 8. 不确定性与局限性"])
     lines.extend([f"- {warning}" for warning in prediction.get("warnings", [])])
     lines.extend(["", "## 9. 随访与人工复核建议", "建议由专业人员结合完整病史、检查结果和实际随访情况复核。", "", "## 10. 技术附录", "本报告由结构化模型结果生成；不构成诊断或治疗建议。"])

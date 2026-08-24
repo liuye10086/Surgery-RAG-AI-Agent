@@ -44,7 +44,7 @@ def test_observation_summary_reports_span_and_missingness():
 
     assert result["visit_count"] == 3
     assert result["observation_span_days"] == 366
-    assert result["missingness_summary"]["ALT"] == pytest.approx(1 / 3)
+    assert result["missingness_summary"]["alt"] == pytest.approx(1 / 3)
     assert result["indicators"]["alt"]["latest_reference_status"] == "unknown"
 
 
@@ -117,3 +117,13 @@ def test_duplicate_indicator_names_in_one_visit_are_rejected():
 
 def test_feature_vector_normalizes_indicator_name_case():
     assert build_feature_vector([_visit("2024-01-01", 10)], ["ALT.last"]) == [10.0]
+
+
+def test_observation_summary_has_one_canonical_indicator_entry_for_mixed_case():
+    result = summarize_observation([
+        _visit("2024-01-01", 10),
+        {"visit_date": "2024-06-01", "indicators": [{"name": "alt", "value": 20}]},
+    ])
+
+    assert list(result["indicators"]) == ["alt"]
+    assert list(result["missingness_summary"]) == ["alt"]

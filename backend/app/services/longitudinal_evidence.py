@@ -34,14 +34,28 @@ def select_similar_longitudinal_cases(db, disease_id: int, visits: list[dict[str
     from app.db.models import CaseRecord
     rows = db.query(CaseRecord).filter(CaseRecord.disease_id == disease_id, CaseRecord.confirmed.is_(True)).limit(max(limit * 10, limit)).all()
     requested = {str(item.get("name", "")).lower() for visit in visits for item in visit.get("indicators", [])}
-    results = []
+    results_by_label: dict[str, dict[str, Any]] = {}
     for row in rows:
         observed = {str(item.get("name", "")).lower() for item in (row.indicators or [])}
         overlap = sorted(requested & observed)
         if not overlap:
             continue
-        results.append(mark_synthetic_source({"patient_label": row.patient_label, "source_dataset": (row.case_metadata or {}).get("source_dataset"), "final_outcome": bool(row.confirmed), "overlap_features": overlap}))
-    return results[:limit]
+        label = str(row.patient_label or "").strip()
+        key = label.casefold()
+        source = results_by_label.get(key)
+        if source is None:
+            source = {
+                "source_type": "similar_case",
+                "patient_label": label,
+                "source_dataset": (row.case_metadata or {}).get("source_dataset"),
+                "final_outcome": bool(row.confirmed),
+                "overlap_features": [],
+            }
+            results_by_label[key] = source
+        source["overlap_features"] = sorted(
+            set(source["overlap_features"]) | set(overlap)
+        )
+    return [mark_synthetic_source(source) for source in list(results_by_label.values())[:limit]]
 
 
 def build_document_sources(db, disease_id: int, indicator_names: list[str]) -> list[dict[str, Any]]:

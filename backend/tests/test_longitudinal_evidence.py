@@ -43,3 +43,32 @@ def test_reference_ranges_match_case_insensitively_and_skip_sex_specific_unknown
     sources = build_reference_range_sources(db, ["alt"], patient_sex=None)
     assert len(sources) == 1
     assert sources[0]["indicator"] == "ALT"
+
+
+def test_similar_cases_deduplicate_labels_and_merge_overlapping_indicators():
+    class Query:
+        def filter(self, *args, **kwargs):
+            return self
+        def limit(self, value):
+            return self
+        def all(self):
+            return [
+                SimpleNamespace(patient_label="P001", case_metadata={}, confirmed=True, indicators=[{"name": "ALT"}]),
+                SimpleNamespace(patient_label="P001", case_metadata={}, confirmed=True, indicators=[{"name": "AST"}]),
+            ]
+
+    db = SimpleNamespace(query=lambda model: Query())
+    from app.services.longitudinal_evidence import select_similar_longitudinal_cases
+    visits = [{"visit_date": "2024-01-01", "indicators": [{"name": "ALT"}, {"name": "AST"}]}]
+
+    sources = select_similar_longitudinal_cases(db, 1, visits, None)
+
+    assert sources == [{
+        "source_type": "similar_case",
+        "patient_label": "P001",
+        "source_dataset": None,
+        "final_outcome": True,
+        "overlap_features": ["alt", "ast"],
+        "is_synthetic": False,
+        "provenance": "reference",
+    }]
