@@ -55,41 +55,6 @@
       </el-table>
     </div>
 
-    <!-- 参考范围同步区 -->
-    <div class="manage-section">
-      <h4>正常体征参考标准</h4>
-      <div class="sync-toolbar">
-        <el-select v-model="syncDocumentId" placeholder="选择参考标准文档" filterable style="width: 280px">
-          <el-option
-            v-for="doc in operatorDocuments"
-            :key="doc.id"
-            :label="doc.title || doc.filename"
-            :value="doc.id"
-            :disabled="!doc.sync_ready"
-          >
-            <span>{{ doc.title || doc.filename }}</span>
-            <span v-if="!doc.sync_ready" class="sync-hint">（需先分块/向量化）</span>
-          </el-option>
-        </el-select>
-        <el-button
-          type="primary"
-          size="small"
-          :disabled="!syncDocumentId"
-          :loading="syncLoading"
-          @click="handleSyncReference"
-        >
-          解析为参考范围
-        </el-button>
-        <el-button size="small" :loading="rangesLoading" @click="loadReferenceRanges">查看已解析条目</el-button>
-      </div>
-      <div v-if="referenceRanges.length" class="range-list">
-        <div v-for="r in referenceRanges" :key="r.id" class="range-item">
-          <span>{{ r.indicator_name }}（{{ r.name_cn || '' }}）：{{ formatRange(r) }}</span>
-        </div>
-      </div>
-      <div v-else-if="rangesLoaded && !rangesLoading" class="range-empty">暂无已解析的参考范围</div>
-    </div>
-
     <!-- 疾病编辑弹窗 -->
     <el-dialog v-model="diseaseEditVisible" title="编辑疾病" width="420px">
       <el-form label-width="70px">
@@ -145,16 +110,10 @@ import {
   createCase,
   updateCase,
   deleteCase,
-  syncReferenceRanges,
-  listReferenceRanges,
-  listOperatorDocuments,
   type CaseRecord,
   type Disease,
   type IndicatorInput,
-  type OperatorDocument,
-  type ReferenceRange,
 } from '@/api/operator'
-import { formatRange } from '@/utils/rangeFormat'
 
 const operatorStore = useOperatorStore()
 
@@ -181,14 +140,6 @@ const canSaveCase = computed(() => {
     (r) => r.name.trim() && r.value !== null && r.value !== undefined && r.unit.trim(),
   )
 })
-
-// ===== 参考范围 =====
-const syncDocumentId = ref<number | null>(null)
-const syncLoading = ref(false)
-const rangesLoading = ref(false)
-const rangesLoaded = ref(false)
-const operatorDocuments = ref<OperatorDocument[]>([])
-const referenceRanges = ref<ReferenceRange[]>([])
 
 async function handleAddDisease() {
   const name = newDiseaseName.value.trim()
@@ -318,40 +269,9 @@ async function handleDeleteCase(row: CaseRecord) {
   }
 }
 
-async function handleSyncReference() {
-  if (!syncDocumentId.value) return
-  syncLoading.value = true
-  try {
-    const result = await syncReferenceRanges(syncDocumentId.value)
-    ElMessage.success(`解析完成：新增 ${result.inserted} 条，替换 ${result.dropped} 条`)
-    await loadReferenceRanges()
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.detail || '解析参考范围失败')
-  } finally {
-    syncLoading.value = false
-  }
-}
-
-async function loadReferenceRanges() {
-  rangesLoading.value = true
-  try {
-    referenceRanges.value = await listReferenceRanges()
-    rangesLoaded.value = true
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.detail || '加载参考范围失败')
-  } finally {
-    rangesLoading.value = false
-  }
-}
-
 onMounted(async () => {
   await operatorStore.fetchDiseases()
   await loadCases()
-  try {
-    operatorDocuments.value = await listOperatorDocuments()
-  } catch {
-    // 文档列表加载非关键
-  }
 })
 </script>
 

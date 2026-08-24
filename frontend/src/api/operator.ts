@@ -68,15 +68,6 @@ export interface ReferenceRange {
   category: string | null
 }
 
-export interface OperatorDocument {
-  id: number
-  title: string | null
-  filename: string
-  access_scope: string
-  status: string
-  sync_ready: boolean
-}
-
 export interface ReportListItem {
   id: number
   user_id: number
@@ -236,18 +227,8 @@ export function predictProgression(
   return request.post('/v1/operator/progression-predictions', data)
 }
 
-// 返回类型含 dropped：后端 sync_reference_ranges 返回 {inserted, dropped, document_id}
-export function syncReferenceRanges(documentId: number): Promise<{ inserted: number; dropped: number; document_id: number }> {
-  return request.post('/v1/operator/reference-ranges/sync', { document_id: documentId })
-}
-
 export function listReferenceRanges(): Promise<ReferenceRange[]> {
   return request.get('/v1/operator/reference-ranges')
-}
-
-// operator 范围文档列表：不能复用 admin 的 listDocuments（ai_operator 无权访问 admin API）
-export function listOperatorDocuments(): Promise<OperatorDocument[]> {
-  return request.get('/v1/operator/documents')
 }
 
 export function listReports(skip = 0, limit = 20, analysisType?: string): Promise<ReportListOut> {

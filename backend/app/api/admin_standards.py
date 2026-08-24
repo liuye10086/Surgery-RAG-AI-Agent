@@ -79,6 +79,14 @@ def get_standard(standard_id: int, admin=Depends(require_admin), db: Session = D
     return standard
 
 
+@router.get("/admin/reference-standards/{standard_id}/versions", response_model=list[StandardVersionOut])
+def list_versions(standard_id: int, admin=Depends(require_admin), db: Session = Depends(get_db)):
+    standard = db.query(ReferenceStandard).filter(ReferenceStandard.id == standard_id).first()
+    if standard is None:
+        raise HTTPException(status_code=404, detail="标准集合不存在")
+    return db.query(ReferenceStandardVersion).filter(ReferenceStandardVersion.standard_id == standard_id).order_by(ReferenceStandardVersion.created_at.desc()).all()
+
+
 @router.post("/admin/reference-standards/{standard_id}/versions", response_model=StandardVersionOut, status_code=status.HTTP_201_CREATED)
 def create_version(standard_id: int, payload: StandardVersionCreate, admin=Depends(require_admin), db: Session = Depends(get_db)):
     standard = db.query(ReferenceStandard).filter(ReferenceStandard.id == standard_id).first()

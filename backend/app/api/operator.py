@@ -32,7 +32,6 @@ from app.schemas.prediction import (
     DiseaseOut,
     DiseaseUpdate,
     ReferenceRangeOut,
-    ReferenceRangeSyncIn,
 )
 from app.schemas.progression import (
     LongitudinalPredictRequest,
@@ -51,7 +50,6 @@ from app.schemas.longitudinal_case import (
 from app.schemas.longitudinal_report import LongitudinalReportRequest
 from app.services.pdf_generator import generate_pdf
 from app.services.progression_engine import predict_progression
-from app.services.reference_standard import sync_reference_ranges
 from app.services.longitudinal_case_service import (
     CaseNotFoundError,
     DuplicateVisitDateError,
@@ -647,19 +645,6 @@ def delete_case(
 # ---------------------------------------------------------------------------
 # 参考标准（纵向预测数据层）
 # ---------------------------------------------------------------------------
-
-
-@router.post("/reference-ranges/sync")
-def sync_reference_ranges_endpoint(
-    payload: ReferenceRangeSyncIn,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_ai_operator),
-):
-    try:
-        result = sync_reference_ranges(db, payload.document_id)
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
-    return result
 
 
 @router.get("/reference-ranges", response_model=list[ReferenceRangeOut])

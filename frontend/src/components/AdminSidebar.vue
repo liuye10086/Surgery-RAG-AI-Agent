@@ -119,7 +119,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Setting, Fold, Expand, ArrowLeft, Document, Folder, FolderAdd, Picture, VideoCamera, MoreFilled, SwitchButton, DataAnalysis } from '@element-plus/icons-vue'
+import { Setting, Fold, Expand, ArrowLeft, Document, Folder, FolderAdd, Picture, VideoCamera, MoreFilled, SwitchButton, DataAnalysis, Collection } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
 defineProps<{
@@ -144,6 +144,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { key: 'documents', label: '文档管理', icon: Document },
+  { key: 'standards', label: '标准管理', icon: Collection },
   { key: 'images', label: '图片管理', icon: Picture },
   { key: 'videos', label: '视频管理', icon: VideoCamera },
   { key: 'categories', label: '知识分类', icon: Folder, disabled: true },

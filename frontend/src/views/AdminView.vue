@@ -219,6 +219,8 @@
       </div>
 
       <!-- 图片管理（占位） -->
+      <StandardManagementView v-else-if="activeSection === 'standards'" />
+
       <div v-else-if="activeSection === 'images'" class="section-placeholder">
         <div class="placeholder-content">
           <el-icon :size="48"><Picture /></el-icon>
@@ -286,6 +288,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Close, Document, FolderOpened, Folder, Search, Picture, VideoCamera } from '@element-plus/icons-vue'
 import type { UploadInstance, UploadFile } from 'element-plus'
 import AdminSidebar from '@/components/AdminSidebar.vue'
+import StandardManagementView from '@/components/StandardManagementView.vue'
 import {
   uploadDocument,
   listDocuments,

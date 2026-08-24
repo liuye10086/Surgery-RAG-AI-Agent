@@ -50,14 +50,14 @@ class CaseRecordSchemaTests(unittest.TestCase):
 
 class OperatorRouterEndpointTests(unittest.TestCase):
     def test_predictive_endpoints_registered(self):
-        """预测分析端点全部注册（疾病/病例/参考范围同步与列表/operator 文档）。"""
+        """预测分析端点保留病例、只读兼容范围和 operator 文档。"""
         from app.api.operator import router
         paths = {r.path for r in router.routes}
         self.assertTrue(
             {"/operator/cases", "/operator/diseases",
-             "/operator/reference-ranges/sync",
              "/operator/reference-ranges", "/operator/documents"}.issubset(paths)
         )
+        self.assertNotIn("/operator/reference-ranges/sync", paths)
 
 
 class ReportSchemaContractTests(unittest.TestCase):

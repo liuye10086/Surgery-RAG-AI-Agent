@@ -10,6 +10,7 @@ from app.db.models import ReferenceRange, ReferenceStandardVersion, StandardChan
 from app.schemas.standard import RulePatch
 from app.services.standard_validation import validate_version_rules
 import hashlib
+from pathlib import Path
 import json
 from types import SimpleNamespace
 
@@ -138,3 +139,49 @@ def publish_approved_version(db, admin_id: int, version_id: int):
 def validate_rule_actionability(rule: Any) -> str:
     from app.services.standard_validation import validate_rule
     return validate_rule(rule).actionability
+
+
+def seed_standard_draft(db, disease_id: int, document_id: int, version_label: str, *, admin_id: int | None = None, parser_version: str = "v1"):
+    """Create or reuse an unapproved draft for a DOCX document."""
+    from app.db.models import Document, ReferenceStandard, ReferenceStandardVersion
+
+    disease = db.query(__import__("app.db.models", fromlist=["Disease"]).Disease).filter(__import__("app.db.models", fromlist=["Disease"]).Disease.id == disease_id).first()
+    if disease is None:
+        raise ValueError("疾病不存在")
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if document is None:
+        raise ValueError("文档不存在")
+    if (document.file_type or "").lower() != "docx":
+        raise ValueError("标准源文件只支持 DOCX")
+    path = Path(document.file_path or "")
+    if not path.is_file():
+        raise ValueError("标准文件不存在")
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    standard = db.query(ReferenceStandard).filter(ReferenceStandard.disease_id == disease_id).first()
+    if standard is None:
+        standard = ReferenceStandard(disease_id=disease_id, name=f"{disease.name}标准")
+        db.add(standard)
+        db.commit()
+        db.refresh(standard)
+    existing = next((item for item in (getattr(standard, "versions", None) or []) if getattr(item, "content_hash", None) == digest), None)
+    if existing is None:
+        existing = db.query(ReferenceStandardVersion).filter(
+            ReferenceStandardVersion.standard_id == standard.id,
+            ReferenceStandardVersion.content_hash == digest,
+        ).first()
+    if existing:
+        return existing
+    version = ReferenceStandardVersion(
+        standard_id=standard.id,
+        document_id=document.id,
+        version_label=version_label,
+        content_hash=digest,
+        parser_version=parser_version,
+        created_by=admin_id,
+        status="draft",
+        supersedes_version_id=getattr(standard, "current_version_id", None),
+    )
+    db.add(version)
+    db.commit()
+    db.refresh(version)
+    return version
