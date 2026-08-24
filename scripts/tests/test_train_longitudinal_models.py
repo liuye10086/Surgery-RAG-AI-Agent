@@ -27,3 +27,21 @@ def test_prefix_rows_exclude_unknown_labels_and_keep_as_of():
     result = build_prefix_training_rows({"P1": visits}, FATTY_LIVER_ADAPTER)
     assert result["groups"] == []
     assert result["as_of_dates"] == []
+
+
+def test_train_outcome_model_persists_uncalibrated_metadata(tmp_path):
+    from scripts.train_longitudinal_models import train_outcome_model
+
+    patients = {}
+    for index in range(6):
+        patients[f"P{index}"] = {
+            "event_dates": {"cirrhosis_date": "2024-06-01"} if index % 2 else {},
+            "final_stage": "cirrhosis" if index % 2 else "fatty_liver",
+            "visits": [
+                {"visit_date": "2024-01-01", "indicators": [{"name": "ALT", "value": 10 + index}]},
+                {"visit_date": "2024-02-01", "indicators": [{"name": "ALT", "value": 11 + index}]},
+            ],
+        }
+    result = train_outcome_model("fatty_liver", patients, FATTY_LIVER_ADAPTER, tmp_path)
+    assert result["calibration_status"] == "not_calibrated"
+    assert (tmp_path / "fatty_liver_longitudinal_outcome_365d.joblib").exists()

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import math
 import sys
+import argparse
+import json
+import statistics
 from datetime import date, timedelta
 from dataclasses import dataclass
 from pathlib import Path
@@ -85,3 +88,36 @@ def patient_grouped_cv(rows, labels, groups, estimator_factory: Callable[[], Any
             validation_indices=validation.tolist(),
         ))
     return folds
+
+
+def train_outcome_model(dataset: str, patient_visits: dict[str, Any], adapter: DiseaseProgressionAdapter, out_dir: str | Path, horizon: timedelta = timedelta(days=365)) -> dict[str, Any]:
+    """Train a patient-grouped outcome model from already loaded reference data."""
+    from sklearn.ensemble import GradientBoostingClassifier
+    from sklearn.impute import SimpleImputer
+    from sklearn.pipeline import Pipeline
+    import joblib
+
+    training = build_prefix_training_rows(patient_visits, adapter, horizon)
+    if len(set(training["labels"])) < 2:
+        raise ValueError("可估计结局必须同时包含阳性和阴性样本")
+    factory = lambda: Pipeline([("imputer", SimpleImputer(strategy="median", keep_empty_features=True)), ("classifier", GradientBoostingClassifier(random_state=42))])
+    folds = patient_grouped_cv(training["rows"], training["labels"], training["groups"], factory, n_splits=min(5, len(set(training["groups"]))))
+    model = factory().fit(training["rows"], training["labels"])
+    output = Path(out_dir); output.mkdir(parents=True, exist_ok=True)
+    stem = f"{dataset}_longitudinal_outcome_{horizon.days}d"
+    model_path = output / f"{stem}.joblib"; meta_path = output / f"{stem}.meta.json"
+    joblib.dump(model, model_path)
+    metadata = {"dataset": dataset, "target": "outcome", "horizon_days": horizon.days, "feature_names": training["feature_names"], "patient_count": len(set(training["groups"])), "estimable_rows": len(training["labels"]), "calibration_status": "not_calibrated", "fold_count": len(folds)}
+    meta_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {**metadata, "model_path": str(model_path), "meta_path": str(meta_path)}
+
+
+def _parse_args(argv: list[str] | None = None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dataset", choices=["fatty_liver", "ad"], required=True)
+    parser.add_argument("--horizon", default="12_months")
+    return parser.parse_args(argv)
+
+
+if __name__ == "__main__":
+    _parse_args()
