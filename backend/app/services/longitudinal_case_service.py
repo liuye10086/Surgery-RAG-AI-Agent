@@ -145,8 +145,6 @@ def _reindex_visits(db, case_id: int, case: OperatorCase | None = None) -> list[
 def add_visit(db, user_id: int, case_id: int, payload: VisitCreate) -> OperatorCaseVisit:
     case = get_operator_case(db, user_id, case_id)
     visits = _ordered_visits(db, case_id, case)
-    if len(visits) >= 10:
-        raise VisitLimitError("每个病例最多保存 10 次访视")
     duplicate = (
         db.query(OperatorCaseVisit)
         .filter(
@@ -157,6 +155,8 @@ def add_visit(db, user_id: int, case_id: int, payload: VisitCreate) -> OperatorC
     )
     if duplicate is not None:
         raise DuplicateVisitDateError("同一病例不能重复添加同一访视日期")
+    if len(visits) >= 10:
+        raise VisitLimitError("每个病例最多保存 10 次访视")
 
     visit = OperatorCaseVisit(
         case_id=case_id,
@@ -282,4 +282,3 @@ def build_input_snapshot(
         "visits": snapshot_visits,
         "model_options": dict(model_options or {}),
     }
-
