@@ -10,6 +10,7 @@ from typing import Any
 import joblib
 
 from app.services.prediction_engine import _BANDS
+from app.services.longitudinal_features import sort_visits
 
 
 MODEL_DIR = Path(__file__).resolve().parents[1] / "ml_models"
@@ -48,10 +49,9 @@ def _linear_slope(observations: list[tuple[int, float]]) -> float | None:
 
 def extract_features(visits: list[dict]) -> dict[str, dict[str, float | int | None]]:
     """Extract per-indicator longitudinal features without DB/model dependencies."""
-    ordered_visits = sorted(
-        visits,
-        key=lambda visit: str(visit.get("visit_date") or ""),
-    )
+    # Keep the legacy feature shape, but use the same date-aware ordering and
+    # duplicate-date validation as the longitudinal training pipeline.
+    ordered_visits = sort_visits(visits)
     observations: dict[str, list[tuple[int, float]]] = defaultdict(list)
 
     for visit_index, visit in enumerate(ordered_visits):
