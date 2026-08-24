@@ -80,7 +80,24 @@ def test_reference_status_honors_exclusive_bounds():
 
     assert summarize_observation(visits)["indicators"]["alt"][
         "latest_reference_status"
-    ] == "high"
+    ] == "above_range"
+
+
+def test_latest_valid_value_reuses_prior_reference_metadata():
+    visits = [
+        {
+            "visit_date": "2024-01-01",
+            "indicators": [{"name": "ALT", "value": 10, "upper": 40}],
+        },
+        {
+            "visit_date": "2024-06-01",
+            "indicators": [{"name": "ALT", "value": 50}],
+        },
+    ]
+
+    assert summarize_observation(visits)["indicators"]["alt"][
+        "latest_reference_status"
+    ] == "above_range"
 
 
 def test_duplicate_indicator_names_in_one_visit_are_rejected():

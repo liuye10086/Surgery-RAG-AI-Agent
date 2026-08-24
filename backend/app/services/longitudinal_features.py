@@ -144,12 +144,22 @@ def _reference_status(indicator: dict[str, Any], value: float) -> str:
     if lower_value is not None and (
         value < lower_value or (value == lower_value and not lower_inclusive)
     ):
-        return "low"
+        return "below_range"
     if upper_value is not None and (
         value > upper_value or (value == upper_value and not upper_inclusive)
     ):
-        return "high"
-    return "within"
+        return "above_range"
+    return "within_range"
+
+
+def _has_reference_bounds(indicator: dict[str, Any]) -> bool:
+    ref = indicator.get("reference_range")
+    if isinstance(ref, dict):
+        return any(ref.get(key) is not None for key in ("lower", "upper"))
+    return any(
+        indicator.get(key) is not None
+        for key in ("lower", "upper", "reference_lower", "reference_upper")
+    )
 
 
 def summarize_observation(visits: Iterable[dict[str, Any]]) -> dict[str, Any]:
@@ -162,7 +172,21 @@ def summarize_observation(visits: Iterable[dict[str, Any]]) -> dict[str, Any]:
         values = [value for _, value in values_with_index]
         first, last = values[0], values[-1]
         delta = last - first
-        latest_raw = raw[name][-1]
+        # Use the latest valid observation and carry forward the nearest
+        # reference metadata when a later visit omits the range fields.
+        latest_raw = next(
+            (
+                item
+                for item in reversed(raw[name])
+                if _as_finite_float(item.get("value")) is not None
+            ),
+            raw[name][-1],
+        )
+        if not _has_reference_bounds(latest_raw):
+            latest_raw = next(
+                (item for item in reversed(raw[name]) if _has_reference_bounds(item)),
+                latest_raw,
+            )
         indicator_summary[name] = {
             "first": first,
             "last": last,
