@@ -23,8 +23,10 @@ class ReportOut(BaseModel):
     # 预测分析字段（旧报告默认 retrospective，预测报告为 predictive）
     analysis_type: str = "retrospective"
     disease_id: Optional[int] = None
+    operator_case_id: Optional[int] = None
     indicators: list[dict] = []
     prediction_result: dict = {}
+    input_snapshot: dict | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -45,8 +47,10 @@ class ReportListItem(BaseModel):
     # 预测分析字段（旧报告默认 retrospective）
     analysis_type: str = "retrospective"
     disease_id: Optional[int] = None
+    operator_case_id: Optional[int] = None
     indicators: list[dict] = []
     prediction_result: dict = {}
+    input_snapshot: dict | None = None
     created_at: datetime
     updated_at: datetime
 
