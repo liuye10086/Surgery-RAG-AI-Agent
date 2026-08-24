@@ -54,10 +54,34 @@ from app.schemas.progression import (
     LongitudinalPredictRequest,
     ProgressionPredictionOut,
 )
+from app.schemas.longitudinal_case import (
+    OperatorCaseCreate,
+    OperatorCaseListOut,
+    OperatorCaseOut,
+    OperatorCaseUpdate,
+    VisitCreate,
+    VisitOut,
+    VisitUpdate,
+)
 from app.services.pdf_generator import generate_pdf
 from app.services.prediction_generator import generate_prediction
 from app.services.progression_engine import predict_progression
 from app.services.reference_standard import sync_reference_ranges
+from app.services.longitudinal_case_service import (
+    CaseNotFoundError,
+    DuplicateVisitDateError,
+    DiseaseNotFoundError,
+    VisitLimitError,
+    VisitNotFoundError,
+    add_visit,
+    create_operator_case,
+    delete_operator_case,
+    delete_visit,
+    get_operator_case,
+    list_operator_cases,
+    update_operator_case,
+    update_visit,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/operator", tags=["operator"])
@@ -105,6 +129,137 @@ def create_progression_prediction(
         return predict_progression(dataset, visits)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# /operator/longitudinal-cases — 操作者自有纵向病例与访视
+# ---------------------------------------------------------------------------
+
+
+def _longitudinal_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, (CaseNotFoundError, VisitNotFoundError)):
+        # Do not reveal whether another operator owns the resource.
+        return HTTPException(status_code=404, detail="病例或访视不存在")
+    if isinstance(exc, DiseaseNotFoundError):
+        return HTTPException(status_code=422, detail="疾病不存在")
+    if isinstance(exc, (DuplicateVisitDateError, VisitLimitError)):
+        return HTTPException(status_code=409, detail=str(exc))
+    return HTTPException(status_code=422, detail=str(exc))
+
+
+@router.post("/longitudinal-cases", response_model=OperatorCaseOut, status_code=201)
+def create_longitudinal_case(
+    payload: OperatorCaseCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    try:
+        return create_operator_case(db, current_user.id, payload)
+    except (DiseaseNotFoundError, CaseNotFoundError) as exc:
+        raise _longitudinal_error(exc) from exc
+
+
+@router.get("/longitudinal-cases", response_model=OperatorCaseListOut)
+def list_longitudinal_cases(
+    disease_id: int | None = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    cases = list_operator_cases(db, current_user.id, disease_id=disease_id)
+    return OperatorCaseListOut(cases=cases, total=len(cases))
+
+
+@router.get("/longitudinal-cases/{case_id}", response_model=OperatorCaseOut)
+def get_longitudinal_case(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    try:
+        return get_operator_case(db, current_user.id, case_id)
+    except CaseNotFoundError as exc:
+        raise _longitudinal_error(exc) from exc
+
+
+@router.put("/longitudinal-cases/{case_id}", response_model=OperatorCaseOut)
+def update_longitudinal_case(
+    case_id: int,
+    payload: OperatorCaseUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    try:
+        return update_operator_case(db, current_user.id, case_id, payload)
+    except (CaseNotFoundError, DiseaseNotFoundError) as exc:
+        raise _longitudinal_error(exc) from exc
+
+
+@router.delete("/longitudinal-cases/{case_id}", status_code=204)
+def delete_longitudinal_case(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    try:
+        delete_operator_case(db, current_user.id, case_id)
+    except CaseNotFoundError as exc:
+        raise _longitudinal_error(exc) from exc
+    return None
+
+
+@router.post(
+    "/longitudinal-cases/{case_id}/visits",
+    response_model=VisitOut,
+    status_code=201,
+)
+def create_longitudinal_visit(
+    case_id: int,
+    payload: VisitCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    try:
+        return add_visit(db, current_user.id, case_id, payload)
+    except (CaseNotFoundError, DuplicateVisitDateError, VisitLimitError) as exc:
+        raise _longitudinal_error(exc) from exc
+
+
+@router.put(
+    "/longitudinal-cases/{case_id}/visits/{visit_id}",
+    response_model=VisitOut,
+)
+def update_longitudinal_visit(
+    case_id: int,
+    visit_id: int,
+    payload: VisitUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    try:
+        return update_visit(db, current_user.id, case_id, visit_id, payload)
+    except (
+        CaseNotFoundError,
+        VisitNotFoundError,
+        DuplicateVisitDateError,
+    ) as exc:
+        raise _longitudinal_error(exc) from exc
+
+
+@router.delete(
+    "/longitudinal-cases/{case_id}/visits/{visit_id}",
+    status_code=204,
+)
+def delete_longitudinal_visit(
+    case_id: int,
+    visit_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    try:
+        delete_visit(db, current_user.id, case_id, visit_id)
+    except (CaseNotFoundError, VisitNotFoundError) as exc:
+        raise _longitudinal_error(exc) from exc
+    return None
 
 
 # ---------------------------------------------------------------------------
