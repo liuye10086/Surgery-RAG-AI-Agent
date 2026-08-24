@@ -61,3 +61,6 @@ class LongitudinalPredictionResult(BaseModel):
     evidence: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
 
+
+class LongitudinalReportRequest(BaseModel):
+    model_options: dict[str, Any] = Field(default_factory=dict)

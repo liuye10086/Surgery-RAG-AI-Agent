@@ -63,6 +63,7 @@ from app.schemas.longitudinal_case import (
     VisitOut,
     VisitUpdate,
 )
+from app.schemas.longitudinal_report import LongitudinalReportRequest
 from app.services.pdf_generator import generate_pdf
 from app.services.prediction_generator import generate_prediction
 from app.services.progression_engine import predict_progression
@@ -81,7 +82,10 @@ from app.services.longitudinal_case_service import (
     list_operator_cases,
     update_operator_case,
     update_visit,
+    build_input_snapshot,
 )
+from app.services.disease_progression import get_progression_adapter
+from app.services.longitudinal_report_generator import generate_longitudinal_report
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/operator", tags=["operator"])
@@ -260,6 +264,34 @@ def delete_longitudinal_visit(
     except (CaseNotFoundError, VisitNotFoundError) as exc:
         raise _longitudinal_error(exc) from exc
     return None
+
+
+@router.post("/longitudinal-cases/{case_id}/reports")
+async def create_longitudinal_report(
+    case_id: int,
+    request: LongitudinalReportRequest | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    try:
+        case = get_operator_case(db, current_user.id, case_id)
+    except CaseNotFoundError as exc:
+        raise _longitudinal_error(exc) from exc
+    try:
+        adapter = get_progression_adapter({"脂肪肝": "fatty_liver", "阿尔茨海默病": "ad"}.get(case.disease.name, ""))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    visits = [
+        {"visit_date": visit.visit_date.isoformat(), "indicators": visit.indicators or [], "notes": visit.notes}
+        for visit in sorted(case.visits, key=lambda item: item.visit_date)
+    ]
+    options = (request or LongitudinalReportRequest()).model_options
+    snapshot = build_input_snapshot(case, case.visits, options)
+    report = AIReport(user_id=current_user.id, operator_case_id=case.id, disease_id=case.disease_id, query=case.patient_label, indicators=[], analysis_type="longitudinal_predictive", status="generating", input_snapshot=snapshot)
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+    return StreamingResponse(generate_longitudinal_report(db, report.id, snapshot, visits, adapter, sources=[]), media_type="text/event-stream")
 
 
 # ---------------------------------------------------------------------------
