@@ -15,7 +15,35 @@ def mark_synthetic_source(source: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def build_reference_range_sources(db, indicator_names: list[str], patient_sex: str | None = None) -> list[dict[str, Any]]:
+def build_reference_range_sources(db, indicator_names: list[str], patient_sex: str | None = None, disease_id: int | None = None, context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    if disease_id is not None:
+        from app.services.standard_resolver import resolve_standard_rules
+
+        resolution = resolve_standard_rules(db, disease_id, indicator_names, {**(context or {}), "sex": patient_sex} if patient_sex else context or {})
+        sources: list[dict[str, Any]] = []
+        for rule in [*resolution.calculable_rules, *resolution.evidence_rules]:
+            indicator = getattr(rule, "indicator", None)
+            sources.append({
+                "source_type": "reference_range" if getattr(rule, "machine_actionability", "evidence-only") == "calculable" else "standard_evidence",
+                "indicator": getattr(indicator, "name_en", None) or getattr(indicator, "canonical_key", None),
+                "unit": getattr(rule, "unit", None),
+                "lower": getattr(rule, "lower", None),
+                "upper": getattr(rule, "upper", None),
+                "lower_inclusive": getattr(rule, "lower_inclusive", True),
+                "upper_inclusive": getattr(rule, "upper_inclusive", True),
+                "sex": getattr(rule, "sex", None),
+                "machine_actionability": getattr(rule, "machine_actionability", "evidence-only"),
+                "standard_version_id": getattr(rule, "standard_version_id", resolution.version_id),
+                "standard_rule_id": getattr(rule, "standard_rule_id", getattr(rule, "id", None)),
+                "applicability_hash": getattr(rule, "applicability_hash", None),
+                "applicability": getattr(rule, "applicability", {}) or {},
+                "applicability_warning": getattr(rule, "resolution_warning", None),
+                "provenance": "reference_standard",
+            })
+        for warning in resolution.warnings:
+            sources.append({"source_type": "standard_warning", "message": warning, "provenance": "reference_standard"})
+        if sources or resolution.version_id is not None:
+            return sources
     from app.db.models import ReferenceRange
     from sqlalchemy import func
 
@@ -26,7 +54,7 @@ def build_reference_range_sources(db, indicator_names: list[str], patient_sex: s
     for row in rows:
         if row.sex and (not patient_sex or row.sex != patient_sex):
             continue
-        sources.append({"source_type": "reference_range", "indicator": row.indicator_name, "unit": row.unit, "lower": row.lower, "upper": row.upper, "lower_inclusive": row.lower_inclusive, "upper_inclusive": row.upper_inclusive, "provenance": "reference_standard"})
+        sources.append({"source_type": "reference_range", "indicator": row.indicator_name, "unit": row.unit, "lower": row.lower, "upper": row.upper, "lower_inclusive": row.lower_inclusive, "upper_inclusive": row.upper_inclusive, "standard_version_id": getattr(row, "standard_version_id", None), "standard_rule_id": getattr(row, "standard_rule_id", None), "applicability_hash": getattr(row, "applicability_hash", None), "provenance": "reference_standard"})
     return sources
 
 

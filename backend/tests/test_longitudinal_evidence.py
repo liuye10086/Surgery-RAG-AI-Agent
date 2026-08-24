@@ -45,6 +45,37 @@ def test_reference_ranges_match_case_insensitively_and_skip_sex_specific_unknown
     assert sources[0]["indicator"] == "ALT"
 
 
+def test_reference_sources_include_versioned_rule_provenance():
+    rule = SimpleNamespace(
+        id=9,
+        machine_actionability="calculable",
+        applicability={},
+        indicator=SimpleNamespace(canonical_key="alt", aliases=[]),
+        unit="U/L",
+        lower=7,
+        upper=40,
+        lower_inclusive=True,
+        upper_inclusive=True,
+        sex=None,
+        category=None,
+    )
+    version = SimpleNamespace(id=12, status="approved", rules=[rule])
+    standard = SimpleNamespace(current_version=version)
+
+    class Query:
+        def filter(self, *args, **kwargs):
+            return self
+
+        def first(self):
+            return standard
+
+    from app.services.longitudinal_evidence import build_reference_range_sources
+
+    sources = build_reference_range_sources(SimpleNamespace(query=lambda model: Query()), ["ALT"], patient_sex="male", disease_id=2)
+
+    assert {"standard_version_id", "standard_rule_id", "applicability_hash"}.issubset(sources[0])
+
+
 def test_similar_cases_deduplicate_labels_and_merge_overlapping_indicators():
     class Query:
         def filter(self, *args, **kwargs):

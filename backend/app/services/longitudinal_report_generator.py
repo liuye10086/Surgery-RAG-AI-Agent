@@ -42,6 +42,11 @@ def _format_reference_range(source: dict[str, Any]) -> str:
 def _render_source(source: dict[str, Any]) -> str:
     if source.get("source_type") == "reference_range":
         return _format_reference_range(source)
+    if source.get("source_type") == "standard_evidence":
+        warning = f"；{source['applicability_warning']}" if source.get("applicability_warning") else ""
+        return f"标准证据：{source.get('indicator', '未命名指标')}（仅供证据参考，未进入计算）{warning}"
+    if source.get("source_type") == "standard_warning":
+        return f"标准适用性提示：{source.get('message', '')}"
     if source.get("source_type") == "similar_case":
         features = "、".join(source.get("overlap_features") or []) or "未注明"
         warning = f"；{source['display_warning']}" if source.get("display_warning") else ""

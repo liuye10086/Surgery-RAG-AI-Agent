@@ -303,7 +303,7 @@ async def create_longitudinal_report(
         if str(indicator.get("name", "")).strip()
     })
     try:
-        sources = build_reference_range_sources(db, indicator_names, case.sex)
+        sources = build_reference_range_sources(db, indicator_names, case.sex, disease_id=case.disease_id)
         sources.extend(select_similar_longitudinal_cases(db, case.disease_id, visits, adapter))
         sources = [mark_synthetic_source(source) for source in sources]
     except Exception:
