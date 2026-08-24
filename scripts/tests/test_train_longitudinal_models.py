@@ -16,7 +16,7 @@ def test_grouped_folds_keep_patient_prefixes_together():
     groups = [f"P{i // 2}" for i in range(10)]
     folds = patient_grouped_cv(rows, labels, groups, lambda: __import__("sklearn.dummy", fromlist=["DummyClassifier"]).DummyClassifier(strategy="prior"), n_splits=5)
     for fold in folds:
-        assert set(fold["train_groups"]).isdisjoint(fold["validation_groups"])
+        assert set(fold.train_groups).isdisjoint(fold.validation_groups)
 
 
 def test_prefix_rows_exclude_unknown_labels_and_keep_as_of():

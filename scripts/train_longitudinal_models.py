@@ -4,10 +4,19 @@ from __future__ import annotations
 
 import math
 from datetime import date, timedelta
+from dataclasses import dataclass
 from typing import Any, Callable
 
 from app.services.disease_progression import DiseaseProgressionAdapter
 from app.services.longitudinal_features import build_prefixes, summarize_observation
+
+
+@dataclass(frozen=True)
+class CVFold:
+    train_groups: list[str]
+    validation_groups: list[str]
+    train_indices: list[int]
+    validation_indices: list[int]
 
 
 def build_prefix_training_rows(
@@ -21,8 +30,13 @@ def build_prefix_training_rows(
     as_of_dates: list[str] = []
     feature_names: list[str] = []
     staged: list[tuple[str, dict[str, Any], int | None, str | None]] = []
-    for patient_id, visits in sorted(patient_visits.items()):
-        patient = visits[0].get("patient", {}) if visits else {}
+    for patient_id, patient_input in sorted(patient_visits.items()):
+        if isinstance(patient_input, dict):
+            patient = dict(patient_input)
+            visits = patient.get("visits") or []
+        else:
+            visits = patient_input
+            patient = visits[0].get("patient", {}) if visits else {}
         for prefix in build_prefixes(visits, adapter.minimum_visits):
             as_of = date.fromisoformat(prefix["as_of"])
             label = adapter.outcome_label(patient, as_of, horizon)
@@ -34,7 +48,8 @@ def build_prefix_training_rows(
                     if f"{name}.{stat}" not in feature_names:
                         feature_names.append(f"{name}.{stat}")
     feature_names.sort()
-    for patient_id, prefix, label, _stage in staged:
+    stage_labels: list[str | None] = []
+    for patient_id, prefix, label, stage in staged:
         if label is None:
             continue
         summary = summarize_observation(prefix["visits"])["indicators"]
@@ -42,7 +57,8 @@ def build_prefix_training_rows(
         labels.append(label)
         groups.append(patient_id)
         as_of_dates.append(prefix["as_of"])
-    return {"rows": rows, "labels": labels, "groups": groups, "as_of_dates": as_of_dates, "feature_names": feature_names}
+        stage_labels.append(stage)
+    return {"rows": rows, "labels": labels, "stage_labels": stage_labels, "groups": groups, "as_of_dates": as_of_dates, "feature_names": feature_names}
 
 
 def patient_grouped_cv(rows, labels, groups, estimator_factory: Callable[[], Any], n_splits: int = 5):
@@ -54,10 +70,10 @@ def patient_grouped_cv(rows, labels, groups, estimator_factory: Callable[[], Any
     for train, validation in GroupKFold(n_splits=n_splits).split(rows, labels, groups):
         model = estimator_factory()
         model.fit([rows[i] for i in train], [labels[i] for i in train])
-        folds.append({
-            "train_groups": sorted({groups[i] for i in train}),
-            "validation_groups": sorted({groups[i] for i in validation}),
-            "train_indices": train.tolist(),
-            "validation_indices": validation.tolist(),
-        })
+        folds.append(CVFold(
+            train_groups=sorted({groups[i] for i in train}),
+            validation_groups=sorted({groups[i] for i in validation}),
+            train_indices=train.tolist(),
+            validation_indices=validation.tolist(),
+        ))
     return folds
