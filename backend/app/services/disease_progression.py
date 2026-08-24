@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
+from app.services.longitudinal_features import summarize_observation
+
 
 def _date(value: Any) -> date | None:
     if value in (None, ""):
@@ -87,3 +89,43 @@ def get_progression_adapter(dataset: str) -> DiseaseProgressionAdapter:
         return ADAPTERS[dataset]
     except KeyError as exc:
         raise ValueError(f"Unsupported progression dataset: {dataset}") from exc
+
+
+def derive_next_visit_direction(current: float, next_value: float, tolerance: float = 0.05) -> str:
+    if current == 0:
+        delta = next_value - current
+        if abs(delta) <= tolerance:
+            return "stable"
+        return "rising" if delta > 0 else "falling"
+    relative = (next_value - current) / abs(current)
+    if relative > tolerance:
+        return "rising"
+    if relative < -tolerance:
+        return "falling"
+    return "stable"
+
+
+def predict_indicator_trends(visits: list[dict[str, Any]], adapter: DiseaseProgressionAdapter, model_registry: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    summary = summarize_observation(visits)
+    registry = model_registry or {}
+    predictions = []
+    for indicator, observed in sorted(summary["indicators"].items()):
+        if indicator not in adapter.key_indicators and adapter.key_indicators:
+            continue
+        model_info = registry.get(indicator)
+        direction = "unavailable"
+        if model_info is not None:
+            model = model_info.get("model") if isinstance(model_info, dict) else model_info
+            if model is not None:
+                direction = str(model.predict([[]])[0])
+        elif observed.get("slope") is not None:
+            direction = "rising" if observed["slope"] > 0 else "falling" if observed["slope"] < 0 else "stable"
+        forecast_direction = f"likely_{direction}" if direction in {"rising", "falling", "stable"} else "unavailable"
+        predictions.append({
+            "indicator": indicator,
+            "observed": {key: observed.get(key) for key in ("first", "last", "delta", "delta_pct", "slope", "rises_count", "n_observations", "latest_reference_status")},
+            "reference": {"status_at_latest": observed.get("latest_reference_status", "unknown")},
+            "forecast": {"direction": forecast_direction, "status": "direction_only" if direction != "unavailable" else "not_available", "window": "next_followup", "projected_value": None, "prediction_interval": None, "basis": "observed_slope_and_longitudinal_model"},
+            "importance": {"rank": None, "role": "progression_signal"},
+        })
+    return predictions
