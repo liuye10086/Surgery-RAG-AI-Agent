@@ -37,7 +37,7 @@ import type { Disease, LongitudinalCase } from '@/api/operator'
 const props = defineProps<{ diseases: Disease[]; modelValue?: LongitudinalCase | null }>()
 const emit = defineEmits<{ saved: [LongitudinalCase]; 'update:modelValue': [LongitudinalCase] }>()
 const saving = ref(false)
-const draft = reactive<any>({ patient_label: props.modelValue?.patient_label || '', disease_id: props.modelValue?.disease_id || null, sex: props.modelValue?.sex || null, visits: props.modelValue?.visits ? props.modelValue.visits.map((visit) => ({ ...visit, indicators: [...visit.indicators] })) : [] })
+const draft = reactive<any>({ id: props.modelValue?.id, patient_label: props.modelValue?.patient_label || '', disease_id: props.modelValue?.disease_id || null, sex: props.modelValue?.sex || null, visits: props.modelValue?.visits ? props.modelValue.visits.map((visit) => ({ ...visit, indicators: [...visit.indicators] })) : [] })
 function addVisit() { draft.visits.push({ visit_date: '', indicators: [{ name: '', value: null, unit: '' }] }) }
 function removeVisit(index: number) { draft.visits.splice(index, 1) }
 async function saveCase() { saving.value = true; try { emit('saved', draft as LongitudinalCase); emit('update:modelValue', draft as LongitudinalCase) } finally { saving.value = false } }

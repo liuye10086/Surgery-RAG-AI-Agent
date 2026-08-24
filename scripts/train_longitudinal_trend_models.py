@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+BACKEND = ROOT / "backend"
+for path in (ROOT, BACKEND):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 from app.services.disease_progression import derive_next_visit_direction
 from app.services.longitudinal_features import sort_visits

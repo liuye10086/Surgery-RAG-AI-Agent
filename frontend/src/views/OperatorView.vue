@@ -429,7 +429,7 @@ function isValidIndicator(row: IndicatorInput) {
 async function handleLongitudinalCaseSaved(draft: any) {
   try {
     const saved = await operatorStore.saveLongitudinalCase({ disease_id: draft.disease_id, patient_label: draft.patient_label, sex: draft.sex })
-    for (const visit of draft.visits || []) {
+    for (const visit of draft.id ? [] : (draft.visits || [])) {
       if (visit.visit_date && visit.indicators?.some(isValidIndicator)) await operatorStore.saveLongitudinalVisit({ visit_date: visit.visit_date, indicators: visit.indicators })
     }
     operatorStore.generateLongitudinalReport(saved.id)

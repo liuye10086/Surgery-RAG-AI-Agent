@@ -7,6 +7,7 @@ import {
   generatePredictionStream,
   listLongitudinalCases,
   createLongitudinalCase,
+  updateLongitudinalCase,
   addLongitudinalVisit,
   generateLongitudinalReportStream,
   predictProgression,
@@ -148,8 +149,10 @@ export const useOperatorStore = defineStore('operator', () => {
   }
 
   async function saveLongitudinalCase(data: { disease_id: number; patient_label: string; sex?: string | null; baseline_stage?: string | null; notes?: string | null }) {
-    currentLongitudinalCase.value = await createLongitudinalCase(data)
-    longitudinalCases.value.unshift(currentLongitudinalCase.value)
+    currentLongitudinalCase.value = currentLongitudinalCase.value?.id
+      ? await updateLongitudinalCase(currentLongitudinalCase.value.id, data)
+      : await createLongitudinalCase(data)
+    longitudinalCases.value = [currentLongitudinalCase.value, ...longitudinalCases.value.filter((item) => item.id !== currentLongitudinalCase.value?.id)]
     return currentLongitudinalCase.value
   }
 

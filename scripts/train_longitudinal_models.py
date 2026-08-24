@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 import math
+import sys
 from datetime import date, timedelta
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
+
+ROOT = Path(__file__).resolve().parents[1]
+BACKEND = ROOT / "backend"
+for path in (ROOT, BACKEND):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 from app.services.disease_progression import DiseaseProgressionAdapter
 from app.services.longitudinal_features import build_prefixes, summarize_observation
