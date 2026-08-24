@@ -35,6 +35,8 @@ def run_longitudinal_prediction(case: dict[str, Any], visits: list[dict[str, Any
     if stage_info and stage_info.get("model") is not None:
         stage = StageProjection(status="available", likely_next_stage=stage_info.get("likely_next_stage"), stage_candidates=stage_info.get("stage_candidates", []))
     warnings = [adapter.synthetic_data_warning, "模型分数未校准，不代表临床概率"]
+    if not registry.get("outcome") and not registry.get("stage"):
+        warnings.append("未加载可用的纵向结局或阶段模型，仅提供观察趋势方向")
     if any(value > 0 for value in observation["missingness_summary"].values()):
         warnings.append("部分指标存在缺失")
     result = LongitudinalPredictionResult(

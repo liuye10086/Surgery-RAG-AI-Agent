@@ -226,6 +226,47 @@ def update_visit(
     return visit
 
 
+def replace_visits(
+    db, user_id: int, case_id: int, payloads: Iterable[VisitCreate]
+) -> list[OperatorCaseVisit]:
+    """Replace an entire case timeline in one transaction.
+
+    Replacing rows avoids transient unique-date conflicts when an operator
+    edits or reorders multiple visits at once. Visit IDs are intentionally
+    not part of the editor contract; the immutable report snapshot preserves
+    the submitted history used for prediction.
+    """
+    case = get_operator_case(db, user_id, case_id)
+    payloads = list(payloads)
+    if len(payloads) > 10:
+        raise VisitLimitError("每个病例最多保存 10 次访视")
+    dates = [payload.visit_date for payload in payloads]
+    if len(dates) != len(set(dates)):
+        raise DuplicateVisitDateError("同一病例不能重复使用访视日期")
+
+    ordered = sorted(payloads, key=lambda payload: payload.visit_date)
+    try:
+        db.query(OperatorCaseVisit).filter(
+            OperatorCaseVisit.case_id == case_id
+        ).delete(synchronize_session=False)
+        for index, payload in enumerate(ordered, start=1):
+            db.add(
+                OperatorCaseVisit(
+                    case_id=case_id,
+                    visit_date=payload.visit_date,
+                    visit_index=index,
+                    indicators=[item.model_dump() for item in payload.indicators],
+                    notes=payload.notes,
+                )
+            )
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise DuplicateVisitDateError("同一病例不能重复使用访视日期") from exc
+
+    return _ordered_visits(db, case_id, case)
+
+
 def delete_visit(db, user_id: int, case_id: int, visit_id: int) -> None:
     case, visit = _owned_visit_query(db, user_id, case_id, visit_id)
     db.delete(visit)

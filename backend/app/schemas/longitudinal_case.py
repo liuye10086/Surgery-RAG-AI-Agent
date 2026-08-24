@@ -102,6 +102,12 @@ class VisitUpdate(BaseModel):
         return value.strip() or None
 
 
+class VisitReplaceRequest(BaseModel):
+    """Complete timeline submitted by the editor in one atomic operation."""
+
+    visits: list[VisitCreate] = Field(default_factory=list, max_length=10)
+
+
 class VisitOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

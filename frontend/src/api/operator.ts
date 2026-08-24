@@ -176,6 +176,10 @@ export function addLongitudinalVisit(caseId: number, data: { visit_date: string;
   return request.post(`/v1/operator/longitudinal-cases/${caseId}/visits`, data)
 }
 
+export function replaceLongitudinalVisits(caseId: number, visits: Array<{ visit_date: string; indicators: IndicatorInput[]; notes?: string | null }>): Promise<LongitudinalVisit[]> {
+  return request.put(`/v1/operator/longitudinal-cases/${caseId}/visits`, { visits })
+}
+
 export function updateLongitudinalVisit(caseId: number, visitId: number, data: Record<string, unknown>): Promise<LongitudinalVisit> {
   return request.put(`/v1/operator/longitudinal-cases/${caseId}/visits/${visitId}`, data)
 }
@@ -397,7 +401,7 @@ function parseOperatorSSE(raw: string, callbacks: PredictionStreamCallbacks) {
         callbacks.onDone(payload.report_id || 0)
         break
       case 'error':
-        callbacks.onError(payload.error || '生成失败')
+        callbacks.onError(payload.error || payload.message || '生成失败')
         break
     }
   } catch {

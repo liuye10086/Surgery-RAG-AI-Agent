@@ -31,13 +31,23 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import type { Disease, LongitudinalCase } from '@/api/operator'
 
 const props = defineProps<{ diseases: Disease[]; modelValue?: LongitudinalCase | null }>()
 const emit = defineEmits<{ saved: [LongitudinalCase]; 'update:modelValue': [LongitudinalCase] }>()
 const saving = ref(false)
-const draft = reactive<any>({ id: props.modelValue?.id, patient_label: props.modelValue?.patient_label || '', disease_id: props.modelValue?.disease_id || null, sex: props.modelValue?.sex || null, visits: props.modelValue?.visits ? props.modelValue.visits.map((visit) => ({ ...visit, indicators: [...visit.indicators] })) : [] })
+function toDraft(value: LongitudinalCase | null | undefined) {
+  return {
+    id: value?.id,
+    patient_label: value?.patient_label || '',
+    disease_id: value?.disease_id || null,
+    sex: value?.sex || null,
+    visits: value?.visits ? value.visits.map((visit) => ({ ...visit, indicators: visit.indicators.map((indicator) => ({ ...indicator })) })) : [],
+  }
+}
+const draft = reactive<any>(toDraft(props.modelValue))
+watch(() => props.modelValue?.id, () => Object.assign(draft, toDraft(props.modelValue)))
 function addVisit() { draft.visits.push({ visit_date: '', indicators: [{ name: '', value: null, unit: '' }] }) }
 function removeVisit(index: number) { draft.visits.splice(index, 1) }
 async function saveCase() { saving.value = true; try { emit('saved', draft as LongitudinalCase); emit('update:modelValue', draft as LongitudinalCase) } finally { saving.value = false } }

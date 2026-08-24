@@ -35,6 +35,22 @@
         <!-- 纵向进展预测视图 -->
         <div v-else-if="activeView === 'progression'" class="progression-view">
           <div class="progression-inner">
+            <div class="longitudinal-case-actions">
+              <el-button @click="startNewLongitudinalCase">新建纵向病例</el-button>
+              <el-select
+                v-if="operatorStore.longitudinalCases.length"
+                :model-value="operatorStore.currentLongitudinalCase?.id"
+                placeholder="选择已保存病例"
+                @update:model-value="selectLongitudinalCase"
+              >
+                <el-option
+                  v-for="item in operatorStore.longitudinalCases"
+                  :key="item.id"
+                  :label="item.patient_label"
+                  :value="item.id"
+                />
+              </el-select>
+            </div>
             <LongitudinalCaseEditor
               :diseases="progressionDiseases"
               :model-value="operatorStore.currentLongitudinalCase"
@@ -428,15 +444,39 @@ function isValidIndicator(row: IndicatorInput) {
 
 async function handleLongitudinalCaseSaved(draft: any) {
   try {
-    const saved = await operatorStore.saveLongitudinalCase({ disease_id: draft.disease_id, patient_label: draft.patient_label, sex: draft.sex })
-    for (const visit of draft.id ? [] : (draft.visits || [])) {
-      if (visit.visit_date && visit.indicators?.some(isValidIndicator)) await operatorStore.saveLongitudinalVisit({ visit_date: visit.visit_date, indicators: visit.indicators })
+    const invalidVisit = (draft.visits || []).find((visit: any) =>
+      !visit.visit_date || !visit.indicators?.length || !visit.indicators.every(isValidIndicator),
+    )
+    if (invalidVisit) {
+      ElMessage.error('请完整填写每次访视的日期、指标、数值和单位')
+      return
     }
+    const visits = (draft.visits || [])
+      .map((visit: any) => ({
+        visit_date: visit.visit_date,
+        indicators: visit.indicators.map((indicator: IndicatorInput) => ({
+          name: indicator.name.trim(),
+          value: Number(indicator.value),
+          unit: indicator.unit.trim(),
+        })),
+        notes: visit.notes || null,
+      }))
+    const saved = await operatorStore.saveLongitudinalCase({ disease_id: draft.disease_id, patient_label: draft.patient_label, sex: draft.sex, visits })
     operatorStore.generateLongitudinalReport(saved.id)
     ElMessage.success('已开始生成纵向预测报告')
   } catch (error: any) {
     ElMessage.error(error?.message || '病例保存失败')
   }
+}
+
+function startNewLongitudinalCase() {
+  operatorStore.currentLongitudinalCase = null
+  operatorStore.longitudinalPrediction = null
+  operatorStore.longitudinalReportContent = ''
+}
+
+function selectLongitudinalCase(caseId: number) {
+  operatorStore.currentLongitudinalCase = operatorStore.longitudinalCases.find((item) => item.id === caseId) || null
 }
 
 function handlePredict() {
@@ -597,6 +637,7 @@ watch(
 onMounted(async () => {
   operatorStore.fetchReports()
   operatorStore.fetchDiseases()
+  operatorStore.fetchLongitudinalCases()
   if (!indicatorRows.value.length) {
     indicatorRows.value = [{ name: '', value: null, unit: '' }]
   }

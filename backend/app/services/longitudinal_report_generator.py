@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import AsyncGenerator, Any
 
@@ -49,6 +50,7 @@ async def generate_longitudinal_report(db, report_id: int, case: dict[str, Any],
         yield _sse("stage", {"stage": "feature_extraction"})
         result = run_longitudinal_prediction(case, visits, adapter, model_registry)
         payload = prediction_result_to_dict(result)
+        payload["evidence"] = {"sources": sources or []}
         yield _sse("prediction", payload)
         content = render_longitudinal_markdown(payload, sources)
         report = db.query(AIReport).filter(AIReport.id == report_id).first()
@@ -62,6 +64,13 @@ async def generate_longitudinal_report(db, report_id: int, case: dict[str, Any],
         for chunk in (content[i : i + 600] for i in range(0, len(content), 600)):
             yield _sse("delta", {"content": chunk})
         yield _sse("done", {"report_id": report_id, "status": "completed"})
+    except (asyncio.CancelledError, GeneratorExit):
+        report = db.query(AIReport).filter(AIReport.id == report_id).first()
+        if report is not None and report.status == "generating":
+            report.status = "cancelled"
+            report.error_message = "用户取消生成"
+            db.commit()
+        return
     except Exception as exc:
         report = db.query(AIReport).filter(AIReport.id == report_id).first()
         if report is not None:

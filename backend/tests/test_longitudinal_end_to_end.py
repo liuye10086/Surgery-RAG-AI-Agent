@@ -1,6 +1,7 @@
 from app.services.disease_progression import FATTY_LIVER_ADAPTER
 from app.services.longitudinal_prediction import run_longitudinal_prediction
 from app.services.longitudinal_report_generator import render_longitudinal_markdown
+from pathlib import Path
 
 
 def test_structured_prediction_and_report_keep_required_sections():
@@ -18,3 +19,12 @@ def test_structured_prediction_and_report_keep_required_sections():
         assert heading in markdown
     assert "合成" in markdown or "synthetic" in markdown
     assert "不构成诊断" in markdown
+
+
+def test_longitudinal_stream_has_explicit_client_cancel_state_handling():
+    source = Path(__file__).parents[1].joinpath(
+        "app/services/longitudinal_report_generator.py"
+    ).read_text(encoding="utf-8")
+    assert "asyncio.CancelledError" in source
+    assert '"cancelled"' in source
+    assert 'report.status == "generating"' in source

@@ -60,6 +60,7 @@ from app.schemas.longitudinal_case import (
     OperatorCaseOut,
     OperatorCaseUpdate,
     VisitCreate,
+    VisitReplaceRequest,
     VisitOut,
     VisitUpdate,
 )
@@ -82,10 +83,17 @@ from app.services.longitudinal_case_service import (
     list_operator_cases,
     update_operator_case,
     update_visit,
+    replace_visits,
     build_input_snapshot,
 )
 from app.services.disease_progression import get_progression_adapter
 from app.services.longitudinal_report_generator import generate_longitudinal_report
+from app.services.longitudinal_model_registry import load_model_registry
+from app.services.longitudinal_evidence import (
+    build_reference_range_sources,
+    mark_synthetic_source,
+    select_similar_longitudinal_cases,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/operator", tags=["operator"])
@@ -229,6 +237,26 @@ def create_longitudinal_visit(
 
 
 @router.put(
+    "/longitudinal-cases/{case_id}/visits",
+    response_model=list[VisitOut],
+)
+def replace_longitudinal_visits(
+    case_id: int,
+    payload: VisitReplaceRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    try:
+        return replace_visits(db, current_user.id, case_id, payload.visits)
+    except (
+        CaseNotFoundError,
+        DuplicateVisitDateError,
+        VisitLimitError,
+    ) as exc:
+        raise _longitudinal_error(exc) from exc
+
+
+@router.put(
     "/longitudinal-cases/{case_id}/visits/{visit_id}",
     response_model=VisitOut,
 )
@@ -285,13 +313,31 @@ async def create_longitudinal_report(
         {"visit_date": visit.visit_date.isoformat(), "indicators": visit.indicators or [], "notes": visit.notes}
         for visit in sorted(case.visits, key=lambda item: item.visit_date)
     ]
+    indicator_names = sorted({
+        str(indicator.get("name", "")).strip().lower()
+        for visit in visits
+        for indicator in visit["indicators"]
+        if str(indicator.get("name", "")).strip()
+    })
+    try:
+        sources = build_reference_range_sources(db, indicator_names, case.sex)
+        sources.extend(select_similar_longitudinal_cases(db, case.disease_id, visits, adapter))
+        sources = [mark_synthetic_source(source) for source in sources]
+    except Exception:
+        logger.exception("Longitudinal evidence selection failed for case_id=%s", case.id)
+        sources = []
     options = (request or LongitudinalReportRequest()).model_options
     snapshot = build_input_snapshot(case, case.visits, options)
-    report = AIReport(user_id=current_user.id, operator_case_id=case.id, disease_id=case.disease_id, query=case.patient_label, indicators=[], analysis_type="longitudinal_predictive", status="generating", input_snapshot=snapshot)
+    report = AIReport(user_id=current_user.id, operator_case_id=case.id, disease_id=case.disease_id, query=case.patient_label, title=f"{case.patient_label}纵向进展预测报告", indicators=[], analysis_type="longitudinal_predictive", status="generating", input_snapshot=snapshot)
     db.add(report)
     db.commit()
     db.refresh(report)
-    return StreamingResponse(generate_longitudinal_report(db, report.id, snapshot, visits, adapter, sources=[]), media_type="text/event-stream")
+    try:
+        model_registry = load_model_registry(adapter.dataset)
+    except Exception:
+        logger.exception("Longitudinal model artifacts unavailable for dataset=%s", adapter.dataset)
+        model_registry = {}
+    return StreamingResponse(generate_longitudinal_report(db, report.id, snapshot, visits, adapter, model_registry=model_registry, sources=sources), media_type="text/event-stream")
 
 
 # ---------------------------------------------------------------------------

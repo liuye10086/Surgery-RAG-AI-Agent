@@ -29,3 +29,4 @@ def test_unavailable_stage_never_emits_stage_guess():
         {},
     )
     assert result.outcome_prediction.stage_projection.likely_next_stage is None
+    assert any("未加载" in warning for warning in result.warnings)

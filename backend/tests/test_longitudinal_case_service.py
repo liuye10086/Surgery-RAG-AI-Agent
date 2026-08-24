@@ -119,6 +119,7 @@ def test_longitudinal_crud_routes_are_registered_and_protected():
     assert ("/operator/longitudinal-cases", ("GET",)) in paths
     assert ("/operator/longitudinal-cases/{case_id}", ("GET",)) in paths
     assert ("/operator/longitudinal-cases/{case_id}/visits", ("POST",)) in paths
+    assert ("/operator/longitudinal-cases/{case_id}/visits", ("PUT",)) in paths
     assert (
         "/operator/longitudinal-cases/{case_id}/visits/{visit_id}",
         ("DELETE",),

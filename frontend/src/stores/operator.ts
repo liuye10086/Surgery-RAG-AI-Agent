@@ -9,6 +9,7 @@ import {
   createLongitudinalCase,
   updateLongitudinalCase,
   addLongitudinalVisit,
+  replaceLongitudinalVisits,
   generateLongitudinalReportStream,
   predictProgression,
   listDiseases,
@@ -148,10 +149,13 @@ export const useOperatorStore = defineStore('operator', () => {
     if (!currentLongitudinalCase.value && result.cases.length) currentLongitudinalCase.value = result.cases[0]
   }
 
-  async function saveLongitudinalCase(data: { disease_id: number; patient_label: string; sex?: string | null; baseline_stage?: string | null; notes?: string | null }) {
-    currentLongitudinalCase.value = currentLongitudinalCase.value?.id
-      ? await updateLongitudinalCase(currentLongitudinalCase.value.id, data)
-      : await createLongitudinalCase(data)
+  async function saveLongitudinalCase(data: { disease_id: number; patient_label: string; sex?: string | null; baseline_stage?: string | null; notes?: string | null; visits?: Array<{ visit_date: string; indicators: IndicatorInput[]; notes?: string | null }> }) {
+    const { visits, ...caseData } = data
+    const saved = currentLongitudinalCase.value?.id
+      ? await updateLongitudinalCase(currentLongitudinalCase.value.id, caseData)
+      : await createLongitudinalCase(caseData)
+    if (visits) saved.visits = await replaceLongitudinalVisits(saved.id, visits)
+    currentLongitudinalCase.value = saved
     longitudinalCases.value = [currentLongitudinalCase.value, ...longitudinalCases.value.filter((item) => item.id !== currentLongitudinalCase.value?.id)]
     return currentLongitudinalCase.value
   }
