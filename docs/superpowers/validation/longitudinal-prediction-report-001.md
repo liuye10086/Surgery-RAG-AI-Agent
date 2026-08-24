@@ -2,7 +2,7 @@
 
 ## Verified
 
-- `python -m pytest backend/tests -q`: 192 passed, 5 warnings.
+- `python -m pytest backend/tests -q`: 193 passed, 5 warnings.
 - `python -m pytest backend/tests/test_alembic_contracts.py backend/tests/test_longitudinal_schema_contracts.py -q`: 21 passed.
 - `python -m pytest scripts/tests/test_train_longitudinal_models.py -q`: 4 passed.
 - `npm --prefix frontend run build`: passed; existing Rollup chunk-size warnings remain.
@@ -24,8 +24,8 @@ recombined reference cases are marked in provenance.
 
 ## Remaining Validation
 
-- A disposable PostgreSQL instance was not available for a live Alembic
-  upgrade/downgrade and CRUD round trip.
+- The live PostgreSQL round trip used a temporary local validation database;
+  that database was removed after verification.
 - Full `scripts/tests` includes pre-existing fixture-dependent failures because
   external source DOCX files are absent and generated baseline artifact hashes
   differ from the checked-in expectations. These failures are outside the new
