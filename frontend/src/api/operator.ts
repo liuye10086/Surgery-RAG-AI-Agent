@@ -124,6 +124,82 @@ export interface ReportDetail extends ReportListItem {
   retrieval_meta: any
 }
 
+export interface LongitudinalVisit {
+  id: number
+  case_id: number
+  visit_date: string
+  visit_index: number
+  indicators: IndicatorInput[]
+  notes?: string | null
+}
+
+export interface LongitudinalCase {
+  id: number
+  user_id: number
+  disease_id: number
+  patient_label: string
+  sex?: 'male' | 'female' | null
+  baseline_stage?: string | null
+  notes?: string | null
+  status: string
+  visits: LongitudinalVisit[]
+  created_at?: string
+  updated_at?: string
+}
+
+export interface LongitudinalPrediction {
+  schema_version: string
+  disease: Record<string, unknown>
+  observation: Record<string, any>
+  outcome_prediction: Record<string, any>
+  trend_predictions: Array<Record<string, any>>
+  warnings: string[]
+}
+
+export function listLongitudinalCases(diseaseId?: number): Promise<{ cases: LongitudinalCase[]; total: number }> {
+  return request.get('/v1/operator/longitudinal-cases', { params: diseaseId ? { disease_id: diseaseId } : {} })
+}
+
+export function createLongitudinalCase(data: { disease_id: number; patient_label: string; sex?: string | null; baseline_stage?: string | null; notes?: string | null }): Promise<LongitudinalCase> {
+  return request.post('/v1/operator/longitudinal-cases', data)
+}
+
+export function updateLongitudinalCase(id: number, data: Record<string, unknown>): Promise<LongitudinalCase> {
+  return request.put(`/v1/operator/longitudinal-cases/${id}`, data)
+}
+
+export function deleteLongitudinalCase(id: number): Promise<void> {
+  return request.delete(`/v1/operator/longitudinal-cases/${id}`)
+}
+
+export function addLongitudinalVisit(caseId: number, data: { visit_date: string; indicators: IndicatorInput[]; notes?: string }): Promise<LongitudinalVisit> {
+  return request.post(`/v1/operator/longitudinal-cases/${caseId}/visits`, data)
+}
+
+export function updateLongitudinalVisit(caseId: number, visitId: number, data: Record<string, unknown>): Promise<LongitudinalVisit> {
+  return request.put(`/v1/operator/longitudinal-cases/${caseId}/visits/${visitId}`, data)
+}
+
+export function deleteLongitudinalVisit(caseId: number, visitId: number): Promise<void> {
+  return request.delete(`/v1/operator/longitudinal-cases/${caseId}/visits/${visitId}`)
+}
+
+export function generateLongitudinalReportStream(caseId: number, callbacks: PredictionStreamCallbacks, modelOptions: Record<string, unknown> = {}): () => void {
+  const controller = new AbortController()
+  const token = localStorage.getItem('token')
+  fetch(`/api/v1/operator/longitudinal-cases/${caseId}/reports`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: token ? `Bearer ${token}` : '' }, body: JSON.stringify({ model_options: modelOptions }), signal: controller.signal })
+    .then(async (response) => {
+      if (!response.ok) { callbacks.onError((await response.json().catch(() => ({}))).detail || `请求失败 (${response.status})`); return }
+      const reader = response.body?.getReader()
+      if (!reader) { callbacks.onError('无法读取响应流'); return }
+      const decoder = new TextDecoder(); let buffer = ''
+      while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const parts = buffer.split('\n\n'); buffer = parts.pop() || ''; for (const part of parts) if (part.trim()) parseOperatorSSE(part, callbacks) }
+      if (buffer.trim()) parseOperatorSSE(buffer, callbacks)
+    })
+    .catch((error) => { if (error.name !== 'AbortError') callbacks.onError(error.message || '网络错误') })
+  return () => controller.abort()
+}
+
 export interface ReportListOut {
   reports: ReportListItem[]
   total: number
@@ -139,6 +215,7 @@ export interface ReportStreamCallbacks {
 
 export interface PredictionStreamCallbacks extends ReportStreamCallbacks {
   onIndicators?: (analyses: IndicatorAnalysis[], prediction: PredictionResult) => void
+  onPrediction?: (prediction: LongitudinalPrediction) => void
 }
 
 // ===== 疾病 / 病例 / 参考范围 API =====
@@ -373,6 +450,9 @@ function parseOperatorSSE(raw: string, callbacks: PredictionStreamCallbacks) {
         break
       case 'indicators':
         callbacks.onIndicators?.(payload.indicators || [], payload.probability || {})
+        break
+      case 'prediction':
+        callbacks.onPrediction?.(payload as LongitudinalPrediction)
         break
       case 'delta':
         callbacks.onDelta(payload.content || '')

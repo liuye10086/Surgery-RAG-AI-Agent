@@ -6,6 +6,10 @@ import {
   deleteReport,
   generateReportStream,
   generatePredictionStream,
+  listLongitudinalCases,
+  createLongitudinalCase,
+  addLongitudinalVisit,
+  generateLongitudinalReportStream,
   predictProgression,
   listDiseases,
   listCases,
@@ -18,6 +22,8 @@ import {
   type IndicatorAnalysis,
   type ProgressionPredictionRequest,
   type ProgressionPredictionOut,
+  type LongitudinalCase,
+  type LongitudinalPrediction,
 } from '@/api/operator'
 
 export const useOperatorStore = defineStore('operator', () => {
@@ -36,6 +42,10 @@ export const useOperatorStore = defineStore('operator', () => {
   const indicatorAnalyses = ref<IndicatorAnalysis[]>([])
   const progressionResult = ref<ProgressionPredictionOut | null>(null)
   const progressionLoading = ref(false)
+  const longitudinalCases = ref<LongitudinalCase[]>([])
+  const currentLongitudinalCase = ref<LongitudinalCase | null>(null)
+  const longitudinalPrediction = ref<LongitudinalPrediction | null>(null)
+  const longitudinalReportContent = ref('')
 
   let cancelFn: (() => void) | null = null
 
@@ -178,6 +188,40 @@ export const useOperatorStore = defineStore('operator', () => {
     progressionResult.value = null
   }
 
+  async function fetchLongitudinalCases(diseaseId?: number) {
+    const result = await listLongitudinalCases(diseaseId)
+    longitudinalCases.value = result.cases
+    if (!currentLongitudinalCase.value && result.cases.length) currentLongitudinalCase.value = result.cases[0]
+  }
+
+  async function saveLongitudinalCase(data: { disease_id: number; patient_label: string; sex?: string | null; baseline_stage?: string | null; notes?: string | null }) {
+    currentLongitudinalCase.value = await createLongitudinalCase(data)
+    longitudinalCases.value.unshift(currentLongitudinalCase.value)
+    return currentLongitudinalCase.value
+  }
+
+  async function saveLongitudinalVisit(data: { visit_date: string; indicators: IndicatorInput[]; notes?: string }) {
+    if (!currentLongitudinalCase.value) throw new Error('请先选择病例')
+    const visit = await addLongitudinalVisit(currentLongitudinalCase.value.id, data)
+    currentLongitudinalCase.value.visits = [...currentLongitudinalCase.value.visits, visit].sort((a, b) => a.visit_date.localeCompare(b.visit_date))
+    return visit
+  }
+
+  function generateLongitudinalReport(caseId: number) {
+    generating.value = true
+    longitudinalPrediction.value = null
+    longitudinalReportContent.value = ''
+    cancelFn = generateLongitudinalReportStream(caseId, {
+      onStage: (stage, message) => { currentStage.value = stage; stageMessage.value = message },
+      onPrediction: (prediction) => { longitudinalPrediction.value = prediction },
+      onDelta: (content) => { longitudinalReportContent.value += content },
+      onSources: (sources) => { currentSources.value = sources },
+      onDone: (id) => { generating.value = false; fetchReports(); fetchReport(id) },
+      onError: () => { generating.value = false; currentStage.value = 'error'; fetchReports() },
+    })
+    return cancelFn
+  }
+
   function clearCurrent() {
     currentReport.value = null
     generatedContent.value = ''
@@ -202,6 +246,10 @@ export const useOperatorStore = defineStore('operator', () => {
     indicatorAnalyses,
     progressionResult,
     progressionLoading,
+    longitudinalCases,
+    currentLongitudinalCase,
+    longitudinalPrediction,
+    longitudinalReportContent,
 
     fetchReports,
     fetchReport,
@@ -214,5 +262,9 @@ export const useOperatorStore = defineStore('operator', () => {
     clearCurrent,
     predictLongitudinalProgression,
     clearProgression,
+    fetchLongitudinalCases,
+    saveLongitudinalCase,
+    saveLongitudinalVisit,
+    generateLongitudinalReport,
   }
 })

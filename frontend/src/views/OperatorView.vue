@@ -35,6 +35,12 @@
         <!-- 纵向进展预测视图 -->
         <div v-else-if="activeView === 'progression'" class="progression-view">
           <div class="progression-inner">
+            <LongitudinalCaseEditor
+              :diseases="progressionDiseases"
+              :model-value="operatorStore.currentLongitudinalCase"
+              @saved="handleLongitudinalCaseSaved"
+            />
+            <LongitudinalPredictionSummary :prediction="operatorStore.longitudinalPrediction" />
             <header class="progression-heading">
               <div>
                 <h3>纵向进展预测</h3>
@@ -324,6 +330,8 @@ import DOMPurify from 'dompurify'
 import OperatorSidebar from '@/components/OperatorSidebar.vue'
 import CaseManageView from '@/components/CaseManageView.vue'
 import IndicatorRowsEditor from '@/components/IndicatorRowsEditor.vue'
+import LongitudinalCaseEditor from '@/components/LongitudinalCaseEditor.vue'
+import LongitudinalPredictionSummary from '@/components/LongitudinalPredictionSummary.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useOperatorStore } from '@/stores/operator'
 import { downloadReport, type IndicatorInput } from '@/api/operator'
@@ -416,6 +424,19 @@ function isValidIndicator(row: IndicatorInput) {
   return Boolean(
     row.name.trim() && row.value !== null && row.value !== undefined && row.unit.trim()
   )
+}
+
+async function handleLongitudinalCaseSaved(draft: any) {
+  try {
+    const saved = await operatorStore.saveLongitudinalCase({ disease_id: draft.disease_id, patient_label: draft.patient_label, sex: draft.sex })
+    for (const visit of draft.visits || []) {
+      if (visit.visit_date && visit.indicators?.some(isValidIndicator)) await operatorStore.saveLongitudinalVisit({ visit_date: visit.visit_date, indicators: visit.indicators })
+    }
+    operatorStore.generateLongitudinalReport(saved.id)
+    ElMessage.success('已开始生成纵向预测报告')
+  } catch (error: any) {
+    ElMessage.error(error?.message || '病例保存失败')
+  }
 }
 
 function handlePredict() {
