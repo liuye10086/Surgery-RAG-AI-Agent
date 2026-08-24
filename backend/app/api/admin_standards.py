@@ -133,8 +133,9 @@ def parse_version(version_id: int, admin=Depends(require_admin), db: Session = D
         raise HTTPException(status_code=422, detail="标准源文件只支持 DOCX")
     parsed = parse_standard_docx(version.document.file_path, parser_version=version.parser_version)
     version.segments.clear()
+    version.candidates.clear()
     for segment in parsed.segments:
-        db.add(StandardSegment(
+        db_segment = StandardSegment(
             version_id=version.id,
             section_title=segment.section_title,
             paragraph_index=segment.paragraph_index,
@@ -145,7 +146,28 @@ def parse_version(version_id: int, admin=Depends(require_admin), db: Session = D
             segment_type=segment.segment_type,
             parse_status="parsed",
             source_metadata=segment.source_metadata,
-        ))
+        )
+        db.add(db_segment)
+        db.flush()
+        for candidate in [item for item in parsed.rule_candidates if item.segment == segment]:
+            db.add(StandardParseCandidate(
+                version_id=version.id,
+                segment_id=db_segment.id,
+                source_type="deterministic",
+                parser_version=version.parser_version,
+                candidate_json={
+                    "indicator_name": candidate.indicator_name,
+                    "rule_type": candidate.rule_type,
+                    "target_state_type": candidate.target_state_type,
+                    "target_state_value": candidate.target_state_value,
+                    "machine_actionability": candidate.machine_actionability,
+                    "evidence_type": candidate.evidence_type,
+                    "applicability": candidate.applicability,
+                    "interpretation": candidate.interpretation,
+                    "numeric": candidate.numeric.__dict__ if candidate.numeric else None,
+                },
+                status="pending",
+            ))
     version.status = "draft"
     db.commit()
     return {"version_id": version.id, "segments": len(parsed.segments), "candidates": len(parsed.rule_candidates)}

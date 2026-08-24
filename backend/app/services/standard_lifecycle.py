@@ -12,7 +12,6 @@ from app.services.standard_validation import validate_version_rules
 import hashlib
 from pathlib import Path
 import json
-from types import SimpleNamespace
 
 
 class ImmutableVersionError(ValueError):
@@ -113,25 +112,32 @@ def publish_approved_version(db, admin_id: int, version_id: int):
     report = validate_version_rules(list(version.rules or []))
     if not report.can_publish:
         raise ValueError("标准版本存在阻止发布的校验错误")
-    previous = getattr(getattr(version, "standard", None), "current_version", None)
-    if previous is not None and previous.id != version.id:
-        previous.status = "retired"
-        previous.retired_at = datetime.now(timezone.utc)
-    version.status = "approved"
-    version.approved_by = admin_id
-    version.approved_at = datetime.now(timezone.utc)
-    version.effective_from = version.approved_at
-    projections = []
-    for rule in version.rules or []:
-        if validate_rule_actionability(rule) != "calculable":
-            continue
-        projection = _projection_from_rule(version, rule)
-        db.add(projection)
-        projections.append(projection)
-    if getattr(version, "standard", None) is not None:
-        version.standard.current_version = version
-        version.standard.current_version_id = version.id
-    db.commit()
+    try:
+        previous = getattr(getattr(version, "standard", None), "current_version", None)
+        if previous is not None and previous.id != version.id:
+            previous.status = "retired"
+            previous.retired_at = datetime.now(timezone.utc)
+            old_query = db.query(ReferenceRange).filter(ReferenceRange.standard_version_id == previous.id)
+            if hasattr(old_query, "update"):
+                old_query.update({"is_current_projection": False}, synchronize_session=False)
+        version.status = "approved"
+        version.approved_by = admin_id
+        version.approved_at = datetime.now(timezone.utc)
+        version.effective_from = version.approved_at
+        projections = []
+        for rule in version.rules or []:
+            if validate_rule_actionability(rule) != "calculable":
+                continue
+            projection = _projection_from_rule(version, rule)
+            db.add(projection)
+            projections.append(projection)
+        if getattr(version, "standard", None) is not None:
+            version.standard.current_version = version
+            version.standard.current_version_id = version.id
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(version)
     return SimpleNamespace(version=version, projections=projections)
 

@@ -14,3 +14,4 @@ export const retireVersion = (versionId: number): Promise<StandardVersion> => re
 export const listSegments = (versionId: number): Promise<StandardSegment[]> => request.get(`/v1/admin/reference-standard-versions/${versionId}/segments`)
 export const listRules = (versionId: number): Promise<StandardRule[]> => request.get(`/v1/admin/reference-standard-versions/${versionId}/rules`)
 export const validateVersion = (versionId: number): Promise<ValidationReport> => request.get(`/v1/admin/reference-standard-versions/${versionId}/validation`)
+export const patchRule = (ruleId: number, payload: Partial<StandardRule>, reason: string): Promise<StandardRule> => request.patch(`/v1/admin/reference-standard-rules/${ruleId}`, payload, { params: { reason } })
