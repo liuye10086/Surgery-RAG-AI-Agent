@@ -9,7 +9,7 @@ from typing import Any
 
 import joblib
 
-from app.services.prediction_engine import _BANDS
+from app.services.risk_bands import _BANDS
 from app.services.longitudinal_features import sort_visits
 
 

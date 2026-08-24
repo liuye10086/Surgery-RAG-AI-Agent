@@ -103,6 +103,8 @@ class ExtractFeaturesTests(unittest.TestCase):
 
 
 class ProgressionInferenceTests(unittest.TestCase):
+    def test_risk_bands_are_owned_by_longitudinal_module(self):
+        self.assertEqual(progression_engine._BANDS[0][0], 0.8)
     def tearDown(self):
         load_model.cache_clear()
 

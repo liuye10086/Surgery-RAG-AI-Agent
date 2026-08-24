@@ -118,6 +118,16 @@ class ProgressionEndpointTests(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertIn("尚无可用进展预测模型", response.json()["detail"])
 
+    def test_single_timepoint_prediction_route_is_removed(self):
+        from app.api.operator import router
+
+        post_paths = {
+            route.path
+            for route in router.routes
+            if route.methods and "POST" in route.methods
+        }
+        self.assertNotIn("/operator/reports", post_paths)
+
 
 if __name__ == "__main__":
     unittest.main()

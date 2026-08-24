@@ -68,30 +68,6 @@ export interface ReferenceRange {
   category: string | null
 }
 
-export interface PredictionResult {
-  score: number
-  band: string
-  probability_range: number[]
-  abnormal_count: number
-  sample_size: number
-  insufficient_sample: boolean
-}
-
-export interface IndicatorAnalysis {
-  name: string
-  value: number
-  unit: string
-  lower: number | null
-  upper: number | null
-  lower_inclusive: boolean
-  upper_inclusive: boolean
-  is_abnormal: boolean
-  deviation_pct: number
-  present_rate_in_cases: number
-  abnormal_rate_in_cases: number
-  risk_weight: number
-}
-
 export interface OperatorDocument {
   id: number
   title: string | null
@@ -218,7 +194,6 @@ export interface ReportStreamCallbacks {
 }
 
 export interface PredictionStreamCallbacks extends ReportStreamCallbacks {
-  onIndicators?: (analyses: IndicatorAnalysis[], prediction: PredictionResult) => void
   onPrediction?: (prediction: LongitudinalPrediction) => void
 }
 
@@ -275,8 +250,8 @@ export function listOperatorDocuments(): Promise<OperatorDocument[]> {
   return request.get('/v1/operator/documents')
 }
 
-export function listReports(skip = 0, limit = 20): Promise<ReportListOut> {
-  return request.get('/v1/operator/reports', { params: { skip, limit } })
+export function listReports(skip = 0, limit = 20, analysisType?: string): Promise<ReportListOut> {
+  return request.get('/v1/operator/reports', { params: { skip, limit, analysis_type: analysisType } })
 }
 
 export function getReport(reportId: number): Promise<ReportDetail> {
@@ -309,64 +284,6 @@ export async function downloadReport(reportId: number, filename?: string): Promi
   URL.revokeObjectURL(url)
 }
 
-/**
- * SSE 流式生成预测报告（POST，使用 fetch + ReadableStream）。
- * 事件：stage / indicators / delta / sources / done / error。
- * 返回 abort 函数用于取消。
- */
-export function generatePredictionStream(
-  request: { disease_id: number; indicators: IndicatorInput[]; patient_summary?: string },
-  callbacks: PredictionStreamCallbacks,
-): () => void {
-  const abortController = new AbortController()
-  const token = localStorage.getItem('token')
-
-  fetch('/api/v1/operator/reports', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: token ? `Bearer ${token}` : '',
-    },
-    body: JSON.stringify(request),
-    signal: abortController.signal,
-  })
-    .then(async (response) => {
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        callbacks.onError(data.detail || `请求失败 (${response.status})`)
-        return
-      }
-      const reader = response.body?.getReader()
-      if (!reader) {
-        callbacks.onError('无法读取响应流')
-        return
-      }
-      const decoder = new TextDecoder()
-      let buffer = ''
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const parts = buffer.split('\n\n')
-        buffer = parts.pop() || ''
-        for (const part of parts) {
-          if (!part.trim()) continue
-          parseOperatorSSE(part, callbacks)
-        }
-      }
-      if (buffer.trim()) {
-        parseOperatorSSE(buffer, callbacks)
-      }
-    })
-    .catch((err) => {
-      if (err.name !== 'AbortError') {
-        callbacks.onError(err.message || '网络错误')
-      }
-    })
-
-  return () => abortController.abort()
-}
-
 function parseOperatorSSE(raw: string, callbacks: PredictionStreamCallbacks) {
   const lines = raw.split('\n')
   let event = ''
@@ -384,9 +301,6 @@ function parseOperatorSSE(raw: string, callbacks: PredictionStreamCallbacks) {
     switch (event) {
       case 'stage':
         callbacks.onStage(payload.stage || '', payload.message || '')
-        break
-      case 'indicators':
-        callbacks.onIndicators?.(payload.indicators || [], payload.probability || {})
         break
       case 'prediction':
         callbacks.onPrediction?.(payload as LongitudinalPrediction)

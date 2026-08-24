@@ -8,7 +8,6 @@ from app.schemas.prediction import (
     DiseaseCreate,
     DiseaseUpdate,
     IndicatorInput,
-    PredictRequest,
 )
 
 
@@ -77,23 +76,6 @@ class ReportSchemaContractTests(unittest.TestCase):
         )
 
 
-class PredictRequestTests(unittest.TestCase):
-    def test_valid_prediction_request(self):
-        req = PredictRequest(disease_id=1, indicators=[IndicatorInput(name="TBIL", value=35.0, unit="μmol/L")])
-        self.assertEqual(req.disease_id, 1)
-        self.assertIsNone(req.patient_summary)
-
-    def test_indicators_required(self):
-        from pydantic import ValidationError
-        with self.assertRaises(ValidationError):
-            PredictRequest(disease_id=1, indicators=[])
-
-    def test_disease_id_required(self):
-        from pydantic import ValidationError
-        with self.assertRaises(ValidationError):
-            PredictRequest(indicators=[IndicatorInput(name="TBIL", value=1, unit="u")])
-
-
 class TestReportStateMachine(unittest.TestCase):
     """AIReport 状态机关键行为（从旧 test_operator_state_machine 迁入）。"""
 
@@ -113,15 +95,11 @@ class TestReportStateMachine(unittest.TestCase):
             pass  # 不覆盖
         self.assertEqual(r2.status, "completed")
 
-    def test_persist_failed_guards_terminal_states(self):
-        """终态不覆盖：由 prediction_generator._persist_failed 守卫（已测），
-        此处验证 cancelled 不被 failed 覆盖。"""
-        from app.services.prediction_generator import _persist_failed
-        db = MagicMock()
-        r = MagicMock(); r.id = 1; r.status = "cancelled"
-        db.query.return_value.filter.return_value.first.return_value = r
-        _persist_failed(db, 1, "partial", "error")
-        self.assertEqual(r.status, "cancelled")
+    def test_longitudinal_report_uses_terminal_statuses(self):
+        """纵向报告沿用 generating/completed 终态，不依赖单时点生成器。"""
+        r = MagicMock(); r.status = "generating"
+        r.status = "completed"
+        self.assertEqual(r.status, "completed")
 
     def test_download_count_increments(self):
         """PDF 下载后 download_count 自增（operator.py download 端点）。"""

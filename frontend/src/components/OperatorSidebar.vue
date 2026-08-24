@@ -3,7 +3,7 @@
     <div class="sidebar-inner">
       <!-- ====== 展开列 ====== -->
       <div class="expanded-col">
-        <!-- 顶部固定：品牌 + 折叠 + 新建分析 -->
+        <!-- 顶部固定：品牌 + 折叠 + 新建纵向病例 -->
         <div class="sidebar-top">
           <div class="top-row">
             <span class="brand-text">
@@ -16,17 +16,14 @@
             <el-button
               type="primary"
               :icon="Plus"
-              @click="$emit('new-analysis')"
+              @click="$emit('new-longitudinal-case')"
               :disabled="generating"
               style="width: 100%; border-radius: 10px"
             >
-              新建分析
+              新建纵向病例
             </el-button>
           </div>
           <div class="nav-row">
-            <div :class="['nav-item', { active: activeView === 'predict' }]" @click="$emit('navigate', 'predict')">
-              <el-icon :size="15"><TrendCharts /></el-icon><span>预测分析</span>
-            </div>
             <div :class="['nav-item', { active: activeView === 'progression' }]" @click="$emit('navigate', 'progression')">
               <el-icon :size="15"><DataLine /></el-icon><span>进展预测</span>
             </div>
@@ -121,7 +118,7 @@
       <div class="collapsed-col">
         <div class="cs-top">
           <el-button class="toggle-btn" :icon="collapsed ? Expand : Fold" text @click="$emit('toggle')" :title="collapsed ? '展开' : '折叠'" />
-          <el-button type="primary" :icon="Plus" circle @click="$emit('new-analysis')" :disabled="generating" title="新建分析" />
+          <el-button type="primary" :icon="Plus" circle @click="$emit('new-longitudinal-case')" :disabled="generating" title="新建纵向病例" />
         </div>
         <div class="cs-mid" />
         <div class="cs-bot">
@@ -152,7 +149,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Plus, SwitchButton, Fold, Expand, MoreFilled, Delete, DataAnalysis, TrendCharts, DataLine, FolderOpened } from '@element-plus/icons-vue'
+import { Plus, SwitchButton, Fold, Expand, MoreFilled, Delete, DataAnalysis, DataLine, FolderOpened } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import type { ReportListItem } from '@/api/operator'
 
@@ -162,15 +159,15 @@ defineProps<{
   collapsed: boolean
   loading: boolean
   generating: boolean
-  activeView: 'predict' | 'progression' | 'cases'
+  activeView: 'progression' | 'cases'
 }>()
 
 defineEmits<{
   toggle: []
   select: [id: number]
-  'new-analysis': []
+  'new-longitudinal-case': []
   delete: [id: number]
-  navigate: [view: 'predict' | 'progression' | 'cases']
+  navigate: [view: 'progression' | 'cases']
 }>()
 
 const authStore = useAuthStore()

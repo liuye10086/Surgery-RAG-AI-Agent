@@ -1,20 +1,7 @@
-"""AI 操作者报告/预测 API 路由。
+"""AI 操作者纵向预测报告、病例和标准数据 API 路由。"""
 
-提供报告端点与预测分析端点：
-  POST   /operator/reports          — 创建并流式生成预测报告（SSE，PredictRequest）
-  GET    /operator/reports          — 列出当前用户报告（分页，可按 analysis_type 过滤）
-  GET    /operator/reports/{id}     — 获取单个报告详情
-  DELETE /operator/reports/{id}     — 删除报告
-  GET    /operator/reports/{id}/download — 下载 PDF
-  POST/GET /operator/diseases、/operator/cases、/operator/reference-ranges（...）、/operator/documents — 预测分析数据层
-"""
-
-import asyncio
-import json
 import logging
-import time as _time
 import urllib.parse
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -22,10 +9,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_ai_operator
-from app.core.config import settings
 from app.db.models import (
     AIReport,
-    AuditLog,
     CaseRecord,
     Chunk,
     Department,
@@ -46,7 +31,6 @@ from app.schemas.prediction import (
     DiseaseCreate,
     DiseaseOut,
     DiseaseUpdate,
-    PredictRequest,
     ReferenceRangeOut,
     ReferenceRangeSyncIn,
 )
@@ -66,7 +50,6 @@ from app.schemas.longitudinal_case import (
 )
 from app.schemas.longitudinal_report import LongitudinalReportRequest
 from app.services.pdf_generator import generate_pdf
-from app.services.prediction_generator import generate_prediction
 from app.services.progression_engine import predict_progression
 from app.services.reference_standard import sync_reference_ranges
 from app.services.longitudinal_case_service import (
@@ -341,101 +324,6 @@ async def create_longitudinal_report(
 
 
 # ---------------------------------------------------------------------------
-# POST /operator/reports — 创建并流式生成报告
-# ---------------------------------------------------------------------------
-
-
-@router.post("/reports")
-async def create_and_generate_report(
-    request: PredictRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_ai_operator),
-):
-    """创建预测报告记录并流式生成，SSE 响应。
-
-    客户端应使用 fetch + ReadableStream（非 EventSource）读取，
-    因为此接口为 POST 且需 JSON body。
-    可通过 AbortController.abort() 取消请求以触发 cancelled 标记。
-    """
-    start_time = _time.monotonic()
-
-    # 1. 前置校验：疾病存在
-    if not db.query(Disease).filter(Disease.id == request.disease_id).first():
-        raise HTTPException(status_code=422, detail="疾病不存在")
-
-    # 2. 创建 ai_reports 记录（status=generating, analysis_type='predictive'）
-    report = AIReport(
-        user_id=current_user.id,
-        query=request.patient_summary or "",
-        disease_id=request.disease_id,
-        indicators=[i.model_dump() for i in request.indicators],
-        analysis_type="predictive",
-        status="generating",
-    )
-    db.add(report)
-    db.commit()
-    db.refresh(report)
-    report_id = report.id
-    current_user_id = current_user.id  # 捕获 int，避免 ORM 对象在生成器内 expire 后 detached
-
-    async def _stream_and_cleanup():
-        """流式生成 + finally 块处理取消/异常的状态标记。"""
-        try:
-            async for sse_event in generate_prediction(
-                db=db,
-                user_id=current_user_id,
-                report_id=report_id,
-                disease_id=request.disease_id,
-                indicators=[i.model_dump() for i in request.indicators],
-                patient_summary=request.patient_summary,
-                patient_sex=request.patient_sex,
-            ):
-                yield sse_event
-        except (asyncio.CancelledError, GeneratorExit):
-            # 客户端断连 → 标记 cancelled（仅 generating → cancelled）
-            logger.warning(
-                "Prediction cancelled by client for report_id=%s", report_id
-            )
-            try:
-                r = db.query(AIReport).filter(AIReport.id == report_id).first()
-                if r and r.status == "generating":
-                    r.status = "cancelled"
-                    r.error_message = "用户取消生成"
-                    db.commit()
-            except Exception:
-                logger.exception("Failed to mark report %s as cancelled", report_id)
-            # 客户端已断开，不需要继续 yield
-            return
-        finally:
-            # 审计日志（非关键路径）
-            elapsed_ms = int((_time.monotonic() - start_time) * 1000)
-            try:
-                audit = AuditLog(
-                    user_id=current_user_id,
-                    session_id=None,
-                    request_body={
-                        "feature": "operator_prediction",
-                        "action": "generate",
-                        "report_id": report_id,
-                        "disease_id": request.disease_id,
-                    },
-                    model=settings.DEEPSEEK_MODEL,
-                    latency_ms=elapsed_ms,
-                    retrieved_chunk_ids=[],
-                    safety_flags={},
-                )
-                db.add(audit)
-                db.commit()
-            except Exception:
-                logger.exception("Audit log failed for report %s", report_id)
-
-    return StreamingResponse(
-        _stream_and_cleanup(),
-        media_type="text/event-stream",
-    )
-
-
-# ---------------------------------------------------------------------------
 # GET /operator/reports — 列出报告
 # ---------------------------------------------------------------------------
 
@@ -575,7 +463,7 @@ def download_report_pdf(
 
 
 # ---------------------------------------------------------------------------
-# 疾病 CRUD（AI 操作者预测分析）
+# 疾病 CRUD（纵向预测数据层）
 # ---------------------------------------------------------------------------
 
 
@@ -668,7 +556,7 @@ def delete_disease(
 
 
 # ---------------------------------------------------------------------------
-# 病例 CRUD（AI 操作者预测分析）
+# 病例 CRUD（纵向预测数据层）
 # ---------------------------------------------------------------------------
 
 
@@ -757,7 +645,7 @@ def delete_case(
 
 
 # ---------------------------------------------------------------------------
-# 参考标准（AI 操作者预测分析）
+# 参考标准（纵向预测数据层）
 # ---------------------------------------------------------------------------
 
 

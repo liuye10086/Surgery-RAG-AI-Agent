@@ -7,21 +7,17 @@ const caseManagePath = new URL('../src/components/CaseManageView.vue', import.me
 const apiPath = new URL('../src/api/operator.ts', import.meta.url)
 const storePath = new URL('../src/stores/operator.ts', import.meta.url)
 
-test('single-timepoint forms share IndicatorRowsEditor', async () => {
-  const [operatorView, caseManage] = await Promise.all([
+test('single-timepoint prediction UI and endpoint are removed', async () => {
+  const [operatorView, api] = await Promise.all([
     readFile(operatorViewPath, 'utf8'),
-    readFile(caseManagePath, 'utf8'),
+    readFile(apiPath, 'utf8'),
   ])
 
-  assert.match(operatorView, /import IndicatorRowsEditor from/)
-  assert.match(operatorView, /<IndicatorRowsEditor\s+v-model="indicatorRows"/)
-  assert.doesNotMatch(operatorView, /function addIndicator\(/)
-  assert.doesNotMatch(operatorView, /function removeIndicator\(/)
-
-  assert.match(caseManage, /import IndicatorRowsEditor from/)
-  assert.match(caseManage, /<IndicatorRowsEditor\s+v-model="caseIndicatorRows"/)
-  assert.doesNotMatch(caseManage, /function addCaseIndicator\(/)
-  assert.doesNotMatch(caseManage, /function removeCaseIndicator\(/)
+  assert.doesNotMatch(operatorView, /AI 操作者预测分析/)
+  assert.doesNotMatch(operatorView, /开始分析/)
+  assert.doesNotMatch(operatorView, /v-model="indicatorRows"/)
+  assert.doesNotMatch(api, /function generatePredictionStream\(/)
+  assert.doesNotMatch(api, /request\.post\(['"`]\/v1\/operator\/reports['"`]/)
 })
 
 test('progression API and store expose the model caveat', async () => {

@@ -4,7 +4,6 @@ import {
   listReports,
   getReport,
   deleteReport,
-  generatePredictionStream,
   listLongitudinalCases,
   createLongitudinalCase,
   updateLongitudinalCase,
@@ -19,8 +18,6 @@ import {
   type Disease,
   type CaseRecord,
   type IndicatorInput,
-  type PredictionResult,
-  type IndicatorAnalysis,
   type ProgressionPredictionRequest,
   type ProgressionPredictionOut,
   type LongitudinalCase,
@@ -33,14 +30,11 @@ export const useOperatorStore = defineStore('operator', () => {
   const currentReport = ref<ReportDetail | null>(null)
   const loading = ref(false)
   const generating = ref(false)
-  const generatedContent = ref('')
   const currentStage = ref('')
   const stageMessage = ref('')
   const currentSources = ref<any[]>([])
   const diseases = ref<Disease[]>([])
   const cases = ref<CaseRecord[]>([])
-  const predictionResult = ref<PredictionResult | null>(null)
-  const indicatorAnalyses = ref<IndicatorAnalysis[]>([])
   const progressionResult = ref<ProgressionPredictionOut | null>(null)
   const progressionLoading = ref(false)
   const longitudinalCases = ref<LongitudinalCase[]>([])
@@ -53,7 +47,7 @@ export const useOperatorStore = defineStore('operator', () => {
   async function fetchReports(skip = 0, limit = 20) {
     loading.value = true
     try {
-      const res = await listReports(skip, limit)
+      const res = await listReports(skip, limit, 'longitudinal_predictive')
       reports.value = res.reports
       total.value = res.total
     } finally {
@@ -76,7 +70,7 @@ export const useOperatorStore = defineStore('operator', () => {
     total.value = Math.max(0, total.value - 1)
     if (currentReport.value?.id === reportId) {
       currentReport.value = null
-      generatedContent.value = ''
+      longitudinalReportContent.value = ''
     }
   }
 
@@ -87,36 +81,6 @@ export const useOperatorStore = defineStore('operator', () => {
   async function fetchCases(diseaseId?: number) {
     const res = await listCases(diseaseId)
     cases.value = res.items
-  }
-
-  function generatePrediction(request: { disease_id: number; indicators: IndicatorInput[]; patient_summary?: string }) {
-    // 重置状态
-    generating.value = true
-    generatedContent.value = ''
-    currentStage.value = ''
-    stageMessage.value = ''
-    currentSources.value = []
-    predictionResult.value = null
-    indicatorAnalyses.value = []
-
-    cancelFn = generatePredictionStream(request, {
-      onStage: (s, m) => { currentStage.value = s; stageMessage.value = m },
-      onIndicators: (analyses, prediction) => { indicatorAnalyses.value = analyses; predictionResult.value = prediction },
-      onDelta: (c) => { generatedContent.value += c },
-      onSources: (s) => { currentSources.value = s },
-      onDone: (id) => {
-        generating.value = false
-        currentStage.value = 'done'
-        generatedContent.value = ''
-        fetchReports()
-        fetchReport(id)
-      },
-      onError: () => {
-        generating.value = false
-        currentStage.value = 'error'
-        fetchReports()
-      },
-    })
   }
 
   function cancelGeneration() {
@@ -184,7 +148,7 @@ export const useOperatorStore = defineStore('operator', () => {
 
   function clearCurrent() {
     currentReport.value = null
-    generatedContent.value = ''
+    longitudinalReportContent.value = ''
     currentStage.value = ''
     stageMessage.value = ''
     currentSources.value = []
@@ -196,14 +160,11 @@ export const useOperatorStore = defineStore('operator', () => {
     currentReport,
     loading,
     generating,
-    generatedContent,
     currentStage,
     stageMessage,
     currentSources,
     diseases,
     cases,
-    predictionResult,
-    indicatorAnalyses,
     progressionResult,
     progressionLoading,
     longitudinalCases,
@@ -216,7 +177,6 @@ export const useOperatorStore = defineStore('operator', () => {
     removeReport,
     fetchDiseases,
     fetchCases,
-    generatePrediction,
     cancelGeneration,
     clearCurrent,
     predictLongitudinalProgression,

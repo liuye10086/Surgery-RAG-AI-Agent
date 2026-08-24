@@ -1,4 +1,4 @@
-"""AI 操作者预测分析相关 Pydantic Schema。"""
+"""AI 操作者数据层 Pydantic Schema（疾病、病例和参考范围）。"""
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -34,15 +34,6 @@ class IndicatorInput(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     value: float
     unit: str = Field(..., min_length=1, max_length=50)
-
-
-class PredictRequest(BaseModel):
-    disease_id: int
-    indicators: list[IndicatorInput] = Field(..., min_length=1, max_length=30)
-    patient_summary: Optional[str] = Field(None, max_length=2000)
-    # 部分标准按性别分列参考范围（如脂肪肝 ALT）。不传时按通用范围匹配，
-    # 对性别分列的指标会在缺少范围时报错，提示补充性别。
-    patient_sex: Optional[str] = Field(None, pattern="^(male|female)$")
 
 
 class CaseRecordIn(BaseModel):
