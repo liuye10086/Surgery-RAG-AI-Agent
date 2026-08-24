@@ -8,6 +8,8 @@
 - `npm --prefix frontend run build`: passed; existing Rollup chunk-size warnings remain.
 - `node frontend/tests/operator-legacy-cleanup.test.mjs`: passed.
 - `git diff --check`: passed.
+- Real local PostgreSQL validation database: Alembic `upgrade head`, `downgrade 0007`, and `upgrade head` all passed; SQLAlchemy CRUD verified visit reindexing and duplicate-date rejection. Temporary database was removed afterward.
+- Vite dev server served `http://127.0.0.1:5173/` with HTTP 200 and the expected Vue app root.
 
 ## Scope
 
