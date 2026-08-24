@@ -1,6 +1,7 @@
 from sqlalchemy import (
     Boolean,
     Column,
+    CheckConstraint,
     Date,
     DateTime,
     Float,
@@ -151,6 +152,9 @@ class Disease(Base):
     operator_cases = relationship(
         "OperatorCase", back_populates="disease", cascade="all, delete-orphan"
     )
+    reference_standards = relationship(
+        "ReferenceStandard", back_populates="disease", cascade="all, delete-orphan"
+    )
 
 
 class CaseRecord(Base):
@@ -239,7 +243,19 @@ class OperatorCaseVisit(Base):
 
 class ReferenceRange(Base):
     __tablename__ = "reference_ranges"
-    __table_args__ = (Index("ix_reference_ranges_indicator", "indicator_name"),)
+    __table_args__ = (
+        Index("ix_reference_ranges_indicator", "indicator_name"),
+        Index(
+            "uq_reference_ranges_current_projection",
+            "standard_id",
+            "indicator_name",
+            "sex",
+            "category",
+            "applicability_hash",
+            unique=True,
+            postgresql_where=text("is_current_projection IS TRUE"),
+        ),
+    )
 
     id = Column(Integer, primary_key=True)
     indicator_name = Column(String(100), nullable=False)
@@ -259,6 +275,207 @@ class ReferenceRange(Base):
     # 若用 SET NULL，文档删除后范围变孤儿仍参与预测，会基于已删除标准给出误导结果；
     # 级联后预测遇缺范围会明确报"缺少参考范围"提示操作者重新同步，行为更安全。
     document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True)
+    standard_id = Column(Integer, ForeignKey("reference_standards.id", ondelete="SET NULL"), nullable=True)
+    standard_version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="SET NULL"), nullable=True)
+    standard_rule_id = Column(Integer, ForeignKey("standard_rules.id", ondelete="SET NULL"), nullable=True)
+    applicability_hash = Column(String(64))
+    is_current_projection = Column(Boolean, nullable=False, default=False, server_default="false")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReferenceStandard(Base):
+    __tablename__ = "reference_standards"
+    __table_args__ = (UniqueConstraint("disease_id", name="uq_reference_standards_disease"),)
+
+    id = Column(Integer, primary_key=True)
+    disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="CASCADE"), nullable=False, unique=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text)
+    status = Column(String(50), nullable=False, default="active", server_default="active")
+    current_version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    disease = relationship("Disease", back_populates="reference_standards")
+    current_version = relationship("ReferenceStandardVersion", foreign_keys=[current_version_id], post_update=True)
+    versions = relationship(
+        "ReferenceStandardVersion",
+        back_populates="standard",
+        foreign_keys="ReferenceStandardVersion.standard_id",
+        cascade="all, delete-orphan",
+    )
+
+
+class ReferenceStandardVersion(Base):
+    __tablename__ = "reference_standard_versions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('draft', 'review', 'approved', 'retired')",
+            name="ck_reference_standard_versions_status",
+        ),
+        Index("ix_reference_standard_versions_standard_status", "standard_id", "status"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    standard_id = Column(Integer, ForeignKey("reference_standards.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="RESTRICT"), nullable=False)
+    version_label = Column(String(100), nullable=False)
+    content_hash = Column(String(64), nullable=False)
+    parser_version = Column(String(100), nullable=False)
+    status = Column(String(50), nullable=False, default="draft", server_default="draft")
+    supersedes_version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="SET NULL"), nullable=True)
+    effective_from = Column(DateTime(timezone=True))
+    retired_at = Column(DateTime(timezone=True))
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    standard = relationship("ReferenceStandard", back_populates="versions", foreign_keys=[standard_id])
+    document = relationship("Document")
+    segments = relationship("StandardSegment", back_populates="version", cascade="all, delete-orphan")
+    rules = relationship("StandardRule", back_populates="version", cascade="all, delete-orphan")
+    candidates = relationship("StandardParseCandidate", back_populates="version", cascade="all, delete-orphan")
+
+
+class StandardIndicator(Base):
+    __tablename__ = "standard_indicators"
+    __table_args__ = (UniqueConstraint("canonical_key", name="uq_standard_indicators_canonical_key"),)
+
+    id = Column(Integer, primary_key=True)
+    canonical_key = Column(String(200), nullable=False)
+    name_en = Column(String(200), nullable=False)
+    name_cn = Column(String(200))
+    aliases = Column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
+    domain = Column(String(100))
+    specimen_or_modality = Column(String(100))
+    data_type = Column(String(50), nullable=False, default="qualitative", server_default="qualitative")
+    scale_or_method = Column(String(200))
+    default_unit = Column(String(50))
+    clinical_dimension = Column(String(100))
+    allows_numeric_comparison = Column(Boolean, nullable=False, default=False, server_default="false")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    rules = relationship("StandardRule", back_populates="indicator")
+
+
+class StandardSegment(Base):
+    __tablename__ = "standard_segments"
+    __table_args__ = (Index("ix_standard_segments_version_location", "version_id", "table_index", "row_index"),)
+
+    id = Column(Integer, primary_key=True)
+    version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="CASCADE"), nullable=False)
+    section_title = Column(String(300))
+    paragraph_index = Column(Integer)
+    table_index = Column(Integer)
+    row_index = Column(Integer)
+    column_index = Column(Integer)
+    raw_text = Column(Text, nullable=False)
+    segment_type = Column(String(50), nullable=False)
+    parse_status = Column(String(50), nullable=False, default="pending", server_default="pending")
+    review_status = Column(String(50), nullable=False, default="pending", server_default="pending")
+    source_metadata = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    version = relationship("ReferenceStandardVersion", back_populates="segments")
+    candidates = relationship("StandardParseCandidate", back_populates="segment", cascade="all, delete-orphan")
+    rules = relationship("StandardRule", back_populates="source_segment")
+
+
+class StandardParseCandidate(Base):
+    __tablename__ = "standard_parse_candidates"
+    __table_args__ = (Index("ix_standard_parse_candidates_segment", "segment_id"),)
+
+    id = Column(Integer, primary_key=True)
+    version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="CASCADE"), nullable=False)
+    segment_id = Column(Integer, ForeignKey("standard_segments.id", ondelete="CASCADE"), nullable=False)
+    source_type = Column(String(50), nullable=False)
+    parser_version = Column(String(100), nullable=False)
+    model_name = Column(String(100))
+    prompt_version = Column(String(100))
+    raw_output = Column(Text)
+    candidate_json = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    confidence = Column(Float)
+    status = Column(String(50), nullable=False, default="pending", server_default="pending")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    version = relationship("ReferenceStandardVersion", back_populates="candidates")
+    segment = relationship("StandardSegment", back_populates="candidates")
+
+
+class StandardRule(Base):
+    __tablename__ = "standard_rules"
+    __table_args__ = (
+        Index("ix_standard_rules_version_indicator", "version_id", "indicator_id"),
+        Index("ix_standard_rules_conflict_group", "version_id", "conflict_group"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="CASCADE"), nullable=False)
+    indicator_id = Column(Integer, ForeignKey("standard_indicators.id", ondelete="SET NULL"), nullable=True)
+    source_segment_id = Column(Integer, ForeignKey("standard_segments.id", ondelete="SET NULL"), nullable=True)
+    rule_type = Column(String(50), nullable=False)
+    comparator = Column(String(5))
+    lower = Column(Float)
+    upper = Column(Float)
+    lower_inclusive = Column(Boolean, nullable=False, default=True, server_default="true")
+    upper_inclusive = Column(Boolean, nullable=False, default=True, server_default="true")
+    unit = Column(String(50))
+    sex = Column(String(10))
+    category = Column(String(100))
+    applicability = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    target_state_type = Column(String(50), nullable=False)
+    target_state_value = Column(String(200))
+    clinical_dimension = Column(String(100))
+    evidence_type = Column(String(100))
+    machine_actionability = Column(String(50), nullable=False, default="evidence-only", server_default="evidence-only")
+    interpretation = Column(Text)
+    priority = Column(Integer, nullable=False, default=0, server_default="0")
+    conflict_group = Column(String(100))
+    framework = Column(String(100))
+    biomarker_axis = Column(String(10))
+    biomarker_state = Column(String(100))
+    stage = Column(String(100))
+    clinical_function = Column(Text)
+    conditions = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    version = relationship("ReferenceStandardVersion", back_populates="rules")
+    indicator = relationship("StandardIndicator", back_populates="rules")
+    source_segment = relationship("StandardSegment", back_populates="rules")
+    condition_nodes = relationship("StandardRuleCondition", back_populates="rule", cascade="all, delete-orphan")
+
+
+class StandardRuleCondition(Base):
+    __tablename__ = "standard_rule_conditions"
+    __table_args__ = (Index("ix_standard_rule_conditions_rule_parent", "rule_id", "parent_id"),)
+
+    id = Column(Integer, primary_key=True)
+    rule_id = Column(Integer, ForeignKey("standard_rules.id", ondelete="CASCADE"), nullable=False)
+    parent_id = Column(Integer, ForeignKey("standard_rule_conditions.id", ondelete="CASCADE"), nullable=True)
+    node_type = Column(String(50), nullable=False)
+    position = Column(Integer, nullable=False, default=0, server_default="0")
+    payload = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+
+    rule = relationship("StandardRule", back_populates="condition_nodes")
+    children = relationship("StandardRuleCondition", cascade="all, delete-orphan")
+
+
+class StandardChangeLog(Base):
+    __tablename__ = "standard_change_logs"
+    __table_args__ = (Index("ix_standard_change_logs_entity", "entity_type", "entity_id"),)
+
+    id = Column(Integer, primary_key=True)
+    version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="CASCADE"), nullable=False)
+    entity_type = Column(String(50), nullable=False)
+    entity_id = Column(Integer, nullable=False)
+    action = Column(String(50), nullable=False)
+    before_json = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    after_json = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    reason = Column(Text, nullable=False)
+    actor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
