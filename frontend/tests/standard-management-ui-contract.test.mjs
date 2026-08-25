@@ -18,6 +18,41 @@ test('review UI exposes lifecycle actions and evidence-only state', async () => 
   assert.match(source, /evidence-only/)
 })
 
+test('standard management uses the dedicated two-stage document workflow', async () => {
+  const source = await readFile(new URL('../src/components/StandardManagementView.vue', import.meta.url), 'utf8')
+
+  assert.match(source, /uploadStandardDocument/)
+  assert.match(source, /listStandardDocuments/)
+  assert.doesNotMatch(source, /from '@\/api\/admin'/)
+  assert.doesNotMatch(source, /uploadDocument/)
+  assert.match(source, /新建标准集合/)
+  assert.match(source, /选择疾病/)
+  assert.doesNotMatch(source, /标准名称.*el-input/)
+  assert.match(source, /新建版本/)
+  assert.match(source, /standard_document_id/)
+  assert.match(source, /可用|已关联/)
+  assert.match(source, /deleteStandardDocument/)
+  assert.match(source, /deleteVersion/)
+  assert.match(source, /ElMessageBox/)
+  assert.match(source, /parseVersion/)
+  assert.match(source, /v-if="!document\.is_locked"/)
+  assert.match(source, /\['draft', 'review'\]\.includes\(selectedVersion\.status\)/)
+  assert.match(source, /width="min\(520px, calc\(100vw - 32px\)\)"/)
+
+  const submitVersion = source.match(/async function submitVersion\(\)[\s\S]*?\n}\n\nasync function loadVersionData/)?.[0] || ''
+  assert.match(submitVersion, /createVersion/)
+  assert.doesNotMatch(submitVersion, /parseVersion/)
+})
+
+test('standard management rejects stale async workspace responses and preserves accessible targets', async () => {
+  const source = await readFile(new URL('../src/components/StandardManagementView.vue', import.meta.url), 'utf8')
+
+  assert.match(source, /selectedStandard\.value\?\.id !== standardId/)
+  assert.match(source, /selectedVersionId\.value !== id/)
+  assert.match(source, /\.standard-management :deep\(\.el-dialog__footer \.el-button\)/)
+  assert.match(source, /min-height: 44px/)
+})
+
 test('admin standards API exposes dedicated standard document contracts', async () => {
   const api = await readFile(
     new URL('../src/api/adminStandards.ts', import.meta.url),
