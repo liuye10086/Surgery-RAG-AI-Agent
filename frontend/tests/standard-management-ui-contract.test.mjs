@@ -18,15 +18,28 @@ test('review UI exposes lifecycle actions and evidence-only state', async () => 
   assert.match(source, /evidence-only/)
 })
 
-test('standard management exposes a DOCX upload entry for standard documents', async () => {
-  const source = await readFile(new URL('../src/components/StandardManagementView.vue', import.meta.url), 'utf8')
-  assert.match(source, /上传标准 DOCX/)
-  assert.match(source, /uploadDocument/)
-  assert.match(source, /accept="\.docx"/)
-  assert.match(source, /accessScope.*operator|operator.*accessScope/)
-  assert.match(source, /:data="standardDocuments"/)
-  assert.match(source, /document\.title \|\| document\.filename/)
-  assert.match(source, /document\.status/)
+test('admin standards API exposes dedicated standard document contracts', async () => {
+  const api = await readFile(
+    new URL('../src/api/adminStandards.ts', import.meta.url),
+    'utf8',
+  )
+
+  assert.match(api, /uploadStandardDocument/)
+  assert.match(api, /listStandardDocuments/)
+  assert.match(api, /deleteStandardDocument/)
+  assert.match(api, /deleteVersion/)
+  assert.match(api, /disease_id: number/)
+  assert.match(api, /standard_document_id/)
+  assert.doesNotMatch(api, /(^|[^A-Za-z0-9_])document_id: number/)
+  assert.match(api, /available_only/)
+  assert.match(
+    api,
+    /createStandard\s*=\s*\(payload:\s*\{\s*disease_id:\s*number\s*\}\)/,
+  )
+  assert.match(
+    api,
+    /createVersion[\s\S]*?standard_document_id:\s*number/,
+  )
 })
 
 test('operator cannot mutate standards', async () => {
