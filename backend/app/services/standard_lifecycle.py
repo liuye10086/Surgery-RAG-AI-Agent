@@ -36,17 +36,29 @@ def _rule_snapshot(rule: Any) -> dict[str, Any]:
 
 
 def update_draft_rule(db, admin_id: int, rule_id: int, patch: RulePatch, reason: str):
-    rule = db.query(StandardRule).get(rule_id)
-    if rule is None:
+    rule_probe = db.query(StandardRule).get(rule_id)
+    if rule_probe is None:
         raise ValueError("规则不存在")
     version = (
         db.query(ReferenceStandardVersion)
-        .filter(ReferenceStandardVersion.id == rule.version_id)
+        .filter(ReferenceStandardVersion.id == rule_probe.version_id)
+        .populate_existing()
         .with_for_update()
         .first()
     )
     if getattr(version, "status", None) not in {"draft", "review"}:
         raise ImmutableVersionError("已批准或已退役版本不可编辑")
+    rule = (
+        db.query(StandardRule)
+        .filter(
+            StandardRule.id == rule_id,
+            StandardRule.version_id == rule_probe.version_id,
+        )
+        .populate_existing()
+        .first()
+    )
+    if rule is None:
+        raise ValueError("规则不存在")
     before = _rule_snapshot(rule)
     for field, value in patch.model_dump(exclude_unset=True).items():
         setattr(rule, field, value)
@@ -131,6 +143,7 @@ def publish_approved_version(db, admin_id: int, version_id: int):
     standard = (
         db.query(ReferenceStandard)
         .filter(ReferenceStandard.id == version_probe.standard_id)
+        .populate_existing()
         .with_for_update()
         .first()
     )

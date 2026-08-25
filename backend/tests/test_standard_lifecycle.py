@@ -29,6 +29,9 @@ def test_approved_rule_cannot_be_edited():
         def filter(self, *_conditions):
             return self
 
+        def populate_existing(self):
+            return self
+
         def with_for_update(self):
             return self
 
@@ -64,6 +67,9 @@ def test_rule_edit_writes_before_after_and_reason():
             return self.value
 
         def filter(self, *_conditions):
+            return self
+
+        def populate_existing(self):
             return self
 
         def with_for_update(self):
@@ -119,6 +125,10 @@ def test_rule_edit_locks_owning_version_before_commit():
             events.append(f"{self.model_name}:filter")
             return self
 
+        def populate_existing(self):
+            events.append(f"{self.model_name}:populate_existing")
+            return self
+
         def with_for_update(self):
             events.append(f"{self.model_name}:with_for_update")
             return self
@@ -147,8 +157,12 @@ def test_rule_edit_locks_owning_version_before_commit():
     assert events == [
         "StandardRule:get",
         "ReferenceStandardVersion:filter",
+        "ReferenceStandardVersion:populate_existing",
         "ReferenceStandardVersion:with_for_update",
         "ReferenceStandardVersion:first",
+        "StandardRule:filter",
+        "StandardRule:populate_existing",
+        "StandardRule:first",
         "commit",
     ]
 
@@ -169,6 +183,9 @@ def test_rule_edit_checks_status_from_locked_owning_version():
             return self.value
 
         def filter(self, *_conditions):
+            return self
+
+        def populate_existing(self):
             return self
 
         def with_for_update(self):
@@ -193,6 +210,88 @@ def test_rule_edit_checks_status_from_locked_owning_version():
 
     with pytest.raises(ImmutableVersionError, match="已批准或已退役版本不可编辑"):
         update_draft_rule(Session(), 10, 1, RulePatch(upper=2.0), "校正边界")
+
+
+def test_rule_edit_uses_fresh_rule_after_locking_version():
+    stale_probe = SimpleNamespace(
+        id=1,
+        version_id=2,
+        upper=1.0,
+        indicator_id=None,
+        rule_type="threshold",
+        machine_actionability="calculable",
+    )
+    fresh_rule = SimpleNamespace(
+        id=1,
+        version_id=2,
+        upper=5.0,
+        indicator_id=None,
+        rule_type="threshold",
+        machine_actionability="calculable",
+    )
+    locked_version = SimpleNamespace(id=2, status="review")
+    values = {
+        "StandardRule": [stale_probe, fresh_rule],
+        "ReferenceStandardVersion": [locked_version],
+    }
+    events = []
+    logs = []
+
+    class Query:
+        def __init__(self, value, model_name):
+            self.value = value
+            self.model_name = model_name
+
+        def get(self, _id):
+            events.append(f"{self.model_name}:get")
+            return self.value
+
+        def filter(self, *_conditions):
+            events.append(f"{self.model_name}:filter")
+            return self
+
+        def populate_existing(self):
+            events.append(f"{self.model_name}:populate_existing")
+            return self
+
+        def with_for_update(self):
+            events.append(f"{self.model_name}:with_for_update")
+            return self
+
+        def first(self):
+            events.append(f"{self.model_name}:first")
+            return self.value
+
+    class Session:
+        def query(self, model):
+            model_name = model.__name__
+            return Query(values[model_name].pop(0), model_name)
+
+        def add(self, value):
+            logs.append(value)
+
+        def commit(self):
+            events.append("commit")
+
+        def refresh(self, _value):
+            return None
+
+    result = update_draft_rule(
+        Session(),
+        10,
+        1,
+        RulePatch(upper=7.0),
+        "修正并发期间更新的边界",
+    )
+
+    assert result is fresh_rule
+    assert stale_probe.upper == 1.0
+    assert fresh_rule.upper == 7.0
+    assert logs[0].before_json["upper"] == 5.0
+    assert logs[0].after_json["upper"] == 7.0
+    assert events.index("ReferenceStandardVersion:with_for_update") < events.index(
+        "StandardRule:filter"
+    )
 
 
 def test_publish_retires_previous_version_and_projects_only_calculable_rules():
@@ -283,7 +382,12 @@ def test_publish_retires_previous_version_and_projects_only_calculable_rules():
     assert len(result.projections) == 1
     assert result.projections[0].standard_rule_id == 7
     assert session.queries[0].events == ["filter", "first"]
-    assert session.queries[1].events[:3] == ["filter", "with_for_update", "first"]
+    assert session.queries[1].events == [
+        "filter",
+        "populate_existing",
+        "with_for_update",
+        "first",
+    ]
     assert session.queries[2].events == [
         "filter",
         "populate_existing",
@@ -367,6 +471,9 @@ def test_publish_locks_standard_before_rereading_target_version(monkeypatch):
         "query:ReferenceStandard",
         "query:ReferenceStandardVersion",
     ]
+    assert events.index("ReferenceStandard:populate_existing") < events.index(
+        "ReferenceStandard:with_for_update"
+    )
     assert events.index("ReferenceStandard:with_for_update") < events.index(
         "ReferenceStandardVersion:with_for_update"
     )
