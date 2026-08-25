@@ -1,6 +1,7 @@
 import importlib.util
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, call, patch
 
 from app.db.models import AuditLog, Chunk, Message, Session
 
@@ -65,6 +66,62 @@ class AlembicContractTests(unittest.TestCase):
         )
         self.assertEqual(migration.revision, "0010")
         self.assertEqual(migration.down_revision, "0009")
+
+    def test_dedicated_standard_documents_upgrade_rejects_populated_versions_before_ddl(self):
+        migration = _load_revision(
+            "0010_dedicated_standard_documents.py", "migration_0010_upgrade_guard"
+        )
+        bind = MagicMock()
+        count = MagicMock()
+        count.scalar_one.return_value = 1
+        bind.execute.return_value = count
+        migration_op = MagicMock()
+        migration_op.get_bind.return_value = bind
+
+        with patch.object(migration, "op", migration_op):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "0010 requires reference_standard_versions to be empty",
+            ):
+                migration.upgrade()
+
+        self.assertEqual(migration_op.method_calls, [call.get_bind()])
+        self.assertEqual(bind.execute.call_count, 1)
+        self.assertIn("reference_standard_versions", str(bind.execute.call_args.args[0]))
+
+    def test_dedicated_standard_documents_downgrade_rejects_populated_tables_before_ddl(self):
+        scenarios = (
+            ("reference_standard_versions", (1,), 1),
+            ("standard_documents", (0, 1), 2),
+        )
+
+        for populated_table, row_counts, expected_bind_calls in scenarios:
+            with self.subTest(populated_table=populated_table):
+                migration = _load_revision(
+                    "0010_dedicated_standard_documents.py",
+                    f"migration_0010_downgrade_guard_{populated_table}",
+                )
+                bind = MagicMock()
+                bind.execute.side_effect = [
+                    MagicMock(scalar_one=MagicMock(return_value=count))
+                    for count in row_counts
+                ]
+                migration_op = MagicMock()
+                migration_op.get_bind.return_value = bind
+
+                with patch.object(migration, "op", migration_op):
+                    with self.assertRaisesRegex(
+                        RuntimeError,
+                        "0010 downgrade requires reference_standard_versions and standard_documents to be empty",
+                    ):
+                        migration.downgrade()
+
+                self.assertEqual(
+                    migration_op.method_calls,
+                    [call.get_bind()] * expected_bind_calls,
+                )
+                self.assertEqual(bind.execute.call_count, expected_bind_calls)
+                self.assertIn(populated_table, str(bind.execute.call_args.args[0]))
 
     def test_env_excludes_langchain_internal_tables(self):
         env_source = (BACKEND_ROOT / "alembic/env.py").read_text(encoding="utf-8")
