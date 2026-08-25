@@ -6,7 +6,13 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
 
-from app.db.models import ReferenceRange, ReferenceStandardVersion, StandardChangeLog, StandardRule
+from app.db.models import (
+    ReferenceRange,
+    ReferenceStandard,
+    ReferenceStandardVersion,
+    StandardChangeLog,
+    StandardRule,
+)
 from app.schemas.standard import RulePatch
 from app.services.standard_validation import validate_version_rules
 import hashlib
@@ -30,11 +36,29 @@ def _rule_snapshot(rule: Any) -> dict[str, Any]:
 
 
 def update_draft_rule(db, admin_id: int, rule_id: int, patch: RulePatch, reason: str):
-    rule = db.query(StandardRule).get(rule_id)
+    rule_probe = db.query(StandardRule).get(rule_id)
+    if rule_probe is None:
+        raise ValueError("规则不存在")
+    version = (
+        db.query(ReferenceStandardVersion)
+        .filter(ReferenceStandardVersion.id == rule_probe.version_id)
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+    if getattr(version, "status", None) not in {"draft", "review"}:
+        raise ImmutableVersionError("已批准或已退役版本不可编辑")
+    rule = (
+        db.query(StandardRule)
+        .filter(
+            StandardRule.id == rule_id,
+            StandardRule.version_id == rule_probe.version_id,
+        )
+        .populate_existing()
+        .first()
+    )
     if rule is None:
         raise ValueError("规则不存在")
-    if getattr(getattr(rule, "version", None), "status", None) not in {"draft", "review"}:
-        raise ImmutableVersionError("已批准或已退役版本不可编辑")
     before = _rule_snapshot(rule)
     for field, value in patch.model_dump(exclude_unset=True).items():
         setattr(rule, field, value)
@@ -57,7 +81,12 @@ def update_draft_rule(db, admin_id: int, rule_id: int, patch: RulePatch, reason:
 
 
 def transition_version(db, admin_id: int, version_id: int, target_status: str):
-    version = db.query(ReferenceStandardVersion).get(version_id)
+    version = (
+        db.query(ReferenceStandardVersion)
+        .filter(ReferenceStandardVersion.id == version_id)
+        .with_for_update()
+        .first()
+    )
     if version is None:
         raise ValueError("标准版本不存在")
     allowed = {"draft": {"review"}, "review": {"approved"}, "approved": {"retired"}, "retired": set()}
@@ -104,8 +133,28 @@ def _projection_from_rule(version: Any, rule: Any) -> Any:
 
 
 def publish_approved_version(db, admin_id: int, version_id: int):
-    version = db.query(ReferenceStandardVersion).filter(ReferenceStandardVersion.id == version_id).first()
-    if version is None:
+    version_probe = (
+        db.query(ReferenceStandardVersion)
+        .filter(ReferenceStandardVersion.id == version_id)
+        .first()
+    )
+    if version_probe is None:
+        raise ValueError("标准版本不存在")
+    standard = (
+        db.query(ReferenceStandard)
+        .filter(ReferenceStandard.id == version_probe.standard_id)
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+    version = (
+        db.query(ReferenceStandardVersion)
+        .filter(ReferenceStandardVersion.id == version_id)
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+    if standard is None or version is None:
         raise ValueError("标准版本不存在")
     if version.status != "review":
         raise ValueError("只有 review 版本可以批准")
@@ -113,7 +162,7 @@ def publish_approved_version(db, admin_id: int, version_id: int):
     if not report.can_publish:
         raise ValueError("标准版本存在阻止发布的校验错误")
     try:
-        previous = getattr(getattr(version, "standard", None), "current_version", None)
+        previous = getattr(standard, "current_version", None)
         if previous is not None and previous.id != version.id:
             previous.status = "retired"
             previous.retired_at = datetime.now(timezone.utc)
@@ -131,9 +180,8 @@ def publish_approved_version(db, admin_id: int, version_id: int):
             projection = _projection_from_rule(version, rule)
             db.add(projection)
             projections.append(projection)
-        if getattr(version, "standard", None) is not None:
-            version.standard.current_version = version
-            version.standard.current_version_id = version.id
+        standard.current_version = version
+        standard.current_version_id = version.id
         db.commit()
     except Exception:
         db.rollback()
@@ -198,41 +246,46 @@ def materialize_candidate_rule(db, candidate: Any, admin_id: int, reason: str):
     return rule
 
 
-def seed_standard_draft(db, disease_id: int, document_id: int, version_label: str, *, admin_id: int | None = None, parser_version: str = "v1"):
+def seed_standard_draft(db, disease_id: int, standard_document_id: int, version_label: str, *, admin_id: int | None = None, parser_version: str = "v1"):
     """Create or reuse an unapproved draft for a DOCX document."""
-    from app.db.models import Document, ReferenceStandard, ReferenceStandardVersion
+    from app.db.models import Disease, ReferenceStandard, ReferenceStandardVersion, StandardDocument
 
-    disease = db.query(__import__("app.db.models", fromlist=["Disease"]).Disease).filter(__import__("app.db.models", fromlist=["Disease"]).Disease.id == disease_id).first()
+    disease = (
+        db.query(Disease)
+        .filter(Disease.id == disease_id)
+        .with_for_update()
+        .first()
+    )
     if disease is None:
         raise ValueError("疾病不存在")
-    document = db.query(Document).filter(Document.id == document_id).first()
+    document = (
+        db.query(StandardDocument)
+        .filter(StandardDocument.id == standard_document_id)
+        .with_for_update()
+        .first()
+    )
     if document is None:
-        raise ValueError("文档不存在")
+        raise ValueError("标准文档不存在")
     if (document.file_type or "").lower().lstrip(".") != "docx":
         raise ValueError("标准源文件只支持 DOCX")
     path = Path(document.file_path or "")
     if not path.is_file():
         raise ValueError("标准文件不存在")
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    if document.version is not None:
+        associated_standard = getattr(document.version, "standard", None)
+        if getattr(associated_standard, "disease_id", None) == disease_id:
+            return document.version
+        raise ValueError("标准文档已关联其他版本")
     standard = db.query(ReferenceStandard).filter(ReferenceStandard.disease_id == disease_id).first()
     if standard is None:
         standard = ReferenceStandard(disease_id=disease_id, name=f"{disease.name}标准")
         db.add(standard)
-        db.commit()
-        db.refresh(standard)
-    existing = next((item for item in (getattr(standard, "versions", None) or []) if getattr(item, "content_hash", None) == digest), None)
-    if existing is None:
-        existing = db.query(ReferenceStandardVersion).filter(
-            ReferenceStandardVersion.standard_id == standard.id,
-            ReferenceStandardVersion.content_hash == digest,
-        ).first()
-    if existing:
-        return existing
+        db.flush()
     version = ReferenceStandardVersion(
         standard_id=standard.id,
-        document_id=document.id,
+        standard_document_id=document.id,
         version_label=version_label,
-        content_hash=digest,
+        content_hash=document.content_hash,
         parser_version=parser_version,
         created_by=admin_id,
         status="draft",

@@ -1,14 +1,25 @@
 """Operator predictive API 测试。"""
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 from app.schemas.prediction import (
     CaseRecordIn,
     DiseaseCreate,
     DiseaseUpdate,
     IndicatorInput,
 )
+
+
+def _operator_query(*, first=None, count=0):
+    query = MagicMock()
+    query.filter.return_value = query
+    query.with_for_update.return_value = query
+    query.first.return_value = first
+    query.count.return_value = count
+    return query
 
 
 class DiseaseSchemaTests(unittest.TestCase):
@@ -58,6 +69,168 @@ class OperatorRouterEndpointTests(unittest.TestCase):
              "/operator/reference-ranges", "/operator/documents"}.issubset(paths)
         )
         self.assertNotIn("/operator/reference-ranges/sync", paths)
+
+    def test_delete_disease_rejects_current_standard_before_delete(self):
+        from app.api.operator import delete_disease
+        from app.db.models import CaseRecord, Disease, ReferenceStandard
+
+        disease = MagicMock(spec=Disease)
+        disease.id = 7
+        standard = MagicMock(spec=ReferenceStandard)
+        standard.current_version_id = 11
+        standard.current_version.status = "approved"
+
+        class Query:
+            def __init__(self, *, first=None, count=0):
+                self.first_value = first
+                self.count_value = count
+
+            def filter(self, *_conditions):
+                return self
+
+            def with_for_update(self):
+                return self
+
+            def first(self):
+                return self.first_value
+
+            def count(self):
+                return self.count_value
+
+        class Db:
+            def __init__(self):
+                self.queries = {
+                    Disease: Query(first=disease),
+                    CaseRecord: Query(count=0),
+                    ReferenceStandard: Query(first=standard),
+                }
+                self.deleted = []
+                self.commits = 0
+
+            def query(self, model):
+                return self.queries[model]
+
+            def delete(self, value):
+                self.deleted.append(value)
+
+            def commit(self):
+                self.commits += 1
+
+        db = Db()
+
+        with self.assertRaises(HTTPException) as context:
+            delete_disease(7, db=db, current_user=MagicMock())
+
+        self.assertEqual(context.exception.status_code, 409)
+        self.assertEqual(db.deleted, [])
+        self.assertEqual(db.commits, 0)
+
+    def test_delete_disease_keeps_case_record_protection_first(self):
+        from app.api.operator import delete_disease
+
+        disease_query = MagicMock()
+        disease_query.filter.return_value = disease_query
+        disease_query.first.return_value = MagicMock(id=7)
+        case_query = MagicMock()
+        case_query.filter.return_value = case_query
+        case_query.count.return_value = 1
+        db = MagicMock()
+        db.query.side_effect = [disease_query, case_query]
+
+        with self.assertRaises(HTTPException) as context:
+            delete_disease(7, db=db, current_user=MagicMock())
+
+        self.assertEqual(context.exception.status_code, 409)
+        self.assertEqual(db.query.call_count, 2)
+        db.delete.assert_not_called()
+        db.commit.assert_not_called()
+
+    def test_delete_disease_locks_parent_before_dependent_checks(self):
+        from app.api.operator import delete_disease
+        from app.db.models import CaseRecord, Disease, ReferenceStandard
+
+        events = []
+
+        class Query:
+            def __init__(self, model, *, first=None, count=0):
+                self.model = model
+                self.first_value = first
+                self.count_value = count
+
+            def filter(self, *_conditions):
+                events.append(f"{self.model.__name__}:filter")
+                return self
+
+            def with_for_update(self):
+                events.append(f"{self.model.__name__}:with_for_update")
+                return self
+
+            def first(self):
+                events.append(f"{self.model.__name__}:first")
+                return self.first_value
+
+            def count(self):
+                events.append(f"{self.model.__name__}:count")
+                return self.count_value
+
+        disease = SimpleNamespace(id=7)
+        queries = {
+            Disease: Query(Disease, first=disease),
+            CaseRecord: Query(CaseRecord),
+            ReferenceStandard: Query(ReferenceStandard),
+        }
+        db = MagicMock()
+        db.query.side_effect = lambda model: queries[model]
+
+        delete_disease(7, db=db, current_user=MagicMock())
+
+        self.assertEqual(
+            events[:3],
+            ["Disease:filter", "Disease:with_for_update", "Disease:first"],
+        )
+
+    def test_delete_disease_fk_race_maps_named_constraint_to_conflict(self):
+        from app.api.operator import delete_disease
+        from app.db.models import CaseRecord, Disease, ReferenceStandard
+
+        disease = SimpleNamespace(id=7)
+        db = MagicMock()
+        db.query.side_effect = [
+            _operator_query(first=disease),
+            _operator_query(count=0),
+            _operator_query(first=None),
+        ]
+        orig = SimpleNamespace(
+            diag=SimpleNamespace(constraint_name="reference_standards_disease_id_fkey")
+        )
+        db.commit.side_effect = IntegrityError("delete", {}, orig)
+
+        with self.assertRaises(HTTPException) as context:
+            delete_disease(7, db=db, current_user=MagicMock())
+
+        self.assertEqual(context.exception.status_code, 409)
+        self.assertEqual(context.exception.detail, "该疾病已关联参考标准，不能删除")
+        db.rollback.assert_called_once_with()
+
+    def test_delete_disease_unrelated_integrity_error_is_not_mapped_to_conflict(self):
+        from app.api.operator import delete_disease
+
+        disease = SimpleNamespace(id=7)
+        db = MagicMock()
+        db.query.side_effect = [
+            _operator_query(first=disease),
+            _operator_query(count=0),
+            _operator_query(first=None),
+        ]
+        orig = SimpleNamespace(diag=SimpleNamespace(constraint_name="other_constraint"))
+        error = IntegrityError("delete", {}, orig)
+        db.commit.side_effect = error
+
+        with self.assertRaises(IntegrityError) as context:
+            delete_disease(7, db=db, current_user=MagicMock())
+
+        self.assertIs(context.exception, error)
+        db.rollback.assert_called_once_with()
 
 
 class ReportSchemaContractTests(unittest.TestCase):

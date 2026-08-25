@@ -1,6 +1,7 @@
 import importlib.util
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, call, patch
 
 from app.db.models import AuditLog, Chunk, Message, Session
 
@@ -58,6 +59,215 @@ class AlembicContractTests(unittest.TestCase):
         )
         self.assertEqual(standards.revision, "0009")
         self.assertEqual(standards.down_revision, "0008")
+
+    def test_dedicated_standard_documents_revision_follows_0009(self):
+        migration = _load_revision(
+            "0010_dedicated_standard_documents.py", "migration_0010"
+        )
+        self.assertEqual(migration.revision, "0010")
+        self.assertEqual(migration.down_revision, "0009")
+
+    def test_dedicated_standard_documents_upgrade_rejects_populated_versions_before_ddl(self):
+        migration = _load_revision(
+            "0010_dedicated_standard_documents.py", "migration_0010_upgrade_guard"
+        )
+        bind = MagicMock()
+        lock_result = MagicMock()
+        count_result = MagicMock()
+        count_result.scalar_one.return_value = 1
+        bind.execute.side_effect = [lock_result, count_result]
+        migration_op = MagicMock()
+        migration_op.get_bind.return_value = bind
+
+        with patch.object(migration, "op", migration_op):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "0010 requires reference_standard_versions to be empty",
+            ):
+                migration.upgrade()
+
+        self.assertEqual(migration_op.method_calls, [call.get_bind()])
+        self.assertEqual(bind.execute.call_count, 2)
+        executed = [str(item.args[0]) for item in bind.execute.call_args_list]
+        self.assertIn(
+            "LOCK TABLE reference_standard_versions IN SHARE MODE",
+            executed[0],
+        )
+        self.assertIn("SELECT count(*) FROM reference_standard_versions", executed[1])
+
+    def test_dedicated_standard_documents_downgrade_rejects_populated_tables_before_ddl(self):
+        scenarios = (
+            ("reference_standard_versions", (1,), 2),
+            ("standard_documents", (0, 1), 3),
+        )
+
+        for populated_table, row_counts, expected_execute_calls in scenarios:
+            with self.subTest(populated_table=populated_table):
+                migration = _load_revision(
+                    "0010_dedicated_standard_documents.py",
+                    f"migration_0010_downgrade_guard_{populated_table}",
+                )
+                bind = MagicMock()
+                bind.execute.side_effect = [MagicMock()] + [
+                    MagicMock(scalar_one=MagicMock(return_value=count))
+                    for count in row_counts
+                ]
+                migration_op = MagicMock()
+                migration_op.get_bind.return_value = bind
+
+                with patch.object(migration, "op", migration_op):
+                    with self.assertRaisesRegex(
+                        RuntimeError,
+                        "0010 downgrade requires reference_standard_versions and standard_documents to be empty",
+                    ):
+                        migration.downgrade()
+
+                self.assertEqual(
+                    migration_op.method_calls,
+                    [call.get_bind()],
+                )
+                self.assertEqual(bind.execute.call_count, expected_execute_calls)
+                executed = [str(item.args[0]) for item in bind.execute.call_args_list]
+                self.assertIn(
+                    "LOCK TABLE reference_standard_versions, standard_documents IN SHARE MODE",
+                    executed[0],
+                )
+                self.assertIn(
+                    "SELECT count(*) FROM reference_standard_versions",
+                    executed[1],
+                )
+                if populated_table == "standard_documents":
+                    self.assertIn(
+                        "SELECT count(*) FROM standard_documents",
+                        executed[2],
+                    )
+
+    def test_dedicated_standard_documents_upgrade_locks_and_counts_before_ddl(self):
+        migration = _load_revision(
+            "0010_dedicated_standard_documents.py",
+            "migration_0010_upgrade_lock_order",
+        )
+        events = []
+        bind = MagicMock()
+
+        def execute(statement):
+            events.append(("sql", str(statement)))
+            result = MagicMock()
+            result.scalar_one.return_value = 0
+            return result
+
+        bind.execute.side_effect = execute
+        migration_op = MagicMock()
+        migration_op.get_bind.return_value = bind
+        migration_op.create_table.side_effect = lambda *args, **kwargs: events.append(
+            ("ddl", "create_table")
+        )
+
+        with patch.object(migration, "op", migration_op):
+            migration.upgrade()
+
+        self.assertEqual(events[0][0], "sql")
+        self.assertIn("LOCK TABLE reference_standard_versions IN SHARE MODE", events[0][1])
+        self.assertIn("SELECT count(*) FROM reference_standard_versions", events[1][1])
+        self.assertEqual(events[2], ("ddl", "create_table"))
+
+    def test_dedicated_standard_documents_downgrade_locks_and_counts_before_ddl(self):
+        migration = _load_revision(
+            "0010_dedicated_standard_documents.py",
+            "migration_0010_downgrade_lock_order",
+        )
+        events = []
+        bind = MagicMock()
+
+        def execute(statement):
+            events.append(("sql", str(statement)))
+            result = MagicMock()
+            result.scalar_one.return_value = 0
+            return result
+
+        bind.execute.side_effect = execute
+        migration_op = MagicMock()
+        migration_op.get_bind.return_value = bind
+        migration_op.drop_constraint.side_effect = lambda *args, **kwargs: events.append(
+            ("ddl", "drop_constraint")
+        )
+
+        with patch.object(migration, "op", migration_op):
+            migration.downgrade()
+
+        self.assertIn(
+            "LOCK TABLE reference_standard_versions, standard_documents IN SHARE MODE",
+            events[0][1],
+        )
+        self.assertIn("SELECT count(*) FROM reference_standard_versions", events[1][1])
+        self.assertIn("SELECT count(*) FROM standard_documents", events[2][1])
+        self.assertEqual(events[3], ("ddl", "drop_constraint"))
+
+    def test_dedicated_standard_documents_upgrade_changes_disease_fk_to_restrict(self):
+        migration = _load_revision(
+            "0010_dedicated_standard_documents.py",
+            "migration_0010_upgrade_disease_restrict",
+        )
+        bind = MagicMock()
+        bind.execute.return_value.scalar_one.return_value = 0
+        migration_op = MagicMock()
+        migration_op.get_bind.return_value = bind
+
+        with patch.object(migration, "op", migration_op):
+            migration.upgrade()
+
+        drop_call = call.drop_constraint(
+            "reference_standards_disease_id_fkey",
+            "reference_standards",
+            type_="foreignkey",
+        )
+        create_call = call.create_foreign_key(
+            "reference_standards_disease_id_fkey",
+            "reference_standards",
+            "diseases",
+            ["disease_id"],
+            ["id"],
+            ondelete="RESTRICT",
+        )
+        self.assertIn(drop_call, migration_op.method_calls)
+        self.assertIn(create_call, migration_op.method_calls)
+        self.assertLess(
+            migration_op.method_calls.index(drop_call),
+            migration_op.method_calls.index(create_call),
+        )
+
+    def test_dedicated_standard_documents_downgrade_restores_disease_fk_cascade(self):
+        migration = _load_revision(
+            "0010_dedicated_standard_documents.py",
+            "migration_0010_downgrade_disease_cascade",
+        )
+        bind = MagicMock()
+        bind.execute.return_value.scalar_one.return_value = 0
+        migration_op = MagicMock()
+        migration_op.get_bind.return_value = bind
+
+        with patch.object(migration, "op", migration_op):
+            migration.downgrade()
+
+        drop_call = call.drop_constraint(
+            "reference_standards_disease_id_fkey",
+            "reference_standards",
+            type_="foreignkey",
+        )
+        create_call = call.create_foreign_key(
+            "reference_standards_disease_id_fkey",
+            "reference_standards",
+            "diseases",
+            ["disease_id"],
+            ["id"],
+            ondelete="CASCADE",
+        )
+        self.assertIn(drop_call, migration_op.method_calls)
+        self.assertIn(create_call, migration_op.method_calls)
+        self.assertLess(
+            migration_op.method_calls.index(drop_call),
+            migration_op.method_calls.index(create_call),
+        )
 
     def test_env_excludes_langchain_internal_tables(self):
         env_source = (BACKEND_ROOT / "alembic/env.py").read_text(encoding="utf-8")

@@ -116,20 +116,10 @@ class ValidationReport(BaseModel):
 
 class StandardCreate(BaseModel):
     disease_id: int
-    name: str = Field(..., min_length=1, max_length=200)
-    description: str | None = None
-
-    @field_validator("name")
-    @classmethod
-    def strip_name(cls, value: str) -> str:
-        value = value.strip()
-        if not value:
-            raise ValueError("标准名称不能为空")
-        return value
 
 
 class StandardVersionCreate(BaseModel):
-    document_id: int
+    standard_document_id: int
     version_label: str = Field(..., min_length=1, max_length=100)
     parser_version: str = Field("v1", min_length=1, max_length=100)
 
@@ -159,7 +149,7 @@ class StandardVersionOut(BaseModel):
 
     id: int
     standard_id: int
-    document_id: int
+    standard_document_id: int
     version_label: str
     content_hash: str
     parser_version: str

@@ -74,6 +74,36 @@ class Document(Base):
     chunks = relationship("Chunk", back_populates="document", cascade="all, delete-orphan", order_by="Chunk.chunk_index")
 
 
+class StandardDocument(Base):
+    __tablename__ = "standard_documents"
+    __table_args__ = (
+        UniqueConstraint("content_hash", name="uq_standard_documents_content_hash"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(500))
+    filename = Column(String(500), nullable=False)
+    file_path = Column(String(1000), nullable=False)
+    file_type = Column(String(50), nullable=False)
+    file_size = Column(Integer, nullable=False)
+    content_hash = Column(String(64), nullable=False)
+    uploaded_by = Column(
+        Integer,
+        ForeignKey(
+            "users.id",
+            name="fk_standard_documents_uploaded_by",
+            ondelete="SET NULL",
+        ),
+    )
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    version = relationship(
+        "ReferenceStandardVersion",
+        back_populates="standard_document",
+        uselist=False,
+    )
+
+
 class Chunk(Base):
     __tablename__ = "chunks"
     __table_args__ = (
@@ -153,7 +183,7 @@ class Disease(Base):
         "OperatorCase", back_populates="disease", cascade="all, delete-orphan"
     )
     reference_standards = relationship(
-        "ReferenceStandard", back_populates="disease", cascade="all, delete-orphan"
+        "ReferenceStandard", back_populates="disease", passive_deletes=True
     )
 
 
@@ -288,7 +318,16 @@ class ReferenceStandard(Base):
     __table_args__ = (UniqueConstraint("disease_id", name="uq_reference_standards_disease"),)
 
     id = Column(Integer, primary_key=True)
-    disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="CASCADE"), nullable=False, unique=True)
+    disease_id = Column(
+        Integer,
+        ForeignKey(
+            "diseases.id",
+            name="reference_standards_disease_id_fkey",
+            ondelete="RESTRICT",
+        ),
+        nullable=False,
+        unique=True,
+    )
     name = Column(String(200), nullable=False)
     description = Column(Text)
     status = Column(String(50), nullable=False, default="active", server_default="active")
@@ -313,12 +352,24 @@ class ReferenceStandardVersion(Base):
             "status IN ('draft', 'review', 'approved', 'retired')",
             name="ck_reference_standard_versions_status",
         ),
+        UniqueConstraint(
+            "standard_document_id",
+            name="uq_reference_standard_versions_standard_document",
+        ),
         Index("ix_reference_standard_versions_standard_status", "standard_id", "status"),
     )
 
     id = Column(Integer, primary_key=True)
     standard_id = Column(Integer, ForeignKey("reference_standards.id", ondelete="CASCADE"), nullable=False)
-    document_id = Column(Integer, ForeignKey("documents.id", ondelete="RESTRICT"), nullable=False)
+    standard_document_id = Column(
+        Integer,
+        ForeignKey(
+            "standard_documents.id",
+            name="fk_reference_standard_versions_standard_document",
+            ondelete="RESTRICT",
+        ),
+        nullable=False,
+    )
     version_label = Column(String(100), nullable=False)
     content_hash = Column(String(64), nullable=False)
     parser_version = Column(String(100), nullable=False)
@@ -333,7 +384,7 @@ class ReferenceStandardVersion(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     standard = relationship("ReferenceStandard", back_populates="versions", foreign_keys=[standard_id])
-    document = relationship("Document")
+    standard_document = relationship("StandardDocument", back_populates="version")
     segments = relationship("StandardSegment", back_populates="version", cascade="all, delete-orphan")
     rules = relationship("StandardRule", back_populates="version", cascade="all, delete-orphan")
     candidates = relationship("StandardParseCandidate", back_populates="version", cascade="all, delete-orphan")

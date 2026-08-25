@@ -11,7 +11,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from app.api import admin, admin_standards, auth, chat, files, operator, user
+from app.api import admin, admin_standard_documents, admin_standards, auth, chat, files, operator, user
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.db.models import Chunk, Department, Document, User
@@ -34,6 +34,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1/admin")
+app.include_router(admin_standard_documents.router, prefix="/api/v1")
 app.include_router(admin_standards.router, prefix="/api/v1")
 app.include_router(user.router, prefix="/api/v1")
 app.include_router(files.router, prefix="/api/v1")
