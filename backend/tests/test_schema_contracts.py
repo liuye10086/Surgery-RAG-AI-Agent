@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from pydantic import ValidationError
 
@@ -25,6 +26,18 @@ class SchemaContractTests(unittest.TestCase):
     def test_document_out_has_access_scope(self):
         from app.schemas.document import DocumentOut
         self.assertIn("access_scope", DocumentOut.model_fields)
+
+    def test_clean_install_schema_declares_dedicated_standard_documents(self):
+        schema = (Path(__file__).resolve().parents[2] / "database/schema.sql").read_text(
+            encoding="utf-8"
+        )
+        for literal in (
+            "standard_documents",
+            "content_hash",
+            "standard_document_id",
+            "uq_reference_standard_versions_standard_document",
+        ):
+            self.assertIn(literal, schema)
 
 
 if __name__ == "__main__":

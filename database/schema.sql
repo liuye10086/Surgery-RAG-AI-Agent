@@ -208,6 +208,199 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS ix_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS ix_audit_logs_session_id ON audit_logs(session_id);
 
+-- 12. 版本化标准规则层
+CREATE TABLE IF NOT EXISTS reference_standards (
+    id SERIAL PRIMARY KEY,
+    disease_id INTEGER NOT NULL REFERENCES diseases(id) ON DELETE CASCADE,
+    name VARCHAR(200) NOT NULL,
+    description TEXT,
+    status VARCHAR(50) NOT NULL DEFAULT 'active',
+    current_version_id INTEGER,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT uq_reference_standards_disease UNIQUE (disease_id)
+);
+
+CREATE TABLE IF NOT EXISTS standard_documents (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(500),
+    filename VARCHAR(500) NOT NULL,
+    file_path VARCHAR(1000) NOT NULL,
+    file_type VARCHAR(50) NOT NULL,
+    file_size INTEGER NOT NULL,
+    content_hash VARCHAR(64) NOT NULL,
+    uploaded_by INTEGER,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_standard_documents_content_hash UNIQUE (content_hash),
+    CONSTRAINT fk_standard_documents_uploaded_by
+        FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS reference_standard_versions (
+    id SERIAL PRIMARY KEY,
+    standard_id INTEGER NOT NULL REFERENCES reference_standards(id) ON DELETE CASCADE,
+    standard_document_id INTEGER NOT NULL,
+    version_label VARCHAR(100) NOT NULL,
+    content_hash VARCHAR(64) NOT NULL,
+    parser_version VARCHAR(100) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'draft',
+    supersedes_version_id INTEGER REFERENCES reference_standard_versions(id) ON DELETE SET NULL,
+    effective_from TIMESTAMP WITH TIME ZONE,
+    retired_at TIMESTAMP WITH TIME ZONE,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    approved_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT ck_reference_standard_versions_status
+        CHECK (status IN ('draft', 'review', 'approved', 'retired')),
+    CONSTRAINT uq_reference_standard_versions_standard_document
+        UNIQUE (standard_document_id),
+    CONSTRAINT fk_reference_standard_versions_standard_document
+        FOREIGN KEY (standard_document_id) REFERENCES standard_documents(id) ON DELETE RESTRICT
+);
+
+ALTER TABLE reference_standards
+    ADD CONSTRAINT fk_reference_standards_current_version
+    FOREIGN KEY (current_version_id)
+    REFERENCES reference_standard_versions(id)
+    ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS ix_reference_standard_versions_standard_status
+ON reference_standard_versions(standard_id, status);
+
+CREATE TABLE IF NOT EXISTS standard_indicators (
+    id SERIAL PRIMARY KEY,
+    canonical_key VARCHAR(200) NOT NULL,
+    name_en VARCHAR(200) NOT NULL,
+    name_cn VARCHAR(200),
+    aliases JSONB NOT NULL DEFAULT '[]'::jsonb,
+    domain VARCHAR(100),
+    specimen_or_modality VARCHAR(100),
+    data_type VARCHAR(50) NOT NULL DEFAULT 'qualitative',
+    scale_or_method VARCHAR(200),
+    default_unit VARCHAR(50),
+    clinical_dimension VARCHAR(100),
+    allows_numeric_comparison BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT uq_standard_indicators_canonical_key UNIQUE (canonical_key)
+);
+
+CREATE TABLE IF NOT EXISTS standard_segments (
+    id SERIAL PRIMARY KEY,
+    version_id INTEGER NOT NULL REFERENCES reference_standard_versions(id) ON DELETE CASCADE,
+    section_title VARCHAR(300),
+    paragraph_index INTEGER,
+    table_index INTEGER,
+    row_index INTEGER,
+    column_index INTEGER,
+    raw_text TEXT NOT NULL,
+    segment_type VARCHAR(50) NOT NULL,
+    parse_status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    review_status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    source_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS ix_standard_segments_version_location
+ON standard_segments(version_id, table_index, row_index);
+
+CREATE TABLE IF NOT EXISTS standard_parse_candidates (
+    id SERIAL PRIMARY KEY,
+    version_id INTEGER NOT NULL REFERENCES reference_standard_versions(id) ON DELETE CASCADE,
+    segment_id INTEGER NOT NULL REFERENCES standard_segments(id) ON DELETE CASCADE,
+    source_type VARCHAR(50) NOT NULL,
+    parser_version VARCHAR(100) NOT NULL,
+    model_name VARCHAR(100),
+    prompt_version VARCHAR(100),
+    raw_output TEXT,
+    candidate_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    confidence DOUBLE PRECISION,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS ix_standard_parse_candidates_segment
+ON standard_parse_candidates(segment_id);
+
+CREATE TABLE IF NOT EXISTS standard_rules (
+    id SERIAL PRIMARY KEY,
+    version_id INTEGER NOT NULL REFERENCES reference_standard_versions(id) ON DELETE CASCADE,
+    indicator_id INTEGER REFERENCES standard_indicators(id) ON DELETE SET NULL,
+    source_segment_id INTEGER REFERENCES standard_segments(id) ON DELETE SET NULL,
+    rule_type VARCHAR(50) NOT NULL,
+    comparator VARCHAR(5),
+    lower DOUBLE PRECISION,
+    upper DOUBLE PRECISION,
+    lower_inclusive BOOLEAN NOT NULL DEFAULT TRUE,
+    upper_inclusive BOOLEAN NOT NULL DEFAULT TRUE,
+    unit VARCHAR(50),
+    sex VARCHAR(10),
+    category VARCHAR(100),
+    applicability JSONB NOT NULL DEFAULT '{}'::jsonb,
+    target_state_type VARCHAR(50) NOT NULL,
+    target_state_value VARCHAR(200),
+    clinical_dimension VARCHAR(100),
+    evidence_type VARCHAR(100),
+    machine_actionability VARCHAR(50) NOT NULL DEFAULT 'evidence-only',
+    interpretation TEXT,
+    priority INTEGER NOT NULL DEFAULT 0,
+    conflict_group VARCHAR(100),
+    framework VARCHAR(100),
+    biomarker_axis VARCHAR(10),
+    biomarker_state VARCHAR(100),
+    stage VARCHAR(100),
+    clinical_function TEXT,
+    conditions JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS ix_standard_rules_version_indicator
+ON standard_rules(version_id, indicator_id);
+
+CREATE INDEX IF NOT EXISTS ix_standard_rules_conflict_group
+ON standard_rules(version_id, conflict_group);
+
+CREATE TABLE IF NOT EXISTS standard_rule_conditions (
+    id SERIAL PRIMARY KEY,
+    rule_id INTEGER NOT NULL REFERENCES standard_rules(id) ON DELETE CASCADE,
+    parent_id INTEGER REFERENCES standard_rule_conditions(id) ON DELETE CASCADE,
+    node_type VARCHAR(50) NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS ix_standard_rule_conditions_rule_parent
+ON standard_rule_conditions(rule_id, parent_id);
+
+CREATE TABLE IF NOT EXISTS standard_change_logs (
+    id SERIAL PRIMARY KEY,
+    version_id INTEGER NOT NULL REFERENCES reference_standard_versions(id) ON DELETE CASCADE,
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id INTEGER NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    before_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    after_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    reason TEXT NOT NULL,
+    actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS ix_standard_change_logs_entity
+ON standard_change_logs(entity_type, entity_id);
+
+ALTER TABLE reference_ranges
+    ADD COLUMN IF NOT EXISTS standard_id INTEGER REFERENCES reference_standards(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS standard_version_id INTEGER REFERENCES reference_standard_versions(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS standard_rule_id INTEGER REFERENCES standard_rules(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS applicability_hash VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS is_current_projection BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_reference_ranges_current_projection
+ON reference_ranges(standard_id, indicator_name, sex, category, applicability_hash)
+WHERE is_current_projection IS TRUE;
+
 -- 12. 全文检索索引
 --    langchain-postgres 自动管理 langchain_pg_collection 和 langchain_pg_embedding 表。
 --    启动时由 ensure_vectorstore_tables() 在 langchain_pg_embedding.document 列上

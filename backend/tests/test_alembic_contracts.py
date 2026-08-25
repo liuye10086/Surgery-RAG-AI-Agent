@@ -59,6 +59,13 @@ class AlembicContractTests(unittest.TestCase):
         self.assertEqual(standards.revision, "0009")
         self.assertEqual(standards.down_revision, "0008")
 
+    def test_dedicated_standard_documents_revision_follows_0009(self):
+        migration = _load_revision(
+            "0010_dedicated_standard_documents.py", "migration_0010"
+        )
+        self.assertEqual(migration.revision, "0010")
+        self.assertEqual(migration.down_revision, "0009")
+
     def test_env_excludes_langchain_internal_tables(self):
         env_source = (BACKEND_ROOT / "alembic/env.py").read_text(encoding="utf-8")
         self.assertIn('name.startswith("langchain_pg_")', env_source)

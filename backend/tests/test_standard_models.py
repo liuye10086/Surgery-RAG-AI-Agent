@@ -14,7 +14,7 @@ from app.db.models import (
 def test_standard_entities_and_projection_columns_exist():
     assert ReferenceStandard.__table__.columns["disease_id"].unique
     assert ReferenceStandardVersion.__table__.columns["content_hash"].nullable is False
-    assert {"status", "document_id", "supersedes_version_id"}.issubset(
+    assert {"status", "standard_document_id", "supersedes_version_id"}.issubset(
         ReferenceStandardVersion.__table__.columns.keys()
     )
     assert {"source_segment_id", "machine_actionability", "target_state_type"}.issubset(
@@ -27,6 +27,23 @@ def test_standard_entities_and_projection_columns_exist():
     assert {"segment_id", "source_type", "candidate_json"}.issubset(StandardParseCandidate.__table__.columns.keys())
     assert {"rule_id", "node_type", "payload"}.issubset(StandardRuleCondition.__table__.columns.keys())
     assert {"entity_type", "before_json", "after_json", "reason"}.issubset(StandardChangeLog.__table__.columns.keys())
+
+
+def test_standard_document_model_and_one_to_one_version_link():
+    from app.db.models import StandardDocument
+
+    columns = StandardDocument.__table__.columns
+    assert {
+        "id", "title", "filename", "file_path", "file_type", "file_size",
+        "content_hash", "uploaded_by", "created_at",
+    }.issubset(columns.keys())
+    assert columns["content_hash"].nullable is False
+    assert "document_id" not in ReferenceStandardVersion.__table__.columns
+    assert ReferenceStandardVersion.__table__.columns["standard_document_id"].nullable is False
+    assert any(
+        constraint.name == "uq_reference_standard_versions_standard_document"
+        for constraint in ReferenceStandardVersion.__table__.constraints
+    )
 
 
 def test_reference_range_projection_defaults_to_non_current():
