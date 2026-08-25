@@ -13,12 +13,33 @@ from app.services.standard_lifecycle import (
 
 
 def test_approved_rule_cannot_be_edited():
-    db = SimpleNamespace()
     rule = SimpleNamespace(
         id=1,
+        version_id=2,
         version=SimpleNamespace(status="approved"),
     )
-    db.query = lambda model: SimpleNamespace(get=lambda _id: rule)
+
+    class Query:
+        def __init__(self, value):
+            self.value = value
+
+        def get(self, _id):
+            return self.value
+
+        def filter(self, *_conditions):
+            return self
+
+        def with_for_update(self):
+            return self
+
+        def first(self):
+            return self.value
+
+    db = SimpleNamespace(
+        query=lambda model: Query(
+            rule if model.__name__ == "StandardRule" else rule.version
+        )
+    )
     with pytest.raises(ImmutableVersionError):
         update_draft_rule(db, 10, 1, RulePatch(upper=2), "校正边界")
 
@@ -36,12 +57,25 @@ def test_rule_edit_writes_before_after_and_reason():
     logs = []
 
     class Query:
+        def __init__(self, value):
+            self.value = value
+
         def get(self, _id):
-            return rule
+            return self.value
+
+        def filter(self, *_conditions):
+            return self
+
+        def with_for_update(self):
+            return self
+
+        def first(self):
+            return self.value
 
     class Session:
-        def query(self, _model):
-            return Query()
+        def query(self, model):
+            value = rule if model.__name__ == "StandardRule" else rule.version
+            return Query(value)
 
         def add(self, value):
             logs.append(value)
@@ -57,6 +91,108 @@ def test_rule_edit_writes_before_after_and_reason():
     assert logs[0].before_json["upper"] == 1.0
     assert logs[0].after_json["upper"] == 2.0
     assert logs[0].reason == "修正原文边界"
+
+
+def test_rule_edit_locks_owning_version_before_commit():
+    rule = SimpleNamespace(
+        id=1,
+        version_id=2,
+        version=SimpleNamespace(status="review"),
+        upper=1.0,
+        indicator_id=None,
+        rule_type="threshold",
+        machine_actionability="calculable",
+    )
+    version = SimpleNamespace(id=2, status="review")
+    events = []
+
+    class Query:
+        def __init__(self, value, model_name):
+            self.value = value
+            self.model_name = model_name
+
+        def get(self, _id):
+            events.append(f"{self.model_name}:get")
+            return self.value
+
+        def filter(self, *_conditions):
+            events.append(f"{self.model_name}:filter")
+            return self
+
+        def with_for_update(self):
+            events.append(f"{self.model_name}:with_for_update")
+            return self
+
+        def first(self):
+            events.append(f"{self.model_name}:first")
+            return self.value
+
+    class Session:
+        def query(self, model):
+            model_name = model.__name__
+            value = rule if model_name == "StandardRule" else version
+            return Query(value, model_name)
+
+        def add(self, _value):
+            return None
+
+        def commit(self):
+            events.append("commit")
+
+        def refresh(self, _value):
+            return None
+
+    update_draft_rule(Session(), 10, 1, RulePatch(upper=2.0), "修正原文边界")
+
+    assert events == [
+        "StandardRule:get",
+        "ReferenceStandardVersion:filter",
+        "ReferenceStandardVersion:with_for_update",
+        "ReferenceStandardVersion:first",
+        "commit",
+    ]
+
+
+def test_rule_edit_checks_status_from_locked_owning_version():
+    rule = SimpleNamespace(
+        id=1,
+        version_id=2,
+        version=SimpleNamespace(status="draft"),
+    )
+    locked_version = SimpleNamespace(id=2, status="approved")
+
+    class Query:
+        def __init__(self, value):
+            self.value = value
+
+        def get(self, _id):
+            return self.value
+
+        def filter(self, *_conditions):
+            return self
+
+        def with_for_update(self):
+            return self
+
+        def first(self):
+            return self.value
+
+    class Session:
+        def query(self, model):
+            value = rule if model.__name__ == "StandardRule" else locked_version
+            return Query(value)
+
+        def add(self, _value):
+            return None
+
+        def commit(self):
+            return None
+
+        def refresh(self, _value):
+            return None
+
+    with pytest.raises(ImmutableVersionError, match="已批准或已退役版本不可编辑"):
+        update_draft_rule(Session(), 10, 1, RulePatch(upper=2.0), "校正边界")
 
 
 def test_publish_retires_previous_version_and_projects_only_calculable_rules():
@@ -89,11 +225,12 @@ def test_publish_retires_previous_version_and_projects_only_calculable_rules():
         applicability={},
         indicator=SimpleNamespace(canonical_key="alt", name_en="ALT", name_cn="谷丙转氨酶"),
     )
+    standard = SimpleNamespace(current_version=old, current_version_id=old.id)
     version = SimpleNamespace(
         id=2,
         status="review",
         standard_id=3,
-        standard=SimpleNamespace(current_version=old),
+        standard=standard,
         rules=[rule, evidence],
         approved_by=None,
         approved_at=None,
@@ -108,6 +245,9 @@ def test_publish_retires_previous_version_and_projects_only_calculable_rules():
         def filter(self, *args, **kwargs):
             self.events.append("filter")
             return self
+        def populate_existing(self):
+            self.events.append("populate_existing")
+            return self
         def with_for_update(self):
             self.events.append("with_for_update")
             return self
@@ -118,9 +258,15 @@ def test_publish_retires_previous_version_and_projects_only_calculable_rules():
     class Session:
         def __init__(self):
             self.queries = []
+            self.version_queries = 0
         def query(self, model):
             name = getattr(model, "__name__", "")
-            query = Query(version if name == "ReferenceStandardVersion" else None)
+            if name == "ReferenceStandardVersion":
+                self.version_queries += 1
+                value = version
+            else:
+                value = standard
+            query = Query(value)
             self.queries.append(query)
             return query
         def add(self, value):
@@ -136,7 +282,100 @@ def test_publish_retires_previous_version_and_projects_only_calculable_rules():
     assert old.status == "retired"
     assert len(result.projections) == 1
     assert result.projections[0].standard_rule_id == 7
-    assert session.queries[0].events[:3] == ["filter", "with_for_update", "first"]
+    assert session.queries[0].events == ["filter", "first"]
+    assert session.queries[1].events[:3] == ["filter", "with_for_update", "first"]
+    assert session.queries[2].events == [
+        "filter",
+        "populate_existing",
+        "with_for_update",
+        "first",
+    ]
+
+
+def test_publish_locks_standard_before_rereading_target_version(monkeypatch):
+    from app.services import standard_lifecycle
+
+    monkeypatch.setattr(
+        standard_lifecycle,
+        "validate_version_rules",
+        lambda _rules: SimpleNamespace(can_publish=True),
+    )
+    standard = SimpleNamespace(id=3, current_version=None, current_version_id=None)
+    probe_version = SimpleNamespace(
+        id=2,
+        standard_id=3,
+        standard=standard,
+        status="review",
+        rules=[],
+        approved_by=None,
+        approved_at=None,
+        effective_from=None,
+    )
+    locked_version = SimpleNamespace(
+        id=2,
+        standard_id=3,
+        standard=standard,
+        status="review",
+        rules=[],
+        approved_by=None,
+        approved_at=None,
+        effective_from=None,
+    )
+    values = {
+        "ReferenceStandardVersion": [probe_version, locked_version],
+        "ReferenceStandard": [standard],
+    }
+    events = []
+
+    class Query:
+        def __init__(self, model_name, value):
+            self.model_name = model_name
+            self.value = value
+
+        def filter(self, *_conditions):
+            events.append(f"{self.model_name}:filter")
+            return self
+
+        def populate_existing(self):
+            events.append(f"{self.model_name}:populate_existing")
+            return self
+
+        def with_for_update(self):
+            events.append(f"{self.model_name}:with_for_update")
+            return self
+
+        def first(self):
+            events.append(f"{self.model_name}:first")
+            return self.value
+
+    class Session:
+        def query(self, model):
+            model_name = model.__name__
+            events.append(f"query:{model_name}")
+            return Query(model_name, values[model_name].pop(0))
+
+        def commit(self):
+            return None
+
+        def refresh(self, _value):
+            return None
+
+    result = publish_approved_version(Session(), 10, 2)
+
+    assert [event for event in events if event.startswith("query:")] == [
+        "query:ReferenceStandardVersion",
+        "query:ReferenceStandard",
+        "query:ReferenceStandardVersion",
+    ]
+    assert events.index("ReferenceStandard:with_for_update") < events.index(
+        "ReferenceStandardVersion:with_for_update"
+    )
+    assert events.index("ReferenceStandardVersion:populate_existing") < events.index(
+        "ReferenceStandardVersion:with_for_update"
+    )
+    assert result.version is locked_version
+    assert locked_version.status == "approved"
+    assert probe_version.status == "review"
 
 
 def test_transition_version_locks_row_before_status_transition():
@@ -224,11 +463,18 @@ def test_materialize_candidate_creates_rule_from_reviewed_candidate():
 class _SeedQuery:
     def __init__(self, value):
         self.value = value
+        self.events = []
 
     def filter(self, *conditions):
+        self.events.append("filter")
+        return self
+
+    def with_for_update(self):
+        self.events.append("with_for_update")
         return self
 
     def first(self):
+        self.events.append("first")
         return self.value
 
 
@@ -237,10 +483,14 @@ class _SeedDb:
         self.values = {name: list(items) for name, items in values.items()}
         self.added = []
         self.commits = 0
+        self.flushes = 0
+        self.queries = []
 
     def query(self, model):
         values = self.values.get(model.__name__, [])
-        return _SeedQuery(values.pop(0) if values else None)
+        query = _SeedQuery(values.pop(0) if values else None)
+        self.queries.append((model.__name__, query))
+        return query
 
     def add(self, value):
         if getattr(value, "id", None) is None:
@@ -249,6 +499,9 @@ class _SeedDb:
 
     def commit(self):
         self.commits += 1
+
+    def flush(self):
+        self.flushes += 1
 
     def refresh(self, value):
         return None
@@ -280,6 +533,34 @@ def test_seed_standard_draft_uses_standard_document_id_and_stored_hash(tmp_path)
     assert version.created_by == 7
     assert version.supersedes_version_id == 3
     assert version.status == "draft"
+    assert db.queries[0][0] == "Disease"
+    assert db.queries[0][1].events[:3] == ["filter", "with_for_update", "first"]
+    assert db.queries[1][0] == "StandardDocument"
+    assert db.queries[1][1].events[:3] == ["filter", "with_for_update", "first"]
+
+
+def test_seed_new_standard_keeps_parent_locks_until_version_commit(tmp_path):
+    source = tmp_path / "standard.docx"
+    source.write_bytes(b"docx")
+    disease = SimpleNamespace(id=2, name="阿尔茨海默病")
+    document = SimpleNamespace(
+        id=9,
+        file_path=str(source),
+        file_type="docx",
+        content_hash="c" * 64,
+        version=None,
+    )
+    db = _SeedDb({
+        "Disease": [disease],
+        "StandardDocument": [document],
+        "ReferenceStandard": [None],
+    })
+
+    version = seed_standard_draft(db, 2, 9, "AD-2026-08", admin_id=7)
+
+    assert version.standard_document_id == document.id
+    assert db.flushes == 1
+    assert db.commits == 1
 
 
 def test_seed_standard_draft_returns_same_disease_association(tmp_path):

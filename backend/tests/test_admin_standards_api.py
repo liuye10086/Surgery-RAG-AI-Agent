@@ -173,6 +173,7 @@ def test_create_standard_uses_disease_name():
     assert standard.disease_id == 2
     assert standard.name == "阿尔茨海默病标准"
     assert standard.description is None
+    assert db.queries[0].events[:3] == ["filter", "with_for_update", "first"]
 
 
 def test_create_standard_rejects_existing_disease_collection():
@@ -294,6 +295,7 @@ def test_create_version_uses_stored_hash_and_locks_document(tmp_path):
     assert version.created_by == 7
     assert version.supersedes_version_id == 3
     assert version.status == "draft"
+    assert db.queries[1].events[:3] == ["filter", "with_for_update", "first"]
 
 
 def test_create_version_maps_document_unique_constraint_race_to_409(tmp_path):

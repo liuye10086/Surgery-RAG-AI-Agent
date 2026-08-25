@@ -128,6 +128,7 @@ def test_seed_draft_is_idempotent_for_same_standard_document(tmp_path):
     class Query:
         def __init__(self, model): self.model = model
         def filter(self, *args, **kwargs): return self
+        def with_for_update(self): return self
         def first(self):
             name = getattr(self.model, "__name__", "")
             return {
@@ -164,6 +165,7 @@ def test_seed_rejects_non_docx_document(tmp_path):
     class Query:
         def __init__(self, model): self.model = model
         def filter(self, *args, **kwargs): return self
+        def with_for_update(self): return self
         def first(self):
             return SimpleNamespace(id=2) if getattr(self.model, "__name__", "") == "Disease" else document
 

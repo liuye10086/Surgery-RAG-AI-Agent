@@ -25,13 +25,19 @@ class _Query:
         self.filters = []
         self.options_used = []
         self.ordering = []
+        self.events = []
 
     def options(self, *options):
         self.options_used.extend(options)
         return self
 
     def filter(self, *conditions):
+        self.events.append("filter")
         self.filters.extend(conditions)
+        return self
+
+    def with_for_update(self):
+        self.events.append("with_for_update")
         return self
 
     def order_by(self, *ordering):
@@ -39,6 +45,7 @@ class _Query:
         return self
 
     def first(self):
+        self.events.append("first")
         return self.first_value
 
     def all(self):
@@ -119,6 +126,11 @@ def _stored_file(path="stored.docx", content_hash="a" * 64):
     from app.services.standard_document_storage import StoredStandardFile
 
     return StoredStandardFile(path=path, file_type="docx", file_size=4, content_hash=content_hash)
+
+
+def _integrity_error(constraint_name):
+    orig = SimpleNamespace(diag=SimpleNamespace(constraint_name=constraint_name))
+    return IntegrityError("delete", {}, orig)
 
 
 def test_standard_document_router_exposes_admin_only_endpoints():
@@ -371,6 +383,75 @@ def test_delete_linked_standard_document_returns_conflict():
 
     assert exc_info.value.status_code == 409
     assert db.deleted == []
+
+
+def test_delete_standard_document_locks_parent_before_link_check():
+    from app.api.admin_standard_documents import delete_standard_document
+
+    document = SimpleNamespace(version=SimpleNamespace(id=4), file_path="linked.docx")
+    db = _Db(first=document)
+
+    with pytest.raises(HTTPException):
+        delete_standard_document(1, admin=SimpleNamespace(id=7), db=db)
+
+    assert db.query_result.events[:3] == ["filter", "with_for_update", "first"]
+
+
+def test_delete_document_fk_race_at_flush_maps_named_constraint_to_conflict(tmp_path):
+    from app.api.admin_standard_documents import delete_standard_document
+
+    source = tmp_path / "linked-during-delete.docx"
+    source.write_bytes(b"standard contents")
+    document = SimpleNamespace(version=None, file_path=str(source))
+    db = _Db(
+        first=document,
+        flush_error=_integrity_error("fk_reference_standard_versions_standard_document"),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        delete_standard_document(1, admin=SimpleNamespace(id=7), db=db)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == "标准文件已关联版本，不可删除"
+    assert db.rollbacks == 1
+    assert source.read_bytes() == b"standard contents"
+
+
+def test_delete_document_unrelated_integrity_error_remains_server_error(tmp_path):
+    from app.api.admin_standard_documents import delete_standard_document
+
+    source = tmp_path / "unrelated-error.docx"
+    source.write_bytes(b"standard contents")
+    document = SimpleNamespace(version=None, file_path=str(source))
+    db = _Db(first=document, flush_error=_integrity_error("some_other_constraint"))
+
+    with pytest.raises(HTTPException) as exc_info:
+        delete_standard_document(1, admin=SimpleNamespace(id=7), db=db)
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == "标准文件删除失败"
+
+
+def test_delete_document_fk_race_at_commit_restores_file_and_returns_conflict(tmp_path):
+    from app.api.admin_standard_documents import delete_standard_document
+
+    contents = b"standard contents"
+    source = tmp_path / "commit-race.docx"
+    source.write_bytes(contents)
+    document = SimpleNamespace(version=None, file_path=str(source))
+    db = _TransactionalDeleteDb(
+        document,
+        commit_error=_integrity_error("fk_reference_standard_versions_standard_document"),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        delete_standard_document(1, admin=SimpleNamespace(id=7), db=db)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == "标准文件已关联版本，不可删除"
+    assert db.rollbacks == 1
+    assert db.records == [document]
+    assert source.read_bytes() == contents
 
 
 def test_delete_unlink_failure_rolls_back_and_preserves_original_bytes(monkeypatch, tmp_path):

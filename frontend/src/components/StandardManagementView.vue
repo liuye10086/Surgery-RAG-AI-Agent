@@ -413,12 +413,11 @@ async function submitStandard() {
 async function loadVersions(standardId: number) {
   const requestSequence = ++versionsRequestSequence
   latestVersionsRequestByStandard.set(standardId, requestSequence)
-  const currentVersionId = selectedVersionId.value
   try {
     const loadedVersions = await listVersions(standardId)
     if (latestVersionsRequestByStandard.get(standardId) !== requestSequence || selectedStandard.value?.id !== standardId) return
     versions.value = loadedVersions
-    if (currentVersionId && versions.value.some(version => version.id === currentVersionId)) return
+    if (selectedVersionId.value && versions.value.some(version => version.id === selectedVersionId.value)) return
     selectedVersionId.value = null
     clearVersionWorkspace()
   } catch (error) {

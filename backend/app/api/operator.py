@@ -6,6 +6,7 @@ import urllib.parse
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_ai_operator
@@ -78,6 +79,13 @@ from app.services.longitudinal_evidence import (
 )
 
 logger = logging.getLogger(__name__)
+REFERENCE_STANDARD_DISEASE_FK = "reference_standards_disease_id_fkey"
+
+
+def _integrity_constraint_name(exc: IntegrityError) -> str | None:
+    return getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+
+
 router = APIRouter(prefix="/operator", tags=["operator"])
 
 _PROGRESSION_DATASETS = {
@@ -544,7 +552,12 @@ def delete_disease(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_operator),
 ):
-    d = db.query(Disease).filter(Disease.id == disease_id).first()
+    d = (
+        db.query(Disease)
+        .filter(Disease.id == disease_id)
+        .with_for_update()
+        .first()
+    )
     if not d:
         raise HTTPException(status_code=404, detail="疾病不存在")
     if db.query(CaseRecord).filter(CaseRecord.disease_id == disease_id).count():
@@ -556,7 +569,16 @@ def delete_disease(
     ):
         raise HTTPException(status_code=409, detail="该疾病已关联参考标准，不能删除")
     db.delete(d)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        if _integrity_constraint_name(exc) == REFERENCE_STANDARD_DISEASE_FK:
+            raise HTTPException(
+                status_code=409,
+                detail="该疾病已关联参考标准，不能删除",
+            ) from exc
+        raise
     return None
 
 

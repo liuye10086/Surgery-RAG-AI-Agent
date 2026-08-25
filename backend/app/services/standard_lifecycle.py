@@ -6,7 +6,13 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
 
-from app.db.models import ReferenceRange, ReferenceStandardVersion, StandardChangeLog, StandardRule
+from app.db.models import (
+    ReferenceRange,
+    ReferenceStandard,
+    ReferenceStandardVersion,
+    StandardChangeLog,
+    StandardRule,
+)
 from app.schemas.standard import RulePatch
 from app.services.standard_validation import validate_version_rules
 import hashlib
@@ -33,7 +39,13 @@ def update_draft_rule(db, admin_id: int, rule_id: int, patch: RulePatch, reason:
     rule = db.query(StandardRule).get(rule_id)
     if rule is None:
         raise ValueError("规则不存在")
-    if getattr(getattr(rule, "version", None), "status", None) not in {"draft", "review"}:
+    version = (
+        db.query(ReferenceStandardVersion)
+        .filter(ReferenceStandardVersion.id == rule.version_id)
+        .with_for_update()
+        .first()
+    )
+    if getattr(version, "status", None) not in {"draft", "review"}:
         raise ImmutableVersionError("已批准或已退役版本不可编辑")
     before = _rule_snapshot(rule)
     for field, value in patch.model_dump(exclude_unset=True).items():
@@ -109,13 +121,27 @@ def _projection_from_rule(version: Any, rule: Any) -> Any:
 
 
 def publish_approved_version(db, admin_id: int, version_id: int):
-    version = (
+    version_probe = (
         db.query(ReferenceStandardVersion)
         .filter(ReferenceStandardVersion.id == version_id)
+        .first()
+    )
+    if version_probe is None:
+        raise ValueError("标准版本不存在")
+    standard = (
+        db.query(ReferenceStandard)
+        .filter(ReferenceStandard.id == version_probe.standard_id)
         .with_for_update()
         .first()
     )
-    if version is None:
+    version = (
+        db.query(ReferenceStandardVersion)
+        .filter(ReferenceStandardVersion.id == version_id)
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+    if standard is None or version is None:
         raise ValueError("标准版本不存在")
     if version.status != "review":
         raise ValueError("只有 review 版本可以批准")
@@ -123,7 +149,7 @@ def publish_approved_version(db, admin_id: int, version_id: int):
     if not report.can_publish:
         raise ValueError("标准版本存在阻止发布的校验错误")
     try:
-        previous = getattr(getattr(version, "standard", None), "current_version", None)
+        previous = getattr(standard, "current_version", None)
         if previous is not None and previous.id != version.id:
             previous.status = "retired"
             previous.retired_at = datetime.now(timezone.utc)
@@ -141,9 +167,8 @@ def publish_approved_version(db, admin_id: int, version_id: int):
             projection = _projection_from_rule(version, rule)
             db.add(projection)
             projections.append(projection)
-        if getattr(version, "standard", None) is not None:
-            version.standard.current_version = version
-            version.standard.current_version_id = version.id
+        standard.current_version = version
+        standard.current_version_id = version.id
         db.commit()
     except Exception:
         db.rollback()
@@ -212,12 +237,20 @@ def seed_standard_draft(db, disease_id: int, standard_document_id: int, version_
     """Create or reuse an unapproved draft for a DOCX document."""
     from app.db.models import Disease, ReferenceStandard, ReferenceStandardVersion, StandardDocument
 
-    disease = db.query(Disease).filter(Disease.id == disease_id).first()
+    disease = (
+        db.query(Disease)
+        .filter(Disease.id == disease_id)
+        .with_for_update()
+        .first()
+    )
     if disease is None:
         raise ValueError("疾病不存在")
-    document = db.query(StandardDocument).filter(
-        StandardDocument.id == standard_document_id
-    ).first()
+    document = (
+        db.query(StandardDocument)
+        .filter(StandardDocument.id == standard_document_id)
+        .with_for_update()
+        .first()
+    )
     if document is None:
         raise ValueError("标准文档不存在")
     if (document.file_type or "").lower().lstrip(".") != "docx":
@@ -234,8 +267,7 @@ def seed_standard_draft(db, disease_id: int, standard_document_id: int, version_
     if standard is None:
         standard = ReferenceStandard(disease_id=disease_id, name=f"{disease.name}标准")
         db.add(standard)
-        db.commit()
-        db.refresh(standard)
+        db.flush()
     version = ReferenceStandardVersion(
         standard_id=standard.id,
         standard_document_id=document.id,

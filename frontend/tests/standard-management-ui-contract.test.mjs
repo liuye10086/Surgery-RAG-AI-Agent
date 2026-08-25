@@ -2,6 +2,21 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
+async function loadStandardManagementSource() {
+  return readFile(new URL('../src/components/StandardManagementView.vue', import.meta.url), 'utf8')
+}
+
+function executableLoadVersions(source, dependencies) {
+  const functionSource = source
+    .match(/async function loadVersions\(standardId: number\) \{[\s\S]*?\n\}/)?.[0]
+    .replace('(standardId: number)', '(standardId)')
+  assert.ok(functionSource, 'loadVersions source must be extractable')
+  return Function(
+    ...Object.keys(dependencies),
+    `let versionsRequestSequence = 0\n${functionSource}\nreturn loadVersions`,
+  )(...Object.values(dependencies))
+}
+
 test('admin navigation exposes standard management', async () => {
   const sidebar = await readFile(new URL('../src/components/AdminSidebar.vue', import.meta.url), 'utf8')
   const view = await readFile(new URL('../src/views/AdminView.vue', import.meta.url), 'utf8')
@@ -51,6 +66,32 @@ test('standard management rejects stale async workspace responses and preserves 
   assert.match(source, /selectedVersionId\.value !== id/)
   assert.match(source, /\.standard-management :deep\(\.el-dialog__footer \.el-button\)/)
   assert.match(source, /min-height: 44px/)
+})
+
+test('version refresh preserves a live selection made while the request is pending', async () => {
+  const source = await loadStandardManagementSource()
+  let resolveVersions
+  const response = new Promise(resolve => { resolveVersions = resolve })
+  const selectedVersionId = { value: 99 }
+  const versions = { value: [] }
+  let workspaceClears = 0
+  const loadVersions = executableLoadVersions(source, {
+    listVersions: async () => response,
+    selectedVersionId,
+    latestVersionsRequestByStandard: new Map(),
+    selectedStandard: { value: { id: 7 } },
+    versions,
+    clearVersionWorkspace: () => { workspaceClears += 1 },
+  })
+
+  const refresh = loadVersions(7)
+  selectedVersionId.value = 2
+  resolveVersions([{ id: 1 }, { id: 2 }])
+  await refresh
+
+  assert.deepEqual(versions.value, [{ id: 1 }, { id: 2 }])
+  assert.equal(selectedVersionId.value, 2)
+  assert.equal(workspaceClears, 0)
 })
 
 test('standard management hardens workspace mutations and repeated request ordering', async () => {

@@ -69,7 +69,12 @@ def list_standards(admin=Depends(require_admin), db: Session = Depends(get_db)):
 
 @router.post("/admin/reference-standards", response_model=StandardOut, status_code=status.HTTP_201_CREATED)
 def create_standard(payload: StandardCreate, admin=Depends(require_admin), db: Session = Depends(get_db)):
-    disease = db.query(Disease).filter(Disease.id == payload.disease_id).first()
+    disease = (
+        db.query(Disease)
+        .filter(Disease.id == payload.disease_id)
+        .with_for_update()
+        .first()
+    )
     if disease is None:
         raise HTTPException(status_code=404, detail="疾病不存在")
     if db.query(ReferenceStandard).filter(ReferenceStandard.disease_id == payload.disease_id).first():
@@ -106,9 +111,12 @@ def create_version(standard_id: int, payload: StandardVersionCreate, admin=Depen
     standard = db.query(ReferenceStandard).filter(ReferenceStandard.id == standard_id).first()
     if standard is None:
         raise HTTPException(status_code=404, detail="标准集合不存在")
-    document = db.query(StandardDocument).filter(
-        StandardDocument.id == payload.standard_document_id
-    ).first()
+    document = (
+        db.query(StandardDocument)
+        .filter(StandardDocument.id == payload.standard_document_id)
+        .with_for_update()
+        .first()
+    )
     if document is None:
         raise HTTPException(status_code=404, detail="标准文档不存在")
     if not _is_docx_document(document.file_type):

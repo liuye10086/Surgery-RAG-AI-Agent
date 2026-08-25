@@ -20,6 +20,11 @@ from app.services.standard_document_storage import (
 
 
 router = APIRouter(prefix="", tags=["admin-standard-documents"])
+STANDARD_DOCUMENT_VERSION_FK = "fk_reference_standard_versions_standard_document"
+
+
+def _integrity_constraint_name(exc: IntegrityError) -> str | None:
+    return getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
 
 
 def standard_document_to_out(document: StandardDocument) -> StandardDocumentOut:
@@ -140,7 +145,12 @@ def delete_standard_document(
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    document = db.query(StandardDocument).filter(StandardDocument.id == document_id).first()
+    document = (
+        db.query(StandardDocument)
+        .filter(StandardDocument.id == document_id)
+        .with_for_update()
+        .first()
+    )
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="标准文件不存在")
     if document.version is not None:
@@ -155,6 +165,17 @@ def delete_standard_document(
         db.flush()
         recovery_snapshot = snapshot_standard_file(document.file_path)
         delete_standard_file(document.file_path)
+    except IntegrityError as exc:
+        db.rollback()
+        if _integrity_constraint_name(exc) == STANDARD_DOCUMENT_VERSION_FK:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="标准文件已关联版本，不可删除",
+            ) from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="标准文件删除失败",
+        ) from exc
     except Exception as exc:
         db.rollback()
         raise HTTPException(
@@ -174,9 +195,21 @@ def delete_standard_document(
             restore_standard_file(recovery_snapshot)
         except Exception as restore_exc:
             compensation_error = restore_exc
+        is_linked_fk = (
+            isinstance(commit_exc, IntegrityError)
+            and _integrity_constraint_name(commit_exc) == STANDARD_DOCUMENT_VERSION_FK
+        )
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="标准文件删除失败",
+            status_code=(
+                status.HTTP_409_CONFLICT
+                if is_linked_fk and compensation_error is None
+                else status.HTTP_500_INTERNAL_SERVER_ERROR
+            ),
+            detail=(
+                "标准文件已关联版本，不可删除"
+                if is_linked_fk and compensation_error is None
+                else "标准文件删除失败"
+            ),
         ) from (compensation_error or commit_exc)
 
     return None
