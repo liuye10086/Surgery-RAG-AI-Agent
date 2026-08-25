@@ -46,9 +46,10 @@ class _Query:
 
 
 class _Db:
-    def __init__(self, first=None, rows=None, commit_error=None):
+    def __init__(self, first=None, rows=None, commit_error=None, refresh_error=None):
         self.query_result = _Query(first=first, rows=rows)
         self.commit_error = commit_error
+        self.refresh_error = refresh_error
         self.added = []
         self.deleted = []
         self.commits = 0
@@ -74,6 +75,8 @@ class _Db:
             raise self.commit_error
 
     def refresh(self, _value):
+        if self.refresh_error:
+            raise self.refresh_error
         return None
 
     def rollback(self):
@@ -81,8 +84,8 @@ class _Db:
 
 
 class _TransactionalDeleteDb(_Db):
-    def __init__(self, document):
-        super().__init__(first=document)
+    def __init__(self, document, commit_error=None):
+        super().__init__(first=document, commit_error=commit_error)
         self.records = [document]
         self.delete_attempts = []
         self.pending_deletes = []
@@ -239,6 +242,32 @@ def test_upload_translates_integrity_race_and_removes_saved_file(monkeypatch):
     assert deleted == ["race.docx"]
 
 
+def test_upload_refresh_failure_rolls_back_before_commit_and_removes_saved_file(monkeypatch):
+    from app.api.admin_standard_documents import upload_standard_document
+
+    deleted = []
+    db = _Db(refresh_error=RuntimeError("refresh failed"))
+    monkeypatch.setattr(
+        "app.api.admin_standard_documents.save_standard_upload",
+        lambda file: _stored_file(path="refresh-failure.docx"),
+    )
+    monkeypatch.setattr(
+        "app.api.admin_standard_documents.delete_standard_file",
+        lambda path: deleted.append(path),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        upload_standard_document(
+            file=_upload_file("ad.docx", b"docx"), title=None, admin=SimpleNamespace(id=7), db=db
+        )
+
+    assert exc_info.value.status_code == 500
+    assert db.flushes == 1
+    assert db.commits == 0
+    assert db.rollbacks == 1
+    assert deleted == ["refresh-failure.docx"]
+
+
 def test_upload_converts_extension_and_size_errors_to_http_errors(monkeypatch):
     from app.api.admin_standard_documents import upload_standard_document
 
@@ -293,10 +322,12 @@ def test_delete_linked_standard_document_returns_conflict():
     assert db.deleted == []
 
 
-def test_delete_rolls_back_when_strict_disk_deletion_fails(monkeypatch):
+def test_delete_reports_finalize_failure_without_database_rollback(monkeypatch, tmp_path):
     from app.api.admin_standard_documents import delete_standard_document
 
-    document = SimpleNamespace(version=None, file_path="cannot-delete.docx")
+    source = tmp_path / "cannot-delete.docx"
+    source.write_bytes(b"standard contents")
+    document = SimpleNamespace(version=None, file_path=str(source))
     db = _Db(first=document)
     monkeypatch.setattr(
         "app.api.admin_standard_documents.delete_standard_file",
@@ -309,8 +340,10 @@ def test_delete_rolls_back_when_strict_disk_deletion_fails(monkeypatch):
     assert exc_info.value.status_code == 500
     assert db.deleted == [document]
     assert db.flushes == 1
-    assert db.commits == 0
-    assert db.rollbacks == 1
+    assert db.commits == 1
+    assert db.rollbacks == 0
+    assert not source.exists()
+    assert len(list(tmp_path.iterdir())) == 1
 
 
 def test_delete_missing_standard_file_rolls_back_database_delete(tmp_path):
@@ -329,19 +362,38 @@ def test_delete_missing_standard_file_rolls_back_database_delete(tmp_path):
     assert db.records == [document]
 
 
-def test_delete_unlinked_standard_document_removes_disk_file_then_commits(monkeypatch):
+def test_delete_commit_failure_rolls_back_and_restores_original_file(tmp_path):
     from app.api.admin_standard_documents import delete_standard_document
 
-    deleted_paths = []
-    document = SimpleNamespace(version=None, file_path="available.docx")
+    contents = b"original standard document bytes"
+    source = tmp_path / "available.docx"
+    source.write_bytes(contents)
+    document = SimpleNamespace(version=None, file_path=str(source))
+    db = _TransactionalDeleteDb(document, commit_error=RuntimeError("commit failed"))
+
+    with pytest.raises(HTTPException) as exc_info:
+        delete_standard_document(1, admin=SimpleNamespace(id=7), db=db)
+
+    assert exc_info.value.status_code == 500
+    assert db.delete_attempts == [document]
+    assert db.commits == 1
+    assert db.rollbacks == 1
+    assert db.records == [document]
+    assert source.read_bytes() == contents
+    assert list(tmp_path.iterdir()) == [source]
+
+
+def test_delete_unlinked_standard_document_removes_disk_file_then_commits(tmp_path):
+    from app.api.admin_standard_documents import delete_standard_document
+
+    source = tmp_path / "available.docx"
+    source.write_bytes(b"standard contents")
+    document = SimpleNamespace(version=None, file_path=str(source))
     db = _Db(first=document)
-    monkeypatch.setattr(
-        "app.api.admin_standard_documents.delete_standard_file",
-        lambda path: deleted_paths.append(path),
-    )
 
     assert delete_standard_document(1, admin=SimpleNamespace(id=7), db=db) is None
     assert db.deleted == [document]
     assert db.flushes == 1
-    assert deleted_paths == ["available.docx"]
     assert db.commits == 1
+    assert not source.exists()
+    assert list(tmp_path.iterdir()) == []

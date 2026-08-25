@@ -9,9 +9,12 @@ from app.db.models import ReferenceStandardVersion, StandardDocument
 from app.db.session import get_db
 from app.schemas.standard_document import StandardDocumentOut
 from app.services.standard_document_storage import (
+    StagedStandardFileDeletion,
     StoredStandardFile,
     delete_standard_file,
+    restore_standard_file_deletion,
     save_standard_upload,
+    stage_standard_file_deletion,
     validate_standard_docx,
 )
 
@@ -90,9 +93,11 @@ def upload_standard_document(
             uploaded_by=getattr(admin, "id", None),
         )
         db.add(document)
-        db.commit()
+        db.flush()
         db.refresh(document)
-        return standard_document_to_out(document)
+        output = standard_document_to_out(document)
+        db.commit()
+        return output
     except HTTPException:
         raise
     except IntegrityError as exc:
@@ -144,13 +149,38 @@ def delete_standard_document(
             detail="标准文件已关联版本，不可删除",
         )
 
+    staged: StagedStandardFileDeletion | None = None
     try:
         db.delete(document)
         db.flush()
-        delete_standard_file(document.file_path)
-        db.commit()
+        staged = stage_standard_file_deletion(document.file_path)
     except Exception as exc:
         db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="标准文件删除失败",
+        ) from exc
+
+    try:
+        db.commit()
+    except Exception as commit_exc:
+        compensation_error: Exception | None = None
+        try:
+            db.rollback()
+        except Exception as rollback_exc:
+            compensation_error = rollback_exc
+        try:
+            restore_standard_file_deletion(staged)
+        except Exception as restore_exc:
+            compensation_error = restore_exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="标准文件删除失败",
+        ) from (compensation_error or commit_exc)
+
+    try:
+        delete_standard_file(staged.staged_path)
+    except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="标准文件删除失败",

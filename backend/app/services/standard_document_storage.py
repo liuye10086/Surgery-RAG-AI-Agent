@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import hashlib
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import UploadFile
 
@@ -13,6 +14,12 @@ class StoredStandardFile:
     file_type: str
     file_size: int
     content_hash: str
+
+
+@dataclass(frozen=True)
+class StagedStandardFileDeletion:
+    original_path: str
+    staged_path: str
 
 
 def validate_standard_docx(filename: str | None) -> None:
@@ -41,3 +48,20 @@ def save_standard_upload(file: UploadFile) -> StoredStandardFile:
 
 def delete_standard_file(path: str) -> None:
     Path(path).unlink()
+
+
+def stage_standard_file_deletion(path: str) -> StagedStandardFileDeletion:
+    original = Path(path)
+    staged = original.with_name(f".{original.name}.{uuid4().hex}.deleting")
+    original.replace(staged)
+    return StagedStandardFileDeletion(
+        original_path=str(original),
+        staged_path=str(staged),
+    )
+
+
+def restore_standard_file_deletion(staged: StagedStandardFileDeletion) -> None:
+    original = Path(staged.original_path)
+    if original.exists():
+        raise FileExistsError(f"Cannot restore over existing file: {original}")
+    Path(staged.staged_path).replace(original)
