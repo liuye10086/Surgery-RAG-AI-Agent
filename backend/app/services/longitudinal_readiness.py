@@ -647,6 +647,15 @@ def assess_report_contract(
                 missing_capabilities=sorted(missing_required),
             )
         )
+    if outcome.status == "available" and not calibration_available:
+        reasons.append(
+            _reason(
+                "model_not_calibrated",
+                "未来365天结局模型分数尚未校准",
+                "degraded",
+                "P2-03",
+            )
+        )
     status = "blocked" if missing_required else (
         "degraded"
         if any(item.status == "degraded" for item in capabilities)

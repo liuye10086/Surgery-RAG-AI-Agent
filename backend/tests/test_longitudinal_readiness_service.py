@@ -465,7 +465,10 @@ def test_required_capability_failure_blocks_report_contract():
     assert required["case_identity"].status == "available"
     assert required["outcome_365d"].status == "available"
     assert contract.status == "blocked"
-    assert [reason.code for reason in reasons] == ["report_contract_invalid"]
+    assert [reason.code for reason in reasons] == [
+        "report_contract_invalid",
+        "model_not_calibrated",
+    ]
     assert set(reasons[0].details["missing_capabilities"]) == {
         "data_quality_explanation",
         "key_progression_signals",
@@ -488,12 +491,31 @@ def test_optional_stage_and_trend_capabilities_do_not_block_required_contract():
         implemented_required=set(REQUIRED_CAPABILITIES),
     )
     assert contract.status == "degraded"
-    assert reasons == []
+    assert [reason.code for reason in reasons] == ["model_not_calibrated"]
     optional = {
         item.key: item for item in contract.capabilities if not item.required
     }
     assert optional["stage_projection"].status == "degraded"
     assert optional["next_followup_trend_model"].status == "degraded"
+
+
+def test_uncalibrated_available_outcome_adds_p2_03_reason():
+    _, reasons, _ = assess_report_contract(
+        table_columns=_table_columns(),
+        data=_complete_data(),
+        standard=_available_standard(),
+        outcome=_artifact(
+            "outcome",
+            "available",
+            metadata={"calibration_status": "not_calibrated"},
+        ),
+        stage=_artifact("stage", "available"),
+        trends=[_artifact("trend", "available", indicator="alt")],
+        implemented_required=set(REQUIRED_CAPABILITIES),
+    )
+    assert [reason.code for reason in reasons] == ["model_not_calibrated"]
+    assert reasons[0].next_task == "P2-03"
+    assert reasons[0].severity == "degraded"
 
 
 def _snapshot_fixture():
