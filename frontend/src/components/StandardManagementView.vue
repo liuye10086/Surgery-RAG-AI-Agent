@@ -52,7 +52,15 @@
           <el-table-column label="操作" width="72" fixed="right">
             <template #default="{ row: document }">
               <el-tooltip v-if="!document.is_locked" content="删除源文档" placement="top">
-                <el-button class="icon-action" text type="danger" aria-label="删除源文档" @click="confirmDeleteDocument(document)">
+                <el-button
+                  class="icon-action"
+                  text
+                  type="danger"
+                  aria-label="删除源文档"
+                  :loading="documentDeletingId === document.id"
+                  :disabled="documentDeletingId !== null"
+                  @click="confirmDeleteDocument(document)"
+                >
                   <el-icon><Delete /></el-icon>
                 </el-button>
               </el-tooltip>
@@ -104,8 +112,8 @@
             <el-icon><Delete /></el-icon>删除版本
           </el-button>
         </div>
-        <el-alert v-if="validation.errors.length" type="error" :title="`存在 ${validation.errors.length} 个阻止发布的问题`" show-icon />
-        <el-alert v-else-if="selectedVersion" type="success" :title="`可投影规则 ${validation.projection_count} 条`" show-icon />
+        <el-alert v-if="workspaceIsCurrent && validation.errors.length" type="error" :title="`存在 ${validation.errors.length} 个阻止发布的问题`" show-icon />
+        <el-alert v-else-if="workspaceIsCurrent && selectedVersion" type="success" :title="`可投影规则 ${validation.projection_count} 条`" show-icon />
       </section>
     </div>
 
@@ -136,41 +144,41 @@
     <el-dialog v-model="standardDialogVisible" title="新建标准集合" width="min(520px, calc(100vw - 32px))">
       <el-form label-position="top">
         <el-form-item label="选择疾病">
-          <el-select v-model="newStandardDiseaseId" class="dialog-control" placeholder="请选择疾病" aria-label="选择疾病">
+          <el-select v-model="newStandardDiseaseId" class="dialog-control" placeholder="请选择疾病" aria-label="选择疾病" :disabled="standardCreating">
             <el-option v-for="disease in availableDiseases" :key="disease.id" :label="disease.name" :value="disease.id" />
           </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="standardDialogVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="!newStandardDiseaseId || !availableDiseases.length" @click="submitStandard">创建</el-button>
+        <el-button :disabled="standardCreating" @click="standardDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="standardCreating" :disabled="standardCreating || !newStandardDiseaseId || !availableDiseases.length" @click="submitStandard">创建</el-button>
       </template>
     </el-dialog>
 
     <el-dialog v-model="versionDialogVisible" title="新建版本" width="min(520px, calc(100vw - 32px))">
       <el-form label-position="top">
         <el-form-item label="标准文档">
-          <el-select v-model="newVersionDocumentId" class="dialog-control" placeholder="选择可用文档" aria-label="选择可用标准文档">
+          <el-select v-model="newVersionDocumentId" class="dialog-control" placeholder="选择可用文档" aria-label="选择可用标准文档" :disabled="versionCreating">
             <el-option v-for="document in availableDocuments" :key="document.id" :label="document.title || document.filename" :value="document.id" />
           </el-select>
           <p v-if="!availableDocuments.length" class="form-hint">请先上传 DOCX 标准文档</p>
         </el-form-item>
-        <el-form-item label="版本标签"><el-input v-model="newVersionLabel" placeholder="例如：2026.1" aria-label="版本标签" /></el-form-item>
+        <el-form-item label="版本标签"><el-input v-model="newVersionLabel" placeholder="例如：2026.1" aria-label="版本标签" :disabled="versionCreating" /></el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="versionDialogVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="!newVersionDocumentId || !newVersionLabel.trim() || !availableDocuments.length" @click="submitVersion">创建草稿</el-button>
+        <el-button :disabled="versionCreating" @click="versionDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="versionCreating" :disabled="versionCreating || !newVersionDocumentId || !newVersionLabel.trim() || !availableDocuments.length" @click="submitVersion">创建草稿</el-button>
       </template>
     </el-dialog>
 
     <el-dialog v-model="editorVisible" title="编辑规则" width="min(440px, calc(100vw - 32px))">
       <el-form label-width="90px">
-        <el-form-item label="上限"><el-input-number v-model="editorUpper" :controls="false" /></el-form-item>
-        <el-form-item label="修改原因"><el-input v-model="editorReason" type="textarea" placeholder="请输入修改原因" /></el-form-item>
+        <el-form-item label="上限"><el-input-number v-model="editorUpper" :controls="false" :disabled="ruleSaving" /></el-form-item>
+        <el-form-item label="修改原因"><el-input v-model="editorReason" type="textarea" placeholder="请输入修改原因" :disabled="ruleSaving" /></el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="editorVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="lifecyclePending || !editorReason.trim()" @click="saveRule">保存</el-button>
+        <el-button :disabled="ruleSaving" @click="editorVisible = false">取消</el-button>
+        <el-button type="primary" :loading="ruleSaving" :disabled="ruleSaving || lifecyclePending || !editorReason.trim()" @click="saveRule">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -220,7 +228,14 @@ const standardDocuments = ref<StandardDocument[]>([])
 const workspaceLoadedVersionId = ref<number | null>(null)
 const versionDataLoading = ref(false)
 const lifecyclePending = ref(false)
+const standardCreating = ref(false)
+const versionCreating = ref(false)
+const documentDeletingId = ref<number | null>(null)
+const ruleSaving = ref(false)
 const selectedVersion = computed(() => versions.value.find(item => item.id === selectedVersionId.value) || null)
+const workspaceIsCurrent = computed(() => workspaceLoadedVersionId.value === selectedVersionId.value
+  && selectedVersionId.value !== null
+  && !versionDataLoading.value)
 const availableDocuments = computed(() => standardDocuments.value.filter(document => !document.is_locked))
 const availableDiseases = computed(() => {
   const usedDiseaseIds = new Set(standards.value.map(standard => standard.disease_id))
@@ -247,6 +262,17 @@ const latestVersionsRequestByStandard = new Map<number, number>()
 
 function getErrorMessage(error: any, fallback: string) {
   return error?.response?.data?.detail || error?.message || fallback
+}
+
+async function refreshAfterMutation(refreshTasks: Array<() => Promise<unknown>>) {
+  try {
+    const results = await Promise.all(refreshTasks.map(refresh => refresh()))
+    if (results.some(result => result === false)) throw new Error('refresh failed')
+    return true
+  } catch {
+    ElMessage.warning('操作已完成，但刷新失败，请手动重试')
+    return false
+  }
 }
 
 function handleFileChange(file: UploadFile) {
@@ -281,61 +307,91 @@ function clearVersionWorkspace() {
   editorRule.value = null
 }
 
-async function loadStandardDocuments() {
+async function loadStandardDocuments(notifyError = true) {
   const requestSequence = ++standardDocumentsRequestSequence
   try {
     const documents = await listStandardDocuments()
-    if (requestSequence !== standardDocumentsRequestSequence) return
+    if (requestSequence !== standardDocumentsRequestSequence) return true
     standardDocuments.value = documents
+    return true
   } catch (error: any) {
-    if (requestSequence !== standardDocumentsRequestSequence) return
-    ElMessage.error(getErrorMessage(error, '标准文档列表加载失败'))
+    if (requestSequence !== standardDocumentsRequestSequence) return true
+    if (notifyError) ElMessage.error(getErrorMessage(error, '标准文档列表加载失败'))
+    return false
   }
 }
 
 async function submitUpload() {
-  if (!selectedFile.value) return
+  if (uploading.value || !selectedFile.value) return
   uploading.value = true
   try {
-    await uploadStandardDocument(selectedFile.value, uploadTitle.value.trim() || undefined)
+    try {
+      await uploadStandardDocument(selectedFile.value, uploadTitle.value.trim() || undefined)
+    } catch (error: any) {
+      ElMessage.error(getErrorMessage(error, '标准文档上传失败'))
+      return
+    }
     ElMessage.success('标准文档上传成功')
     selectedFile.value = null
     uploadTitle.value = ''
     uploadRef.value?.clearFiles()
-    await loadStandardDocuments()
-  } catch (error: any) {
-    ElMessage.error(getErrorMessage(error, '标准文档上传失败'))
+    await refreshAfterMutation([() => loadStandardDocuments(false)])
   } finally {
     uploading.value = false
   }
 }
 
 async function confirmDeleteDocument(document: StandardDocument) {
+  if (documentDeletingId.value !== null) return
+  documentDeletingId.value = document.id
   try {
-    await ElMessageBox.confirm('删除后源文件将被移除，且无法恢复。', '删除标准文档', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-    })
-    await deleteStandardDocument(document.id)
-    await loadStandardDocuments()
+    try {
+      await ElMessageBox.confirm('删除后源文件将被移除，且无法恢复。', '删除标准文档', {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+      })
+    } catch (error: any) {
+      if (error !== 'cancel' && error !== 'close') ElMessage.error(getErrorMessage(error, '删除确认失败'))
+      return
+    }
+    try {
+      await deleteStandardDocument(document.id)
+    } catch (error: any) {
+      ElMessage.error(getErrorMessage(error, '标准文档删除失败'))
+      return
+    }
     ElMessage.success('标准文档已删除')
-  } catch (error: any) {
-    if (error !== 'cancel' && error !== 'close') ElMessage.error(getErrorMessage(error, '标准文档删除失败'))
+    await refreshAfterMutation([() => loadStandardDocuments(false)])
+  } finally {
+    documentDeletingId.value = null
   }
 }
 
 async function submitStandard() {
-  if (!newStandardDiseaseId.value) return
+  if (standardCreating.value || !newStandardDiseaseId.value) return
+  standardCreating.value = true
   try {
-    const created = await createStandard({ disease_id: newStandardDiseaseId.value })
-    standards.value = await listStandards()
+    let created: Standard
+    try {
+      created = await createStandard({ disease_id: newStandardDiseaseId.value })
+    } catch (error: any) {
+      ElMessage.error(getErrorMessage(error, '标准集合创建失败'))
+      return
+    }
     standardDialogVisible.value = false
     newStandardDiseaseId.value = null
-    await selectStandard(created)
+    selectedStandard.value = created
+    versions.value = []
+    selectedVersionId.value = null
+    clearVersionWorkspace()
     ElMessage.success('标准集合已创建')
-  } catch (error: any) {
-    ElMessage.error(getErrorMessage(error, '标准集合创建失败'))
+    await refreshAfterMutation([
+      async () => { standards.value = await listStandards() },
+      () => loadVersions(created.id),
+    ])
+  } finally {
+    standardCreating.value = false
   }
 }
 
@@ -380,49 +436,58 @@ async function openVersionDialog() {
 }
 
 async function submitVersion() {
-  if (!selectedStandard.value || !newVersionDocumentId.value) return
+  if (versionCreating.value || !selectedStandard.value || !newVersionDocumentId.value) return
   const standardId = selectedStandard.value.id
+  versionCreating.value = true
   try {
-    const created = await createVersion(standardId, {
-      standard_document_id: newVersionDocumentId.value,
-      version_label: newVersionLabel.value.trim(),
-    })
+    let created: StandardVersion
+    try {
+      created = await createVersion(standardId, {
+        standard_document_id: newVersionDocumentId.value,
+        version_label: newVersionLabel.value.trim(),
+      })
+    } catch (error: any) {
+      ElMessage.error(getErrorMessage(error, '标准版本创建失败'))
+      return
+    }
     versionDialogVisible.value = false
     newVersionDocumentId.value = null
     newVersionLabel.value = ''
-    await Promise.all([loadStandardDocuments(), loadVersions(standardId)])
-    if (selectedStandard.value?.id !== standardId) {
-      ElMessage.success('草稿版本已创建，请手动解析')
-      return
-    }
-    selectedVersionId.value = created.id
-    await loadVersionData()
     ElMessage.success('草稿版本已创建，请手动解析')
-  } catch (error: any) {
-    ElMessage.error(getErrorMessage(error, '标准版本创建失败'))
+    const refreshed = await refreshAfterMutation([
+      () => loadStandardDocuments(false),
+      () => loadVersions(standardId),
+    ])
+    if (!refreshed || selectedStandard.value?.id !== standardId) return
+    selectedVersionId.value = created.id
+    await refreshAfterMutation([() => loadVersionData(false)])
+  } finally {
+    versionCreating.value = false
   }
 }
 
-async function loadVersionData() {
+async function loadVersionData(notifyError = true) {
   const requestSequence = ++versionDataRequestSequence
   clearVersionWorkspace()
   if (!selectedVersionId.value) {
     versionDataLoading.value = false
-    return
+    return true
   }
   const id = selectedVersionId.value
   versionDataLoading.value = true
   try {
     const [loadedSegments, loadedRules, loadedValidation] = await Promise.all([listSegments(id), listRules(id), validateVersion(id)])
-    if (requestSequence !== versionDataRequestSequence || selectedVersionId.value !== id) return
+    if (requestSequence !== versionDataRequestSequence || selectedVersionId.value !== id) return true
     segments.value = loadedSegments
     rules.value = loadedRules
     validation.value = loadedValidation
     workspaceLoadedVersionId.value = id
+    return true
   } catch (error: any) {
-    if (requestSequence !== versionDataRequestSequence || selectedVersionId.value !== id) return
+    if (requestSequence !== versionDataRequestSequence || selectedVersionId.value !== id) return true
     clearVersionWorkspace()
-    ElMessage.error(getErrorMessage(error, '版本数据加载失败'))
+    if (notifyError) ElMessage.error(getErrorMessage(error, '版本数据加载失败'))
+    return false
   } finally {
     if (requestSequence === versionDataRequestSequence) versionDataLoading.value = false
   }
@@ -435,13 +500,20 @@ async function runAction(action: (id: number) => Promise<unknown>, message: stri
   const standardId = selectedStandard.value.id
   lifecyclePending.value = true
   try {
-    await action(versionId)
-    await loadVersions(standardId)
-    if (selectedStandard.value?.id === standardId && selectedVersionId.value === versionId) await loadVersionData()
-    await loadStandardDocuments()
+    try {
+      await action(versionId)
+    } catch (error: any) {
+      ElMessage.error(getErrorMessage(error, '操作失败'))
+      return
+    }
     ElMessage.success(message)
-  } catch (error: any) {
-    ElMessage.error(getErrorMessage(error, '操作失败'))
+    const refreshed = await refreshAfterMutation([
+      () => loadVersions(standardId),
+      () => loadStandardDocuments(false),
+    ])
+    if (refreshed && selectedStandard.value?.id === standardId && selectedVersionId.value === versionId) {
+      await refreshAfterMutation([() => loadVersionData(false)])
+    }
   } finally {
     lifecyclePending.value = false
   }
@@ -454,23 +526,31 @@ async function confirmDeleteVersion() {
   const targetStandardId = selectedStandard.value.id
   lifecyclePending.value = true
   try {
-    await ElMessageBox.confirm(
-      '删除后解析片段、候选和规则将一并删除，标准文档会恢复为可用。',
-      '删除标准版本',
-      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
-    )
-    await deleteVersion(targetVersionId)
-    await Promise.all([
-      loadStandardDocuments(),
-      loadVersions(targetStandardId),
+    try {
+      await ElMessageBox.confirm(
+        '删除后解析片段、候选和规则将一并删除，标准文档会恢复为可用。',
+        '删除标准版本',
+        { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
+      )
+    } catch (error: any) {
+      if (error !== 'cancel' && error !== 'close') ElMessage.error(getErrorMessage(error, '删除确认失败'))
+      return
+    }
+    try {
+      await deleteVersion(targetVersionId)
+    } catch (error: any) {
+      ElMessage.error(getErrorMessage(error, '标准版本删除失败'))
+      return
+    }
+    ElMessage.success('标准版本已删除')
+    await refreshAfterMutation([
+      () => loadStandardDocuments(false),
+      () => loadVersions(targetStandardId),
     ])
     if (selectedStandard.value?.id === targetStandardId && selectedVersionId.value === targetVersionId) {
       selectedVersionId.value = null
       clearVersionWorkspace()
     }
-    ElMessage.success('标准版本已删除')
-  } catch (error: any) {
-    if (error !== 'cancel' && error !== 'close') ElMessage.error(getErrorMessage(error, '标准版本删除失败'))
   } finally {
     lifecyclePending.value = false
   }
@@ -494,16 +574,23 @@ function openRuleEditor(rule: StandardRule) {
 }
 
 async function saveRule() {
-  if (!editorRule.value) return
+  if (ruleSaving.value || !editorRule.value) return
   if (editorRule.value.version_id !== selectedVersionId.value) return
   if (workspaceLoadedVersionId.value !== selectedVersionId.value || lifecyclePending.value) return
+  const ruleId = editorRule.value.id
+  ruleSaving.value = true
   try {
-    await patchRule(editorRule.value.id, { upper: editorUpper.value }, editorReason.value.trim())
+    try {
+      await patchRule(ruleId, { upper: editorUpper.value }, editorReason.value.trim())
+    } catch (error: any) {
+      ElMessage.error(getErrorMessage(error, '规则保存失败'))
+      return
+    }
     editorVisible.value = false
     ElMessage.success('规则已保存')
-    await loadVersionData()
-  } catch (error: any) {
-    ElMessage.error(getErrorMessage(error, '规则保存失败'))
+    await refreshAfterMutation([() => loadVersionData(false)])
+  } finally {
+    ruleSaving.value = false
   }
 }
 

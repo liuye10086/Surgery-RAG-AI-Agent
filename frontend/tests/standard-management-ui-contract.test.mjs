@@ -57,7 +57,7 @@ test('standard management hardens workspace mutations and repeated request order
   const source = await readFile(new URL('../src/components/StandardManagementView.vue', import.meta.url), 'utf8')
 
   assert.match(source, /workspaceLoadedVersionId/)
-  assert.match(source, /async function loadVersionData\(\)[\s\S]*?clearVersionWorkspace\(\)[\s\S]*?Promise\.all/)
+  assert.match(source, /async function loadVersionData\([^)]*\)[\s\S]*?clearVersionWorkspace\(\)[\s\S]*?Promise\.all/)
   assert.match(source, /rule\.version_id !== selectedVersionId\.value/)
   assert.match(source, /editorRule\.value\.version_id !== selectedVersionId\.value/)
 
@@ -80,6 +80,58 @@ test('standard management hardens workspace mutations and repeated request order
 
   assert.match(source, /\.upload-title :deep\(\.el-input__wrapper\)/)
   assert.match(source, /\.version-select :deep\(\.el-select__wrapper\)/)
+})
+
+test('standard management gates validation and separates committed mutations from refresh failures', async () => {
+  const source = await readFile(new URL('../src/components/StandardManagementView.vue', import.meta.url), 'utf8')
+
+  assert.match(source, /const workspaceIsCurrent = computed/)
+  assert.match(source, /workspaceLoadedVersionId\.value === selectedVersionId\.value/)
+  assert.match(source, /&& !versionDataLoading\.value/)
+  assert.match(source, /v-if="workspaceIsCurrent && validation\.errors\.length"/)
+  assert.match(source, /v-else-if="workspaceIsCurrent && selectedVersion"/)
+
+  assert.match(source, /async function refreshAfterMutation/)
+  assert.match(source, /操作已完成，但刷新失败，请手动重试/)
+
+  const mutationSections = [
+    ['submitUpload', 'confirmDeleteDocument', "ElMessage.success('标准文档上传成功')"],
+    ['confirmDeleteDocument', 'submitStandard', "ElMessage.success('标准文档已删除')"],
+    ['submitStandard', 'loadVersions', "ElMessage.success('标准集合已创建')"],
+    ['submitVersion', 'loadVersionData', "ElMessage.success('草稿版本已创建，请手动解析')"],
+    ['runAction', 'confirmDeleteVersion', 'ElMessage.success(message)'],
+    ['confirmDeleteVersion', 'canEditRule', "ElMessage.success('标准版本已删除')"],
+    ['saveRule', 'onMounted', "ElMessage.success('规则已保存')"],
+  ]
+  for (const [startName, endName, successStatement] of mutationSections) {
+    const start = source.indexOf(`async function ${startName}`)
+    const end = source.indexOf(`function ${endName}`, start + 1)
+    const section = source.slice(start, end)
+    assert.ok(section.indexOf(successStatement) >= 0, `${startName} must report mutation success`)
+    assert.ok(section.indexOf(successStatement) < section.indexOf('refreshAfterMutation'), `${startName} must report success before refresh`)
+  }
+})
+
+test('standard management guards every mutable submit control against rapid repeats', async () => {
+  const source = await readFile(new URL('../src/components/StandardManagementView.vue', import.meta.url), 'utf8')
+
+  assert.match(source, /const standardCreating = ref\(false\)/)
+  assert.match(source, /if \(standardCreating\.value \|\| !newStandardDiseaseId\.value\) return/)
+  assert.match(source, /:loading="standardCreating"/)
+
+  assert.match(source, /const versionCreating = ref\(false\)/)
+  assert.match(source, /if \(versionCreating\.value \|\| !selectedStandard\.value/)
+  assert.match(source, /:loading="versionCreating"/)
+
+  assert.match(source, /const documentDeletingId = ref<number \| null>\(null\)/)
+  assert.match(source, /if \(documentDeletingId\.value !== null\) return/)
+  assert.match(source, /:loading="documentDeletingId === document\.id"/)
+  assert.match(source, /:disabled="documentDeletingId !== null"/)
+
+  assert.match(source, /const ruleSaving = ref\(false\)/)
+  assert.match(source, /if \(ruleSaving\.value \|\| !editorRule\.value\) return/)
+  assert.match(source, /:loading="ruleSaving"/)
+  assert.match(source, /:disabled="ruleSaving \|\| lifecyclePending/)
 })
 
 test('admin standards API exposes dedicated standard document contracts', async () => {
