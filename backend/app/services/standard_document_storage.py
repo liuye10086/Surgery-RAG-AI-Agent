@@ -40,6 +40,4 @@ def save_standard_upload(file: UploadFile) -> StoredStandardFile:
 
 
 def delete_standard_file(path: str) -> None:
-    target = Path(path)
-    if target.exists():
-        target.unlink()
+    Path(path).unlink()

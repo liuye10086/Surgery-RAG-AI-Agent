@@ -80,6 +80,28 @@ class _Db:
         self.rollbacks += 1
 
 
+class _TransactionalDeleteDb(_Db):
+    def __init__(self, document):
+        super().__init__(first=document)
+        self.records = [document]
+        self.delete_attempts = []
+        self.pending_deletes = []
+
+    def delete(self, value):
+        self.delete_attempts.append(value)
+        self.pending_deletes.append(value)
+
+    def commit(self):
+        super().commit()
+        for value in self.pending_deletes:
+            self.records.remove(value)
+        self.pending_deletes.clear()
+
+    def rollback(self):
+        super().rollback()
+        self.pending_deletes.clear()
+
+
 def _stored_file(path="stored.docx", content_hash="a" * 64):
     from app.services.standard_document_storage import StoredStandardFile
 
@@ -289,6 +311,22 @@ def test_delete_rolls_back_when_strict_disk_deletion_fails(monkeypatch):
     assert db.flushes == 1
     assert db.commits == 0
     assert db.rollbacks == 1
+
+
+def test_delete_missing_standard_file_rolls_back_database_delete(tmp_path):
+    from app.api.admin_standard_documents import delete_standard_document
+
+    document = SimpleNamespace(version=None, file_path=str(tmp_path / "missing.docx"))
+    db = _TransactionalDeleteDb(document)
+
+    with pytest.raises(HTTPException) as exc_info:
+        delete_standard_document(1, admin=SimpleNamespace(id=7), db=db)
+
+    assert exc_info.value.status_code == 500
+    assert db.delete_attempts == [document]
+    assert db.commits == 0
+    assert db.rollbacks == 1
+    assert db.records == [document]
 
 
 def test_delete_unlinked_standard_document_removes_disk_file_then_commits(monkeypatch):
