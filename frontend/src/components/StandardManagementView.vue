@@ -69,7 +69,7 @@
           <h3>标准集合</h3>
           <el-tooltip :disabled="availableDiseases.length > 0" content="所有疾病均已创建标准集合" placement="top">
             <span>
-              <el-button :disabled="!availableDiseases.length" @click="standardDialogVisible = true">
+              <el-button :disabled="lifecyclePending || !availableDiseases.length" @click="standardDialogVisible = true">
                 <el-icon><Plus /></el-icon>新建标准集合
               </el-button>
             </span>
@@ -80,6 +80,7 @@
           :key="item.id"
           class="list-button"
           :class="{ active: selectedStandard?.id === item.id }"
+          :disabled="lifecyclePending"
           text
           @click="selectStandard(item)"
         >{{ item.name }}</el-button>
@@ -89,17 +90,17 @@
       <section class="panel-card">
         <div class="panel-heading version-heading">
           <h3>版本审核</h3>
-          <el-button :disabled="!selectedStandard" @click="openVersionDialog"><el-icon><Plus /></el-icon>新建版本</el-button>
+          <el-button :disabled="lifecyclePending || !selectedStandard" @click="openVersionDialog"><el-icon><Plus /></el-icon>新建版本</el-button>
         </div>
-        <el-select v-model="selectedVersionId" class="version-select" placeholder="选择版本" clearable @change="loadVersionData">
+        <el-select v-model="selectedVersionId" class="version-select" placeholder="选择版本" clearable :disabled="lifecyclePending" :loading="versionDataLoading" @change="loadVersionData">
           <el-option v-for="version in versions" :key="version.id" :label="`${version.version_label} · ${version.status}`" :value="version.id" />
         </el-select>
         <div class="action-row">
-          <el-button :disabled="!selectedVersion || selectedVersion.status !== 'draft'" @click="runAction(parseVersion, '解析完成')">解析</el-button>
-          <el-button :disabled="!selectedVersion || selectedVersion.status !== 'draft'" @click="runAction(submitReview, '已提交审核')">提交审核</el-button>
-          <el-button type="primary" :disabled="!selectedVersion || selectedVersion.status !== 'review'" @click="runAction(approveVersion, '已批准发布')">批准发布</el-button>
-          <el-button type="warning" :disabled="!selectedVersion || selectedVersion.status !== 'approved'" @click="runAction(retireVersion, '已退役')">退役</el-button>
-          <el-button v-if="selectedVersion && ['draft', 'review'].includes(selectedVersion.status)" type="danger" plain @click="confirmDeleteVersion">
+          <el-button :disabled="lifecyclePending || !selectedVersion || selectedVersion.status !== 'draft'" @click="runAction(parseVersion, '解析完成')">解析</el-button>
+          <el-button :disabled="lifecyclePending || !selectedVersion || selectedVersion.status !== 'draft'" @click="runAction(submitReview, '已提交审核')">提交审核</el-button>
+          <el-button type="primary" :disabled="lifecyclePending || !selectedVersion || selectedVersion.status !== 'review'" @click="runAction(approveVersion, '已批准发布')">批准发布</el-button>
+          <el-button type="warning" :disabled="lifecyclePending || !selectedVersion || selectedVersion.status !== 'approved'" @click="runAction(retireVersion, '已退役')">退役</el-button>
+          <el-button v-if="selectedVersion && ['draft', 'review'].includes(selectedVersion.status)" type="danger" plain :disabled="lifecyclePending" @click="confirmDeleteVersion">
             <el-icon><Delete /></el-icon>删除版本
           </el-button>
         </div>
@@ -116,14 +117,14 @@
       <section class="panel-card">
         <h3>规则审核</h3>
         <div class="rule-table-wrap">
-          <el-table :data="rules" size="small">
+          <el-table :data="rules" size="small" :loading="versionDataLoading">
             <el-table-column prop="id" label="ID" width="60" />
             <el-table-column prop="rule_type" label="类型" min-width="100" />
             <el-table-column prop="machine_actionability" label="状态" min-width="130" />
             <el-table-column prop="interpretation" label="解释" min-width="180" />
             <el-table-column label="操作" width="90" fixed="right">
               <template #default="{ row }">
-                <el-button text :disabled="selectedVersion?.status === 'approved' || selectedVersion?.status === 'retired'" @click="openRuleEditor(row)">编辑</el-button>
+                <el-button text :disabled="!canEditRule(row)" @click="openRuleEditor(row)">编辑</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -169,7 +170,7 @@
       </el-form>
       <template #footer>
         <el-button @click="editorVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="!editorReason.trim()" @click="saveRule">保存</el-button>
+        <el-button type="primary" :disabled="lifecyclePending || !editorReason.trim()" @click="saveRule">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -216,6 +217,9 @@ const segments = ref<StandardSegment[]>([])
 const rules = ref<StandardRule[]>([])
 const validation = ref<ValidationReport>(emptyValidation())
 const standardDocuments = ref<StandardDocument[]>([])
+const workspaceLoadedVersionId = ref<number | null>(null)
+const versionDataLoading = ref(false)
+const lifecyclePending = ref(false)
 const selectedVersion = computed(() => versions.value.find(item => item.id === selectedVersionId.value) || null)
 const availableDocuments = computed(() => standardDocuments.value.filter(document => !document.is_locked))
 const availableDiseases = computed(() => {
@@ -236,6 +240,10 @@ const editorVisible = ref(false)
 const editorRule = ref<StandardRule | null>(null)
 const editorUpper = ref<number | null>(null)
 const editorReason = ref('')
+let standardDocumentsRequestSequence = 0
+let versionsRequestSequence = 0
+let versionDataRequestSequence = 0
+const latestVersionsRequestByStandard = new Map<number, number>()
 
 function getErrorMessage(error: any, fallback: string) {
   return error?.response?.data?.detail || error?.message || fallback
@@ -265,15 +273,22 @@ function formatDateTime(value?: string | null) {
 }
 
 function clearVersionWorkspace() {
+  workspaceLoadedVersionId.value = null
   segments.value = []
   rules.value = []
   validation.value = emptyValidation()
+  editorVisible.value = false
+  editorRule.value = null
 }
 
 async function loadStandardDocuments() {
+  const requestSequence = ++standardDocumentsRequestSequence
   try {
-    standardDocuments.value = await listStandardDocuments()
+    const documents = await listStandardDocuments()
+    if (requestSequence !== standardDocumentsRequestSequence) return
+    standardDocuments.value = documents
   } catch (error: any) {
+    if (requestSequence !== standardDocumentsRequestSequence) return
     ElMessage.error(getErrorMessage(error, '标准文档列表加载失败'))
   }
 }
@@ -325,19 +340,27 @@ async function submitStandard() {
 }
 
 async function loadVersions(standardId: number) {
+  const requestSequence = ++versionsRequestSequence
+  latestVersionsRequestByStandard.set(standardId, requestSequence)
   const currentVersionId = selectedVersionId.value
-  const loadedVersions = await listVersions(standardId)
-  if (selectedStandard.value?.id !== standardId) return
-  versions.value = loadedVersions
-  if (currentVersionId && versions.value.some(version => version.id === currentVersionId)) return
-  selectedVersionId.value = null
-  clearVersionWorkspace()
+  try {
+    const loadedVersions = await listVersions(standardId)
+    if (latestVersionsRequestByStandard.get(standardId) !== requestSequence || selectedStandard.value?.id !== standardId) return
+    versions.value = loadedVersions
+    if (currentVersionId && versions.value.some(version => version.id === currentVersionId)) return
+    selectedVersionId.value = null
+    clearVersionWorkspace()
+  } catch (error) {
+    if (latestVersionsRequestByStandard.get(standardId) !== requestSequence || selectedStandard.value?.id !== standardId) return
+    throw error
+  }
 }
 
 async function selectStandard(item: Standard) {
   const standardChanged = selectedStandard.value?.id !== item.id
   selectedStandard.value = item
   if (standardChanged) {
+    versions.value = []
     selectedVersionId.value = null
     clearVersionWorkspace()
   }
@@ -381,60 +404,89 @@ async function submitVersion() {
 }
 
 async function loadVersionData() {
+  const requestSequence = ++versionDataRequestSequence
+  clearVersionWorkspace()
   if (!selectedVersionId.value) {
-    clearVersionWorkspace()
+    versionDataLoading.value = false
     return
   }
   const id = selectedVersionId.value
+  versionDataLoading.value = true
   try {
     const [loadedSegments, loadedRules, loadedValidation] = await Promise.all([listSegments(id), listRules(id), validateVersion(id)])
-    if (selectedVersionId.value !== id) return
+    if (requestSequence !== versionDataRequestSequence || selectedVersionId.value !== id) return
     segments.value = loadedSegments
     rules.value = loadedRules
     validation.value = loadedValidation
+    workspaceLoadedVersionId.value = id
   } catch (error: any) {
-    if (selectedVersionId.value !== id) return
+    if (requestSequence !== versionDataRequestSequence || selectedVersionId.value !== id) return
     clearVersionWorkspace()
     ElMessage.error(getErrorMessage(error, '版本数据加载失败'))
+  } finally {
+    if (requestSequence === versionDataRequestSequence) versionDataLoading.value = false
   }
 }
 
 async function runAction(action: (id: number) => Promise<unknown>, message: string) {
+  if (lifecyclePending.value) return
   if (!selectedVersionId.value || !selectedStandard.value) return
   const versionId = selectedVersionId.value
+  const standardId = selectedStandard.value.id
+  lifecyclePending.value = true
   try {
     await action(versionId)
-    await loadVersions(selectedStandard.value.id)
-    if (selectedVersionId.value === versionId) await loadVersionData()
+    await loadVersions(standardId)
+    if (selectedStandard.value?.id === standardId && selectedVersionId.value === versionId) await loadVersionData()
     await loadStandardDocuments()
     ElMessage.success(message)
   } catch (error: any) {
     ElMessage.error(getErrorMessage(error, '操作失败'))
+  } finally {
+    lifecyclePending.value = false
   }
 }
 
 async function confirmDeleteVersion() {
-  if (!selectedVersion.value) return
+  if (lifecyclePending.value) return
+  if (!selectedVersion.value || !selectedStandard.value) return
+  const targetVersionId = selectedVersion.value.id
+  const targetStandardId = selectedStandard.value.id
+  lifecyclePending.value = true
   try {
     await ElMessageBox.confirm(
       '删除后解析片段、候选和规则将一并删除，标准文档会恢复为可用。',
       '删除标准版本',
       { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
     )
-    await deleteVersion(selectedVersion.value.id)
+    await deleteVersion(targetVersionId)
     await Promise.all([
       loadStandardDocuments(),
-      selectedStandard.value ? loadVersions(selectedStandard.value.id) : Promise.resolve(),
+      loadVersions(targetStandardId),
     ])
-    selectedVersionId.value = null
-    clearVersionWorkspace()
+    if (selectedStandard.value?.id === targetStandardId && selectedVersionId.value === targetVersionId) {
+      selectedVersionId.value = null
+      clearVersionWorkspace()
+    }
     ElMessage.success('标准版本已删除')
   } catch (error: any) {
     if (error !== 'cancel' && error !== 'close') ElMessage.error(getErrorMessage(error, '标准版本删除失败'))
+  } finally {
+    lifecyclePending.value = false
   }
 }
 
+function canEditRule(rule: StandardRule) {
+  if (rule.version_id !== selectedVersionId.value) return false
+  return !lifecyclePending.value
+    && !versionDataLoading.value
+    && workspaceLoadedVersionId.value === selectedVersionId.value
+    && selectedVersion.value?.status !== 'approved'
+    && selectedVersion.value?.status !== 'retired'
+}
+
 function openRuleEditor(rule: StandardRule) {
+  if (rule.version_id !== selectedVersionId.value || !canEditRule(rule)) return
   editorRule.value = rule
   editorUpper.value = rule.upper ?? null
   editorReason.value = ''
@@ -443,6 +495,8 @@ function openRuleEditor(rule: StandardRule) {
 
 async function saveRule() {
   if (!editorRule.value) return
+  if (editorRule.value.version_id !== selectedVersionId.value) return
+  if (workspaceLoadedVersionId.value !== selectedVersionId.value || lifecyclePending.value) return
   try {
     await patchRule(editorRule.value.id, { upper: editorUpper.value }, editorReason.value.trim())
     editorVisible.value = false
@@ -478,6 +532,7 @@ onMounted(async () => {
 .upload-hint { margin: var(--space-1) 0 var(--space-3); color: var(--text-secondary); font-size: var(--text-sm); }
 .upload-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
 .upload-title { width: min(280px, 100%); }
+.upload-title :deep(.el-input__wrapper) { min-height: 44px; }
 .selected-file { max-width: 300px; overflow: hidden; color: var(--text-secondary); font-size: var(--text-sm); text-overflow: ellipsis; white-space: nowrap; }
 .document-table-wrap, .rule-table-wrap { overflow-x: auto; }
 .document-table { min-width: 760px; margin-top: var(--space-4); }
@@ -496,6 +551,7 @@ onMounted(async () => {
 .list-button { display: block; width: 100%; min-height: 44px; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .list-button.active { color: var(--color-primary); background: var(--color-primary-light); }
 .version-select { width: min(360px, 100%); }
+.version-select :deep(.el-select__wrapper) { min-height: 44px; }
 .action-row { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0; }
 .upload-row :deep(.el-button), .collection-heading :deep(.el-button), .version-heading :deep(.el-button), .action-row :deep(.el-button) { min-height: 44px; }
 .segment-item { padding: var(--space-3); color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.5; border-bottom: 1px solid var(--border-light); overflow-wrap: anywhere; }

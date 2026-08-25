@@ -53,6 +53,35 @@ test('standard management rejects stale async workspace responses and preserves 
   assert.match(source, /min-height: 44px/)
 })
 
+test('standard management hardens workspace mutations and repeated request ordering', async () => {
+  const source = await readFile(new URL('../src/components/StandardManagementView.vue', import.meta.url), 'utf8')
+
+  assert.match(source, /workspaceLoadedVersionId/)
+  assert.match(source, /async function loadVersionData\(\)[\s\S]*?clearVersionWorkspace\(\)[\s\S]*?Promise\.all/)
+  assert.match(source, /rule\.version_id !== selectedVersionId\.value/)
+  assert.match(source, /editorRule\.value\.version_id !== selectedVersionId\.value/)
+
+  assert.match(source, /const lifecyclePending = ref\(false\)/)
+  assert.match(source, /if \(lifecyclePending\.value\) return/)
+  assert.match(source, /lifecyclePending\.value = true/)
+  assert.match(source, /lifecyclePending\.value = false/)
+  assert.match(source, /:disabled="lifecyclePending \|\|/)
+
+  assert.match(source, /let standardDocumentsRequestSequence = 0/)
+  assert.match(source, /const requestSequence = \+\+standardDocumentsRequestSequence/)
+  assert.match(source, /requestSequence !== standardDocumentsRequestSequence/)
+  assert.match(source, /let versionsRequestSequence = 0/)
+  assert.match(source, /const requestSequence = \+\+versionsRequestSequence/)
+  assert.match(source, /latestVersionsRequestByStandard\.get\(standardId\) !== requestSequence/)
+
+  assert.match(source, /const targetVersionId = selectedVersion\.value\.id/)
+  assert.match(source, /const targetStandardId = selectedStandard\.value\.id/)
+  assert.match(source, /selectedVersionId\.value === targetVersionId/)
+
+  assert.match(source, /\.upload-title :deep\(\.el-input__wrapper\)/)
+  assert.match(source, /\.version-select :deep\(\.el-select__wrapper\)/)
+})
+
 test('admin standards API exposes dedicated standard document contracts', async () => {
   const api = await readFile(
     new URL('../src/api/adminStandards.ts', import.meta.url),
