@@ -1,7 +1,7 @@
 param(
     [switch]$InstallDependencies,
     [switch]$SkipDatabase,
-    [string]$ReportPath = 'docs/coordination/BASELINE.md'
+    [string]$ReportPath = 'docs/BASELINE.md'
 )
 
 $ErrorActionPreference = 'Continue'

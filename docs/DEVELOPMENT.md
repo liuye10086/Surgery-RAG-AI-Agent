@@ -27,7 +27,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify_baseline.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify_baseline.ps1
 ```
 
-结果写入 `docs/coordination/BASELINE.md`。`PASS` 表示通过，`FAIL` 表示检查完成但不满足条件，`SKIP` 表示按安全边界跳过，`BLOCKED` 表示缺少必需环境或配置。
+结果写入 `docs/BASELINE.md`。`PASS` 表示通过，`FAIL` 表示检查完成但不满足条件，`SKIP` 表示按安全边界跳过，`BLOCKED` 表示缺少必需环境或配置。
 
 ## 后端
 

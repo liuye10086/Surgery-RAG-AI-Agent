@@ -1,7 +1,5 @@
 # AGENTS.md
 
-> 开始任何项目操作前，必须先完整阅读并遵守 `AI_COLLABORATION.md` 中的多角色协作规范。
-
 ## 项目概述
 
 Surgery RAG Agent — 外科领域垂直 RAG AI Agent。前端 Vue 3 + TypeScript + Element Plus，后端 Python FastAPI + LangChain PGVector（`langchain-postgres`）+ DeepSeek LLM。
