@@ -134,6 +134,26 @@ test('standard management guards every mutable submit control against rapid repe
   assert.match(source, /:disabled="ruleSaving \|\| lifecyclePending/)
 })
 
+test('standard management rejects stale collection loads and refreshes raced version documents', async () => {
+  const source = await readFile(new URL('../src/components/StandardManagementView.vue', import.meta.url), 'utf8')
+
+  assert.match(source, /let standardsRequestSequence = 0/)
+  assert.match(source, /async function loadStandards\([^)]*\)[\s\S]*?const requestSequence = \+\+standardsRequestSequence/)
+  assert.match(source, /async function loadStandards\([^)]*\)[\s\S]*?requestSequence !== standardsRequestSequence/)
+
+  const submitStandard = source.match(/async function submitStandard\(\)[\s\S]*?\n}\n\nasync function loadVersions/)?.[0] || ''
+  assert.match(submitStandard, /loadStandards\(false\)/)
+  assert.doesNotMatch(submitStandard, /standards\.value\s*=\s*await listStandards/)
+
+  const mounted = source.match(/onMounted\(async \(\) => \{[\s\S]*?\n}\)/)?.[0] || ''
+  assert.match(mounted, /loadStandards\(\)/)
+  assert.doesNotMatch(mounted, /listStandards\(\)\.then/)
+
+  const submitVersion = source.match(/async function submitVersion\(\)[\s\S]*?\n}\n\nasync function loadVersionData/)?.[0] || ''
+  assert.match(submitVersion, /error\?\.response\?\.status === 409/)
+  assert.match(submitVersion, /await loadStandardDocuments\(false\)/)
+})
+
 test('admin standards API exposes dedicated standard document contracts', async () => {
   const api = await readFile(
     new URL('../src/api/adminStandards.ts', import.meta.url),

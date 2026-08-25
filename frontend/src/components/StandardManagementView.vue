@@ -255,6 +255,7 @@ const editorVisible = ref(false)
 const editorRule = ref<StandardRule | null>(null)
 const editorUpper = ref<number | null>(null)
 const editorReason = ref('')
+let standardsRequestSequence = 0
 let standardDocumentsRequestSequence = 0
 let versionsRequestSequence = 0
 let versionDataRequestSequence = 0
@@ -305,6 +306,20 @@ function clearVersionWorkspace() {
   validation.value = emptyValidation()
   editorVisible.value = false
   editorRule.value = null
+}
+
+async function loadStandards(notifyError = true) {
+  const requestSequence = ++standardsRequestSequence
+  try {
+    const items = await listStandards()
+    if (requestSequence !== standardsRequestSequence) return true
+    standards.value = items
+    return true
+  } catch (error: any) {
+    if (requestSequence !== standardsRequestSequence) return true
+    if (notifyError) ElMessage.error(getErrorMessage(error, '标准集合加载失败'))
+    return false
+  }
 }
 
 async function loadStandardDocuments(notifyError = true) {
@@ -387,7 +402,7 @@ async function submitStandard() {
     clearVersionWorkspace()
     ElMessage.success('标准集合已创建')
     await refreshAfterMutation([
-      async () => { standards.value = await listStandards() },
+      () => loadStandards(false),
       () => loadVersions(created.id),
     ])
   } finally {
@@ -448,6 +463,7 @@ async function submitVersion() {
       })
     } catch (error: any) {
       ElMessage.error(getErrorMessage(error, '标准版本创建失败'))
+      if (error?.response?.status === 409) await loadStandardDocuments(false)
       return
     }
     versionDialogVisible.value = false
@@ -596,9 +612,7 @@ async function saveRule() {
 
 onMounted(async () => {
   await Promise.all([
-    listStandards().then(items => { standards.value = items }).catch(error => {
-      ElMessage.error(getErrorMessage(error, '标准集合加载失败'))
-    }),
+    loadStandards(),
     listDiseases().then(items => { diseases.value = items }).catch(error => {
       ElMessage.error(getErrorMessage(error, '疾病列表加载失败'))
     }),
