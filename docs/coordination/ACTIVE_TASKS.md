@@ -6,6 +6,61 @@
 
 ## 活动任务
 
+### standard-documents-001
+
+```yaml
+task_id: standard-documents-001
+title: 标准文档独立域与标准版本管理链路
+status: in-progress
+risk: high
+owner: Codex
+client: Codex-Desktop
+branch: codex/standard-documents-001
+worktree: .worktrees/standard-documents-001
+planner: Codex
+implementer: Codex
+reviewer: Claude-Code
+database_change: true
+plan: docs/superpowers/plans/2026-08-25-dedicated-standard-documents.md
+review_handoff: pending
+```
+
+#### 目标
+
+将标准 DOCX 从普通 `documents` 领域分离到独立 `standard_documents` 表，并完成管理员“上传标准文档 → 按疾病创建标准集合 → 手动选择文档创建版本 → 手动解析/审核/发布”链路。
+
+#### 范围
+
+##### Exact files
+
+- 计划文件中 Task 1-7 列出的数据库、后端、脚本、前端及测试文件
+
+##### Shared resources
+
+- `standard_documents` 表及 Alembic `0010` revision 链
+- `reference_standard_versions.standard_document_id`
+- 标准管理 API 与 `StandardManagementView.vue`
+
+#### 验收条件
+
+- 按计划完成 Task 1-7 的 TDD、迁移保护、标准文档 API、两阶段管理 UI 和回归验证。
+- 完成功能后由 Claude Code 交叉评审；修复使用新提交，不改写既有提交。
+- 不推送、不合并，等待项目所有者分别授权。
+
+#### 阻塞记录
+
+- 无。
+
+#### 评审记录
+
+- 尚未评审。
+
+#### 评审交接信息
+
+```text
+待 Task 7 完成后生成实际提交范围、验证计数和重点检查项。
+```
+
 ### ai-operator-predictive-001
 
 ```yaml
