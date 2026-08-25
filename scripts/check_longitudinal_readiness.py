@@ -39,6 +39,12 @@ def exit_code_for_report(report: LongitudinalReadinessReport) -> int:
     return 1 if report.overall_status == "blocked" else 0
 
 
+def configure_stdout_utf8() -> None:
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure):
+        reconfigure(encoding="utf-8")
+
+
 def get_code_heads() -> set[str]:
     config = Config(str(BACKEND_ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
@@ -72,6 +78,7 @@ def _print_json(payload: dict[str, object]) -> None:
 
 
 def main() -> int:
+    configure_stdout_utf8()
     try:
         report = run_check(
             database_url=settings.DATABASE_URL,

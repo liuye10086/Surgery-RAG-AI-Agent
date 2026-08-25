@@ -285,6 +285,16 @@ P3-04 前端生成状态与故障解释
 
 ### P0-01：建立双疾病基线审计与完整报告契约
 
+**状态**：`completed`
+
+**Task-ID**：`longitudinal-readiness-001`
+
+**设计文档**：`docs/superpowers/specs/2026-08-25-longitudinal-readiness-design.md`
+
+**实施计划**：`docs/superpowers/plans/2026-08-25-longitudinal-readiness.md`
+
+**验证记录**：`python scripts/check_longitudinal_readiness.py` 已成功输出双疾病只读 JSON。当前脂肪肝与 AD 的业务状态均为 `blocked`，命令退出码为 `1`；缺口明确映射到 P0-02、P0-04、P0-07 及可选增强任务。新增测试、相关纵向回归与数据库基线检查通过。
+
 **现状**
 
 系统已有多份设计和测试，但缺少一个可自动运行的双疾病报告就绪检查。模型、标准和数据缺失往往要等到生成报告后才暴露。

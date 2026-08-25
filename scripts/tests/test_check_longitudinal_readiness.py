@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -156,3 +157,13 @@ def test_checker_source_contains_no_mutating_sql():
         "ALTER ",
     ):
         assert forbidden not in source
+
+
+def test_cli_reconfigures_gbk_stdout_to_utf8(checker, monkeypatch):
+    raw = io.BytesIO()
+    stream = io.TextIOWrapper(raw, encoding="gbk")
+    monkeypatch.setattr(checker.sys, "stdout", stream)
+    checker.configure_stdout_utf8()
+    checker._print_json({"message": "脂肪肝"})
+    stream.flush()
+    assert json.loads(raw.getvalue().decode("utf-8"))["message"] == "脂肪肝"
