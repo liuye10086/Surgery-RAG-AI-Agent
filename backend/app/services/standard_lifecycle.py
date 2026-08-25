@@ -57,7 +57,12 @@ def update_draft_rule(db, admin_id: int, rule_id: int, patch: RulePatch, reason:
 
 
 def transition_version(db, admin_id: int, version_id: int, target_status: str):
-    version = db.query(ReferenceStandardVersion).get(version_id)
+    version = (
+        db.query(ReferenceStandardVersion)
+        .filter(ReferenceStandardVersion.id == version_id)
+        .with_for_update()
+        .first()
+    )
     if version is None:
         raise ValueError("标准版本不存在")
     allowed = {"draft": {"review"}, "review": {"approved"}, "approved": {"retired"}, "retired": set()}
@@ -104,7 +109,12 @@ def _projection_from_rule(version: Any, rule: Any) -> Any:
 
 
 def publish_approved_version(db, admin_id: int, version_id: int):
-    version = db.query(ReferenceStandardVersion).filter(ReferenceStandardVersion.id == version_id).first()
+    version = (
+        db.query(ReferenceStandardVersion)
+        .filter(ReferenceStandardVersion.id == version_id)
+        .with_for_update()
+        .first()
+    )
     if version is None:
         raise ValueError("标准版本不存在")
     if version.status != "review":

@@ -211,7 +211,7 @@ CREATE INDEX IF NOT EXISTS ix_audit_logs_session_id ON audit_logs(session_id);
 -- 12. 版本化标准规则层
 CREATE TABLE IF NOT EXISTS reference_standards (
     id SERIAL PRIMARY KEY,
-    disease_id INTEGER NOT NULL REFERENCES diseases(id) ON DELETE CASCADE,
+    disease_id INTEGER NOT NULL CONSTRAINT reference_standards_disease_id_fkey REFERENCES diseases(id) ON DELETE RESTRICT,
     name VARCHAR(200) NOT NULL,
     description TEXT,
     status VARCHAR(50) NOT NULL DEFAULT 'active',

@@ -9,12 +9,12 @@ from app.db.models import ReferenceStandardVersion, StandardDocument
 from app.db.session import get_db
 from app.schemas.standard_document import StandardDocumentOut
 from app.services.standard_document_storage import (
-    StagedStandardFileDeletion,
+    StandardFileRecoverySnapshot,
     StoredStandardFile,
     delete_standard_file,
-    restore_standard_file_deletion,
+    restore_standard_file,
     save_standard_upload,
-    stage_standard_file_deletion,
+    snapshot_standard_file,
     validate_standard_docx,
 )
 
@@ -149,11 +149,12 @@ def delete_standard_document(
             detail="标准文件已关联版本，不可删除",
         )
 
-    staged: StagedStandardFileDeletion | None = None
+    recovery_snapshot: StandardFileRecoverySnapshot | None = None
     try:
         db.delete(document)
         db.flush()
-        staged = stage_standard_file_deletion(document.file_path)
+        recovery_snapshot = snapshot_standard_file(document.file_path)
+        delete_standard_file(document.file_path)
     except Exception as exc:
         db.rollback()
         raise HTTPException(
@@ -170,7 +171,7 @@ def delete_standard_document(
         except Exception as rollback_exc:
             compensation_error = rollback_exc
         try:
-            restore_standard_file_deletion(staged)
+            restore_standard_file(recovery_snapshot)
         except Exception as restore_exc:
             compensation_error = restore_exc
         raise HTTPException(
@@ -178,11 +179,4 @@ def delete_standard_document(
             detail="标准文件删除失败",
         ) from (compensation_error or commit_exc)
 
-    try:
-        delete_standard_file(staged.staged_path)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="标准文件删除失败",
-        ) from exc
     return None

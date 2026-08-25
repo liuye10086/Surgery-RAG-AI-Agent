@@ -39,6 +39,17 @@ class SchemaContractTests(unittest.TestCase):
         ):
             self.assertIn(literal, schema)
 
+    def test_clean_install_schema_restricts_deleting_disease_with_standard(self):
+        schema = (Path(__file__).resolve().parents[2] / "database/schema.sql").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "disease_id INTEGER NOT NULL CONSTRAINT "
+            "reference_standards_disease_id_fkey "
+            "REFERENCES diseases(id) ON DELETE RESTRICT",
+            schema,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

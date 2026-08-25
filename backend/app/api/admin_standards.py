@@ -45,8 +45,18 @@ def _is_docx_document(file_type: str | None) -> bool:
     return (file_type or "").lower().lstrip(".") == "docx"
 
 
-def _version_or_404(db: Session, version_id: int) -> ReferenceStandardVersion:
-    version = db.query(ReferenceStandardVersion).filter(ReferenceStandardVersion.id == version_id).first()
+def _version_or_404(
+    db: Session,
+    version_id: int,
+    *,
+    for_update: bool = False,
+) -> ReferenceStandardVersion:
+    query = db.query(ReferenceStandardVersion).filter(
+        ReferenceStandardVersion.id == version_id
+    )
+    if for_update:
+        query = query.with_for_update()
+    version = query.first()
     if version is None:
         raise HTTPException(status_code=404, detail="标准版本不存在")
     return version
@@ -137,7 +147,7 @@ def get_version(version_id: int, admin=Depends(require_admin), db: Session = Dep
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def delete_version(version_id: int, admin=Depends(require_admin), db: Session = Depends(get_db)):
-    version = _version_or_404(db, version_id)
+    version = _version_or_404(db, version_id, for_update=True)
     if version.status not in {"draft", "review"}:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -150,7 +160,7 @@ def delete_version(version_id: int, admin=Depends(require_admin), db: Session = 
 
 @router.post("/admin/reference-standard-versions/{version_id}/parse")
 def parse_version(version_id: int, admin=Depends(require_admin), db: Session = Depends(get_db)):
-    version = _version_or_404(db, version_id)
+    version = _version_or_404(db, version_id, for_update=True)
     if version.status not in {"draft", "review"}:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="已批准或已退役版本不可重新解析")
     document = version.standard_document
@@ -219,7 +229,7 @@ def parse_version(version_id: int, admin=Depends(require_admin), db: Session = D
 
 @router.post("/admin/reference-standard-versions/{version_id}/submit-review", response_model=StandardVersionOut)
 def submit_review(version_id: int, admin=Depends(require_admin), db: Session = Depends(get_db)):
-    version = _version_or_404(db, version_id)
+    version = _version_or_404(db, version_id, for_update=True)
     if version.status != "draft":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="只有 draft 版本可以提交审核")
     version.status = "review"
@@ -240,7 +250,7 @@ def approve_version(version_id: int, admin=Depends(require_admin), db: Session =
 
 @router.post("/admin/reference-standard-versions/{version_id}/retire", response_model=StandardVersionOut)
 def retire_version(version_id: int, admin=Depends(require_admin), db: Session = Depends(get_db)):
-    version = _version_or_404(db, version_id)
+    version = _version_or_404(db, version_id, for_update=True)
     if version.status != "approved":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="只有 approved 版本可以退役")
     version.status = "retired"

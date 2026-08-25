@@ -183,7 +183,7 @@ class Disease(Base):
         "OperatorCase", back_populates="disease", cascade="all, delete-orphan"
     )
     reference_standards = relationship(
-        "ReferenceStandard", back_populates="disease", cascade="all, delete-orphan"
+        "ReferenceStandard", back_populates="disease", passive_deletes=True
     )
 
 
@@ -318,7 +318,16 @@ class ReferenceStandard(Base):
     __table_args__ = (UniqueConstraint("disease_id", name="uq_reference_standards_disease"),)
 
     id = Column(Integer, primary_key=True)
-    disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="CASCADE"), nullable=False, unique=True)
+    disease_id = Column(
+        Integer,
+        ForeignKey(
+            "diseases.id",
+            name="reference_standards_disease_id_fkey",
+            ondelete="RESTRICT",
+        ),
+        nullable=False,
+        unique=True,
+    )
     name = Column(String(200), nullable=False)
     description = Column(Text)
     status = Column(String(50), nullable=False, default="active", server_default="active")

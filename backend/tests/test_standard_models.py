@@ -1,4 +1,5 @@
 from app.db.models import (
+    Disease,
     ReferenceRange,
     ReferenceStandard,
     ReferenceStandardVersion,
@@ -50,3 +51,15 @@ def test_reference_range_projection_defaults_to_non_current():
     column = ReferenceRange.__table__.columns["is_current_projection"]
     assert column.server_default is not None
     assert column.server_default.arg in {"false", "0"}
+
+
+def test_reference_standard_restricts_disease_deletion_at_database_boundary():
+    disease_id = ReferenceStandard.__table__.columns["disease_id"]
+    foreign_key = next(iter(disease_id.foreign_keys))
+
+    assert foreign_key.constraint.name == "reference_standards_disease_id_fkey"
+    assert foreign_key.ondelete == "RESTRICT"
+
+    relationship = Disease.reference_standards.property
+    assert relationship.passive_deletes is True
+    assert "delete" not in relationship.cascade

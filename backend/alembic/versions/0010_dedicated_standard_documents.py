@@ -12,13 +12,19 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-def _row_count(table_name: str) -> int:
-    bind = op.get_bind()
+def _lock_tables(bind, *table_names: str) -> None:
+    names = ", ".join(table_names)
+    bind.execute(sa.text(f"LOCK TABLE {names} IN SHARE MODE"))
+
+
+def _row_count(bind, table_name: str) -> int:
     return int(bind.execute(sa.text(f"SELECT count(*) FROM {table_name}")).scalar_one())
 
 
 def upgrade() -> None:
-    if _row_count("reference_standard_versions"):
+    bind = op.get_bind()
+    _lock_tables(bind, "reference_standard_versions")
+    if _row_count(bind, "reference_standard_versions"):
         raise RuntimeError(
             "0010 requires reference_standard_versions to be empty; "
             "manual review is required and no rows were changed"
@@ -73,15 +79,43 @@ def upgrade() -> None:
         ["id"],
         ondelete="RESTRICT",
     )
+    op.drop_constraint(
+        "reference_standards_disease_id_fkey",
+        "reference_standards",
+        type_="foreignkey",
+    )
+    op.create_foreign_key(
+        "reference_standards_disease_id_fkey",
+        "reference_standards",
+        "diseases",
+        ["disease_id"],
+        ["id"],
+        ondelete="RESTRICT",
+    )
 
 
 def downgrade() -> None:
-    if _row_count("reference_standard_versions") or _row_count("standard_documents"):
+    bind = op.get_bind()
+    _lock_tables(bind, "reference_standard_versions", "standard_documents")
+    if _row_count(bind, "reference_standard_versions") or _row_count(bind, "standard_documents"):
         raise RuntimeError(
             "0010 downgrade requires reference_standard_versions and "
             "standard_documents to be empty; no rows were changed"
         )
 
+    op.drop_constraint(
+        "reference_standards_disease_id_fkey",
+        "reference_standards",
+        type_="foreignkey",
+    )
+    op.create_foreign_key(
+        "reference_standards_disease_id_fkey",
+        "reference_standards",
+        "diseases",
+        ["disease_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
     op.drop_constraint(
         "fk_reference_standard_versions_standard_document",
         "reference_standard_versions",

@@ -46,10 +46,18 @@ class _Query:
 
 
 class _Db:
-    def __init__(self, first=None, rows=None, commit_error=None, refresh_error=None):
+    def __init__(
+        self,
+        first=None,
+        rows=None,
+        commit_error=None,
+        refresh_error=None,
+        flush_error=None,
+    ):
         self.query_result = _Query(first=first, rows=rows)
         self.commit_error = commit_error
         self.refresh_error = refresh_error
+        self.flush_error = flush_error
         self.added = []
         self.deleted = []
         self.commits = 0
@@ -68,6 +76,8 @@ class _Db:
 
     def flush(self):
         self.flushes += 1
+        if self.flush_error:
+            raise self.flush_error
 
     def commit(self):
         self.commits += 1
@@ -153,6 +163,46 @@ def test_standard_file_hash_is_sha256(tmp_path):
     assert hash_standard_file(str(path)) == hashlib.sha256(contents).hexdigest()
 
 
+def test_standard_upload_removes_saved_file_when_size_lookup_fails(monkeypatch, tmp_path):
+    from app.services.standard_document_storage import save_standard_upload
+
+    source = tmp_path / "size-failure.docx"
+    source.write_bytes(b"saved upload")
+    monkeypatch.setattr(
+        "app.services.standard_document_storage.file_storage.save_upload",
+        lambda _file: str(source),
+    )
+    monkeypatch.setattr(
+        "app.services.standard_document_storage.file_storage.get_file_size",
+        lambda _path: (_ for _ in ()).throw(OSError("size failed")),
+    )
+
+    with pytest.raises(OSError, match="size failed"):
+        save_standard_upload(_upload_file("standard.docx", b"docx"))
+
+    assert not source.exists()
+
+
+def test_standard_upload_removes_saved_file_when_hashing_fails(monkeypatch, tmp_path):
+    from app.services.standard_document_storage import save_standard_upload
+
+    source = tmp_path / "hash-failure.docx"
+    source.write_bytes(b"saved upload")
+    monkeypatch.setattr(
+        "app.services.standard_document_storage.file_storage.save_upload",
+        lambda _file: str(source),
+    )
+    monkeypatch.setattr(
+        "app.services.standard_document_storage.hash_standard_file",
+        lambda _path: (_ for _ in ()).throw(OSError("hash failed")),
+    )
+
+    with pytest.raises(OSError, match="hash failed"):
+        save_standard_upload(_upload_file("standard.docx", b"docx"))
+
+    assert not source.exists()
+
+
 def test_standard_document_out_derives_unlocked_state():
     from app.api.admin_standard_documents import standard_document_to_out
 
@@ -222,7 +272,7 @@ def test_upload_translates_integrity_race_and_removes_saved_file(monkeypatch):
     from app.api.admin_standard_documents import upload_standard_document
 
     deleted = []
-    db = _Db(commit_error=IntegrityError("insert", {}, Exception("duplicate")))
+    db = _Db(flush_error=IntegrityError("insert", {}, Exception("duplicate")))
     monkeypatch.setattr(
         "app.api.admin_standard_documents.save_standard_upload",
         lambda file: _stored_file(path="race.docx"),
@@ -239,6 +289,7 @@ def test_upload_translates_integrity_race_and_removes_saved_file(monkeypatch):
 
     assert exc_info.value.status_code == 409
     assert db.rollbacks == 1
+    assert db.commits == 0
     assert deleted == ["race.docx"]
 
 
@@ -322,11 +373,12 @@ def test_delete_linked_standard_document_returns_conflict():
     assert db.deleted == []
 
 
-def test_delete_reports_finalize_failure_without_database_rollback(monkeypatch, tmp_path):
+def test_delete_unlink_failure_rolls_back_and_preserves_original_bytes(monkeypatch, tmp_path):
     from app.api.admin_standard_documents import delete_standard_document
 
+    contents = b"standard contents"
     source = tmp_path / "cannot-delete.docx"
-    source.write_bytes(b"standard contents")
+    source.write_bytes(contents)
     document = SimpleNamespace(version=None, file_path=str(source))
     db = _Db(first=document)
     monkeypatch.setattr(
@@ -340,10 +392,10 @@ def test_delete_reports_finalize_failure_without_database_rollback(monkeypatch, 
     assert exc_info.value.status_code == 500
     assert db.deleted == [document]
     assert db.flushes == 1
-    assert db.commits == 1
-    assert db.rollbacks == 0
-    assert not source.exists()
-    assert len(list(tmp_path.iterdir())) == 1
+    assert db.commits == 0
+    assert db.rollbacks == 1
+    assert source.read_bytes() == contents
+    assert list(tmp_path.iterdir()) == [source]
 
 
 def test_delete_missing_standard_file_rolls_back_database_delete(tmp_path):
@@ -383,17 +435,34 @@ def test_delete_commit_failure_rolls_back_and_restores_original_file(tmp_path):
     assert list(tmp_path.iterdir()) == [source]
 
 
-def test_delete_unlinked_standard_document_removes_disk_file_then_commits(tmp_path):
+def test_delete_unlinked_standard_document_removes_disk_file_before_commit(monkeypatch, tmp_path):
     from app.api.admin_standard_documents import delete_standard_document
 
+    events = []
     source = tmp_path / "available.docx"
     source.write_bytes(b"standard contents")
     document = SimpleNamespace(version=None, file_path=str(source))
-    db = _Db(first=document)
+
+    class OrderedDb(_Db):
+        def commit(self):
+            events.append("commit")
+            super().commit()
+
+    db = OrderedDb(first=document)
+
+    def unlink(path):
+        events.append("unlink")
+        Path(path).unlink()
+
+    monkeypatch.setattr(
+        "app.api.admin_standard_documents.delete_standard_file",
+        unlink,
+    )
 
     assert delete_standard_document(1, admin=SimpleNamespace(id=7), db=db) is None
     assert db.deleted == [document]
     assert db.flushes == 1
     assert db.commits == 1
+    assert events == ["unlink", "commit"]
     assert not source.exists()
     assert list(tmp_path.iterdir()) == []

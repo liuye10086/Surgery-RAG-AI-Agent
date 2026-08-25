@@ -17,6 +17,7 @@ from app.db.models import (
     Disease,
     Document,
     ReferenceRange,
+    ReferenceStandard,
     User,
 )
 from app.db.session import get_db
@@ -548,6 +549,12 @@ def delete_disease(
         raise HTTPException(status_code=404, detail="疾病不存在")
     if db.query(CaseRecord).filter(CaseRecord.disease_id == disease_id).count():
         raise HTTPException(status_code=409, detail="该疾病下存在病例，请先删除病例")
+    if (
+        db.query(ReferenceStandard)
+        .filter(ReferenceStandard.disease_id == disease_id)
+        .first()
+    ):
+        raise HTTPException(status_code=409, detail="该疾病已关联参考标准，不能删除")
     db.delete(d)
     db.commit()
     return None

@@ -4,7 +4,12 @@ import pytest
 
 from app.schemas.standard import RulePatch
 from app.services.standard_lifecycle import ImmutableVersionError, update_draft_rule
-from app.services.standard_lifecycle import publish_approved_version, materialize_candidate_rule, seed_standard_draft
+from app.services.standard_lifecycle import (
+    materialize_candidate_rule,
+    publish_approved_version,
+    seed_standard_draft,
+    transition_version,
+)
 
 
 def test_approved_rule_cannot_be_edited():
@@ -99,15 +104,25 @@ def test_publish_retires_previous_version_and_projects_only_calculable_rules():
     class Query:
         def __init__(self, value):
             self.value = value
+            self.events = []
         def filter(self, *args, **kwargs):
+            self.events.append("filter")
+            return self
+        def with_for_update(self):
+            self.events.append("with_for_update")
             return self
         def first(self):
+            self.events.append("first")
             return self.value
 
     class Session:
+        def __init__(self):
+            self.queries = []
         def query(self, model):
             name = getattr(model, "__name__", "")
-            return Query(version if name == "ReferenceStandardVersion" else None)
+            query = Query(version if name == "ReferenceStandardVersion" else None)
+            self.queries.append(query)
+            return query
         def add(self, value):
             added.append(value)
         def commit(self):
@@ -115,11 +130,63 @@ def test_publish_retires_previous_version_and_projects_only_calculable_rules():
         def refresh(self, value):
             return None
 
-    result = publish_approved_version(Session(), 10, 2)
+    session = Session()
+    result = publish_approved_version(session, 10, 2)
     assert result.version.status == "approved"
     assert old.status == "retired"
     assert len(result.projections) == 1
     assert result.projections[0].standard_rule_id == 7
+    assert session.queries[0].events[:3] == ["filter", "with_for_update", "first"]
+
+
+def test_transition_version_locks_row_before_status_transition():
+    version = SimpleNamespace(
+        id=2,
+        status="draft",
+        approved_by=None,
+        approved_at=None,
+        effective_from=None,
+        retired_at=None,
+    )
+
+    class Query:
+        def __init__(self):
+            self.events = []
+
+        def filter(self, *conditions):
+            self.events.append("filter")
+            return self
+
+        def with_for_update(self):
+            self.events.append("with_for_update")
+            return self
+
+        def first(self):
+            self.events.append("first")
+            return version
+
+        def get(self, _version_id):
+            self.events.append("get")
+            return version
+
+    class Session:
+        def __init__(self):
+            self.query_result = Query()
+
+        def query(self, _model):
+            return self.query_result
+
+        def commit(self):
+            return None
+
+        def refresh(self, _value):
+            return None
+
+    session = Session()
+
+    transition_version(session, 10, 2, "review")
+
+    assert session.query_result.events[:3] == ["filter", "with_for_update", "first"]
 
 
 def test_materialize_candidate_creates_rule_from_reviewed_candidate():

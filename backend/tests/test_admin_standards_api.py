@@ -15,11 +15,20 @@ from app.schemas.standard import StandardCreate, StandardVersionCreate, Standard
 class _Query:
     def __init__(self, value):
         self.value = value
+        self.events = []
+        self.for_update = False
 
     def filter(self, *conditions):
+        self.events.append("filter")
+        return self
+
+    def with_for_update(self):
+        self.events.append("with_for_update")
+        self.for_update = True
         return self
 
     def first(self):
+        self.events.append("first")
         return self.value
 
 
@@ -31,10 +40,13 @@ class _Db:
         self.deleted = []
         self.commits = 0
         self.rollbacks = 0
+        self.queries = []
 
     def query(self, model):
         values = self.values.get(model.__name__, [])
-        return _Query(values.pop(0) if values else None)
+        query = _Query(values.pop(0) if values else None)
+        self.queries.append(query)
+        return query
 
     def add(self, value):
         if getattr(value, "id", None) is None:
@@ -356,6 +368,7 @@ def test_parse_deterministic_candidate_does_not_use_llm_adapter(monkeypatch, tmp
     assert result == {"version_id": 5, "segments": 1, "candidates": 1}
     assert llm_calls == []
     assert [item.source_type for item in db.added if hasattr(item, "source_type")] == ["deterministic"]
+    assert db.queries[0].events[:3] == ["filter", "with_for_update", "first"]
 
 
 @pytest.mark.parametrize("version_status", ["draft", "review"])
@@ -370,6 +383,32 @@ def test_delete_version_allows_unapproved_states_and_unlocks_document(version_st
     assert delete_version(5, admin=SimpleNamespace(id=7), db=db) is None
     assert db.deleted == [version]
     assert document.version is None
+
+
+def test_delete_version_locks_row_before_checking_mutable_status():
+    from app.api.admin_standards import delete_version
+
+    version = SimpleNamespace(id=5, status="draft", standard_document=None)
+    db = _Db({"ReferenceStandardVersion": [version]})
+
+    delete_version(5, admin=SimpleNamespace(id=7), db=db)
+
+    assert db.queries[0].events[:3] == ["filter", "with_for_update", "first"]
+
+
+@pytest.mark.parametrize(
+    ("endpoint_name", "version_status"),
+    [("submit_review", "draft"), ("retire_version", "approved")],
+)
+def test_lifecycle_route_locks_row_before_status_transition(endpoint_name, version_status):
+    from app.api import admin_standards
+
+    version = SimpleNamespace(id=5, status=version_status)
+    db = _Db({"ReferenceStandardVersion": [version]})
+
+    getattr(admin_standards, endpoint_name)(5, admin=SimpleNamespace(id=7), db=db)
+
+    assert db.queries[0].events[:3] == ["filter", "with_for_update", "first"]
 
 
 @pytest.mark.parametrize("version_status", ["approved", "retired"])

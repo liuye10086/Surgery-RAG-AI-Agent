@@ -59,6 +59,78 @@ class OperatorRouterEndpointTests(unittest.TestCase):
         )
         self.assertNotIn("/operator/reference-ranges/sync", paths)
 
+    def test_delete_disease_rejects_current_standard_before_delete(self):
+        from app.api.operator import delete_disease
+        from app.db.models import CaseRecord, Disease, ReferenceStandard
+
+        disease = MagicMock(spec=Disease)
+        disease.id = 7
+        standard = MagicMock(spec=ReferenceStandard)
+        standard.current_version_id = 11
+        standard.current_version.status = "approved"
+
+        class Query:
+            def __init__(self, *, first=None, count=0):
+                self.first_value = first
+                self.count_value = count
+
+            def filter(self, *_conditions):
+                return self
+
+            def first(self):
+                return self.first_value
+
+            def count(self):
+                return self.count_value
+
+        class Db:
+            def __init__(self):
+                self.queries = {
+                    Disease: Query(first=disease),
+                    CaseRecord: Query(count=0),
+                    ReferenceStandard: Query(first=standard),
+                }
+                self.deleted = []
+                self.commits = 0
+
+            def query(self, model):
+                return self.queries[model]
+
+            def delete(self, value):
+                self.deleted.append(value)
+
+            def commit(self):
+                self.commits += 1
+
+        db = Db()
+
+        with self.assertRaises(HTTPException) as context:
+            delete_disease(7, db=db, current_user=MagicMock())
+
+        self.assertEqual(context.exception.status_code, 409)
+        self.assertEqual(db.deleted, [])
+        self.assertEqual(db.commits, 0)
+
+    def test_delete_disease_keeps_case_record_protection_first(self):
+        from app.api.operator import delete_disease
+
+        disease_query = MagicMock()
+        disease_query.filter.return_value = disease_query
+        disease_query.first.return_value = MagicMock(id=7)
+        case_query = MagicMock()
+        case_query.filter.return_value = case_query
+        case_query.count.return_value = 1
+        db = MagicMock()
+        db.query.side_effect = [disease_query, case_query]
+
+        with self.assertRaises(HTTPException) as context:
+            delete_disease(7, db=db, current_user=MagicMock())
+
+        self.assertEqual(context.exception.status_code, 409)
+        self.assertEqual(db.query.call_count, 2)
+        db.delete.assert_not_called()
+        db.commit.assert_not_called()
+
 
 class ReportSchemaContractTests(unittest.TestCase):
     def test_report_out_has_predictive_fields(self):
