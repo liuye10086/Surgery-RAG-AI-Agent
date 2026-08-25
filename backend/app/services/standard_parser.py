@@ -65,6 +65,17 @@ class ParsedStandardDocument:
     rule_candidates: list[RuleCandidate]
 
 
+def build_llm_candidate(segment_text: str, context: dict[str, Any] | None = None, adapter=None) -> dict[str, Any] | None:
+    """Invoke an injected candidate adapter without coupling parsing to an LLM."""
+    if adapter is None:
+        return None
+    try:
+        result = adapter(segment_text, context or {})
+    except Exception:
+        return None
+    return result if isinstance(result, dict) else None
+
+
 def _clean(text: str) -> str:
     return " ".join(str(text or "").replace("\xa0", " ").split()).strip()
 

@@ -4,7 +4,7 @@ import pytest
 
 from app.schemas.standard import RulePatch
 from app.services.standard_lifecycle import ImmutableVersionError, update_draft_rule
-from app.services.standard_lifecycle import publish_approved_version
+from app.services.standard_lifecycle import publish_approved_version, materialize_candidate_rule
 
 
 def test_approved_rule_cannot_be_edited():
@@ -120,3 +120,35 @@ def test_publish_retires_previous_version_and_projects_only_calculable_rules():
     assert old.status == "retired"
     assert len(result.projections) == 1
     assert result.projections[0].standard_rule_id == 7
+
+
+def test_materialize_candidate_creates_rule_from_reviewed_candidate():
+    candidate = SimpleNamespace(
+        id=5,
+        version_id=2,
+        segment_id=8,
+        status="accepted",
+        candidate_json={
+            "indicator_name": "ALT",
+            "rule_type": "numeric_range",
+            "target_state_type": "reference",
+            "machine_actionability": "calculable",
+            "evidence_type": "standard_table",
+            "numeric": {"lower": 7, "upper": 40, "lower_inclusive": True, "upper_inclusive": True, "unit": "U/L"},
+            "applicability": {},
+        },
+    )
+    added = []
+    class Query:
+        def filter(self, *args, **kwargs): return self
+        def first(self): return None
+    class Session:
+        def query(self, model): return Query()
+        def add(self, value): added.append(value)
+        def commit(self): pass
+        def refresh(self, value): pass
+    result = materialize_candidate_rule(Session(), candidate, admin_id=10, reason="审核通过")
+    assert result.rule_type == "numeric_range"
+    assert result.upper == 40
+    assert result.machine_actionability == "calculable"
+    assert added

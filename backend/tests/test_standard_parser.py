@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.services.standard_parser import parse_numeric_expression, parse_standard_docx
+from app.services.standard_parser import parse_numeric_expression, parse_standard_docx, build_rule_candidates
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "standards"
@@ -25,3 +25,8 @@ def test_build_candidates_keeps_qualitative_text_as_evidence():
     candidates = parsed.rule_candidates
     assert any(c.machine_actionability == "evidence-only" for c in candidates)
     assert any(c.target_state_type == "stage" for c in candidates)
+
+
+def test_parser_exposes_pure_candidate_adapter_hook():
+    parsed = parse_standard_docx(FIXTURES / "ad_standard.docx", parser_version="v1")
+    assert build_rule_candidates(parsed) == parsed.rule_candidates

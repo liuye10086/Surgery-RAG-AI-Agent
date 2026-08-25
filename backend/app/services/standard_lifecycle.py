@@ -147,6 +147,57 @@ def validate_rule_actionability(rule: Any) -> str:
     return validate_rule(rule).actionability
 
 
+def materialize_candidate_rule(db, candidate: Any, admin_id: int, reason: str):
+    """Turn an accepted parse candidate into an editable StandardRule."""
+    if getattr(candidate, "status", None) != "accepted":
+        raise ValueError("只有 accepted 候选可以转为规则")
+    payload = getattr(candidate, "candidate_json", {}) or {}
+    numeric = payload.get("numeric") or {}
+    from app.db.models import StandardChangeLog
+    from app.db.models import StandardIndicator
+
+    indicator_name = payload.get("indicator_name")
+    indicator = None
+    if indicator_name:
+        indicator = db.query(StandardIndicator).filter(StandardIndicator.canonical_key.ilike(str(indicator_name))).first()
+
+    rule = StandardRule(
+        version_id=candidate.version_id,
+        indicator_id=getattr(indicator, "id", None),
+        source_segment_id=candidate.segment_id,
+        rule_type=payload.get("rule_type") or "qualitative_direction",
+        lower=numeric.get("lower"),
+        upper=numeric.get("upper"),
+        lower_inclusive=numeric.get("lower_inclusive", True),
+        upper_inclusive=numeric.get("upper_inclusive", True),
+        unit=numeric.get("unit") or payload.get("unit"),
+        category=payload.get("category"),
+        applicability=payload.get("applicability") or {},
+        target_state_type=payload.get("target_state_type") or "evidence",
+        target_state_value=payload.get("target_state_value"),
+        evidence_type=payload.get("evidence_type"),
+        machine_actionability=payload.get("machine_actionability") or "evidence-only",
+        interpretation=payload.get("interpretation"),
+        conditions=payload.get("conditions") or {},
+    )
+    db.add(rule)
+    if hasattr(db, "flush"):
+        db.flush()
+    db.add(StandardChangeLog(
+        version_id=candidate.version_id,
+        entity_type="standard_rule",
+        entity_id=rule.id,
+        action="materialize_candidate",
+        before_json={},
+        after_json={"candidate_id": candidate.id, "rule_type": rule.rule_type},
+        reason=reason.strip(),
+        actor_id=admin_id,
+    ))
+    db.commit()
+    db.refresh(rule)
+    return rule
+
+
 def seed_standard_draft(db, disease_id: int, document_id: int, version_label: str, *, admin_id: int | None = None, parser_version: str = "v1"):
     """Create or reuse an unapproved draft for a DOCX document."""
     from app.db.models import Document, ReferenceStandard, ReferenceStandardVersion

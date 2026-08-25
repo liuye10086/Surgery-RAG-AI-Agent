@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
@@ -30,12 +30,13 @@ from app.schemas.standard import (
     StandardVersionOut,
     ValidationReport,
 )
-from app.services.standard_lifecycle import publish_approved_version, update_draft_rule
-from app.services.standard_parser import parse_standard_docx
+from app.services.standard_lifecycle import materialize_candidate_rule, publish_approved_version, update_draft_rule
+from app.services.standard_parser import build_llm_candidate, parse_standard_docx
 from app.services.standard_validation import validate_version_rules
 
 
 router = APIRouter(prefix="", tags=["admin-standard"])
+LLM_CANDIDATE_ADAPTER = None
 
 
 def _hash_file(path: str | None) -> str:
@@ -168,6 +169,18 @@ def parse_version(version_id: int, admin=Depends(require_admin), db: Session = D
                 },
                 status="pending",
             ))
+        if not any(item.segment == segment for item in parsed.rule_candidates):
+            llm_payload = build_llm_candidate(segment.raw_text, {"section_title": segment.section_title, "table_index": segment.table_index}, LLM_CANDIDATE_ADAPTER)
+            db.add(StandardParseCandidate(
+                version_id=version.id,
+                segment_id=db_segment.id,
+                source_type="llm",
+                parser_version=version.parser_version,
+                model_name="injected-adapter" if LLM_CANDIDATE_ADAPTER else None,
+                raw_output=str(llm_payload) if llm_payload is not None else None,
+                candidate_json=llm_payload or {},
+                status="pending" if llm_payload else "failed",
+            ))
     version.status = "draft"
     db.commit()
     return {"version_id": version.id, "segments": len(parsed.segments), "candidates": len(parsed.rule_candidates)}
@@ -218,9 +231,9 @@ def list_rules(version_id: int, admin=Depends(require_admin), db: Session = Depe
 
 
 @router.patch("/admin/reference-standard-rules/{rule_id}", response_model=RuleOut)
-def patch_rule(rule_id: int, payload: RulePatch, reason: StandardChangeRequest, admin=Depends(require_admin), db: Session = Depends(get_db)):
+def patch_rule(rule_id: int, payload: RulePatch, reason: str = Query(..., min_length=1), admin=Depends(require_admin), db: Session = Depends(get_db)):
     try:
-        return update_draft_rule(db, getattr(admin, "id", 0), rule_id, payload, reason.reason)
+        return update_draft_rule(db, getattr(admin, "id", 0), rule_id, payload, reason)
     except ValueError as exc:
         message = str(exc)
         code = status.HTTP_409_CONFLICT if "不可编辑" in message else status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -237,3 +250,38 @@ def validate_version(version_id: int, admin=Depends(require_admin), db: Session 
 def list_candidates(version_id: int, admin=Depends(require_admin), db: Session = Depends(get_db)):
     _version_or_404(db, version_id)
     return db.query(StandardParseCandidate).filter(StandardParseCandidate.version_id == version_id).order_by(StandardParseCandidate.id).all()
+
+
+@router.patch("/admin/reference-standard-candidates/{candidate_id}", response_model=StandardParseCandidateOut)
+def review_candidate(candidate_id: int, payload: dict[str, str], admin=Depends(require_admin), db: Session = Depends(get_db)):
+    candidate = db.query(StandardParseCandidate).filter(StandardParseCandidate.id == candidate_id).first()
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="解析候选不存在")
+    status_value = payload.get("status")
+    if status_value not in {"accepted", "rejected", "failed", "pending"}:
+        raise HTTPException(status_code=422, detail="候选状态无效")
+    candidate.status = status_value
+    db.commit()
+    db.refresh(candidate)
+    return candidate
+
+
+@router.post("/admin/reference-standard-candidates/{candidate_id}/materialize", response_model=RuleOut)
+def materialize_candidate(candidate_id: int, reason: str = Query(..., min_length=1), admin=Depends(require_admin), db: Session = Depends(get_db)):
+    candidate = db.query(StandardParseCandidate).filter(StandardParseCandidate.id == candidate_id).first()
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="解析候选不存在")
+    try:
+        rule = materialize_candidate_rule(db, candidate, getattr(admin, "id", 0), reason)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    candidate.status = "materialized"
+    db.commit()
+    return rule
+
+
+@router.get("/admin/reference-standard-versions/{version_id}/history")
+def list_history(version_id: int, admin=Depends(require_admin), db: Session = Depends(get_db)):
+    from app.db.models import StandardChangeLog
+    _version_or_404(db, version_id)
+    return db.query(StandardChangeLog).filter(StandardChangeLog.version_id == version_id).order_by(StandardChangeLog.created_at.desc()).all()

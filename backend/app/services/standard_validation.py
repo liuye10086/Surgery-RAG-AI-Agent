@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.schemas.standard import ValidationFinding, ValidationReport
+from app.db.models import ReferenceStandardVersion, StandardRuleCondition
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,28 @@ def validate_condition_payload(payload: dict[str, Any]) -> ValidationReport:
     errors: list[ValidationFinding] = []
     _validate_condition(payload, set(), errors)
     return ValidationReport(errors=errors)
+
+
+def build_condition_tree(payload: dict[str, Any], *, rule_id: int | None = None, parent_id: int | None = None, position: int = 0):
+    node = StandardRuleCondition(
+        rule_id=rule_id,
+        parent_id=parent_id,
+        node_type=payload["node_type"],
+        position=position,
+        payload=payload.get("payload") or {},
+    )
+    node.children = [
+        build_condition_tree(child, rule_id=rule_id, parent_id=None, position=index)
+        for index, child in enumerate(payload.get("children") or [])
+    ]
+    return node
+
+
+def validate_version(db: Any, version_id: int) -> ValidationReport:
+    version = db.query(ReferenceStandardVersion).filter(ReferenceStandardVersion.id == version_id).first()
+    if version is None:
+        raise ValueError("标准版本不存在")
+    return validate_version_rules(list(version.rules or []))
 
 
 def validate_version_rules(rules: list[Any]) -> ValidationReport:
