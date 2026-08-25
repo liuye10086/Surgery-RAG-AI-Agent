@@ -18,6 +18,17 @@ test('review UI exposes lifecycle actions and evidence-only state', async () => 
   assert.match(source, /evidence-only/)
 })
 
+test('standard management exposes a DOCX upload entry for standard documents', async () => {
+  const source = await readFile(new URL('../src/components/StandardManagementView.vue', import.meta.url), 'utf8')
+  assert.match(source, /上传标准 DOCX/)
+  assert.match(source, /uploadDocument/)
+  assert.match(source, /accept="\.docx"/)
+  assert.match(source, /accessScope.*operator|operator.*accessScope/)
+  assert.match(source, /:data="standardDocuments"/)
+  assert.match(source, /document\.title \|\| document\.filename/)
+  assert.match(source, /document\.status/)
+})
+
 test('operator cannot mutate standards', async () => {
   const api = await readFile(new URL('../src/api/operator.ts', import.meta.url), 'utf8')
   const caseManage = await readFile(new URL('../src/components/CaseManageView.vue', import.meta.url), 'utf8')

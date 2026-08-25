@@ -208,7 +208,7 @@ def seed_standard_draft(db, disease_id: int, document_id: int, version_label: st
     document = db.query(Document).filter(Document.id == document_id).first()
     if document is None:
         raise ValueError("文档不存在")
-    if (document.file_type or "").lower() != "docx":
+    if (document.file_type or "").lower().lstrip(".") != "docx":
         raise ValueError("标准源文件只支持 DOCX")
     path = Path(document.file_path or "")
     if not path.is_file():

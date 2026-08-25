@@ -8,7 +8,7 @@ def test_seed_draft_is_idempotent_for_same_content_hash(tmp_path):
     source = tmp_path / "ad.docx"
     source.write_bytes(b"docx-content")
     disease = SimpleNamespace(id=2, name="AD")
-    document = SimpleNamespace(id=9, file_path=str(source), file_type="docx", filename="ad.docx")
+    document = SimpleNamespace(id=9, file_path=str(source), file_type=".docx", filename="ad.docx")
     standard = SimpleNamespace(id=4, disease_id=2, name="AD标准", versions=[])
     versions = []
 

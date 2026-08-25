@@ -40,6 +40,10 @@ router = APIRouter(prefix="", tags=["admin-standard"])
 LLM_CANDIDATE_ADAPTER = create_deepseek_standard_candidate_adapter()
 
 
+def _is_docx_document(file_type: str | None) -> bool:
+    return (file_type or "").lower().lstrip(".") == "docx"
+
+
 def _hash_file(path: str | None) -> str:
     if not path or not Path(path).is_file():
         raise HTTPException(status_code=400, detail="标准文件不存在")
@@ -97,7 +101,7 @@ def create_version(standard_id: int, payload: StandardVersionCreate, admin=Depen
         raise HTTPException(status_code=404, detail="标准集合不存在")
     if document is None:
         raise HTTPException(status_code=404, detail="文档不存在")
-    if (document.file_type or "").lower() != "docx":
+    if not _is_docx_document(document.file_type):
         raise HTTPException(status_code=422, detail="标准源文件只支持 DOCX")
     content_hash = _hash_file(document.file_path)
     duplicate = db.query(ReferenceStandardVersion).filter(
@@ -131,7 +135,7 @@ def parse_version(version_id: int, admin=Depends(require_admin), db: Session = D
     version = _version_or_404(db, version_id)
     if version.status not in {"draft", "review"}:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="已批准或已退役版本不可重新解析")
-    if (version.document.file_type or "").lower() != "docx":
+    if not _is_docx_document(version.document.file_type):
         raise HTTPException(status_code=422, detail="标准源文件只支持 DOCX")
     parsed = parse_standard_docx(version.document.file_path, parser_version=version.parser_version)
     version.segments.clear()
