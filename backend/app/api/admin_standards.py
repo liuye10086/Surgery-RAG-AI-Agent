@@ -32,11 +32,12 @@ from app.schemas.standard import (
 )
 from app.services.standard_lifecycle import materialize_candidate_rule, publish_approved_version, update_draft_rule
 from app.services.standard_parser import build_llm_candidate, parse_standard_docx
+from app.services.standard_llm_adapter import create_deepseek_standard_candidate_adapter
 from app.services.standard_validation import validate_version_rules
 
 
 router = APIRouter(prefix="", tags=["admin-standard"])
-LLM_CANDIDATE_ADAPTER = None
+LLM_CANDIDATE_ADAPTER = create_deepseek_standard_candidate_adapter()
 
 
 def _hash_file(path: str | None) -> str:
@@ -151,6 +152,8 @@ def parse_version(version_id: int, admin=Depends(require_admin), db: Session = D
         db.add(db_segment)
         db.flush()
         for candidate in [item for item in parsed.rule_candidates if item.segment == segment]:
+            raw_output = llm_payload.pop("_raw_output", None) if llm_payload else None
+            model_name = llm_payload.pop("_model_name", None) if llm_payload else None
             db.add(StandardParseCandidate(
                 version_id=version.id,
                 segment_id=db_segment.id,
@@ -176,8 +179,8 @@ def parse_version(version_id: int, admin=Depends(require_admin), db: Session = D
                 segment_id=db_segment.id,
                 source_type="llm",
                 parser_version=version.parser_version,
-                model_name="injected-adapter" if LLM_CANDIDATE_ADAPTER else None,
-                raw_output=str(llm_payload) if llm_payload is not None else None,
+                model_name=model_name,
+                raw_output=raw_output,
                 candidate_json=llm_payload or {},
                 status="pending" if llm_payload else "failed",
             ))
