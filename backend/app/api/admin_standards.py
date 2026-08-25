@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
 from app.db.models import (
-    Document,
+    Disease,
     ReferenceStandard,
     ReferenceStandardVersion,
+    StandardDocument,
     StandardParseCandidate,
     StandardRule,
     StandardSegment,
@@ -44,16 +45,6 @@ def _is_docx_document(file_type: str | None) -> bool:
     return (file_type or "").lower().lstrip(".") == "docx"
 
 
-def _hash_file(path: str | None) -> str:
-    if not path or not Path(path).is_file():
-        raise HTTPException(status_code=400, detail="标准文件不存在")
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
 def _version_or_404(db: Session, version_id: int) -> ReferenceStandardVersion:
     version = db.query(ReferenceStandardVersion).filter(ReferenceStandardVersion.id == version_id).first()
     if version is None:
@@ -68,11 +59,18 @@ def list_standards(admin=Depends(require_admin), db: Session = Depends(get_db)):
 
 @router.post("/admin/reference-standards", response_model=StandardOut, status_code=status.HTTP_201_CREATED)
 def create_standard(payload: StandardCreate, admin=Depends(require_admin), db: Session = Depends(get_db)):
+    disease = db.query(Disease).filter(Disease.id == payload.disease_id).first()
+    if disease is None:
+        raise HTTPException(status_code=404, detail="疾病不存在")
     if db.query(ReferenceStandard).filter(ReferenceStandard.disease_id == payload.disease_id).first():
         raise HTTPException(status_code=409, detail="该疾病已有标准集合")
-    standard = ReferenceStandard(disease_id=payload.disease_id, name=payload.name, description=payload.description)
+    standard = ReferenceStandard(disease_id=disease.id, name=f"{disease.name}标准")
     db.add(standard)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="该疾病已有标准集合") from exc
     db.refresh(standard)
     return standard
 
@@ -96,31 +94,35 @@ def list_versions(standard_id: int, admin=Depends(require_admin), db: Session = 
 @router.post("/admin/reference-standards/{standard_id}/versions", response_model=StandardVersionOut, status_code=status.HTTP_201_CREATED)
 def create_version(standard_id: int, payload: StandardVersionCreate, admin=Depends(require_admin), db: Session = Depends(get_db)):
     standard = db.query(ReferenceStandard).filter(ReferenceStandard.id == standard_id).first()
-    document = db.query(Document).filter(Document.id == payload.document_id).first()
     if standard is None:
         raise HTTPException(status_code=404, detail="标准集合不存在")
+    document = db.query(StandardDocument).filter(
+        StandardDocument.id == payload.standard_document_id
+    ).first()
     if document is None:
-        raise HTTPException(status_code=404, detail="文档不存在")
+        raise HTTPException(status_code=404, detail="标准文档不存在")
     if not _is_docx_document(document.file_type):
         raise HTTPException(status_code=422, detail="标准源文件只支持 DOCX")
-    content_hash = _hash_file(document.file_path)
-    duplicate = db.query(ReferenceStandardVersion).filter(
-        ReferenceStandardVersion.standard_id == standard_id,
-        ReferenceStandardVersion.content_hash == content_hash,
-    ).first()
-    if duplicate:
-        raise HTTPException(status_code=409, detail="同一标准和文件内容不能重复创建版本")
+    if not Path(document.file_path).is_file():
+        raise HTTPException(status_code=400, detail="标准文件不存在")
+    if document.version is not None:
+        raise HTTPException(status_code=409, detail="标准文档已关联版本")
     version = ReferenceStandardVersion(
-        standard_id=standard_id,
-        document_id=document.id,
+        standard_id=standard.id,
+        standard_document_id=document.id,
         version_label=payload.version_label,
-        content_hash=content_hash,
+        content_hash=document.content_hash,
         parser_version=payload.parser_version,
         created_by=getattr(admin, "id", None),
         supersedes_version_id=standard.current_version_id,
+        status="draft",
     )
     db.add(version)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="标准文档已关联版本") from exc
     db.refresh(version)
     return version
 
@@ -130,14 +132,33 @@ def get_version(version_id: int, admin=Depends(require_admin), db: Session = Dep
     return _version_or_404(db, version_id)
 
 
+@router.delete(
+    "/admin/reference-standard-versions/{version_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_version(version_id: int, admin=Depends(require_admin), db: Session = Depends(get_db)):
+    version = _version_or_404(db, version_id)
+    if version.status not in {"draft", "review"}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="已批准或已退役版本不可删除",
+        )
+    db.delete(version)
+    db.commit()
+    return None
+
+
 @router.post("/admin/reference-standard-versions/{version_id}/parse")
 def parse_version(version_id: int, admin=Depends(require_admin), db: Session = Depends(get_db)):
     version = _version_or_404(db, version_id)
     if version.status not in {"draft", "review"}:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="已批准或已退役版本不可重新解析")
-    if not _is_docx_document(version.document.file_type):
+    document = version.standard_document
+    if not _is_docx_document(document.file_type):
         raise HTTPException(status_code=422, detail="标准源文件只支持 DOCX")
-    parsed = parse_standard_docx(version.document.file_path, parser_version=version.parser_version)
+    if not Path(document.file_path).is_file():
+        raise HTTPException(status_code=400, detail="标准文件不存在")
+    parsed = parse_standard_docx(document.file_path, parser_version=version.parser_version)
     version.segments.clear()
     version.candidates.clear()
     for segment in parsed.segments:
@@ -155,9 +176,10 @@ def parse_version(version_id: int, admin=Depends(require_admin), db: Session = D
         )
         db.add(db_segment)
         db.flush()
-        for candidate in [item for item in parsed.rule_candidates if item.segment == segment]:
-            raw_output = llm_payload.pop("_raw_output", None) if llm_payload else None
-            model_name = llm_payload.pop("_model_name", None) if llm_payload else None
+        segment_candidates = [
+            item for item in parsed.rule_candidates if item.segment == segment
+        ]
+        for candidate in segment_candidates:
             db.add(StandardParseCandidate(
                 version_id=version.id,
                 segment_id=db_segment.id,
@@ -176,8 +198,10 @@ def parse_version(version_id: int, admin=Depends(require_admin), db: Session = D
                 },
                 status="pending",
             ))
-        if not any(item.segment == segment for item in parsed.rule_candidates):
+        if not segment_candidates:
             llm_payload = build_llm_candidate(segment.raw_text, {"section_title": segment.section_title, "table_index": segment.table_index}, LLM_CANDIDATE_ADAPTER)
+            raw_output = llm_payload.pop("_raw_output", None) if llm_payload else None
+            model_name = llm_payload.pop("_model_name", None) if llm_payload else None
             db.add(StandardParseCandidate(
                 version_id=version.id,
                 segment_id=db_segment.id,

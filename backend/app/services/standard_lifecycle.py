@@ -198,41 +198,39 @@ def materialize_candidate_rule(db, candidate: Any, admin_id: int, reason: str):
     return rule
 
 
-def seed_standard_draft(db, disease_id: int, document_id: int, version_label: str, *, admin_id: int | None = None, parser_version: str = "v1"):
+def seed_standard_draft(db, disease_id: int, standard_document_id: int, version_label: str, *, admin_id: int | None = None, parser_version: str = "v1"):
     """Create or reuse an unapproved draft for a DOCX document."""
-    from app.db.models import Document, ReferenceStandard, ReferenceStandardVersion
+    from app.db.models import Disease, ReferenceStandard, ReferenceStandardVersion, StandardDocument
 
-    disease = db.query(__import__("app.db.models", fromlist=["Disease"]).Disease).filter(__import__("app.db.models", fromlist=["Disease"]).Disease.id == disease_id).first()
+    disease = db.query(Disease).filter(Disease.id == disease_id).first()
     if disease is None:
         raise ValueError("疾病不存在")
-    document = db.query(Document).filter(Document.id == document_id).first()
+    document = db.query(StandardDocument).filter(
+        StandardDocument.id == standard_document_id
+    ).first()
     if document is None:
-        raise ValueError("文档不存在")
+        raise ValueError("标准文档不存在")
     if (document.file_type or "").lower().lstrip(".") != "docx":
         raise ValueError("标准源文件只支持 DOCX")
     path = Path(document.file_path or "")
     if not path.is_file():
         raise ValueError("标准文件不存在")
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    if document.version is not None:
+        associated_standard = getattr(document.version, "standard", None)
+        if getattr(associated_standard, "disease_id", None) == disease_id:
+            return document.version
+        raise ValueError("标准文档已关联其他版本")
     standard = db.query(ReferenceStandard).filter(ReferenceStandard.disease_id == disease_id).first()
     if standard is None:
         standard = ReferenceStandard(disease_id=disease_id, name=f"{disease.name}标准")
         db.add(standard)
         db.commit()
         db.refresh(standard)
-    existing = next((item for item in (getattr(standard, "versions", None) or []) if getattr(item, "content_hash", None) == digest), None)
-    if existing is None:
-        existing = db.query(ReferenceStandardVersion).filter(
-            ReferenceStandardVersion.standard_id == standard.id,
-            ReferenceStandardVersion.content_hash == digest,
-        ).first()
-    if existing:
-        return existing
     version = ReferenceStandardVersion(
         standard_id=standard.id,
-        document_id=document.id,
+        standard_document_id=document.id,
         version_label=version_label,
-        content_hash=digest,
+        content_hash=document.content_hash,
         parser_version=parser_version,
         created_by=admin_id,
         status="draft",
