@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
 
+import joblib
 from sqlalchemy import text
 
 from app.schemas.longitudinal_readiness import (
+    ArtifactReadiness,
     DataReadiness,
     ReadinessReason,
     StandardReadiness,
@@ -19,6 +23,7 @@ from app.services.disease_progression import (
     DiseaseProgressionAdapter,
 )
 from app.services.longitudinal_features import build_prefixes
+from scripts.check_model_artifacts import sha256_file
 
 
 CORE_DISEASES = (FATTY_LIVER_ADAPTER, AD_ADAPTER)
@@ -26,6 +31,23 @@ REFERENCE_DATASET_ALIASES = {
     "fatty_liver": ("longitudinal_300",),
     "ad": ("ad_longitudinal_300",),
 }
+OUTCOME_METADATA_FIELDS = frozenset(
+    {
+        "dataset",
+        "disease",
+        "target",
+        "horizon_days",
+        "feature_names",
+        "feature_version",
+        "model_name",
+        "model_version",
+        "training_dataset_version",
+        "sklearn_version",
+        "trained_at",
+        "artifact_sha256",
+        "calibration_status",
+    }
+)
 
 
 def _reason(
@@ -238,3 +260,196 @@ def load_database_snapshot(connection) -> dict[str, object]:
         "standard_rows": [dict(row) for row in standard_rows],
         "table_columns": dict(table_columns),
     }
+
+
+def _outcome_issue_reason(issues: list[str]) -> ReadinessReason:
+    return _reason(
+        "outcome_model_incompatible",
+        "未来365天结局模型与契约不兼容",
+        "blocked",
+        "P0-04",
+        issues=issues,
+    )
+
+
+def check_outcome_artifact(
+    dataset: str,
+    model_dir: Path,
+) -> tuple[ArtifactReadiness, list[ReadinessReason]]:
+    directory = Path(model_dir)
+    stem = f"{dataset}_longitudinal_outcome_365d"
+    model_path = directory / f"{stem}.joblib"
+    meta_path = directory / f"{stem}.meta.json"
+    model_exists = model_path.is_file()
+    meta_exists = meta_path.is_file()
+    base = {
+        "artifact_type": "outcome",
+        "model_file": model_path.name,
+        "metadata_file": meta_path.name,
+    }
+    if not model_exists and not meta_exists:
+        return (
+            ArtifactReadiness(status="missing", **base),
+            [
+                _reason(
+                    "outcome_model_missing",
+                    "缺少未来365天结局模型",
+                    "blocked",
+                    "P0-04",
+                )
+            ],
+        )
+    if model_exists != meta_exists:
+        issues = [
+            "metadata_file_missing" if model_exists else "model_file_missing"
+        ]
+        return (
+            ArtifactReadiness(status="incompatible", issues=issues, **base),
+            [_outcome_issue_reason(issues)],
+        )
+
+    issues: list[str] = []
+    metadata: dict[str, object] = {}
+    try:
+        raw_metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+        if not isinstance(raw_metadata, dict):
+            issues.append("metadata_not_object")
+        else:
+            metadata = raw_metadata
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        issues.append("metadata_unreadable")
+
+    if metadata:
+        for field in sorted(OUTCOME_METADATA_FIELDS - set(metadata)):
+            issues.append(f"missing_metadata:{field}")
+        adapter = next((item for item in CORE_DISEASES if item.dataset == dataset), None)
+        expected_disease = adapter.disease_name if adapter else None
+        if metadata.get("dataset") != dataset:
+            issues.append("dataset_mismatch")
+        if metadata.get("disease") != expected_disease:
+            issues.append("disease_mismatch")
+        if metadata.get("target") != "outcome_365d":
+            issues.append("target_mismatch")
+        if metadata.get("horizon_days") != 365:
+            issues.append("horizon_mismatch")
+        feature_names = metadata.get("feature_names")
+        if not (
+            isinstance(feature_names, list)
+            and feature_names
+            and all(isinstance(item, str) and item for item in feature_names)
+        ):
+            issues.append("feature_names_invalid")
+        if not isinstance(metadata.get("feature_version"), str) or not str(
+            metadata.get("feature_version") or ""
+        ).strip():
+            issues.append("feature_version_invalid")
+
+    if not issues:
+        try:
+            actual_hash = sha256_file(model_path)
+        except OSError:
+            issues.append("artifact_unreadable")
+        else:
+            if metadata.get("artifact_sha256") != actual_hash:
+                issues.append("artifact_sha256_mismatch")
+
+    model = None
+    if not issues:
+        try:
+            model = joblib.load(model_path)
+        except Exception:
+            issues.append("artifact_load_failed")
+    if model is not None and not callable(getattr(model, "predict_proba", None)):
+        issues.append("predict_proba_missing")
+
+    if issues:
+        stable_issues = sorted(dict.fromkeys(issues))
+        return (
+            ArtifactReadiness(
+                status="incompatible",
+                metadata=metadata,
+                issues=stable_issues,
+                **base,
+            ),
+            [_outcome_issue_reason(stable_issues)],
+        )
+    return (
+        ArtifactReadiness(status="available", metadata=metadata, **base),
+        [],
+    )
+
+
+def check_optional_artifacts(
+    adapter: DiseaseProgressionAdapter,
+    model_dir: Path,
+) -> tuple[ArtifactReadiness, list[ArtifactReadiness], list[ReadinessReason]]:
+    directory = Path(model_dir)
+    stage = ArtifactReadiness(status="not_configured", artifact_type="stage")
+    reasons = [
+        _reason(
+            "stage_model_missing",
+            "阶段模型尚未配置",
+            "degraded",
+            "P2-01",
+        )
+    ]
+    trends: list[ArtifactReadiness] = []
+    missing_indicators: list[str] = []
+    incompatible_indicators: list[str] = []
+    for indicator in adapter.key_indicators:
+        model_path = directory / f"{adapter.dataset}_trend_{indicator}.joblib"
+        meta_path = directory / f"{adapter.dataset}_trend_{indicator}.meta.json"
+        model_exists = model_path.is_file()
+        meta_exists = meta_path.is_file()
+        issues: list[str] = []
+        metadata: dict[str, object] = {}
+        if not model_exists and not meta_exists:
+            status = "missing"
+            missing_indicators.append(indicator)
+        elif model_exists != meta_exists:
+            status = "incompatible"
+            issues.append(
+                "metadata_file_missing" if model_exists else "model_file_missing"
+            )
+            incompatible_indicators.append(indicator)
+        else:
+            try:
+                raw_metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+                if isinstance(raw_metadata, dict):
+                    metadata = raw_metadata
+                else:
+                    issues.append("metadata_not_object")
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                issues.append("metadata_unreadable")
+            if not issues:
+                try:
+                    joblib.load(model_path)
+                except Exception:
+                    issues.append("artifact_load_failed")
+            status = "incompatible" if issues else "available"
+            if issues:
+                incompatible_indicators.append(indicator)
+        trends.append(
+            ArtifactReadiness(
+                status=status,
+                artifact_type="trend",
+                indicator=indicator,
+                model_file=model_path.name,
+                metadata_file=meta_path.name,
+                metadata=metadata,
+                issues=sorted(issues),
+            )
+        )
+    unavailable = missing_indicators + incompatible_indicators
+    if unavailable:
+        reasons.append(
+            _reason(
+                "trend_models_missing",
+                "部分或全部下一次随访趋势模型不可用",
+                "degraded",
+                "P2-02",
+                missing_indicators=sorted(missing_indicators),
+                incompatible_indicators=sorted(incompatible_indicators),
+            )
+        )
+    return stage, trends, reasons

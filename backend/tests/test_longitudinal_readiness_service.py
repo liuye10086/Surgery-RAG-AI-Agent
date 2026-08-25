@@ -1,7 +1,15 @@
+import json
+
+import joblib
+
+from scripts.check_model_artifacts import sha256_file
+
 from app.services.disease_progression import AD_ADAPTER, FATTY_LIVER_ADAPTER
 from app.services.longitudinal_readiness import (
     aggregate_reference_data,
     assess_standard,
+    check_optional_artifacts,
+    check_outcome_artifact,
     load_database_snapshot,
 )
 
@@ -249,3 +257,110 @@ def test_load_database_snapshot_starts_with_read_only_and_uses_only_selects():
     }
     for sql in connection.statements[1:]:
         assert sql.lstrip().upper().startswith(("SELECT", "SHOW"))
+
+
+class _PredictProbaModel:
+    def predict_proba(self, rows):
+        raise AssertionError("readiness 检查不得执行患者预测")
+
+
+def _write_outcome_artifact(tmp_path, *, metadata_updates=None):
+    model_path = tmp_path / "fatty_liver_longitudinal_outcome_365d.joblib"
+    meta_path = tmp_path / "fatty_liver_longitudinal_outcome_365d.meta.json"
+    joblib.dump(_PredictProbaModel(), model_path)
+    metadata = {
+        "dataset": "fatty_liver",
+        "disease": "脂肪肝",
+        "target": "outcome_365d",
+        "horizon_days": 365,
+        "feature_names": ["alt.last"],
+        "feature_version": "longitudinal_features.v1",
+        "model_name": "GradientBoostingClassifier",
+        "model_version": "test-v1",
+        "training_dataset_version": "test-dataset-v1",
+        "sklearn_version": "1.9.0",
+        "trained_at": "2026-08-25T00:00:00Z",
+        "artifact_sha256": sha256_file(model_path),
+        "calibration_status": "not_calibrated",
+    }
+    metadata.update(metadata_updates or {})
+    meta_path.write_text(
+        json.dumps(metadata, ensure_ascii=False), encoding="utf-8"
+    )
+    return model_path, meta_path
+
+
+def test_missing_outcome_artifact_maps_to_p0_04(tmp_path):
+    artifact, reasons = check_outcome_artifact("fatty_liver", tmp_path)
+    assert artifact.status == "missing"
+    assert [reason.code for reason in reasons] == ["outcome_model_missing"]
+    assert reasons[0].next_task == "P0-04"
+
+
+def test_outcome_artifact_rejects_missing_metadata_field(tmp_path):
+    _, meta_path = _write_outcome_artifact(tmp_path)
+    metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+    metadata.pop("feature_version")
+    meta_path.write_text(
+        json.dumps(metadata, ensure_ascii=False), encoding="utf-8"
+    )
+    artifact, reasons = check_outcome_artifact("fatty_liver", tmp_path)
+    assert artifact.status == "incompatible"
+    assert [reason.code for reason in reasons] == [
+        "outcome_model_incompatible"
+    ]
+    assert "missing_metadata:feature_version" in artifact.issues
+
+
+def test_outcome_artifact_rejects_wrong_hash_without_loading(
+    tmp_path, monkeypatch
+):
+    _write_outcome_artifact(
+        tmp_path, metadata_updates={"artifact_sha256": "0" * 64}
+    )
+    monkeypatch.setattr(
+        "app.services.longitudinal_readiness.joblib.load",
+        lambda path: (_ for _ in ()).throw(AssertionError("must not load")),
+    )
+    artifact, reasons = check_outcome_artifact("fatty_liver", tmp_path)
+    assert artifact.status == "incompatible"
+    assert artifact.issues == ["artifact_sha256_mismatch"]
+    assert reasons[0].code == "outcome_model_incompatible"
+
+
+def test_compatible_outcome_artifact_is_loaded_but_not_invoked(tmp_path):
+    _write_outcome_artifact(tmp_path)
+    artifact, reasons = check_outcome_artifact("fatty_liver", tmp_path)
+    assert artifact.status == "available"
+    assert reasons == []
+    assert artifact.metadata["model_version"] == "test-v1"
+
+
+def test_legacy_progression_model_is_not_accepted_as_365_day_outcome(
+    tmp_path,
+):
+    joblib.dump(
+        _PredictProbaModel(), tmp_path / "fatty_liver_progression_model.joblib"
+    )
+    (tmp_path / "fatty_liver_progression_model.meta.json").write_text(
+        "{}", encoding="utf-8"
+    )
+    artifact, reasons = check_outcome_artifact("fatty_liver", tmp_path)
+    assert artifact.status == "missing"
+    assert reasons[0].code == "outcome_model_missing"
+
+
+def test_stage_not_configured_and_missing_trends_are_degraded(tmp_path):
+    stage, trends, reasons = check_optional_artifacts(
+        FATTY_LIVER_ADAPTER, tmp_path
+    )
+    assert stage.status == "not_configured"
+    assert {item.indicator for item in trends} == set(
+        FATTY_LIVER_ADAPTER.key_indicators
+    )
+    assert all(item.status == "missing" for item in trends)
+    assert {reason.code for reason in reasons} == {
+        "stage_model_missing",
+        "trend_models_missing",
+    }
+    assert all(reason.severity == "degraded" for reason in reasons)

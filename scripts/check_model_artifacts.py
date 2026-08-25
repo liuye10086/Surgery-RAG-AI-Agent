@@ -8,12 +8,16 @@ import json
 from pathlib import Path
 
 
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def sha256_manifest(directory: Path, patterns: tuple[str, ...] = ("*.joblib", "*.meta.json")) -> dict[str, str]:
     manifest: dict[str, str] = {}
     for pattern in patterns:
         for path in directory.rglob(pattern):
             if path.is_file():
-                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                digest = sha256_file(path)
                 manifest[str(path.relative_to(directory)).replace("\\", "/")] = digest
     return dict(sorted(manifest.items()))
 
