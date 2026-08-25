@@ -4,12 +4,21 @@ import joblib
 
 from scripts.check_model_artifacts import sha256_file
 
+from app.schemas.longitudinal_readiness import (
+    ArtifactReadiness,
+    DataReadiness,
+    StandardReadiness,
+)
 from app.services.disease_progression import AD_ADAPTER, FATTY_LIVER_ADAPTER
 from app.services.longitudinal_readiness import (
+    REQUIRED_CAPABILITIES,
     aggregate_reference_data,
+    assess_report_contract,
     assess_standard,
+    build_readiness_report,
     check_optional_artifacts,
     check_outcome_artifact,
+    collect_longitudinal_readiness,
     load_database_snapshot,
 )
 
@@ -364,3 +373,174 @@ def test_stage_not_configured_and_missing_trends_are_degraded(tmp_path):
         "trend_models_missing",
     }
     assert all(reason.severity == "degraded" for reason in reasons)
+
+
+def _complete_data():
+    return DataReadiness(
+        status="available",
+        patient_count=2,
+        visit_count=4,
+        all_prefix_count=2,
+        estimable_prefix_count=2,
+        positive_count=1,
+        negative_count=1,
+        unknown_count=0,
+        source_datasets=["longitudinal_300"],
+        real_patient_count=2,
+        synthetic_patient_count=0,
+        unknown_provenance_patient_count=0,
+    )
+
+
+def _available_standard():
+    return StandardReadiness(
+        status="available",
+        standard_id=1,
+        current_version_id=2,
+        version_label="v1",
+        version_status="approved",
+        content_hash="abc",
+        rule_count=2,
+        calculable_rule_count=1,
+    )
+
+
+def _artifact(artifact_type, status, *, indicator=None, metadata=None):
+    return ArtifactReadiness(
+        status=status,
+        artifact_type=artifact_type,
+        indicator=indicator,
+        metadata=metadata or {},
+    )
+
+
+def _table_columns():
+    return {
+        "ai_reports": {
+            "input_snapshot",
+            "prediction_result",
+            "content",
+            "status",
+            "operator_case_id",
+            "sources",
+        },
+        "operator_cases": {
+            "patient_label",
+            "disease_id",
+            "sex",
+            "baseline_stage",
+        },
+        "operator_case_visits": {"case_id", "visit_date", "indicators"},
+    }
+
+
+def test_required_capability_failure_blocks_report_contract():
+    contract, reasons, available = assess_report_contract(
+        table_columns=_table_columns(),
+        data=_complete_data(),
+        standard=_available_standard(),
+        outcome=_artifact(
+            "outcome",
+            "available",
+            metadata={"calibration_status": "not_calibrated"},
+        ),
+        stage=_artifact("stage", "not_configured"),
+        trends=[_artifact("trend", "missing", indicator="alt")],
+        implemented_required={
+            "case_identity",
+            "input_scope",
+            "observed_longitudinal_changes",
+            "outcome_365d",
+            "reference_standard_interpretation",
+            "evidence_sources",
+            "limitations",
+            "manual_review_items",
+            "persistence_and_history",
+            "pdf_delivery",
+        },
+    )
+    required = {
+        item.key: item for item in contract.capabilities if item.required
+    }
+    assert required["case_identity"].status == "available"
+    assert required["outcome_365d"].status == "available"
+    assert contract.status == "blocked"
+    assert [reason.code for reason in reasons] == ["report_contract_invalid"]
+    assert set(reasons[0].details["missing_capabilities"]) == {
+        "data_quality_explanation",
+        "key_progression_signals",
+    }
+    assert "case_identity" in available
+
+
+def test_optional_stage_and_trend_capabilities_do_not_block_required_contract():
+    contract, reasons, _ = assess_report_contract(
+        table_columns=_table_columns(),
+        data=_complete_data(),
+        standard=_available_standard(),
+        outcome=_artifact(
+            "outcome",
+            "available",
+            metadata={"calibration_status": "not_calibrated"},
+        ),
+        stage=_artifact("stage", "not_configured"),
+        trends=[_artifact("trend", "missing", indicator="alt")],
+        implemented_required=set(REQUIRED_CAPABILITIES),
+    )
+    assert contract.status == "degraded"
+    assert reasons == []
+    optional = {
+        item.key: item for item in contract.capabilities if not item.required
+    }
+    assert optional["stage_projection"].status == "degraded"
+    assert optional["next_followup_trend_model"].status == "degraded"
+
+
+def _snapshot_fixture():
+    return {
+        "server_version": "18.1",
+        "alembic_revision": "0010",
+        "diseases": [
+            {"id": 2, "name": "脂肪肝"},
+            {"id": 4, "name": "阿尔茨海默病"},
+        ],
+        "case_rows": [],
+        "standard_rows": [],
+        "table_columns": _table_columns(),
+    }
+
+
+def test_build_report_keeps_diseases_separate_and_aggregates_worst_status(
+    tmp_path,
+):
+    report = build_readiness_report(
+        _snapshot_fixture(), model_dir=tmp_path, code_heads={"0010"}
+    )
+    assert set(report.diseases) == {"fatty_liver", "ad"}
+    assert report.diseases["fatty_liver"].disease_name == "脂肪肝"
+    assert report.diseases["ad"].disease_name == "阿尔茨海默病"
+    assert report.overall_status == "blocked"
+    assert "P0-02" in report.diseases["fatty_liver"].next_tasks
+    assert "P0-04" in report.diseases["ad"].next_tasks
+
+
+def test_collect_readiness_calls_snapshot_loader_once(monkeypatch, tmp_path):
+    sentinel_connection = object()
+    sentinel_snapshot = _snapshot_fixture()
+    calls = []
+
+    def fake_load(connection):
+        calls.append(connection)
+        return sentinel_snapshot
+
+    monkeypatch.setattr(
+        "app.services.longitudinal_readiness.load_database_snapshot", fake_load
+    )
+    report = collect_longitudinal_readiness(
+        sentinel_connection,
+        model_dir=tmp_path,
+        code_heads={"0010"},
+        generated_at="2026-08-25T00:00:00Z",
+    )
+    assert calls == [sentinel_connection]
+    assert report.schema_version == "longitudinal_readiness.v1"

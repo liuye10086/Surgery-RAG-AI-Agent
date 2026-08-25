@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -13,9 +13,16 @@ from sqlalchemy import text
 
 from app.schemas.longitudinal_readiness import (
     ArtifactReadiness,
+    CapabilityReadiness,
     DataReadiness,
+    DiseaseReadiness,
+    EnvironmentReadiness,
+    LongitudinalReadinessReport,
+    ModelReadiness,
     ReadinessReason,
+    ReportContractReadiness,
     StandardReadiness,
+    status_from_reasons,
 )
 from app.services.disease_progression import (
     AD_ADAPTER,
@@ -48,6 +55,62 @@ OUTCOME_METADATA_FIELDS = frozenset(
         "calibration_status",
     }
 )
+REQUIRED_CAPABILITIES = (
+    "case_identity",
+    "input_scope",
+    "data_quality_explanation",
+    "observed_longitudinal_changes",
+    "outcome_365d",
+    "reference_standard_interpretation",
+    "key_progression_signals",
+    "evidence_sources",
+    "limitations",
+    "manual_review_items",
+    "persistence_and_history",
+    "pdf_delivery",
+)
+OPTIONAL_CAPABILITIES = (
+    "stage_projection",
+    "next_followup_trend_model",
+    "calibrated_probability",
+)
+CURRENT_IMPLEMENTED_REQUIRED = frozenset(
+    {
+        "case_identity",
+        "input_scope",
+        "observed_longitudinal_changes",
+        "outcome_365d",
+        "reference_standard_interpretation",
+        "evidence_sources",
+        "limitations",
+        "manual_review_items",
+        "persistence_and_history",
+        "pdf_delivery",
+    }
+)
+TASK_ORDER = {
+    task: index
+    for index, task in enumerate(
+        (
+            "P0-01",
+            "P0-02",
+            "P0-03",
+            "P0-04",
+            "P0-05",
+            "P0-06",
+            "P0-07",
+            "P1-01",
+            "P1-02",
+            "P1-03",
+            "P1-04",
+            "P1-05",
+            "P2-01",
+            "P2-02",
+            "P2-03",
+            "P2-04",
+        )
+    )
+}
 
 
 def _reason(
@@ -453,3 +516,283 @@ def check_optional_artifacts(
             )
         )
     return stage, trends, reasons
+
+
+def assess_report_contract(
+    *,
+    table_columns: dict[str, set[str]],
+    data: DataReadiness,
+    standard: StandardReadiness,
+    outcome: ArtifactReadiness,
+    stage: ArtifactReadiness,
+    trends: list[ArtifactReadiness],
+    implemented_required: set[str] | None = None,
+) -> tuple[ReportContractReadiness, list[ReadinessReason], list[str]]:
+    implemented = (
+        set(CURRENT_IMPLEMENTED_REQUIRED)
+        if implemented_required is None
+        else set(implemented_required)
+    )
+    report_columns = table_columns.get("ai_reports", set())
+    case_columns = table_columns.get("operator_cases", set())
+    visit_columns = table_columns.get("operator_case_visits", set())
+    storage_ready = {
+        "input_snapshot",
+        "prediction_result",
+        "content",
+        "status",
+        "operator_case_id",
+    }.issubset(report_columns)
+    identity_ready = {"patient_label", "disease_id"}.issubset(case_columns)
+    visits_ready = {"case_id", "visit_date", "indicators"}.issubset(
+        visit_columns
+    )
+    dependency_ready = {
+        "case_identity": identity_ready,
+        "input_scope": identity_ready and visits_ready and "input_snapshot" in report_columns,
+        "data_quality_explanation": data.status == "available",
+        "observed_longitudinal_changes": data.status == "available" and visits_ready,
+        "outcome_365d": outcome.status == "available",
+        "reference_standard_interpretation": standard.status == "available",
+        "key_progression_signals": data.status == "available",
+        "evidence_sources": "sources" in report_columns,
+        "limitations": "content" in report_columns,
+        "manual_review_items": "content" in report_columns,
+        "persistence_and_history": storage_ready,
+        "pdf_delivery": storage_ready,
+    }
+    messages = {
+        "case_identity": "病例身份字段可追溯",
+        "input_scope": "输入快照和访视范围可保存",
+        "data_quality_explanation": "数据质量问题可结构化说明",
+        "observed_longitudinal_changes": "可计算已观察纵向变化",
+        "outcome_365d": "未来365天结局模型可用",
+        "reference_standard_interpretation": "参考标准可用于结构化解释",
+        "key_progression_signals": "关键进展信号具有结构化解释",
+        "evidence_sources": "证据来源可持久化",
+        "limitations": "局限性可进入持久化报告",
+        "manual_review_items": "人工复核事项可进入持久化报告",
+        "persistence_and_history": "报告输入、结果和正文可持久化查看",
+        "pdf_delivery": "完成报告具备 PDF 交付链路",
+    }
+    capabilities: list[CapabilityReadiness] = []
+    available: list[str] = []
+    missing_required: list[str] = []
+    for key in REQUIRED_CAPABILITIES:
+        is_available = dependency_ready[key] and key in implemented
+        if is_available:
+            available.append(key)
+        else:
+            missing_required.append(key)
+        capabilities.append(
+            CapabilityReadiness(
+                key=key,
+                required=True,
+                status="available" if is_available else "blocked",
+                message=messages[key],
+                next_task=None if is_available else "P0-07",
+            )
+        )
+
+    stage_available = stage.status == "available"
+    trend_available = bool(trends) and all(
+        item.status == "available" for item in trends
+    )
+    calibration_available = (
+        outcome.status == "available"
+        and outcome.metadata.get("calibration_status")
+        not in (None, "", "not_calibrated")
+    )
+    optional_rows = (
+        (
+            "stage_projection",
+            stage_available,
+            "疾病阶段模型可用",
+            "P2-01",
+        ),
+        (
+            "next_followup_trend_model",
+            trend_available,
+            "下一次随访趋势模型可用",
+            "P2-02",
+        ),
+        (
+            "calibrated_probability",
+            calibration_available,
+            "模型分数已经校准",
+            "P2-03",
+        ),
+    )
+    for key, is_available, message, next_task in optional_rows:
+        if is_available:
+            available.append(key)
+        capabilities.append(
+            CapabilityReadiness(
+                key=key,
+                required=False,
+                status="available" if is_available else "degraded",
+                message=message,
+                next_task=None if is_available else next_task,
+            )
+        )
+
+    reasons: list[ReadinessReason] = []
+    if missing_required:
+        reasons.append(
+            _reason(
+                "report_contract_invalid",
+                "完整报告必需能力尚未全部具备",
+                "blocked",
+                "P0-07",
+                missing_capabilities=sorted(missing_required),
+            )
+        )
+    status = "blocked" if missing_required else (
+        "degraded"
+        if any(item.status == "degraded" for item in capabilities)
+        else "available"
+    )
+    return (
+        ReportContractReadiness(status=status, capabilities=capabilities),
+        reasons,
+        available,
+    )
+
+
+def _ordered_reasons(reasons: list[ReadinessReason]) -> list[ReadinessReason]:
+    unique: dict[tuple[str, str], ReadinessReason] = {}
+    for reason in reasons:
+        unique.setdefault((reason.code, reason.next_task), reason)
+    return sorted(
+        unique.values(),
+        key=lambda item: (
+            TASK_ORDER.get(item.next_task, len(TASK_ORDER)),
+            item.next_task,
+            item.code,
+        ),
+    )
+
+
+def build_readiness_report(
+    snapshot: dict[str, object],
+    *,
+    model_dir: Path,
+    code_heads: set[str],
+    generated_at: datetime | str | None = None,
+) -> LongitudinalReadinessReport:
+    diseases = {
+        str(row.get("name")): row
+        for row in snapshot.get("diseases", [])
+        if isinstance(row, dict)
+    }
+    case_rows = [
+        row for row in snapshot.get("case_rows", []) if isinstance(row, dict)
+    ]
+    standard_rows = [
+        row
+        for row in snapshot.get("standard_rows", [])
+        if isinstance(row, dict)
+    ]
+    table_columns = {
+        str(table): set(columns)
+        for table, columns in dict(snapshot.get("table_columns", {})).items()
+    }
+    disease_results: dict[str, DiseaseReadiness] = {}
+    for adapter in CORE_DISEASES:
+        disease_row = diseases.get(adapter.disease_name)
+        reasons: list[ReadinessReason] = []
+        disease_id = disease_row.get("id") if disease_row else None
+        if disease_row is None:
+            reasons.append(
+                _reason(
+                    "disease_not_found",
+                    f"数据库中缺少疾病：{adapter.disease_name}",
+                    "blocked",
+                    "P0-01",
+                )
+            )
+        rows = [
+            row for row in case_rows if row.get("disease_id") == disease_id
+        ]
+        data, data_reasons = aggregate_reference_data(rows, adapter)
+        reasons.extend(data_reasons)
+        standard_row = next(
+            (
+                row
+                for row in standard_rows
+                if row.get("disease_id") == disease_id
+            ),
+            None,
+        )
+        standard, standard_reasons = assess_standard(standard_row)
+        reasons.extend(standard_reasons)
+        outcome, outcome_reasons = check_outcome_artifact(
+            adapter.dataset, Path(model_dir)
+        )
+        reasons.extend(outcome_reasons)
+        stage, trends, optional_reasons = check_optional_artifacts(
+            adapter, Path(model_dir)
+        )
+        reasons.extend(optional_reasons)
+        contract, contract_reasons, available = assess_report_contract(
+            table_columns=table_columns,
+            data=data,
+            standard=standard,
+            outcome=outcome,
+            stage=stage,
+            trends=trends,
+        )
+        reasons.extend(contract_reasons)
+        ordered = _ordered_reasons(reasons)
+        disease_results[adapter.dataset] = DiseaseReadiness(
+            dataset=adapter.dataset,
+            disease_name=adapter.disease_name,
+            status=status_from_reasons(ordered),
+            data=data,
+            standard=standard,
+            models=ModelReadiness(
+                outcome=outcome,
+                stage=stage,
+                trends=trends,
+            ),
+            report_contract=contract,
+            available_capabilities=available,
+            reasons=ordered,
+            next_tasks=list(
+                dict.fromkeys(reason.next_task for reason in ordered)
+            ),
+        )
+
+    severity = {"ready": 0, "degraded": 1, "blocked": 2}
+    overall_status = max(
+        (item.status for item in disease_results.values()),
+        key=severity.__getitem__,
+    )
+    revision = snapshot.get("alembic_revision")
+    revision_matches = revision in code_heads and len(code_heads) == 1
+    return LongitudinalReadinessReport(
+        generated_at=generated_at or datetime.now(timezone.utc),
+        overall_status=overall_status,
+        environment=EnvironmentReadiness(
+            database_check="available",
+            alembic_revision=str(revision) if revision is not None else None,
+            code_heads=sorted(code_heads),
+            revision_matches=revision_matches,
+        ),
+        diseases=disease_results,
+    )
+
+
+def collect_longitudinal_readiness(
+    connection,
+    *,
+    model_dir: Path,
+    code_heads: set[str],
+    generated_at: datetime | str | None = None,
+) -> LongitudinalReadinessReport:
+    return build_readiness_report(
+        load_database_snapshot(connection),
+        model_dir=model_dir,
+        code_heads=code_heads,
+        generated_at=generated_at,
+    )
