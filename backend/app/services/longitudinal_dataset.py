@@ -10,6 +10,8 @@ import json
 from typing import Any, Iterable, Literal, Mapping
 import unicodedata
 
+from sqlalchemy import text
+
 from app.services.disease_progression import (
     AD_ADAPTER,
     FATTY_LIVER_ADAPTER,
@@ -752,3 +754,22 @@ def build_fixed_window_dataset(
         synthetic_audit=tuple(synthetic_audit),
         summary=DatasetAuditSummary(diseases=disease_summaries),
     )
+
+
+def load_case_rows(connection) -> list[dict[str, object]]:
+    """Load only the two supported longitudinal cohorts in a read-only txn."""
+    connection.execute(text("SET TRANSACTION READ ONLY"))
+    rows = connection.execute(
+        text(
+            "SELECT cr.id AS record_id, d.name AS disease_name, "
+            "cr.patient_label, cr.indicators, cr.metadata "
+            "FROM case_records cr JOIN diseases d ON d.id = cr.disease_id "
+            "WHERE d.name IN (:fatty_liver_name, :ad_name) "
+            "ORDER BY d.id, cr.id"
+        ),
+        {
+            "fatty_liver_name": FATTY_LIVER_ADAPTER.disease_name,
+            "ad_name": AD_ADAPTER.disease_name,
+        },
+    ).mappings().all()
+    return [dict(row) for row in rows]
