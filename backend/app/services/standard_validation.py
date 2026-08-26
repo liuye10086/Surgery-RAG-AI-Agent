@@ -28,6 +28,14 @@ OWNER_REVIEWED_APPROXIMATE_INDICATORS = frozenset({"alt", "ast", "ggt"})
 APPROXIMATE_SOURCE_TOKENS = ("约", "常见为", "常作正常参考", "大约", "通常为")
 
 
+def normalize_disease_key(value: str | None) -> str | None:
+    if value in {"ad", "阿尔茨海默病"}:
+        return "ad"
+    if value in {"fatty_liver", "脂肪肝"}:
+        return "fatty_liver"
+    return value
+
+
 @dataclass(frozen=True)
 class RuleValidation:
     errors: list[ValidationFinding] = field(default_factory=list)
@@ -61,6 +69,7 @@ def has_owner_reviewed_approximate_override(rule: Any, *, disease_key: str | Non
 
 
 def validate_rule(rule: Any, *, disease_key: str | None = None) -> RuleValidation:
+    disease_key = normalize_disease_key(disease_key)
     errors: list[ValidationFinding] = []
     warnings: list[ValidationFinding] = []
     infos: list[ValidationFinding] = []
@@ -154,7 +163,14 @@ def validate_version(db: Any, version_id: int) -> ValidationReport:
     version = db.query(ReferenceStandardVersion).filter(ReferenceStandardVersion.id == version_id).first()
     if version is None:
         raise ValueError("标准版本不存在")
-    return validate_version_rules(list(version.rules or []))
+    disease_key = normalize_disease_key(
+        getattr(getattr(getattr(version, "standard", None), "disease", None), "name", None)
+    )
+    return validate_version_rules(
+        list(version.rules or []),
+        disease_key=disease_key,
+        require_calculable=disease_key != "ad",
+    )
 
 
 def is_projection_eligible(rule: Any) -> bool:
@@ -174,11 +190,13 @@ def validate_version_rules(
     disease_key: str | None = None,
     require_calculable: bool = True,
 ) -> ValidationReport:
+    disease_key = normalize_disease_key(disease_key)
     errors: list[ValidationFinding] = []
     warnings: list[ValidationFinding] = []
     infos: list[ValidationFinding] = []
     projection_count = 0
     calculable_rule_count = 0
+    evidence_only_rule_count = 0
     blocked_rule_count = 0
     if not rules:
         errors.append(_finding("error", "formal_rules_missing", "标准版本没有正式规则"))
@@ -189,12 +207,16 @@ def validate_version_rules(
         infos.extend(result.infos)
         if result.actionability == "calculable" and not result.errors:
             calculable_rule_count += 1
+        if result.actionability == "evidence-only" and not result.errors:
+            evidence_only_rule_count += 1
         if getattr(rule, "machine_actionability", None) == "blocked":
             blocked_rule_count += 1
         if is_projection_eligible(rule) and not result.errors:
             projection_count += 1
     if require_calculable and calculable_rule_count == 0:
         errors.append(_finding("error", "calculable_rules_missing", "标准版本没有可计算的正式规则"))
+    if disease_key == "ad" and not require_calculable and calculable_rule_count == 0 and evidence_only_rule_count == 0:
+        errors.append(_finding("error", "evidence_only_rules_missing", "AD 标准版本没有可发布的 evidence-only 正式规则"))
     return ValidationReport(
         errors=errors,
         warnings=warnings,

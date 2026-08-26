@@ -15,7 +15,11 @@ from app.db.models import (
     StandardRule,
 )
 from app.schemas.standard import RulePatch
-from app.services.standard_validation import is_projection_eligible, validate_version_rules
+from app.services.standard_validation import (
+    is_projection_eligible,
+    normalize_disease_key,
+    validate_version_rules,
+)
 import hashlib
 from pathlib import Path
 import json
@@ -94,7 +98,15 @@ def transition_version(db, admin_id: int, version_id: int, target_status: str):
     if target_status not in allowed.get(version.status, set()):
         raise ValueError(f"不允许从 {version.status} 转换到 {target_status}")
     if target_status == "approved":
-        report = validate_version_rules(list(version.rules or []))
+        disease_key = getattr(
+            getattr(getattr(version, "standard", None), "disease", None),
+            "name",
+            None,
+        )
+        report = _validation_for_publish(
+            list(version.rules or []),
+            disease_key=disease_key,
+        )
         if not report.can_publish:
             raise ValueError("标准版本存在阻止发布的校验错误")
     version.status = target_status
@@ -220,8 +232,13 @@ def materialize_candidate(db: Any, *, candidate_id: int, admin_id: int, reason: 
 
 
 def _validation_for_publish(rules: list[Any], *, disease_key: str | None = None) -> Any:
+    disease_key = normalize_disease_key(disease_key)
     try:
-        return validate_version_rules(rules, disease_key=disease_key, require_calculable=True)
+        return validate_version_rules(
+            rules,
+            disease_key=disease_key,
+            require_calculable=disease_key != "ad",
+        )
     except TypeError:
         return validate_version_rules(rules)
 
@@ -256,7 +273,7 @@ def publish_review_version(db: Any, *, version_id: int, admin_id: int, commit: b
     disease = getattr(getattr(standard, "disease", None), "name", None)
     report = _validation_for_publish(list(version.rules or []), disease_key=disease)
     if not report.can_publish:
-        raise ValueError("标准版本存在阻止发布的校验错误：可计算规则不足或存在错误")
+        raise ValueError("标准版本存在阻止发布的校验错误")
 
     projections: list[Any] = []
     try:
@@ -375,7 +392,11 @@ def publish_approved_version(db, admin_id: int, version_id: int):
         raise ValueError("标准版本不存在")
     if version.status != "review":
         raise ValueError("只有 review 版本可以批准")
-    report = validate_version_rules(list(version.rules or []))
+    disease_key = getattr(getattr(standard, "disease", None), "name", None)
+    report = _validation_for_publish(
+        list(version.rules or []),
+        disease_key=disease_key,
+    )
     if not report.can_publish:
         raise ValueError("标准版本存在阻止发布的校验错误")
     try:

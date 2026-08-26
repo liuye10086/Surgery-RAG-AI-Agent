@@ -114,6 +114,47 @@ def test_empty_or_zero_calculable_version_cannot_publish():
     assert "calculable_rules_missing" in {item.code for item in evidence.errors}
 
 
+def test_ad_evidence_only_version_can_publish_without_projection():
+    report = validate_version_rules([
+        _rule(
+            machine_actionability="evidence-only",
+            rule_type="qualitative_direction",
+            lower=None,
+            upper=None,
+            unit=None,
+            indicator=SimpleNamespace(
+                canonical_key="mmse",
+                data_type="ordinal",
+                allows_numeric_comparison=False,
+                abnormal_direction="ordinal_low",
+            ),
+        )
+    ], disease_key="ad", require_calculable=False)
+
+    assert report.errors == []
+    assert report.calculable_rule_count == 0
+    assert report.projection_count == 0
+    assert report.can_publish
+
+
+def test_ad_evidence_only_exception_does_not_allow_empty_or_blocked_versions():
+    empty = validate_version_rules([], disease_key="ad", require_calculable=False)
+    assert not empty.can_publish
+    assert "formal_rules_missing" in {item.code for item in empty.errors}
+
+    blocked = validate_version_rules([
+        _rule(
+            machine_actionability="blocked",
+            rule_type="qualitative_direction",
+            lower=None,
+            upper=None,
+            unit=None,
+        )
+    ], disease_key="ad", require_calculable=False)
+    assert not blocked.can_publish
+    assert blocked.blocked_rule_count == 1
+
+
 def test_evidence_only_and_non_numeric_calculable_rules_do_not_project():
     assert not is_projection_eligible(_rule(machine_actionability="evidence-only"))
     assert not is_projection_eligible(_rule(rule_type="classification"))

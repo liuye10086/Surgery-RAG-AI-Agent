@@ -469,6 +469,31 @@ def test_lifecycle_route_locks_row_before_status_transition(endpoint_name, versi
     assert db.queries[0].events[:3] == ["filter", "with_for_update", "first"]
 
 
+def test_validation_endpoint_uses_ad_disease_key(monkeypatch):
+    from app.api.admin_standards import validate_version
+
+    captured = {}
+    version = SimpleNamespace(
+        id=5,
+        rules=[SimpleNamespace(machine_actionability="evidence-only")],
+        standard=SimpleNamespace(disease=SimpleNamespace(name="阿尔茨海默病")),
+    )
+    db = _Db({"ReferenceStandardVersion": [version]})
+
+    def fake_validate(rules, **kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(
+            errors=[], warnings=[], infos=[], projection_count=0,
+            calculable_rule_count=0, blocked_rule_count=0,
+        )
+
+    monkeypatch.setattr("app.api.admin_standards.validate_version_rules", fake_validate)
+
+    validate_version(5, admin=SimpleNamespace(id=7), db=db)
+
+    assert captured == {"disease_key": "ad", "require_calculable": False}
+
+
 def test_retire_route_delegates_to_current_version_service():
     from app.api import admin_standards
 

@@ -24,9 +24,9 @@
 - 本实施计划经项目所有者明确批准前，不修改生产代码、不运行迁移、不创建 draft，也不写正式数据库。
 - 实现严格采用 TDD：先运行新增测试并确认 RED，再写最小实现并确认 GREEN。
 - current version 只能指向同一标准集合的 approved 版本。
-- 空规则、零 calculable、blocked 规则或 validation error 均阻止发布。
+- 空规则、blocked 规则或 validation error 均阻止发布；脂肪肝零 calculable 阻止发布，AD 允许纯 evidence-only approved 版本。
 - Evidence-only 规则不得生成 `reference_ranges` 投影。
-- 若人工审核后某疾病没有安全的 calculable 规则，停止发布并报告阻塞；不得为了通过 readiness 人为制造阈值。
+- 若脂肪肝没有安全的 calculable 规则，停止发布并报告阻塞；AD 可以在至少一条 evidence-only 正式规则审核通过时发布，不得为了通过 readiness 人为制造阈值。
 - P0-02 不训练模型，不修改模型 registry、纵向预测 schema、模型 artifact 或报告模板。
 - 本任务没有 UI 修改，不修改 `frontend/**`，也不读取或改动 `docs/DESIGN_SPEC.md`。
 - 所有脚本默认 dry-run；正式写入必须显式传入 `--execute`。
@@ -551,8 +551,8 @@ def validate_standard_manifest(manifest, *, source_path, parsed_document):
         ]
         if any(rule.machine_actionability == "blocked" for rule in approved_rules):
             errors.append(ManifestFinding("approved_blocked_rule", "approved manifest 不得包含 blocked 规则"))
-        if not any(rule.machine_actionability == "calculable" for rule in approved_rules):
-            errors.append(ManifestFinding("approved_calculable_rule_missing", "每种疾病至少需要一条审核通过的 calculable 规则"))
+        if manifest.dataset != "ad" and not any(rule.machine_actionability == "calculable" for rule in approved_rules):
+            errors.append(ManifestFinding("approved_calculable_rule_missing", "脂肪肝至少需要一条审核通过的 calculable 规则"))
     return ManifestValidationResult(errors=errors, missing_core_indicators=missing)
 
 
@@ -2074,6 +2074,35 @@ Do not run `prepare_standard_drafts.py --execute`, migrations or any manifest pu
 
 ---
 
+### Task 8B: Allow reviewed AD evidence-only versions to publish
+
+**Files:**
+- Modify: `backend/app/services/standard_manifest.py`
+- Modify: `backend/app/services/standard_validation.py`
+- Modify: `backend/app/services/standard_lifecycle.py`
+- Modify: `backend/app/schemas/standard.py`
+- Modify: `backend/app/services/longitudinal_readiness.py`
+- Modify: `backend/app/api/admin_standards.py`
+- Test: `backend/tests/test_standard_manifest.py`
+- Test: `backend/tests/test_standard_validation.py`
+- Test: `backend/tests/test_standard_lifecycle.py`
+- Test: `backend/tests/test_longitudinal_readiness_service.py`
+- Test: `backend/tests/test_admin_standards_api.py`
+
+**Interfaces:**
+- `validate_version_rules(..., disease_key="ad", require_calculable=False)` accepts at least one valid formal evidence-only rule.
+- `ValidationReport.can_publish` reflects validation errors and blocked rules; disease-specific count requirements are emitted by the validator.
+- `assess_standard(row, dataset="ad")` returns degraded `evidence_only_standard` for an approved non-empty evidence-only version.
+
+- [x] **Step 1: Add manifest, validation, lifecycle, API and readiness tests for the AD exception.**
+- [x] **Step 2: Run the focused tests and confirm they fail for the missing AD exception.**
+- [x] **Step 3: Implement direct `ad` checks only; do not add a generic policy/configuration layer.**
+- [x] **Step 4: Re-run focused tests and the standard/readiness regression sets.**
+- [x] **Step 5: Run both approved manifest checks and confirm AD has eight evidence-only rules, zero calculable rules and no lint error.**
+- [x] **Step 6: Commit the tested code and documentation. Do not import or publish database rules in this task.**
+
+---
+
 ### Task 9: Database checkpoint one — create and parse fresh draft versions
 
 **Files:**
@@ -2326,7 +2355,7 @@ Expected: all pass. A pre-existing unrelated failure must be reported before cha
 
 - [ ] **Step 3: Verify both approved manifests and review documents**
 
-Run the two `check_standard_manifests.py --check` commands. Expected: approved state, no pending entries, source hash match, core coverage complete, at least one approved calculable rule per disease and no Markdown drift.
+Run the two `check_standard_manifests.py --check` commands. Expected: approved state, no pending entries, source hash match and core coverage complete. Fatty liver has approved calculable rules; AD may contain only approved evidence-only rules. No Markdown drift.
 
 - [ ] **Step 4: Run the real database baseline and readiness commands**
 
@@ -2343,7 +2372,7 @@ Expected:
 
 - database revision and code head are `0011`;
 - both diseases have a current approved version;
-- both versions have formal and calculable rules;
+- both versions have formal rules; fatty liver has calculable rules while AD may have zero calculable rules;
 - standard-related reason codes `approved_standard_missing` and `calculable_standard_rules_missing` are absent;
 - overall readiness remains `blocked` because P0-04 outcome artifacts are still missing;
 - readiness exit remains `1`, proving P0-02 did not mask later blockers.
@@ -2405,12 +2434,12 @@ Do not mark P0-02 complete until all of the following are true:
 - Two approved manifest packages exist and exactly regenerate their Markdown review documents.
 - Every core indicator has an explicit owner-reviewed conclusion.
 - No pending, blocked or unreviewed entry is imported.
-- Both diseases have at least one safe, reviewed calculable formal rule.
+- Fatty liver has at least one safe, reviewed calculable formal rule; AD has at least one reviewed evidence-only formal rule and may have zero calculable rules.
 - Approximate, laboratory-specific or context-incomplete text is not treated as a generic threshold.
 - AD cognitive scales, CDR and biochemical markers use distinct abnormal directions.
 - Current pointers are protected by service validation, a deferred PostgreSQL invariant and resolver checks.
 - Candidate materialization, publishing and retiring are atomic and audited.
-- Empty/zero-calculable versions cannot publish.
+- Empty versions cannot publish. Zero-calculable fatty-liver versions cannot publish; AD may publish with at least one reviewed evidence-only formal rule.
 - Evidence-only and non-projection calculable classifications do not create invalid `reference_ranges` rows.
 - Publishing failure leaves no partial version, projection, current pointer or audit state.
 - Both real source hashes match the published manifests and version documents.

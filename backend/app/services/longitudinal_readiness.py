@@ -228,6 +228,8 @@ def aggregate_reference_data(
 
 def assess_standard(
     row: dict[str, object] | None,
+    *,
+    dataset: str = "fatty_liver",
 ) -> tuple[StandardReadiness, list[ReadinessReason]]:
     values = row or {}
     approved = values.get("version_status") == "approved"
@@ -242,7 +244,7 @@ def assess_standard(
                 "P0-02",
             )
         )
-    elif calculable == 0:
+    elif calculable == 0 and dataset != "ad":
         reasons.append(
             _reason(
                 "calculable_standard_rules_missing",
@@ -251,9 +253,20 @@ def assess_standard(
                 "P0-02",
             )
         )
+    elif calculable == 0:
+        reasons.append(
+            _reason(
+                "evidence_only_standard",
+                "当前 AD 标准仅提供 evidence-only 解释，不能自动执行数值阈值判断",
+                "degraded",
+                "P2-04",
+            )
+        )
     return (
         StandardReadiness(
-            status="blocked" if reasons else "available",
+            status="blocked" if any(reason.severity == "blocked" for reason in reasons) else (
+                "degraded" if reasons else "available"
+            ),
             standard_id=values.get("standard_id"),
             current_version_id=values.get("current_version_id"),
             version_label=values.get("version_label"),
@@ -553,7 +566,7 @@ def assess_report_contract(
         "data_quality_explanation": data.status == "available",
         "observed_longitudinal_changes": data.status == "available" and visits_ready,
         "outcome_365d": outcome.status == "available",
-        "reference_standard_interpretation": standard.status == "available",
+        "reference_standard_interpretation": standard.status in {"available", "degraded"},
         "key_progression_signals": data.status == "available",
         "evidence_sources": "sources" in report_columns,
         "limitations": "content" in report_columns,
@@ -580,15 +593,21 @@ def assess_report_contract(
     missing_required: list[str] = []
     for key in REQUIRED_CAPABILITIES:
         is_available = dependency_ready[key] and key in implemented
+        is_degraded = (
+            key == "reference_standard_interpretation"
+            and standard.status == "degraded"
+            and is_available
+        )
         if is_available:
-            available.append(key)
+            if not is_degraded:
+                available.append(key)
         else:
             missing_required.append(key)
         capabilities.append(
             CapabilityReadiness(
                 key=key,
                 required=True,
-                status="available" if is_available else "blocked",
+                status="degraded" if is_degraded else ("available" if is_available else "blocked"),
                 message=messages[key],
                 next_task=None if is_available else "P0-07",
             )
@@ -733,7 +752,10 @@ def build_readiness_report(
             ),
             None,
         )
-        standard, standard_reasons = assess_standard(standard_row)
+        standard, standard_reasons = assess_standard(
+            standard_row,
+            dataset=adapter.dataset,
+        )
         reasons.extend(standard_reasons)
         outcome, outcome_reasons = check_outcome_artifact(
             adapter.dataset, Path(model_dir)

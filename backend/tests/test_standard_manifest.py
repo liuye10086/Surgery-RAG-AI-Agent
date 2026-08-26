@@ -257,6 +257,47 @@ def test_approved_manifest_requires_a_safe_calculable_rule(tmp_path: Path):
     assert "approved_calculable_rule_missing" in {item.code for item in result.errors}
 
 
+def test_approved_ad_manifest_allows_reviewed_evidence_only_rules(tmp_path: Path):
+    from app.services.standard_manifest import validate_standard_manifest
+
+    source = tmp_path / "ad.docx"
+    source.write_bytes(b"stable")
+    payload = _manifest()
+    payload["dataset"] = "ad"
+    payload["disease_name"] = "阿尔茨海默病"
+    payload["source_document_sha256"] = hashlib.sha256(b"stable").hexdigest()
+    payload["review_state"] = "approved"
+    payload["reviewed_at"] = "2026-08-26T12:00:00Z"
+    payload["entries"][0]["review_status"] = "approved"
+    payload["entries"][0]["indicator"].update({
+        "canonical_key": "mmse",
+        "name_en": "MMSE",
+        "name_cn": "简易精神状态检查",
+        "data_type": "ordinal",
+        "default_unit": "points",
+        "clinical_dimension": "cognition",
+        "abnormal_direction": "ordinal_low",
+    })
+    payload["entries"][0]["rule"].update({
+        "rule_type": "qualitative_direction",
+        "lower": None,
+        "upper": None,
+        "unit": None,
+        "machine_actionability": "evidence-only",
+        "clinical_dimension": "cognition",
+    })
+    manifest = StandardManifest.model_validate(payload)
+
+    result = validate_standard_manifest(
+        manifest,
+        source_path=source,
+        parsed_document=_parsed(manifest.entries[0].source.raw_text),
+    )
+
+    assert "approved_calculable_rule_missing" not in {item.code for item in result.errors}
+    assert "approved_evidence_rule_missing" not in {item.code for item in result.errors}
+
+
 def test_approved_blocked_entry_is_rejected_by_lint(tmp_path: Path):
     from app.services.standard_manifest import validate_standard_manifest
 

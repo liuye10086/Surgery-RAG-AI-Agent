@@ -113,7 +113,7 @@ class ValidationReport(BaseModel):
 
     @property
     def can_publish(self) -> bool:
-        return not self.errors and self.calculable_rule_count > 0 and self.blocked_rule_count == 0
+        return not self.errors and self.blocked_rule_count == 0
 
 
 class StandardCreate(BaseModel):

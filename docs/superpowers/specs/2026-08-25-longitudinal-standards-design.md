@@ -22,7 +22,7 @@ P0-01 已建立 `longitudinal_readiness.v1` 只读契约。当前两种疾病均
 
 - current version 只有普通外键，数据库不能阻止其指向非 approved 或其他标准的版本。
 - 独立退役当前版本不会清空 current 指针或关闭当前投影。
-- 空规则版本或零 calculable 规则目前可能通过发布验证。
+- 空规则版本或不满足疾病级 actionability 门槛的版本目前可能通过发布验证。
 - 解析器可能把“约”“常见为”和说明文字误识别为精确阈值或单位。
 - 候选 materialize 与候选状态更新跨越多个事务，存在部分成功状态。
 - 管理页面虽有候选 API，但当前工作台不能可靠承载本任务所需的完整医学逐条审核；本任务不新增 UI。
@@ -260,7 +260,7 @@ Evidence-only 规则可以发布为标准证据，但不得生成 `reference_ran
 - 校验疾病专属异常方向和 clinical dimension。
 - 校验性别、平台、方法、样本、年龄、教育、队列和框架等必要适用条件。
 - 校验条件树结构、引用和循环。
-- 版本发布要求不存在 blocked 规则或 error，并且至少存在一条经审核的 calculable 正式规则。
+- 版本发布要求不存在 blocked 规则或 error。脂肪肝至少存在一条经审核的 calculable 正式规则；AD 允许发布纯 evidence-only 版本，但至少存在一条经审核的 evidence-only 正式规则。
 - evidence-only 规则不得计入投影数量。
 
 ### 10.3 Manifest 服务与命令
@@ -301,7 +301,7 @@ Evidence-only 规则可以发布为标准证据，但不得生成 `reference_ran
 - current version 属于同一 standard；
 - current version 状态为 approved；
 - 只有 review 版本可以发布；
-- 空规则、零 calculable、blocked 或存在 error 的版本不得发布；
+- 空规则、blocked 或存在 error 的版本不得发布；脂肪肝零 calculable 不得发布，AD 零 calculable 时必须至少有一条经审核的 evidence-only 正式规则；
 - 单独退役只能处理 approved 版本，并同步清空 current 指针和关闭投影。
 
 ### 11.2 数据库层
@@ -325,7 +325,7 @@ resolver 继续检查 current version 的状态和归属。数据库或服务层
 1. 锁定标准集合。
 2. 锁定目标 review 版本并重新读取规则。
 3. 重新执行完整版本校验。
-4. 验证至少一条经审核 calculable 正式规则，且不存在 blocked、error 或未解决拟发布条目。
+4. 验证疾病级 actionability 门槛：脂肪肝至少一条经审核 calculable 正式规则；AD 可为纯 evidence-only，但至少一条经审核 evidence-only 正式规则；同时不存在 blocked、error 或未解决拟发布条目。
 5. 锁定旧 current approved 版本。
 6. 将旧版本设为 retired，填写 `retired_at`，并关闭其当前投影。
 7. 将目标版本设为 approved，写入批准人、批准时间和生效时间。
@@ -456,7 +456,7 @@ resolver 继续检查 current version 的状态和归属。数据库或服务层
 
 ### 17.4 生命周期与事务
 
-- 空规则、零 calculable、blocked 规则和 validation error 均阻止发布。
+- 空规则、blocked 规则和 validation error 均阻止发布；脂肪肝零 calculable 阻止发布，AD 纯 evidence-only 不阻止发布。
 - current 指针不能指向非 approved 或其他标准的版本。
 - 退役当前版本必须清空指针、填写 `retired_at` 并关闭投影。
 - 发布新版本自动退役旧版本并切换 current。
@@ -479,7 +479,7 @@ resolver 继续检查 current version 的状态和归属。数据库或服务层
 3. dry-run 输出拟新增标准文档、集合、版本、指标、规则、条件和投影数量。
 4. 在项目所有者批准相应检查点后执行正式数据库事务。
 5. 验证两种疾病的 current version 均属于同一标准且状态为 approved。
-6. 验证每种疾病至少有一条经过审核的 calculable 正式规则。
+6. 验证脂肪肝至少有一条经过审核的 calculable 正式规则；验证 AD 至少有一条经过审核的 evidence-only 正式规则，允许 calculable 和投影数量均为 0。
 7. 验证 evidence-only 规则不进入 `reference_ranges` 投影。
 8. 验证 resolver 对核心指标返回 calculable、evidence-only 或明确 unmatched/warning。
 9. 重新运行 `python scripts/check_longitudinal_readiness.py`。
@@ -492,13 +492,21 @@ resolver 继续检查 current version 的状态和归属。数据库或服务层
 - 脂肪肝和 AD 均有 current approved 标准版本。
 - current version 不可能指向 draft、review、retired 或其他标准的版本。
 - 双疾病核心指标均有 canonical indicator 和明确审核结论。
-- 至少存在经过审核的 calculable 正式规则，同时安全保留 evidence-only 内容。
+- 脂肪肝至少存在经过审核的 calculable 正式规则；AD 可仅包含经过审核的 evidence-only 正式规则。
 - AD 认知量表、生化指标和 CDR 的异常方向彼此独立。
 - 平台、方法、年龄、教育等上下文不足时不会执行通用阈值计算。
 - 所有正式规则可追溯到源文档哈希和原文片段。
 - 发布与退役失败不会留下部分版本、投影、current 指针或审计状态。
 - `reference_ranges` 只包含当前 approved 版本的安全 calculable 投影。
 - P0-01 readiness 中标准相关阻塞消失，其他路线图任务缺口保持真实可见。
+
+## 19.1 AD 纯 evidence-only 发布例外
+
+- 本例外只适用于当前 `ad` 数据集，不全局取消 calculable 发布门槛，也不新增可配置疾病策略框架。
+- AD approved manifest 在核心指标均有明确审核结论、无 pending/blocked/error 且至少有一条 approved evidence-only 正式规则时，可以发布为 approved。
+- AD 纯 evidence-only 版本的 `calculable_rule_count` 和 `reference_ranges` 投影数量均允许为 0。
+- resolver 和报告只能使用这些规则提供方向、分期、来源、适用性与局限性，不得据此生成数值参考范围或自动正常/异常结论。
+- readiness 将该标准记为 `degraded` 并报告 `evidence_only_standard`，但不再报告 P0-02 的 `calculable_standard_rules_missing` blocker；脂肪肝相同行为仍为 blocked。
 
 ## 20. 后续流程
 

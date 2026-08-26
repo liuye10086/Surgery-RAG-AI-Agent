@@ -118,8 +118,12 @@ def validate_standard_manifest(
         ]
         if any(rule.machine_actionability == "blocked" for rule in approved_rules):
             errors.append(ManifestFinding("approved_blocked_rule", "approved manifest 不得包含 blocked 规则"))
-        if not any(rule.machine_actionability == "calculable" for rule in approved_rules):
+        has_calculable = any(rule.machine_actionability == "calculable" for rule in approved_rules)
+        has_evidence_only = any(rule.machine_actionability == "evidence-only" for rule in approved_rules)
+        if manifest.dataset != "ad" and not has_calculable:
             errors.append(ManifestFinding("approved_calculable_rule_missing", "每种疾病至少需要一条审核通过的 calculable 规则"))
+        if manifest.dataset == "ad" and not has_calculable and not has_evidence_only:
+            errors.append(ManifestFinding("approved_evidence_rule_missing", "AD 标准至少需要一条审核通过的 evidence-only 正式规则"))
 
     return ManifestValidationResult(errors=errors, missing_core_indicators=missing)
 

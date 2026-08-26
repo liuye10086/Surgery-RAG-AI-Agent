@@ -173,6 +173,59 @@ def test_standard_requires_current_approved_version_and_calculable_rule():
     ]
 
 
+def test_ad_approved_evidence_only_standard_is_degraded_not_blocked():
+    standard, reasons = assess_standard(
+        {
+            "standard_id": 4,
+            "current_version_id": 4,
+            "version_status": "approved",
+            "version_label": "ad-v1",
+            "content_hash": "abc",
+            "rule_count": 8,
+            "calculable_rule_count": 0,
+        },
+        dataset="ad",
+    )
+
+    assert standard.status == "degraded"
+    assert [reason.code for reason in reasons] == ["evidence_only_standard"]
+    assert reasons[0].severity == "degraded"
+    assert reasons[0].next_task == "P2-04"
+
+
+def test_report_contract_accepts_degraded_evidence_only_standard_capability():
+    contract, reasons, _ = assess_report_contract(
+        table_columns=_table_columns(),
+        data=_complete_data(),
+        standard=StandardReadiness(
+            status="degraded",
+            standard_id=4,
+            current_version_id=4,
+            version_label="ad-v1",
+            version_status="approved",
+            content_hash="abc",
+            rule_count=8,
+            calculable_rule_count=0,
+        ),
+        outcome=_artifact(
+            "outcome",
+            "available",
+            metadata={"calibration_status": "calibrated"},
+        ),
+        stage=_artifact("stage", "available"),
+        trends=[_artifact("trend", "available", indicator="mmse")],
+        implemented_required=set(REQUIRED_CAPABILITIES),
+    )
+
+    capability = next(
+        item for item in contract.capabilities
+        if item.key == "reference_standard_interpretation"
+    )
+    assert capability.status == "degraded"
+    assert contract.status == "degraded"
+    assert "report_contract_invalid" not in {reason.code for reason in reasons}
+
+
 class _FakeResult:
     def __init__(self, rows):
         self._rows = rows
