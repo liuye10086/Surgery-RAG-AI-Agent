@@ -57,9 +57,14 @@ def validate_standard_manifest(
 
     locations = {_segment_key(item): item.raw_text for item in parsed_document.segments}
     for entry in manifest.entries:
-        key = _segment_key(entry.source)
-        if locations.get(key) != entry.source.raw_text:
-            errors.append(ManifestFinding("source_segment_mismatch", "源片段定位或原文不一致", entry.entry_id))
+        if entry.source.document_absence_terms:
+            document_text = "\n".join(str(item.raw_text) for item in parsed_document.segments).casefold()
+            if any(term.casefold() in document_text for term in entry.source.document_absence_terms):
+                errors.append(ManifestFinding("source_absence_contradicted", "文档级缺失结论与源文档内容冲突", entry.entry_id))
+        else:
+            key = _segment_key(entry.source)
+            if locations.get(key) != entry.source.raw_text:
+                errors.append(ManifestFinding("source_segment_mismatch", "源片段定位或原文不一致", entry.entry_id))
 
     covered = {entry.indicator.canonical_key for entry in manifest.entries}
     missing = sorted(set(CORE_INDICATORS[manifest.dataset]) - covered)
@@ -101,8 +106,17 @@ def render_standard_review_markdown(manifest: StandardManifest) -> str:
             f"- 建议 actionability：`{actionability}`",
             f"- 审核状态：`{entry.review_status}`",
             f"- 审核备注：{entry.review_note or '无'}",
-            f"- 原文位置：paragraph={entry.source.paragraph_index}, table={entry.source.table_index}, row={entry.source.row_index}, column={entry.source.column_index}",
-            f"- 原文：{entry.source.raw_text}",
-            "",
         ])
+        if entry.source.document_absence_terms:
+            lines.extend([
+                "- 来源结论：整份源文档未检索到对应指标内容",
+                f"- 文档检索词：{', '.join(entry.source.document_absence_terms)}",
+                "",
+            ])
+        else:
+            lines.extend([
+                f"- 原文位置：paragraph={entry.source.paragraph_index}, table={entry.source.table_index}, row={entry.source.row_index}, column={entry.source.column_index}",
+                f"- 原文：{entry.source.raw_text}",
+                "",
+            ])
     return "\n".join(lines).rstrip() + "\n"

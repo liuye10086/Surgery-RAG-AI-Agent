@@ -107,6 +107,29 @@ def test_no_safe_rule_entry_has_no_rule_payload():
     assert manifest.entries[0].rule is None
 
 
+def test_no_safe_rule_can_record_document_level_absence():
+    payload = _manifest()
+    payload["entries"][0]["entry_kind"] = "no_safe_rule"
+    payload["entries"][0]["rule"] = None
+    payload["entries"][0]["source"] = {
+        "document_absence_terms": ["AFP", "甲胎蛋白"],
+    }
+
+    manifest = StandardManifest.model_validate(payload)
+
+    assert manifest.entries[0].source.document_absence_terms == ["AFP", "甲胎蛋白"]
+
+
+def test_rule_cannot_use_document_level_absence_as_source():
+    payload = _manifest()
+    payload["entries"][0]["source"] = {
+        "document_absence_terms": ["ALT"],
+    }
+
+    with pytest.raises(ValidationError, match="no_safe_rule"):
+        StandardManifest.model_validate(payload)
+
+
 def test_reserved_applicability_keys_are_rejected():
     payload = _manifest()
     payload["entries"][0]["rule"]["applicability"] = {"_manifest_entry_id": "forged"}
@@ -155,6 +178,35 @@ def test_manifest_rejects_hash_or_source_text_mismatch(tmp_path: Path):
         parsed_document=_parsed("different text"),
     )
     assert "source_segment_mismatch" in {item.code for item in result.errors}
+
+
+def test_document_level_absence_is_checked_against_all_segments(tmp_path: Path):
+    from app.services.standard_manifest import validate_standard_manifest
+
+    source = tmp_path / "fatty.docx"
+    source.write_bytes(b"stable")
+    payload = _manifest()
+    payload["source_document_sha256"] = hashlib.sha256(b"stable").hexdigest()
+    payload["entries"][0]["entry_kind"] = "no_safe_rule"
+    payload["entries"][0]["rule"] = None
+    payload["entries"][0]["source"] = {
+        "document_absence_terms": ["AFP", "甲胎蛋白"],
+    }
+    manifest = StandardManifest.model_validate(payload)
+
+    absent = validate_standard_manifest(
+        manifest,
+        source_path=source,
+        parsed_document=_parsed("PLT（血小板计数） | 按实验室参考范围"),
+    )
+    assert "source_absence_contradicted" not in {item.code for item in absent.errors}
+
+    present = validate_standard_manifest(
+        manifest,
+        source_path=source,
+        parsed_document=_parsed("AFP（甲胎蛋白） | ≤ 7 | ng/mL"),
+    )
+    assert "source_absence_contradicted" in {item.code for item in present.errors}
 
 
 def test_core_indicator_coverage_requires_explicit_conclusion(tmp_path: Path):

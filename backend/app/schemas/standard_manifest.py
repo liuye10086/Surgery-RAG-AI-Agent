@@ -24,12 +24,19 @@ class SourceLocator(StrictModel):
     table_index: int | None = None
     row_index: int | None = None
     column_index: int | None = None
-    raw_text: str = Field(min_length=1)
+    raw_text: str | None = Field(default=None, min_length=1)
+    document_absence_terms: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def has_location(self):
-        if self.paragraph_index is None and self.table_index is None:
-            raise ValueError("源定位必须包含 paragraph_index 或 table_index")
+        has_segment = self.paragraph_index is not None or self.table_index is not None
+        has_absence = bool(self.document_absence_terms)
+        if has_segment == has_absence:
+            raise ValueError("源定位必须且只能使用片段定位或文档级缺失结论")
+        if has_segment and self.raw_text is None:
+            raise ValueError("片段定位必须包含原文")
+        if has_absence and self.raw_text is not None:
+            raise ValueError("文档级缺失结论不得伪造原文")
         if self.table_index is not None and self.row_index is None:
             raise ValueError("表格定位必须包含 row_index")
         return self
@@ -99,6 +106,8 @@ class StandardManifestEntry(StrictModel):
             raise ValueError("rule 条目必须提供规则")
         if self.entry_kind == "no_safe_rule" and self.rule is not None:
             raise ValueError("no_safe_rule 条目不得提供规则")
+        if self.source.document_absence_terms and self.entry_kind != "no_safe_rule":
+            raise ValueError("只有 no_safe_rule 可以使用文档级缺失结论")
         return self
 
 
