@@ -76,6 +76,24 @@ def test_reference_sources_include_versioned_rule_provenance():
     assert {"standard_version_id", "standard_rule_id", "applicability_hash"}.issubset(sources[0])
 
 
+def test_standard_conflicts_and_unmatched_rules_are_exposed_as_sources(monkeypatch):
+    from app.services.longitudinal_evidence import build_reference_range_sources
+
+    resolution = SimpleNamespace(
+        version_id=12,
+        standard_id=3,
+        calculable_rules=[],
+        evidence_rules=[],
+        unmatched_rules=[SimpleNamespace(id=7, applicability={"platform": "A"})],
+        conflicting_rules=[SimpleNamespace(id=8, applicability={"cohort": "X"})],
+        warnings=["规则冲突，未自动选择"],
+    )
+    monkeypatch.setattr("app.services.standard_resolver.resolve_standard_rules", lambda *args, **kwargs: resolution)
+    sources = build_reference_range_sources(SimpleNamespace(), ["Aβ42/Aβ40"], disease_id=2)
+    assert {item["source_type"] for item in sources} == {"standard_unmatched", "standard_conflict", "standard_warning"}
+    assert all(item["standard_version_id"] == 12 for item in sources)
+
+
 def test_similar_cases_deduplicate_labels_and_merge_overlapping_indicators():
     class Query:
         def filter(self, *args, **kwargs):

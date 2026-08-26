@@ -69,3 +69,35 @@ def test_resolver_exposes_version_and_rule_provenance():
 
     assert result.version_id == 8
     assert result.calculable_rules[0].standard_rule_id == 7
+
+
+def test_ad_scale_rule_requires_education_language_and_scale_version():
+    rule = SimpleNamespace(
+        id=20,
+        machine_actionability="calculable",
+        applicability={"education": "college", "language": "zh-CN", "scale_version": "MMSE-30"},
+        indicator=SimpleNamespace(canonical_key="mmse", aliases=[]),
+        conflict_group=None,
+    )
+    version = SimpleNamespace(id=8, status="approved", rules=[rule])
+    result = resolve_standard_rules(_db(SimpleNamespace(id=3, current_version=version)), 2, ["MMSE"], {"education": "college"})
+    assert result.calculable_rules == []
+    assert result.evidence_rules[0].resolution_warning == "缺少适用条件：language, scale_version"
+
+
+def test_conflicting_matching_thresholds_are_not_auto_selected():
+    first = SimpleNamespace(id=30, machine_actionability="calculable", applicability={"cohort": "DELCODE"}, conflict_group="ab-ratio-cohort", indicator=SimpleNamespace(canonical_key="aβ42/aβ40", aliases=[]))
+    second = SimpleNamespace(id=31, machine_actionability="calculable", applicability={"cohort": "DELCODE"}, conflict_group="ab-ratio-cohort", indicator=SimpleNamespace(canonical_key="aβ42/aβ40", aliases=[]))
+    version = SimpleNamespace(id=9, status="approved", rules=[first, second])
+    result = resolve_standard_rules(_db(SimpleNamespace(id=3, current_version=version)), 2, ["Aβ42/Aβ40"], {"cohort": "DELCODE"})
+    assert result.calculable_rules == []
+    assert {item.id for item in result.conflicting_rules} == {30, 31}
+    assert any("冲突" in warning for warning in result.warnings)
+
+
+def test_resolver_rejects_current_version_from_another_standard():
+    version = SimpleNamespace(id=9, standard_id=99, status="approved", rules=[])
+    standard = SimpleNamespace(id=3, current_version=version)
+    result = resolve_standard_rules(_db(standard), 2, ["ALT"], {})
+    assert result.version_id is None
+    assert "归属异常" in result.warnings[0]

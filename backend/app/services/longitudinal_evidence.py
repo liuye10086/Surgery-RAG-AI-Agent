@@ -41,7 +41,11 @@ def build_reference_range_sources(db, indicator_names: list[str], patient_sex: s
                 "provenance": "reference_standard",
             })
         for warning in resolution.warnings:
-            sources.append({"source_type": "standard_warning", "message": warning, "provenance": "reference_standard"})
+            sources.append({"source_type": "standard_warning", "message": warning, "standard_version_id": resolution.version_id, "standard_rule_id": None, "provenance": "reference_standard"})
+        for rule in resolution.unmatched_rules:
+            sources.append({"source_type": "standard_unmatched", "standard_version_id": resolution.version_id, "standard_rule_id": getattr(rule, "id", None), "applicability": getattr(rule, "applicability", {}) or {}, "provenance": "reference_standard"})
+        for rule in resolution.conflicting_rules:
+            sources.append({"source_type": "standard_conflict", "standard_version_id": resolution.version_id, "standard_rule_id": getattr(rule, "id", None), "applicability": getattr(rule, "applicability", {}) or {}, "provenance": "reference_standard"})
         if sources or resolution.version_id is not None:
             return sources
     from app.db.models import ReferenceRange

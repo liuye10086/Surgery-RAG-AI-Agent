@@ -22,6 +22,7 @@ class ResolvedStandardRules:
     calculable_rules: list[Any] = field(default_factory=list)
     evidence_rules: list[Any] = field(default_factory=list)
     unmatched_rules: list[Any] = field(default_factory=list)
+    conflicting_rules: list[Any] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
 
@@ -41,7 +42,19 @@ def _indicator_matches(rule: Any, requested: str) -> bool:
 
 
 def _context_value(context: dict[str, Any], key: str) -> Any:
-    aliases = {"platform": ("platform", "modality", "assay", "method"), "cohort": ("cohort", "study", "dataset"), "framework": ("framework",)}
+    aliases = {
+        "platform": ("platform", "assay_platform", "modality"),
+        "method": ("method", "assay", "analysis_method"),
+        "sample": ("sample", "specimen", "sample_type"),
+        "cohort": ("cohort", "study", "dataset"),
+        "scale_version": ("scale_version", "assessment_version"),
+        "education": ("education", "education_level"),
+        "language": ("language", "assessment_language"),
+        "tracer": ("tracer",),
+        "device": ("device",),
+        "age": ("age",),
+        "framework": ("framework",),
+    }
     for candidate in aliases.get(key, (key,)):
         if candidate in context and context[candidate] not in (None, ""):
             return context[candidate]
@@ -86,15 +99,17 @@ def resolve_standard_rules(db: Any, disease_id: int, indicator_names: list[str],
     context = dict(context or {})
     standard = _load_current_standard(db, disease_id)
     version = getattr(standard, "current_version", None) if standard else None
-    result = ResolvedStandardRules(
-        version_id=getattr(version, "id", None),
-        standard_id=getattr(standard, "id", None),
-    )
+    result = ResolvedStandardRules(version_id=getattr(version, "id", None), standard_id=getattr(standard, "id", None))
+    if version is not None and getattr(version, "standard_id", getattr(standard, "id", None)) != getattr(standard, "id", None):
+        result.version_id = None
+        result.warnings.append("当前标准版本归属异常")
+        return result
     if version is None or getattr(version, "status", None) != "approved":
         result.warnings.append("当前疾病没有已批准的标准版本")
         return result
 
     requested = [name for name in indicator_names if str(name).strip()]
+    matched_calculable_by_conflict: dict[str, list[Any]] = {}
     for rule in getattr(version, "rules", None) or []:
         if not any(_indicator_matches(rule, name) for name in requested):
             continue
@@ -111,9 +126,20 @@ def resolve_standard_rules(db: Any, disease_id: int, indicator_names: list[str],
         resolved.standard_rule_id = getattr(rule, "id", None)
         resolved.applicability_hash = applicability_hash(getattr(rule, "applicability", None))
         if getattr(rule, "machine_actionability", "evidence-only") == "calculable":
-            result.calculable_rules.append(resolved)
+            conflict_group = getattr(rule, "conflict_group", None)
+            if conflict_group:
+                matched_calculable_by_conflict.setdefault(conflict_group, []).append(resolved)
+            else:
+                result.calculable_rules.append(resolved)
         else:
             result.evidence_rules.append(resolved)
+    for conflict_group, matches in matched_calculable_by_conflict.items():
+        if len(matches) > 1:
+            result.conflicting_rules.extend(matches)
+            ids = ", ".join(str(getattr(item, "standard_rule_id", "?")) for item in sorted(matches, key=lambda item: getattr(item, "standard_rule_id", 0)))
+            result.warnings.append(f"规则冲突（{conflict_group}）：未自动选择规则 {ids}")
+        else:
+            result.calculable_rules.extend(matches)
     return result
 
 
