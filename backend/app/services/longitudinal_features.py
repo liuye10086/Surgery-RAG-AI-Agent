@@ -10,7 +10,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date, datetime
+from itertools import pairwise
 from math import isfinite
+from statistics import fmean
 from typing import Any, Iterable
 
 
@@ -127,6 +129,21 @@ def _slope(observations: list[tuple[int, float]]) -> float | None:
     return sum((x - x_mean) * (y - y_mean) for x, y in observations) / denominator
 
 
+def _time_slope(observations: list[tuple[int, float]]) -> float | None:
+    """Return an OLS slope per calendar day for dated observations."""
+    if len(observations) < 2:
+        return None
+    x_mean = sum(day for day, _ in observations) / len(observations)
+    y_mean = sum(value for _, value in observations) / len(observations)
+    denominator = sum((day - x_mean) ** 2 for day, _ in observations)
+    if denominator == 0:
+        return None
+    numerator = sum(
+        (day - x_mean) * (value - y_mean) for day, value in observations
+    )
+    return numerator / denominator
+
+
 def _reference_status(indicator: dict[str, Any], value: float) -> str:
     """Classify a value when the input carries optional reference bounds."""
     lower = indicator.get("lower", indicator.get("reference_lower"))
@@ -213,6 +230,82 @@ def summarize_observation(visits: Iterable[dict[str, Any]]) -> dict[str, Any]:
         "last_visit_date": last_date.isoformat() if last_date else None,
         "missingness_summary": missingness,
         "indicators": indicator_summary,
+    }
+
+
+def summarize_fixed_window_history(
+    visits: Iterable[dict[str, Any]],
+) -> dict[str, Any]:
+    """Summarize one already-truncated prefix using real calendar time."""
+    ordered = sort_visits(visits)
+    total_visits = len(ordered)
+    if total_visits == 0:
+        return {
+            "visit_count": 0,
+            "observation_span_days": 0,
+            "days_since_previous_visit": 0,
+            "indicators": {},
+        }
+
+    first_date = _visit_date(ordered[0]["visit_date"])
+    last_date = _visit_date(ordered[-1]["visit_date"])
+    previous_date = (
+        _visit_date(ordered[-2]["visit_date"])
+        if total_visits >= 2
+        else last_date
+    )
+
+    values_by_name: dict[str, list[tuple[int, float]]] = defaultdict(list)
+    known_names: set[str] = set()
+    for visit in ordered:
+        visit_date = _visit_date(visit["visit_date"])
+        seen_names: set[str] = set()
+        for indicator in visit.get("indicators") or []:
+            if not isinstance(indicator, dict):
+                continue
+            name = str(indicator.get("name") or "").strip().lower()
+            if not name:
+                continue
+            if name in seen_names:
+                raise ValueError(
+                    f"同一访视不能重复使用指标: {indicator.get('name')}"
+                )
+            seen_names.add(name)
+            known_names.add(name)
+            value = _as_finite_float(indicator.get("value"))
+            if value is not None:
+                values_by_name[name].append(
+                    ((visit_date - first_date).days, value)
+                )
+
+    summaries: dict[str, dict[str, Any]] = {}
+    for name in sorted(known_names):
+        observations = values_by_name.get(name, [])
+        if not observations:
+            continue
+        values = [value for _, value in observations]
+        summaries[name] = {
+            "first": values[0],
+            "last": values[-1],
+            "minimum": min(values),
+            "maximum": max(values),
+            "mean": fmean(values),
+            "delta": values[-1] - values[0],
+            "time_slope_per_day": _time_slope(observations),
+            "recent_delta": (
+                values[-1] - values[-2] if len(values) >= 2 else None
+            ),
+            "rises_count": sum(first < second for first, second in pairwise(values)),
+            "falls_count": sum(first > second for first, second in pairwise(values)),
+            "n_observations": len(values),
+            "missing_ratio": 1 - (len(values) / total_visits),
+        }
+
+    return {
+        "visit_count": total_visits,
+        "observation_span_days": (last_date - first_date).days,
+        "days_since_previous_visit": (last_date - previous_date).days,
+        "indicators": summaries,
     }
 
 

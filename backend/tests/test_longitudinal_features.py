@@ -6,6 +6,7 @@ from app.services.longitudinal_features import (
     build_feature_vector,
     build_prefixes,
     sort_visits,
+    summarize_fixed_window_history,
     summarize_observation,
 )
 
@@ -127,3 +128,71 @@ def test_observation_summary_has_one_canonical_indicator_entry_for_mixed_case():
 
     assert list(result["indicators"]) == ["alt"]
     assert list(result["missingness_summary"]) == ["alt"]
+
+
+def test_fixed_window_history_uses_actual_days_and_full_prefix():
+    visits = [
+        _visit("2024-01-01", 10),
+        _visit("2024-01-11", 20),
+        _visit("2024-04-10", 30),
+    ]
+
+    result = summarize_fixed_window_history(visits)
+    alt = result["indicators"]["alt"]
+
+    assert result["visit_count"] == 3
+    assert result["observation_span_days"] == 100
+    assert result["days_since_previous_visit"] == 90
+    assert alt["first"] == 10
+    assert alt["last"] == 30
+    assert alt["minimum"] == 10
+    assert alt["maximum"] == 30
+    assert alt["mean"] == pytest.approx(20)
+    assert alt["delta"] == 20
+    assert alt["recent_delta"] == 10
+    assert alt["time_slope_per_day"] == pytest.approx(0.16483516484)
+    assert alt["rises_count"] == 2
+    assert alt["falls_count"] == 0
+
+
+def test_fixed_window_history_records_missing_indicator_without_imputation():
+    visits = [
+        _visit("2024-01-01", 10),
+        {"visit_date": "2024-02-01", "indicators": []},
+        _visit("2024-03-01", 20),
+    ]
+
+    alt = summarize_fixed_window_history(visits)["indicators"]["alt"]
+
+    assert alt["n_observations"] == 2
+    assert alt["missing_ratio"] == pytest.approx(1 / 3)
+    assert alt["mean"] == 15
+
+
+def test_fixed_window_history_keeps_single_measurement_without_invented_trend():
+    result = summarize_fixed_window_history(
+        [
+            _visit("2024-01-01", None),
+            _visit("2024-02-01", 10),
+            _visit("2024-03-01", None),
+        ]
+    )["indicators"]["alt"]
+
+    assert result["first"] == 10
+    assert result["last"] == 10
+    assert result["time_slope_per_day"] is None
+    assert result["recent_delta"] is None
+    assert result["missing_ratio"] == pytest.approx(2 / 3)
+
+
+def test_future_visit_cannot_change_existing_prefix_features():
+    prefix = [
+        _visit("2024-01-01", 10),
+        _visit("2024-02-01", 20),
+        _visit("2024-03-01", 30),
+    ]
+    before = summarize_fixed_window_history(prefix)
+
+    summarize_fixed_window_history(prefix + [_visit("2025-01-01", 999)])
+
+    assert summarize_fixed_window_history(prefix) == before
