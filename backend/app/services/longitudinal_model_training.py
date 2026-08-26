@@ -217,7 +217,7 @@ def write_candidate_artifact(result, output_dir: Path):
         joblib.dump(result["model"], model_path)
     meta_path = output / (model_path.stem + ".meta.json")
     catalog = result["catalog"]
-    metadata = {"schema_version": "longitudinal_outcome_model_training.v1", "task": result["task"], "dataset_manifest_sha256": result["dataset_input"].manifest_sha256, "data_content_sha256": result["dataset_input"].data_content_sha256, "dataset_file_sha256": result["dataset_input"].file_sha256, "feature_order_sha256": hashlib.sha256(json.dumps(catalog.feature_names).encode()).hexdigest(), "feature_names": list(catalog.feature_names), "status": "candidate", "production_enabled": False, "clinical_validity_claim": False, "leakage_audit": {"synthetic_in_formal_metrics": False}, "model": {"algorithm": "logistic_regression", "random_seed": 42}, "evaluation": {}, "threshold": {"baseline": 0.5}, "calibration": {"status": "not_calibrated"}}
+    metadata = {"schema_version": "longitudinal_outcome_model_training.v1", "task": result["task"], "dataset_manifest_sha256": result["dataset_input"].manifest_sha256, "data_content_sha256": result["dataset_input"].data_content_sha256, "dataset_file_sha256": result["dataset_input"].file_sha256, "feature_order_sha256": hashlib.sha256(json.dumps(catalog.feature_names).encode()).hexdigest(), "feature_names": list(catalog.feature_names), "row_count": result["row_count"], "patient_count": result["patient_count"], "status": "candidate", "production_enabled": False, "clinical_validity_claim": False, "leakage_audit": {"synthetic_in_formal_metrics": False}, "model": {"algorithm": "logistic_regression", "random_seed": 42}, "evaluation": {}, "threshold": {"baseline": 0.5}, "calibration": {"status": "not_calibrated"}}
     meta_path.write_text(json.dumps(metadata, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
     return model_path, meta_path
 
@@ -235,7 +235,10 @@ def run_development_cv(rows: Sequence[TrainingRow], task: TaskSpec, *, seed: int
         train_groups = sorted(set(groups[train_idx]))
         validation_groups = sorted(set(groups[validation_idx]))
         fold_labels = labels[validation_idx]
-        probabilities = np.full(len(validation_idx), float(labels[train_idx].mean()))
+        catalog = build_feature_catalog(rows, task)
+        model = _make_fitted_candidates(catalog, seed)["logistic_regression"]
+        model.fit(_frame([rows[i] for i in train_idx], catalog), labels[train_idx])
+        probabilities = model.predict_proba(_frame([rows[i] for i in validation_idx], catalog))[:, 1]
         pr_auc = float(average_precision_score(fold_labels, probabilities)) if len(set(fold_labels)) == 2 else None
         roc_auc = float(roc_auc_score(fold_labels, probabilities)) if len(set(fold_labels)) == 2 else None
         fold_results.append(FoldMetrics(fold=fold_number, train_patient_count=len(train_groups), validation_patient_count=len(validation_groups), positive_patient_count=int(fold_labels.sum()), negative_patient_count=int(len(fold_labels) - fold_labels.sum()), train_groups=train_groups, validation_groups=validation_groups, pr_auc=pr_auc, roc_auc=roc_auc, unavailable_metrics=[] if pr_auc is not None else ["pr_auc", "roc_auc"]))
