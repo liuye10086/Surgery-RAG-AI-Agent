@@ -176,6 +176,54 @@ def make_model_candidates(seed: int = 42) -> dict[str, Pipeline]:
     }
 
 
+def _make_fitted_candidates(catalog: FeatureCatalog, seed: int = 42) -> dict[str, Pipeline]:
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.linear_model import LogisticRegression
+    return {
+        "logistic_regression": Pipeline([("preprocess", make_preprocessor(catalog, scale_numeric=True)), ("classifier", LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced", random_state=seed))]),
+        "random_forest": Pipeline([("preprocess", make_preprocessor(catalog, scale_numeric=False)), ("classifier", RandomForestClassifier(n_estimators=200, max_depth=4, min_samples_leaf=3, class_weight="balanced", random_state=seed, n_jobs=1))]),
+    }
+
+
+def _frame(rows: Sequence[TrainingRow], catalog: FeatureCatalog):
+    import pandas as pd
+    return pd.DataFrame([{name: row.values.get(name) for name in catalog.feature_names} for row in rows])
+
+
+def train_task_to_candidate(rows: Sequence[TrainingRow], task: TaskSpec, dataset_input: DatasetInput, output_dir: Path, *, seed: int = 42):
+    import joblib
+    output = Path(output_dir)
+    if output.exists() and any(output.iterdir()):
+        raise FileExistsError(output)
+    output.mkdir(parents=True, exist_ok=True)
+    catalog = build_feature_catalog(rows, task)
+    candidates = _make_fitted_candidates(catalog, seed)
+    X = _frame(rows, catalog)
+    y = [row.sample.label.training_label for row in rows]
+    model = candidates["logistic_regression"]
+    model.fit(X, y)
+    stem = task.task.replace(".", "_") + "_365d"
+    model_path = output / f"{stem}.joblib"
+    joblib.dump(model, model_path)
+    return {"task": task.task, "model": model, "model_path": model_path, "dataset_input": dataset_input, "catalog": catalog, "row_count": len(rows), "patient_count": len({row.sample.identity.group_id for row in rows}), "status": "candidate"}
+
+
+def write_candidate_artifact(result, output_dir: Path):
+    import joblib
+    import json
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    model_path = Path(result["model_path"])
+    if model_path.parent != output:
+        model_path = output / model_path.name
+        joblib.dump(result["model"], model_path)
+    meta_path = output / (model_path.stem + ".meta.json")
+    catalog = result["catalog"]
+    metadata = {"schema_version": "longitudinal_outcome_model_training.v1", "task": result["task"], "dataset_manifest_sha256": result["dataset_input"].manifest_sha256, "data_content_sha256": result["dataset_input"].data_content_sha256, "dataset_file_sha256": result["dataset_input"].file_sha256, "feature_order_sha256": hashlib.sha256(json.dumps(catalog.feature_names).encode()).hexdigest(), "feature_names": list(catalog.feature_names), "status": "candidate", "production_enabled": False, "clinical_validity_claim": False, "leakage_audit": {"synthetic_in_formal_metrics": False}, "model": {"algorithm": "logistic_regression", "random_seed": 42}, "evaluation": {}, "threshold": {"baseline": 0.5}, "calibration": {"status": "not_calibrated"}}
+    meta_path.write_text(json.dumps(metadata, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
+    return model_path, meta_path
+
+
 def run_development_cv(rows: Sequence[TrainingRow], task: TaskSpec, *, seed: int = 42) -> EvaluationSummary:
     from sklearn.metrics import average_precision_score, roc_auc_score
     from sklearn.model_selection import StratifiedGroupKFold
