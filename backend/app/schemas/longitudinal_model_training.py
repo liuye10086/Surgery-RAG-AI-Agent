@@ -53,6 +53,8 @@ class FoldMetrics(StrictModel):
     validation_patient_count: int = Field(ge=0)
     positive_patient_count: int = Field(ge=0)
     negative_patient_count: int = Field(ge=0)
+    train_groups: list[str] = Field(default_factory=list)
+    validation_groups: list[str] = Field(default_factory=list)
     pr_auc: float | None = None
     roc_auc: float | None = None
     unavailable_metrics: list[str] = Field(default_factory=list)

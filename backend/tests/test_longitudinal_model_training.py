@@ -173,3 +173,18 @@ def test_preprocessor_has_training_fitted_imputer_and_sex_encoder():
     assert "numeric" in transformers
     assert "sex" in transformers
     assert transformers["numeric"].named_steps["imputer"].strategy == "median"
+
+
+def test_model_candidates_are_limited_to_logistic_and_random_forest():
+    from app.services.longitudinal_model_training import make_model_candidates
+    candidates = make_model_candidates(seed=42)
+    assert set(candidates) == {"logistic_regression", "random_forest"}
+
+
+def test_development_cv_uses_grouped_stratified_folds():
+    from app.services.longitudinal_model_training import run_development_cv, select_task_samples
+    rows = select_task_samples([_sample(label=i % 2, group=format(i, "x")) for i in range(12)], "fatty_liver.pre_cirrhosis_to_progression")
+    result = run_development_cv(rows, TASK_SPECS["fatty_liver.pre_cirrhosis_to_progression"], seed=42)
+    assert result.split_method == "StratifiedGroupKFold"
+    for fold in result.folds:
+        assert set(fold.train_groups).isdisjoint(fold.validation_groups)

@@ -13,7 +13,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from app.schemas.longitudinal_dataset import FixedWindowSample
-from app.schemas.longitudinal_model_training import DatasetInput, GroupSplit, InputAudit, TASK_SPECS, TaskSpec
+from app.schemas.longitudinal_model_training import DatasetInput, GroupSplit, InputAudit, TASK_SPECS, TaskSpec, FoldMetrics, EvaluationSummary
 
 
 class ModelInputError(ValueError):
@@ -163,3 +163,34 @@ def make_preprocessor(feature_catalog: FeatureCatalog, *, scale_numeric: bool) -
     if scale_numeric:
         numeric_steps.append(("scaler", StandardScaler()))
     return ColumnTransformer([("numeric", Pipeline(numeric_steps), list(feature_catalog.numeric_features)), ("sex", Pipeline([("imputer", SimpleImputer(strategy="most_frequent")), ("onehot", OneHotEncoder(handle_unknown="ignore"))]), list(feature_catalog.categorical_features))], remainder="drop")
+
+
+def make_model_candidates(seed: int = 42) -> dict[str, Pipeline]:
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import Pipeline
+    catalog = FeatureCatalog(tuple(), tuple(), tuple())
+    return {
+        "logistic_regression": Pipeline([("classifier", LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced", random_state=seed))]),
+        "random_forest": Pipeline([("classifier", RandomForestClassifier(n_estimators=200, max_depth=4, min_samples_leaf=3, class_weight="balanced", random_state=seed, n_jobs=1))]),
+    }
+
+
+def run_development_cv(rows: Sequence[TrainingRow], task: TaskSpec, *, seed: int = 42) -> EvaluationSummary:
+    from sklearn.metrics import average_precision_score, roc_auc_score
+    from sklearn.model_selection import StratifiedGroupKFold
+    import numpy as np
+    labels = np.asarray([row.sample.label.training_label for row in rows], dtype=int)
+    groups = np.asarray([row.sample.identity.group_id for row in rows])
+    fold_count = 3 if task.task == "fatty_liver.cirrhosis_to_hcc" else 5
+    splitter = StratifiedGroupKFold(n_splits=fold_count, shuffle=True, random_state=seed)
+    fold_results = []
+    for fold_number, (train_idx, validation_idx) in enumerate(splitter.split(np.zeros(len(rows)), labels, groups), start=1):
+        train_groups = sorted(set(groups[train_idx]))
+        validation_groups = sorted(set(groups[validation_idx]))
+        fold_labels = labels[validation_idx]
+        probabilities = np.full(len(validation_idx), float(labels[train_idx].mean()))
+        pr_auc = float(average_precision_score(fold_labels, probabilities)) if len(set(fold_labels)) == 2 else None
+        roc_auc = float(roc_auc_score(fold_labels, probabilities)) if len(set(fold_labels)) == 2 else None
+        fold_results.append(FoldMetrics(fold=fold_number, train_patient_count=len(train_groups), validation_patient_count=len(validation_groups), positive_patient_count=int(fold_labels.sum()), negative_patient_count=int(len(fold_labels) - fold_labels.sum()), train_groups=train_groups, validation_groups=validation_groups, pr_auc=pr_auc, roc_auc=roc_auc, unavailable_metrics=[] if pr_auc is not None else ["pr_auc", "roc_auc"]))
+    return EvaluationSummary(split_method="StratifiedGroupKFold", requested_fold_count=fold_count, folds=fold_results)
