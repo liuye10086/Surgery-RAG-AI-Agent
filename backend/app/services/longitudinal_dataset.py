@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 import hashlib
@@ -15,13 +16,24 @@ from app.services.disease_progression import (
     DiseaseProgressionAdapter,
 )
 from app.schemas.longitudinal_dataset import (
+    CohortCounts,
     CurrentState,
+    DatasetAuditSummary,
+    DiseaseDatasetSummary,
+    FixedWindowSample,
+    HistoricalFeatures,
     LabelAudit,
+    SampleIdentity,
     TargetEvent,
+)
+from app.services.longitudinal_features import (
+    build_prefixes,
+    summarize_fixed_window_history,
 )
 
 
 HORIZON_DAYS = 365
+MINIMUM_VISITS = 3
 
 
 class DatasetValidationError(ValueError):
@@ -71,6 +83,14 @@ class ValidationAudit:
 class TargetContext:
     current_state: CurrentState
     target_event: TargetEvent
+
+
+@dataclass(frozen=True)
+class DatasetBuildResult:
+    real_train: tuple[FixedWindowSample, ...]
+    real_audit: tuple[FixedWindowSample, ...]
+    synthetic_audit: tuple[FixedWindowSample, ...]
+    summary: DatasetAuditSummary
 
 
 _ADAPTERS_BY_DISEASE = {
@@ -480,4 +500,255 @@ def label_fixed_window(patient: PatientTimeline, as_of: date) -> LabelAudit:
         event_type=None,
         event_date=None,
         last_followup_date=last_followup,
+    )
+
+
+_FORBIDDEN_FEATURE_FIELDS = {
+    "final_stage",
+    "confirmed",
+    "event_dates",
+    "cirrhosis_date",
+    "hcc_date",
+    "dementia_date",
+    "fatty_liver_date",
+    "last_followup_date",
+    "lost_to_followup",
+    "total_visits",
+    "visit_index",
+    "cohort_group",
+    "outcome_source",
+    "assigned_final_stage",
+    "inferred_stage",
+    "source_dataset",
+    "patient_label",
+    "group_id",
+    "is_synthetic",
+    "label",
+    "label_reason",
+    "reason_code",
+}
+
+
+def _normalized_feature_key(value: object) -> str:
+    return unicodedata.normalize("NFC", str(value)).strip().lower()
+
+
+def assert_feature_namespace_safe(features: Mapping[str, object]) -> None:
+    """Reject outcome, identity, provenance, and audit keys recursively."""
+
+    def inspect(value: object) -> None:
+        if isinstance(value, Mapping):
+            for raw_key, child in value.items():
+                key = _normalized_feature_key(raw_key)
+                if key in _FORBIDDEN_FEATURE_FIELDS:
+                    raise DatasetValidationError(
+                        "forbidden_feature_field",
+                        {"field_count": 1},
+                    )
+                inspect(child)
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                inspect(child)
+
+    inspect(features)
+
+
+def _prefix_visit_dict(visit: TimelineVisit) -> dict[str, object]:
+    return {
+        "visit_date": visit.visit_date.isoformat(),
+        "indicators": [dict(indicator) for indicator in visit.indicators],
+    }
+
+
+def _latest_demographics(
+    visits: tuple[TimelineVisit, ...],
+) -> tuple[int | None, Literal["male", "female"] | None]:
+    age = next(
+        (
+            visit.patient_age
+            for visit in reversed(visits)
+            if visit.patient_age is not None
+        ),
+        None,
+    )
+    sex = next(
+        (visit.sex for visit in reversed(visits) if visit.sex is not None),
+        None,
+    )
+    return age, sex
+
+
+def _sample_sort_key(sample: FixedWindowSample) -> tuple[object, ...]:
+    identity = sample.identity
+    return (
+        identity.disease,
+        identity.source_dataset,
+        identity.patient_label,
+        identity.as_of,
+    )
+
+
+def _empty_counts() -> CohortCounts:
+    return CohortCounts(
+        patient_count=0,
+        candidate_patient_count=0,
+        trainable_patient_count=0,
+        visit_count=0,
+        candidate_count=0,
+        positive_count=0,
+        negative_count=0,
+        insufficient_observation_count=0,
+        not_applicable_count=0,
+        trainable_count=0,
+        label_reason_counts={},
+    )
+
+
+def _cohort_counts(
+    patients: list[PatientTimeline],
+    samples: list[FixedWindowSample],
+) -> CohortCounts:
+    status_counts = Counter(sample.label.status for sample in samples)
+    reason_counts = Counter(sample.label.reason_code for sample in samples)
+    candidate_groups = {sample.identity.group_id for sample in samples}
+    trainable_groups = {
+        sample.identity.group_id
+        for sample in samples
+        if sample.label.status in {"positive", "negative"}
+    }
+    return CohortCounts(
+        patient_count=len(patients),
+        candidate_patient_count=len(candidate_groups),
+        trainable_patient_count=len(trainable_groups),
+        visit_count=sum(len(patient.visits) for patient in patients),
+        candidate_count=len(samples),
+        positive_count=status_counts["positive"],
+        negative_count=status_counts["negative"],
+        insufficient_observation_count=status_counts[
+            "insufficient_observation"
+        ],
+        not_applicable_count=status_counts["not_applicable"],
+        trainable_count=(
+            status_counts["positive"] + status_counts["negative"]
+        ),
+        label_reason_counts=dict(sorted(reason_counts.items())),
+    )
+
+
+def _patient_was_reordered(patient: PatientTimeline) -> bool:
+    positions = [visit.input_position for visit in patient.visits]
+    return positions != sorted(positions)
+
+
+def build_fixed_window_dataset(
+    rows: Iterable[Mapping[str, object]],
+) -> DatasetBuildResult:
+    """Build formal real training rows plus complete real/synthetic audits."""
+    patients, _ = rebuild_patient_timelines(rows)
+    real_audit: list[FixedWindowSample] = []
+    synthetic_audit: list[FixedWindowSample] = []
+
+    for patient in patients:
+        visit_dicts = [_prefix_visit_dict(visit) for visit in patient.visits]
+        prefixes = build_prefixes(visit_dicts, minimum_visits=MINIMUM_VISITS)
+        for prefix_index, prefix in enumerate(prefixes, start=MINIMUM_VISITS):
+            prefix_visits = patient.visits[:prefix_index]
+            as_of = date.fromisoformat(str(prefix["as_of"]))
+            target = resolve_target(patient, as_of)
+            label = label_fixed_window(patient, as_of)
+            history = summarize_fixed_window_history(prefix["visits"])
+            age, sex = _latest_demographics(prefix_visits)
+            features = HistoricalFeatures(
+                age=age,
+                sex=sex,
+                visit_count=history["visit_count"],
+                observation_span_days=history["observation_span_days"],
+                days_since_previous_visit=history["days_since_previous_visit"],
+                indicators=history["indicators"],
+            )
+            assert_feature_namespace_safe(features.model_dump(mode="json"))
+            sample = FixedWindowSample(
+                identity=SampleIdentity(
+                    disease=patient.adapter.dataset,
+                    disease_name=patient.adapter.disease_name,
+                    source_dataset=patient.source_dataset,
+                    patient_label=patient.patient_label,
+                    group_id=patient.group_id,
+                    is_synthetic=patient.is_synthetic,
+                    source_document=patient.source_document,
+                    import_version=patient.import_version,
+                    as_of=as_of,
+                    current_state=target.current_state,
+                    target_event=target.target_event,
+                    history_visit_count=len(prefix_visits),
+                    history_start=prefix_visits[0].visit_date,
+                ),
+                features=features,
+                label=label,
+            )
+            if patient.is_synthetic:
+                synthetic_audit.append(sample)
+            else:
+                real_audit.append(sample)
+
+    real_audit.sort(key=_sample_sort_key)
+    synthetic_audit.sort(key=_sample_sort_key)
+    real_train = sorted(
+        (
+            sample
+            for sample in real_audit
+            if sample.label.status in {"positive", "negative"}
+        ),
+        key=_sample_sort_key,
+    )
+
+    disease_summaries: dict[str, DiseaseDatasetSummary] = {}
+    for adapter in (FATTY_LIVER_ADAPTER, AD_ADAPTER):
+        disease_patients = [
+            patient
+            for patient in patients
+            if patient.adapter.dataset == adapter.dataset
+        ]
+        real_patients = [
+            patient for patient in disease_patients if not patient.is_synthetic
+        ]
+        synthetic_patients = [
+            patient for patient in disease_patients if patient.is_synthetic
+        ]
+        disease_real_samples = [
+            sample
+            for sample in real_audit
+            if sample.identity.disease == adapter.dataset
+        ]
+        disease_synthetic_samples = [
+            sample
+            for sample in synthetic_audit
+            if sample.identity.disease == adapter.dataset
+        ]
+        disease_summaries[adapter.dataset] = DiseaseDatasetSummary(
+            disease=adapter.dataset,
+            disease_name=adapter.disease_name,
+            source_datasets=sorted(
+                {patient.source_dataset for patient in disease_patients}
+            ),
+            real=(
+                _cohort_counts(real_patients, disease_real_samples)
+                if real_patients or disease_real_samples
+                else _empty_counts()
+            ),
+            synthetic=(
+                _cohort_counts(synthetic_patients, disease_synthetic_samples)
+                if synthetic_patients or disease_synthetic_samples
+                else _empty_counts()
+            ),
+            reordered_patient_count=sum(
+                _patient_was_reordered(patient) for patient in disease_patients
+            ),
+        )
+
+    return DatasetBuildResult(
+        real_train=tuple(real_train),
+        real_audit=tuple(real_audit),
+        synthetic_audit=tuple(synthetic_audit),
+        summary=DatasetAuditSummary(diseases=disease_summaries),
     )
