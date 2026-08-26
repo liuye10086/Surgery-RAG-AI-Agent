@@ -81,9 +81,9 @@ def prepare_standard_drafts(db: Any, specs: list[DraftPreparationSpec], *, admin
     for spec in specs:
         if not spec.source_path.is_file() or _hash(spec.source_path) != spec.source_sha256:
             raise ValueError(f"标准源文件哈希不匹配：{spec.dataset}")
-        disease = db.query(Disease).filter(Disease.id == (1 if spec.dataset == "fatty_liver" else 2)).with_for_update().first()
+        disease = db.query(Disease).filter(Disease.name == spec.disease_name).with_for_update().first()
         if disease is None:
-            disease = SimpleNamespace(id=1 if spec.dataset == "fatty_liver" else 2, name=spec.disease_name)
+            raise ValueError(f"数据库中缺少疾病：{spec.disease_name}")
         document = db.query(StandardDocument).filter(StandardDocument.content_hash == spec.source_sha256).with_for_update().first()
         if document is None:
             document = StandardDocument(
