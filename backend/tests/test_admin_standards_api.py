@@ -27,9 +27,17 @@ class _Query:
         self.for_update = True
         return self
 
+    def populate_existing(self):
+        self.events.append("populate_existing")
+        return self
+
     def first(self):
         self.events.append("first")
         return self.value
+
+    def update(self, _values, synchronize_session=False):
+        self.events.append("update")
+        return 0
 
 
 class _Db:
@@ -448,7 +456,7 @@ def test_delete_version_locks_row_before_checking_mutable_status():
 
 @pytest.mark.parametrize(
     ("endpoint_name", "version_status"),
-    [("submit_review", "draft"), ("retire_version", "approved")],
+    [("submit_review", "draft")],
 )
 def test_lifecycle_route_locks_row_before_status_transition(endpoint_name, version_status):
     from app.api import admin_standards
@@ -459,6 +467,20 @@ def test_lifecycle_route_locks_row_before_status_transition(endpoint_name, versi
     getattr(admin_standards, endpoint_name)(5, admin=SimpleNamespace(id=7), db=db)
 
     assert db.queries[0].events[:3] == ["filter", "with_for_update", "first"]
+
+
+def test_retire_route_delegates_to_current_version_service():
+    from app.api import admin_standards
+
+    version = SimpleNamespace(id=5, status="approved", standard_id=3, retired_at=None)
+    standard = SimpleNamespace(id=3, current_version_id=5, current_version=version)
+    db = _Db({"ReferenceStandard": [standard], "ReferenceStandardVersion": [version]})
+
+    admin_standards.retire_version(5, admin=SimpleNamespace(id=7), db=db)
+
+    assert db.queries[0].events[:3] == ["filter", "populate_existing", "with_for_update"]
+    assert db.commits == 1
+    assert standard.current_version_id is None
 
 
 @pytest.mark.parametrize("version_status", ["approved", "retired"])

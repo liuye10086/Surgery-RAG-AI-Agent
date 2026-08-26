@@ -31,7 +31,14 @@ from app.schemas.standard import (
     StandardVersionOut,
     ValidationReport,
 )
-from app.services.standard_lifecycle import materialize_candidate_rule, publish_approved_version, update_draft_rule
+from app.services.standard_lifecycle import (
+    materialize_candidate,
+    materialize_candidate_rule,
+    publish_approved_version,
+    publish_review_version,
+    retire_current_version,
+    update_draft_rule,
+)
 from app.services.standard_parser import build_llm_candidate, parse_standard_docx
 from app.services.standard_llm_adapter import create_deepseek_standard_candidate_adapter
 from app.services.standard_validation import validate_version_rules
@@ -251,7 +258,11 @@ def submit_review(version_id: int, admin=Depends(require_admin), db: Session = D
 @router.post("/admin/reference-standard-versions/{version_id}/approve", response_model=StandardVersionOut)
 def approve_version(version_id: int, admin=Depends(require_admin), db: Session = Depends(get_db)):
     try:
-        return publish_approved_version(db, getattr(admin, "id", 0), version_id).version
+        return publish_review_version(
+            db,
+            version_id=version_id,
+            admin_id=getattr(admin, "id", 0),
+        ).version
     except ValueError as exc:
         message = str(exc)
         code = status.HTTP_409_CONFLICT if "review" not in message and "发布" not in message else status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -260,13 +271,14 @@ def approve_version(version_id: int, admin=Depends(require_admin), db: Session =
 
 @router.post("/admin/reference-standard-versions/{version_id}/retire", response_model=StandardVersionOut)
 def retire_version(version_id: int, admin=Depends(require_admin), db: Session = Depends(get_db)):
-    version = _version_or_404(db, version_id, for_update=True)
-    if version.status != "approved":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="只有 approved 版本可以退役")
-    version.status = "retired"
-    db.commit()
-    db.refresh(version)
-    return version
+    try:
+        return retire_current_version(
+            db,
+            version_id=version_id,
+            admin_id=getattr(admin, "id", 0),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
 @router.get("/admin/reference-standard-versions/{version_id}/segments", response_model=list[StandardSegmentOut])
@@ -319,16 +331,15 @@ def review_candidate(candidate_id: int, payload: dict[str, str], admin=Depends(r
 
 @router.post("/admin/reference-standard-candidates/{candidate_id}/materialize", response_model=RuleOut)
 def materialize_candidate(candidate_id: int, reason: str = Query(..., min_length=1), admin=Depends(require_admin), db: Session = Depends(get_db)):
-    candidate = db.query(StandardParseCandidate).filter(StandardParseCandidate.id == candidate_id).first()
-    if candidate is None:
-        raise HTTPException(status_code=404, detail="解析候选不存在")
     try:
-        rule = materialize_candidate_rule(db, candidate, getattr(admin, "id", 0), reason)
+        return materialize_candidate(
+            db,
+            candidate_id=candidate_id,
+            admin_id=getattr(admin, "id", 0),
+            reason=reason,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    candidate.status = "materialized"
-    db.commit()
-    return rule
 
 
 @router.get("/admin/reference-standard-versions/{version_id}/history")

@@ -567,6 +567,174 @@ def test_materialize_candidate_creates_rule_from_reviewed_candidate():
     assert added
 
 
+class _AtomicLifecycleSession:
+    def __init__(self, commit_error=None):
+        self.commit_error = commit_error
+        self.commits = 0
+        self.rollbacks = 0
+        self.flushes = 0
+        self.events = []
+        self.candidate = SimpleNamespace(
+            id=5,
+            version_id=2,
+            segment_id=8,
+            status="accepted",
+            candidate_json={"indicator_name": "ALT", "rule_type": "numeric_range", "numeric": {"upper": 40, "unit": "U/L"}},
+        )
+        self.version = SimpleNamespace(id=2, status="draft")
+
+    def query(self, model):
+        name = model.__name__
+        session = self
+
+        class Query:
+            def get(self, _id):
+                session.events.append(f"{name}:get")
+                return session.candidate
+
+            def filter(self, *args, **kwargs):
+                session.events.append(f"{name}:filter")
+                return self
+
+            def populate_existing(self):
+                session.events.append(f"{name}:populate_existing")
+                return self
+
+            def with_for_update(self):
+                session.events.append(f"{name}:with_for_update")
+                return self
+
+            def first(self):
+                session.events.append(f"{name}:first")
+                return session.version if name == "ReferenceStandardVersion" else session.candidate
+
+        return Query()
+
+    def add(self, _value):
+        self.events.append("add")
+
+    def flush(self):
+        self.flushes += 1
+
+    def commit(self):
+        self.commits += 1
+        if self.commit_error:
+            raise self.commit_error
+
+    def rollback(self):
+        self.rollbacks += 1
+
+    def refresh(self, _value):
+        return None
+
+
+def test_materialize_candidate_locks_version_and_updates_candidate_in_one_commit():
+    from app.services.standard_lifecycle import materialize_candidate
+
+    db = _AtomicLifecycleSession()
+    rule = materialize_candidate(db, candidate_id=5, admin_id=10, reason="逐条审核通过")
+    assert rule.version_id == 2
+    assert db.candidate.status == "materialized"
+    assert db.commits == 1
+    assert db.rollbacks == 0
+    assert db.events.index("ReferenceStandardVersion:with_for_update") < db.events.index("StandardParseCandidate:with_for_update")
+
+
+def test_materialize_candidate_rolls_back_rule_and_status_together():
+    from app.services.standard_lifecycle import materialize_candidate
+
+    db = _AtomicLifecycleSession(commit_error=RuntimeError("commit failed"))
+    with pytest.raises(RuntimeError, match="commit failed"):
+        materialize_candidate(db, candidate_id=5, admin_id=10, reason="审核通过")
+    assert db.rollbacks == 1
+
+
+def test_publish_rejects_zero_calculable_rules_before_mutation(monkeypatch):
+    report = SimpleNamespace(can_publish=False, errors=[SimpleNamespace(code="calculable_rules_missing")])
+    monkeypatch.setattr("app.services.standard_lifecycle.validate_version_rules", lambda *args, **kwargs: report)
+    from app.services.standard_lifecycle import publish_review_version
+
+    version = SimpleNamespace(id=2, standard_id=3, status="review", rules=[])
+    standard = SimpleNamespace(id=3, current_version=None)
+
+    class PublishSession:
+        commits = 0
+        mutations = []
+
+        def query(self, model):
+            value = version if model.__name__ == "ReferenceStandardVersion" else standard
+
+            class Query:
+                def filter(self, *args, **kwargs): return self
+                def populate_existing(self): return self
+                def with_for_update(self): return self
+                def first(self): return value
+
+            return Query()
+
+    db = PublishSession()
+    with pytest.raises(ValueError, match="可计算"):
+        publish_review_version(db, version_id=2, admin_id=10)
+    assert db.commits == 0
+    assert db.mutations == []
+
+
+def test_retire_current_version_clears_pointer_and_disables_projection():
+    from app.services.standard_lifecycle import retire_current_version
+
+    version = SimpleNamespace(id=2, status="approved", retired_at=None, standard_id=3)
+    standard = SimpleNamespace(id=3, current_version=version, current_version_id=2)
+    projections = [SimpleNamespace(is_current_projection=True)]
+    logs = []
+
+    class Query:
+        def __init__(self, value):
+            self.value = value
+
+        def filter(self, *args, **kwargs):
+            return self
+
+        def populate_existing(self):
+            return self
+
+        def with_for_update(self):
+            return self
+
+        def first(self):
+            return self.value
+
+        def update(self, values, synchronize_session=False):
+            for projection in projections:
+                projection.is_current_projection = values["is_current_projection"]
+
+    class Session:
+        commits = 0
+
+        def query(self, model):
+            name = model.__name__
+            if name == "ReferenceStandard":
+                return Query(standard)
+            if name == "ReferenceStandardVersion":
+                return Query(version)
+            return Query(projections)
+
+        def add(self, value):
+            logs.append(value)
+
+        def commit(self):
+            self.commits += 1
+
+        def refresh(self, _value):
+            return None
+
+    result = retire_current_version(Session(), version_id=2, admin_id=10)
+    assert result.status == "retired"
+    assert result.retired_at is not None
+    assert standard.current_version_id is None
+    assert standard.current_version is None
+    assert all(not item.is_current_projection for item in projections)
+
+
 class _SeedQuery:
     def __init__(self, value):
         self.value = value

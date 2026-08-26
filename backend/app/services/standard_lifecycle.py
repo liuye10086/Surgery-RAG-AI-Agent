@@ -10,11 +10,12 @@ from app.db.models import (
     ReferenceRange,
     ReferenceStandard,
     ReferenceStandardVersion,
+    StandardParseCandidate,
     StandardChangeLog,
     StandardRule,
 )
 from app.schemas.standard import RulePatch
-from app.services.standard_validation import validate_version_rules
+from app.services.standard_validation import is_projection_eligible, validate_version_rules
 import hashlib
 from pathlib import Path
 import json
@@ -130,6 +131,222 @@ def _projection_from_rule(version: Any, rule: Any) -> Any:
         applicability_hash=_projection_hash(rule),
         is_current_projection=True,
     )
+
+
+def _flush_if_available(db: Any) -> None:
+    if hasattr(db, "flush"):
+        db.flush()
+
+
+def materialize_candidate(db: Any, *, candidate_id: int, admin_id: int, reason: str) -> Any:
+    """Materialize one accepted candidate and its audit event in one transaction."""
+    candidate_probe = db.query(StandardParseCandidate).get(candidate_id)
+    if candidate_probe is None:
+        raise ValueError("解析候选不存在")
+    version = (
+        db.query(ReferenceStandardVersion)
+        .filter(ReferenceStandardVersion.id == candidate_probe.version_id)
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+    if version is None:
+        raise ValueError("标准版本不存在")
+    if version.status not in {"draft", "review"}:
+        raise ValueError("已批准或已退役版本不可物化候选")
+    candidate = (
+        db.query(StandardParseCandidate)
+        .filter(StandardParseCandidate.id == candidate_id)
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+    if candidate is None:
+        raise ValueError("解析候选不存在")
+    if candidate.status != "accepted":
+        raise ValueError("只有 accepted 候选可以转为规则")
+
+    payload = getattr(candidate, "candidate_json", {}) or {}
+    numeric = payload.get("numeric") or {}
+    from app.db.models import StandardIndicator
+
+    indicator = None
+    indicator_name = payload.get("indicator_name")
+    if indicator_name:
+        indicator = db.query(StandardIndicator).filter(
+            StandardIndicator.canonical_key.ilike(str(indicator_name))
+        ).first()
+    rule = StandardRule(
+        version_id=candidate.version_id,
+        indicator_id=getattr(indicator, "id", None),
+        source_segment_id=candidate.segment_id,
+        rule_type=payload.get("rule_type") or "qualitative_direction",
+        lower=numeric.get("lower"),
+        upper=numeric.get("upper"),
+        lower_inclusive=numeric.get("lower_inclusive", True),
+        upper_inclusive=numeric.get("upper_inclusive", True),
+        unit=numeric.get("unit") or payload.get("unit"),
+        sex=payload.get("sex"),
+        category=payload.get("category"),
+        applicability=payload.get("applicability") or {},
+        target_state_type=payload.get("target_state_type") or "evidence",
+        target_state_value=payload.get("target_state_value"),
+        evidence_type=payload.get("evidence_type"),
+        machine_actionability=payload.get("machine_actionability") or "evidence-only",
+        interpretation=payload.get("interpretation"),
+        conditions=payload.get("conditions") or {},
+    )
+    db.add(rule)
+    _flush_if_available(db)
+    db.add(StandardChangeLog(
+        version_id=candidate.version_id,
+        entity_type="standard_rule",
+        entity_id=getattr(rule, "id", None),
+        action="materialize_candidate",
+        before_json={},
+        after_json={"candidate_id": candidate.id, "rule_type": rule.rule_type},
+        reason=reason.strip(),
+        actor_id=admin_id,
+    ))
+    candidate.status = "materialized"
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    if hasattr(db, "refresh"):
+        db.refresh(rule)
+    return rule
+
+
+def _validation_for_publish(rules: list[Any], *, disease_key: str | None = None) -> Any:
+    try:
+        return validate_version_rules(rules, disease_key=disease_key, require_calculable=True)
+    except TypeError:
+        return validate_version_rules(rules)
+
+
+def publish_review_version(db: Any, *, version_id: int, admin_id: int, commit: bool = True) -> Any:
+    """Approve a review version, replace current projections, and update the pointer atomically."""
+    version_probe = db.query(ReferenceStandardVersion).filter(
+        ReferenceStandardVersion.id == version_id
+    ).first()
+    if version_probe is None:
+        raise ValueError("标准版本不存在")
+    standard = (
+        db.query(ReferenceStandard)
+        .filter(ReferenceStandard.id == version_probe.standard_id)
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+    version = (
+        db.query(ReferenceStandardVersion)
+        .filter(ReferenceStandardVersion.id == version_id)
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+    if standard is None or version is None:
+        raise ValueError("标准版本不存在")
+    if version.standard_id != standard.id:
+        raise ValueError("标准版本归属异常")
+    if version.status != "review":
+        raise ValueError("只有 review 版本可以批准")
+    disease = getattr(getattr(standard, "disease", None), "name", None)
+    report = _validation_for_publish(list(version.rules or []), disease_key=disease)
+    if not report.can_publish:
+        raise ValueError("标准版本存在阻止发布的校验错误：可计算规则不足或存在错误")
+
+    projections: list[Any] = []
+    try:
+        previous = getattr(standard, "current_version", None)
+        if previous is not None and previous.id != version.id:
+            previous.status = "retired"
+            previous.retired_at = datetime.now(timezone.utc)
+            old_query = db.query(ReferenceRange).filter(
+                ReferenceRange.standard_version_id == previous.id
+            )
+            old_query.update({"is_current_projection": False}, synchronize_session=False)
+        version.status = "approved"
+        version.approved_by = admin_id
+        version.approved_at = datetime.now(timezone.utc)
+        version.effective_from = version.approved_at
+        for rule in version.rules or []:
+            if not is_projection_eligible(rule):
+                continue
+            projection = _projection_from_rule(version, rule)
+            db.add(projection)
+            projections.append(projection)
+        standard.current_version = version
+        standard.current_version_id = version.id
+        db.add(StandardChangeLog(
+            version_id=version.id,
+            entity_type="reference_standard_version",
+            entity_id=version.id,
+            action="publish",
+            before_json={"status": "review", "current_version_id": getattr(standard, "current_version_id", None)},
+            after_json={"status": "approved", "current_version_id": version.id, "projection_count": len(projections)},
+            reason="发布审核通过标准版本",
+            actor_id=admin_id,
+        ))
+        _flush_if_available(db)
+        if commit:
+            db.commit()
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+    if commit and hasattr(db, "refresh"):
+        db.refresh(version)
+    return SimpleNamespace(version=version, projections=projections)
+
+
+def retire_current_version(db: Any, *, version_id: int, admin_id: int) -> Any:
+    standard = (
+        db.query(ReferenceStandard)
+        .filter(ReferenceStandard.current_version_id == version_id)
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+    version = (
+        db.query(ReferenceStandardVersion)
+        .filter(ReferenceStandardVersion.id == version_id)
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+    if standard is None or version is None:
+        raise ValueError("只有当前 approved 版本可以退役")
+    if version.standard_id != standard.id or version.status != "approved":
+        raise ValueError("只有当前 approved 版本可以退役")
+    try:
+        version.status = "retired"
+        version.retired_at = datetime.now(timezone.utc)
+        db.query(ReferenceRange).filter(
+            ReferenceRange.standard_version_id == version.id
+        ).update({"is_current_projection": False}, synchronize_session=False)
+        standard.current_version = None
+        standard.current_version_id = None
+        db.add(StandardChangeLog(
+            version_id=version.id,
+            entity_type="reference_standard_version",
+            entity_id=version.id,
+            action="retire",
+            before_json={"status": "approved", "current_version_id": version.id},
+            after_json={"status": "retired", "current_version_id": None},
+            reason="退役当前标准版本",
+            actor_id=admin_id,
+        ))
+        _flush_if_available(db)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    if hasattr(db, "refresh"):
+        db.refresh(version)
+    return version
 
 
 def publish_approved_version(db, admin_id: int, version_id: int):
