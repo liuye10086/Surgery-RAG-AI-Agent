@@ -15,6 +15,15 @@ from types import SimpleNamespace
 from typing import Any
 
 
+NON_CLINICAL_APPLICABILITY_KEYS = frozenset({
+    "source_language",
+    "approximate_boundary_policy",
+    "_manifest_entry_id",
+    "_manifest_sha256",
+    "_manifest_reviewed_at",
+})
+
+
 @dataclass
 class ResolvedStandardRules:
     version_id: int | None = None
@@ -65,6 +74,8 @@ def _applicability_matches(rule: Any, context: dict[str, Any]) -> tuple[bool, li
     applicability = getattr(rule, "applicability", None) or {}
     missing: list[str] = []
     for key, expected in applicability.items():
+        if key in NON_CLINICAL_APPLICABILITY_KEYS:
+            continue
         actual = _context_value(context, key)
         if actual is None:
             missing.append(str(key))

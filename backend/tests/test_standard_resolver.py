@@ -71,6 +71,33 @@ def test_resolver_exposes_version_and_rule_provenance():
     assert result.calculable_rules[0].standard_rule_id == 7
 
 
+def test_resolver_ignores_manifest_audit_metadata_but_keeps_clinical_applicability():
+    rule = SimpleNamespace(
+        id=12,
+        machine_actionability="calculable",
+        applicability={
+            "source_language": "approximate",
+            "approximate_boundary_policy": "owner_reviewed_strict",
+            "_manifest_entry_id": "fatty-alt-male-reference",
+            "_manifest_sha256": "a" * 64,
+            "_manifest_reviewed_at": "2026-08-26T01:14:26+00:00",
+        },
+        indicator=SimpleNamespace(canonical_key="alt", aliases=[]),
+        conflict_group=None,
+    )
+    version = SimpleNamespace(id=8, status="approved", rules=[rule])
+
+    result = resolve_standard_rules(
+        _db(SimpleNamespace(id=3, current_version=version)),
+        2,
+        ["ALT"],
+        {},
+    )
+
+    assert [item.standard_rule_id for item in result.calculable_rules] == [12]
+    assert result.evidence_rules == []
+
+
 def test_ad_scale_rule_requires_education_language_and_scale_version():
     rule = SimpleNamespace(
         id=20,
