@@ -213,6 +213,8 @@ def parse_version(version_id: int, admin=Depends(require_admin), db: Session = D
                     "applicability": candidate.applicability,
                     "interpretation": candidate.interpretation,
                     "numeric": candidate.numeric.__dict__ if candidate.numeric else None,
+                    "sex": getattr(candidate, "sex", None),
+                    "parse_warnings": list(getattr(candidate, "parse_warnings", ())),
                 },
                 status="pending",
             ))

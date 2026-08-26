@@ -373,6 +373,54 @@ def test_parse_deterministic_candidate_does_not_use_llm_adapter(monkeypatch, tmp
     assert db.queries[0].events[:3] == ["filter", "with_for_update", "first"]
 
 
+def test_parse_deterministic_candidate_persists_sex_and_parse_warnings(monkeypatch, tmp_path):
+    from app.api.admin_standards import parse_version
+
+    source = tmp_path / "standard.docx"
+    source.write_bytes(b"docx")
+    segment = SimpleNamespace(
+        section_title="参考范围",
+        paragraph_index=None,
+        table_index=1,
+        row_index=1,
+        column_index=1,
+        raw_text="ALT 约 7-40 U/L",
+        segment_type="table_cell",
+        source_metadata={},
+    )
+    candidate = SimpleNamespace(
+        segment=segment,
+        indicator_name="ALT",
+        rule_type="numeric_range",
+        target_state_type="reference",
+        target_state_value=None,
+        machine_actionability="evidence-only",
+        evidence_type="standard_table",
+        applicability={},
+        interpretation=None,
+        numeric=None,
+        sex="female",
+        parse_warnings=("approximate_language",),
+    )
+    parsed = SimpleNamespace(segments=[segment], rule_candidates=[candidate])
+    version = SimpleNamespace(
+        id=5,
+        status="draft",
+        parser_version="v2",
+        standard_document=SimpleNamespace(file_type=".DOCX", file_path=str(source)),
+        segments=[],
+        candidates=[],
+    )
+    db = _Db({"ReferenceStandardVersion": [version]})
+    monkeypatch.setattr("app.api.admin_standards.parse_standard_docx", lambda *args, **kwargs: parsed)
+
+    parse_version(5, admin=SimpleNamespace(id=7), db=db)
+
+    stored_candidate = next(item for item in db.added if hasattr(item, "candidate_json"))
+    assert stored_candidate.candidate_json["sex"] == "female"
+    assert stored_candidate.candidate_json["parse_warnings"] == ["approximate_language"]
+
+
 @pytest.mark.parametrize("version_status", ["draft", "review"])
 def test_delete_version_allows_unapproved_states_and_unlocks_document(version_status):
     from app.api.admin_standards import delete_version

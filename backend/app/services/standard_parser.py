@@ -16,6 +16,11 @@ _UPPER_RE = re.compile(rf"(?P<op><|≤)\s*(?P<upper>{_NUMBER})(?P<unit>.*)$")
 _LOWER_RE = re.compile(rf"(?P<op>>|≥)\s*(?P<lower>{_NUMBER})(?P<unit>.*)$")
 _PERCENT_RE = re.compile(r"\s*%")
 _SEX_RE = re.compile(r"(男性|女性)\s*([^；;]+)")
+_APPROXIMATION_RE = re.compile(r"(?:约|常见为|常作正常参考|大约|通常为)")
+_UNIT_RE = re.compile(
+    r"^(?:%|U/L|g/L|μmol/L|mmol/L|mg/L|ng/L|pg/mL|kg/m²|cm|10⁹/L|分|无量纲)$",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -53,6 +58,8 @@ class RuleCandidate:
     applicability: dict[str, Any] = field(default_factory=dict)
     numeric: NumericExpression | None = None
     interpretation: str | None = None
+    sex: str | None = None
+    parse_warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -85,6 +92,23 @@ def _unit_from_tail(tail: str) -> str:
     if tail.startswith("%"):
         return "%" + tail[1:].strip()
     return tail
+
+
+def contains_approximation(text: str) -> bool:
+    return bool(_APPROXIMATION_RE.search(_clean(text)))
+
+
+def _normalise_sex(value: str) -> str:
+    return {"男性": "male", "女性": "female"}[value]
+
+
+def parse_sex_numeric_expressions(text: str) -> list[tuple[str, NumericExpression]]:
+    results: list[tuple[str, NumericExpression]] = []
+    for label, expression in _SEX_RE.findall(_clean(text)):
+        parsed = parse_numeric_expression(expression)
+        if parsed is not None:
+            results.append((_normalise_sex(label), parsed))
+    return results
 
 
 def parse_numeric_expression(text: str) -> NumericExpression | None:
@@ -144,8 +168,10 @@ def _candidate_for_row(cells: list[str], segment: Segment) -> list[RuleCandidate
 
     candidates: list[RuleCandidate] = []
     indicator = cells[0]
-    joined = " | ".join(cells[1:])
-    numeric = parse_numeric_expression(joined)
+    value_text = cells[1] if len(cells) > 1 else ""
+    explanation = " | ".join(cells[2:])
+    unit = cells[-1] if len(cells) >= 3 and _UNIT_RE.fullmatch(cells[-1]) else ""
+    numeric = parse_numeric_expression(value_text)
     state_type = "stage" if "stage" in indicator.lower() or indicator.lower().startswith("stage") else "evidence"
     if indicator.lower().startswith("stage") or (cells and any("biomarker_state" in cell.lower() for cell in cells)):
         state_type = "stage"
@@ -153,21 +179,42 @@ def _candidate_for_row(cells: list[str], segment: Segment) -> list[RuleCandidate
         state_type = "stage"
     if len(cells) >= 5 and any(token in cells[0].lower() for token in ("lfc", "cap", "mri", "ctl/s", "histology")):
         state_type = "grade"
-    if numeric:
-        candidates.append(
-            RuleCandidate(
-                raw_text=segment.raw_text,
-                segment=segment,
-                indicator_name=indicator,
-                target_state_type=state_type,
-                target_state_value=cells[1] if len(cells) > 1 else None,
-                rule_type="numeric_range",
-                machine_actionability="calculable" if numeric.unit else "evidence-only",
-                evidence_type="standard_table",
-                numeric=numeric,
-                interpretation=joined,
-            )
+    def make_numeric_candidate(parsed: NumericExpression, *, sex: str | None = None) -> RuleCandidate:
+        warnings: list[str] = []
+        if contains_approximation(value_text):
+            warnings.append("approximate_language")
+        if any(token in explanation for token in ("平台", "试剂", "队列", "示踪剂", "教育程度", "语言", "量表版本")):
+            warnings.append("missing_applicability")
+        if not unit:
+            warnings.append("not_safely_numeric")
+        numeric_with_unit = NumericExpression(
+            lower=parsed.lower,
+            upper=parsed.upper,
+            lower_inclusive=parsed.lower_inclusive,
+            upper_inclusive=parsed.upper_inclusive,
+            unit=unit,
+            raw_text=parsed.raw_text,
         )
+        return RuleCandidate(
+            raw_text=segment.raw_text,
+            segment=segment,
+            indicator_name=indicator,
+            target_state_type=state_type,
+            target_state_value=value_text,
+            rule_type="numeric_range",
+            machine_actionability="calculable" if not warnings else "evidence-only",
+            evidence_type="standard_table",
+            numeric=numeric_with_unit,
+            interpretation=" | ".join(cells[1:]),
+            sex=sex,
+            parse_warnings=tuple(warnings),
+        )
+
+    sex_expressions = parse_sex_numeric_expressions(value_text)
+    if sex_expressions:
+        candidates.extend(make_numeric_candidate(parsed, sex=sex) for sex, parsed in sex_expressions)
+    elif numeric:
+        candidates.append(make_numeric_candidate(numeric))
     else:
         candidates.append(
             RuleCandidate(
@@ -179,7 +226,7 @@ def _candidate_for_row(cells: list[str], segment: Segment) -> list[RuleCandidate
                 rule_type="classification" if state_type in {"stage", "grade"} else "qualitative_direction",
                 machine_actionability="evidence-only",
                 evidence_type="standard_table",
-                interpretation=joined,
+                interpretation=" | ".join(cells[1:]),
             )
         )
     return candidates
