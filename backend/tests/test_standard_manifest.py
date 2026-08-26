@@ -114,6 +114,13 @@ def test_reserved_applicability_keys_are_rejected():
         StandardManifest.model_validate(payload)
 
 
+def test_ad_ratio_canonical_key_accepts_beta_symbol():
+    payload = _manifest()
+    payload["entries"][0]["indicator"]["canonical_key"] = "aβ42/aβ40"
+    manifest = StandardManifest.model_validate(payload)
+    assert manifest.entries[0].indicator.canonical_key == "aβ42/aβ40"
+
+
 def _parsed(raw_text: str):
     return SimpleNamespace(segments=[SimpleNamespace(
         paragraph_index=None,

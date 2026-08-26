@@ -36,7 +36,7 @@ class SourceLocator(StrictModel):
 
 
 class ManifestIndicator(StrictModel):
-    canonical_key: str = Field(pattern=r"^[a-z0-9][a-z0-9._/-]*$")
+    canonical_key: str = Field(min_length=1, pattern=r"^[^\s]+$")
     name_en: str
     name_cn: str | None = None
     aliases: list[str] = Field(default_factory=list)

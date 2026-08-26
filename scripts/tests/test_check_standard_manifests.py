@@ -24,3 +24,10 @@ def test_check_mode_reports_drift(monkeypatch, capsys, tmp_path):
     monkeypatch.setattr(script, "build_plan", lambda *args, **kwargs: {"status": "drift"})
     assert script.main(["--manifest", str(tmp_path / "x.json"), "--source", str(tmp_path / "x.docx"), "--review-output", str(tmp_path / "review.md"), "--check"]) == 1
     assert json.loads(capsys.readouterr().out)["status"] == "drift"
+
+
+def test_source_hash_mismatch_is_a_business_blocker(monkeypatch, capsys, tmp_path):
+    script = _load()
+    monkeypatch.setattr(script, "build_plan", lambda *args, **kwargs: {"status": "blocked", "error": "source_hash_mismatch"})
+    assert script.main(["--manifest", str(tmp_path / "x.json"), "--source", str(tmp_path / "x.docx"), "--review-output", str(tmp_path / "review.md"), "--check"]) == 1
+    assert json.loads(capsys.readouterr().out)["error"] == "source_hash_mismatch"

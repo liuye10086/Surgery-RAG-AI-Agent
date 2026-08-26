@@ -13,7 +13,8 @@ for item in (PROJECT_ROOT, BACKEND_ROOT):
     if str(item) not in sys.path:
         sys.path.insert(0, str(item))
 
-from app.services.standard_manifest import load_standard_manifest, render_standard_review_markdown
+from app.services.standard_manifest import load_standard_manifest, render_standard_review_markdown, validate_standard_manifest
+from app.services.standard_parser import parse_standard_docx
 
 
 def configure_stdout_utf8() -> None:
@@ -24,8 +25,17 @@ def configure_stdout_utf8() -> None:
 
 def build_plan(manifest_path: Path, source_path: Path, review_output: Path) -> dict[str, object]:
     manifest = load_standard_manifest(manifest_path)
+    parsed = parse_standard_docx(source_path, parser_version="manifest-check")
+    validation = validate_standard_manifest(manifest, source_path=source_path, parsed_document=parsed)
     rendered = render_standard_review_markdown(manifest)
     drift = review_output.exists() and review_output.read_text(encoding="utf-8") != rendered
+    if validation.errors:
+        return {
+            "status": "blocked",
+            "error_codes": sorted({finding.code for finding in validation.errors}),
+            "missing_core_indicators": validation.missing_core_indicators,
+            "review_state": manifest.review_state,
+        }
     return {
         "status": "drift" if drift else "dry_run",
         "manifest": str(manifest_path),
@@ -56,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.check and plan.get("markdown_drift"):
             plan["status"] = "drift"
         print(json.dumps({key: value for key, value in plan.items() if key != "rendered_markdown"}, ensure_ascii=False, sort_keys=True))
-        return 1 if args.check and (plan.get("markdown_drift") or plan.get("status") == "drift") else 0
+        return 1 if plan.get("status") == "blocked" or (args.check and (plan.get("markdown_drift") or plan.get("status") == "drift")) else 0
     except ValueError:
         print(json.dumps({"status": "blocked", "error": "validation_failed"}, ensure_ascii=False))
         return 1
