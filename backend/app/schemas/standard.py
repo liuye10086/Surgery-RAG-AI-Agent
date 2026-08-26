@@ -104,14 +104,16 @@ class ValidationFinding(BaseModel):
 
 
 class ValidationReport(BaseModel):
-    errors: list[ValidationFinding] = []
-    warnings: list[ValidationFinding] = []
-    infos: list[ValidationFinding] = []
+    errors: list[ValidationFinding] = Field(default_factory=list)
+    warnings: list[ValidationFinding] = Field(default_factory=list)
+    infos: list[ValidationFinding] = Field(default_factory=list)
     projection_count: int = 0
+    calculable_rule_count: int = 0
+    blocked_rule_count: int = 0
 
     @property
     def can_publish(self) -> bool:
-        return not self.errors
+        return not self.errors and self.calculable_rule_count > 0 and self.blocked_rule_count == 0
 
 
 class StandardCreate(BaseModel):

@@ -9,6 +9,23 @@ from app.schemas.standard import ValidationFinding, ValidationReport
 from app.db.models import ReferenceStandardVersion, StandardRuleCondition
 
 
+AD_DIRECTIONS = {
+    "mmse": "ordinal_low",
+    "moca": "ordinal_low",
+    "cdr": "ordinal_high",
+    "nfl": "high",
+    "p-tau217": "high",
+    "aβ42/aβ40": "low",
+}
+AD_CONTEXT_REQUIRED = {
+    "mmse": {"education", "language", "scale_version"},
+    "moca": {"education", "language", "scale_version"},
+    "nfl": {"sample", "platform", "method"},
+    "p-tau217": {"sample", "platform", "method"},
+    "aβ42/aβ40": {"sample", "platform", "method"},
+}
+
+
 @dataclass(frozen=True)
 class RuleValidation:
     errors: list[ValidationFinding] = field(default_factory=list)
@@ -21,7 +38,7 @@ def _finding(level: str, code: str, message: str) -> ValidationFinding:
     return ValidationFinding(level=level, code=code, message=message)
 
 
-def validate_rule(rule: Any) -> RuleValidation:
+def validate_rule(rule: Any, *, disease_key: str | None = None) -> RuleValidation:
     errors: list[ValidationFinding] = []
     warnings: list[ValidationFinding] = []
     infos: list[ValidationFinding] = []
@@ -34,6 +51,21 @@ def validate_rule(rule: Any) -> RuleValidation:
         actionability = "evidence-only"
         warnings.append(_finding("warning", "missing_unit", "缺少单位，不能进入兼容投影"))
     applicability = getattr(rule, "applicability", {}) or {}
+    indicator = getattr(rule, "indicator", None)
+    canonical_key = getattr(indicator, "canonical_key", None)
+    if disease_key == "ad" and canonical_key in AD_DIRECTIONS:
+        expected = AD_DIRECTIONS[canonical_key]
+        if getattr(indicator, "abnormal_direction", None) != expected:
+            errors.append(_finding("error", "invalid_ad_direction", f"{canonical_key} 的异常方向必须为 {expected}"))
+        required = AD_CONTEXT_REQUIRED.get(canonical_key, set()) if numeric else set()
+        missing = sorted(key for key in required if not applicability.get(key))
+        if missing and actionability == "calculable":
+            errors.append(_finding("error", "ad_biomarker_applicability_missing", f"缺少 AD 适用条件：{', '.join(missing)}"))
+    source_segment = getattr(rule, "source_segment", None)
+    if actionability == "calculable" and source_segment is not None:
+        raw_text = str(getattr(source_segment, "raw_text", ""))
+        if any(token in raw_text for token in ("约", "常见为", "常作正常参考", "大约", "通常为")):
+            errors.append(_finding("error", "approximate_calculable_rule", "近似医学文本不能直接作为 calculable 规则"))
     if rule_type == "threshold" and not applicability:
         actionability = "evidence-only"
         warnings.append(_finding("warning", "missing_applicability", "研究或平台阈值缺少适用条件"))
@@ -99,16 +131,49 @@ def validate_version(db: Any, version_id: int) -> ValidationReport:
     return validate_version_rules(list(version.rules or []))
 
 
-def validate_version_rules(rules: list[Any]) -> ValidationReport:
+def is_projection_eligible(rule: Any) -> bool:
+    indicator = getattr(rule, "indicator", None)
+    return (
+        getattr(rule, "machine_actionability", None) == "calculable"
+        and getattr(rule, "rule_type", None) in {"numeric_range", "threshold"}
+        and (getattr(rule, "lower", None) is not None or getattr(rule, "upper", None) is not None)
+        and bool(getattr(rule, "unit", None))
+        and bool(getattr(indicator, "allows_numeric_comparison", False))
+    )
+
+
+def validate_version_rules(
+    rules: list[Any],
+    *,
+    disease_key: str | None = None,
+    require_calculable: bool = True,
+) -> ValidationReport:
     errors: list[ValidationFinding] = []
     warnings: list[ValidationFinding] = []
     infos: list[ValidationFinding] = []
     projection_count = 0
+    calculable_rule_count = 0
+    blocked_rule_count = 0
+    if not rules:
+        errors.append(_finding("error", "formal_rules_missing", "标准版本没有正式规则"))
     for rule in rules:
-        result = validate_rule(rule)
+        result = validate_rule(rule, disease_key=disease_key)
         errors.extend(result.errors)
         warnings.extend(result.warnings)
         infos.extend(result.infos)
-        if result.actionability == "calculable":
+        if result.actionability == "calculable" and not result.errors:
+            calculable_rule_count += 1
+        if getattr(rule, "machine_actionability", None) == "blocked":
+            blocked_rule_count += 1
+        if is_projection_eligible(rule) and not result.errors:
             projection_count += 1
-    return ValidationReport(errors=errors, warnings=warnings, infos=infos, projection_count=projection_count)
+    if require_calculable and calculable_rule_count == 0:
+        errors.append(_finding("error", "calculable_rules_missing", "标准版本没有可计算的正式规则"))
+    return ValidationReport(
+        errors=errors,
+        warnings=warnings,
+        infos=infos,
+        projection_count=projection_count,
+        calculable_rule_count=calculable_rule_count,
+        blocked_rule_count=blocked_rule_count,
+    )
