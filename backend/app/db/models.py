@@ -406,6 +406,7 @@ class StandardIndicator(Base):
     default_unit = Column(String(50))
     clinical_dimension = Column(String(100))
     allows_numeric_comparison = Column(Boolean, nullable=False, default=False, server_default="false")
+    abnormal_direction = Column(String(50), nullable=False, default="none", server_default="none")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     rules = relationship("StandardRule", back_populates="indicator")

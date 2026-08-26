@@ -2370,7 +2370,7 @@ Write-Output "READINESS_EXIT=$readinessExit"
 
 Expected:
 
-- database revision and code head are `0011`;
+- database revision and code head are `0012`;
 - both diseases have a current approved version;
 - both versions have formal rules; fatty liver has calculable rules while AD may have zero calculable rules;
 - standard-related reason codes `approved_standard_missing` and `calculable_standard_rules_missing` are absent;

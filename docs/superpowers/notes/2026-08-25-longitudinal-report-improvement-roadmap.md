@@ -352,6 +352,12 @@ P3-04 前端生成状态与故障解释
 
 ### P0-02：修复并发布双疾病参考标准
 
+**状态**：`completed`  
+**Task-ID**：`longitudinal-standards-001`  
+**设计文档**：`docs/superpowers/specs/2026-08-25-longitudinal-standards-design.md`  
+**实施计划**：`docs/superpowers/plans/2026-08-25-longitudinal-standards.md`  
+**验证记录**：数据库 revision/head 已升级为 `0012`。脂肪肝标准版本 `id=3` 已成为 current approved，包含 11 条正式规则（10 calculable、1 evidence-only）和 10 条当前投影；AD 标准版本 `id=4` 已成为 current approved，包含 8 条 evidence-only 正式规则、0 calculable 和 0 投影。canonical indicator 的疾病专属异常方向已持久化；两个版本的 135 条解析候选仍全部 pending，0 条 materialized。`python scripts/check_longitudinal_readiness.py` 已不再报告 `approved_standard_missing` 或 `calculable_standard_rules_missing`，AD 明确报告 `evidence_only_standard` 限制，P0-04/P0-07 缺口保持可见。专项与相关回归共 206 项通过。
+
 **现状**
 
 脂肪肝当前版本指向 retired 状态且没有正式规则；AD 标准需要独立审计。报告无法给出可靠的参考范围、异常状态和标准版本。

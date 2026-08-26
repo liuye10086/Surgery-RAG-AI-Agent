@@ -300,6 +300,33 @@ class AlembicContractTests(unittest.TestCase):
         self.assertIn("ck_reference_standards_current_version_deferred", source)
         self.assertIn("ck_reference_standard_versions_current_target_deferred", source)
 
+    def test_standard_indicator_direction_migration_follows_0011(self):
+        migration = _load_revision(
+            "0012_standard_indicator_abnormal_direction.py",
+            "migration_0012",
+        )
+        self.assertEqual(migration.revision, "0012")
+        self.assertEqual(migration.down_revision, "0011")
+
+    def test_standard_indicator_direction_migration_backfills_reviewed_keys(self):
+        source = (
+            BACKEND_ROOT
+            / "alembic/versions/0012_standard_indicator_abnormal_direction.py"
+        ).read_text(encoding="utf-8")
+        for key, direction in {
+            "alt": "high",
+            "ast": "high",
+            "ggt": "high",
+            "tbil": "high",
+            "alb": "low",
+            "hba1c": "high",
+            "bmi": "high",
+            "waist": "high",
+        }.items():
+            self.assertIn(key, source)
+            self.assertIn(direction, source)
+        self.assertIn("ck_standard_indicators_abnormal_direction", source)
+
     def test_env_excludes_langchain_internal_tables(self):
         env_source = (BACKEND_ROOT / "alembic/env.py").read_text(encoding="utf-8")
         self.assertIn('name.startswith("langchain_pg_")', env_source)

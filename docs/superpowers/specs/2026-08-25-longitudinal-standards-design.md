@@ -505,6 +505,7 @@ resolver 继续检查 current version 的状态和归属。数据库或服务层
 - 本例外只适用于当前 `ad` 数据集，不全局取消 calculable 发布门槛，也不新增可配置疾病策略框架。
 - AD approved manifest 在核心指标均有明确审核结论、无 pending/blocked/error 且至少有一条 approved evidence-only 正式规则时，可以发布为 approved。
 - AD 纯 evidence-only 版本的 `calculable_rule_count` 和 `reference_ranges` 投影数量均允许为 0。
+- canonical indicator 的 `abnormal_direction` 必须持久化在 `standard_indicators`，不能只存在于 manifest；脂肪肝与 AD 的已审核方向由 Alembic `0012` 安全回填或在 manifest 导入时写入。
 - resolver 和报告只能使用这些规则提供方向、分期、来源、适用性与局限性，不得据此生成数值参考范围或自动正常/异常结论。
 - readiness 将该标准记为 `degraded` 并报告 `evidence_only_standard`，但不再报告 P0-02 的 `calculable_standard_rules_missing` blocker；脂肪肝相同行为仍为 blocked。
 

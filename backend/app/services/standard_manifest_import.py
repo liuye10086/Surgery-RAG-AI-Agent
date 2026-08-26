@@ -82,10 +82,15 @@ def import_manifest_rules(db: Any, *, manifest, version_id: int, admin_id: int) 
                 default_unit=entry.indicator.default_unit,
                 clinical_dimension=entry.indicator.clinical_dimension,
                 allows_numeric_comparison=entry.indicator.allows_numeric_comparison,
+                abnormal_direction=entry.indicator.abnormal_direction,
             )
             db.add(existing)
             if hasattr(db, "flush"):
                 db.flush()
+        elif getattr(existing, "abnormal_direction", None) != entry.indicator.abnormal_direction:
+            raise ValueError(
+                f"canonical indicator {key} abnormal_direction 与 approved manifest 冲突"
+            )
         indicators_by_key[key] = existing
 
     created: list[str] = []

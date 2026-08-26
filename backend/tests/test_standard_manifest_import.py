@@ -158,3 +158,42 @@ def test_import_persists_manifest_review_time_for_reviewed_override():
     assert rule.applicability["_manifest_entry_id"] == "fatty-ast"
     assert rule.applicability["_manifest_sha256"] == "a" * 64
     assert rule.applicability["_manifest_reviewed_at"] == "2026-08-25T12:00:00+00:00"
+
+
+def test_import_persists_canonical_indicator_abnormal_direction():
+    manifest = _manifest(_entry("fatty-alt", "alt"))
+    db = ImportSession()
+
+    import_manifest_rules(db, manifest=manifest, version_id=4, admin_id=7)
+
+    indicator = next(
+        item for item in db.added
+        if item.__class__.__name__ == "StandardIndicator"
+    )
+    assert indicator.abnormal_direction == "high"
+
+
+def test_import_rejects_existing_indicator_direction_conflict():
+    manifest = _manifest(_entry("fatty-alt", "alt"))
+    db = ImportSession()
+    existing = SimpleNamespace(
+        id=9,
+        canonical_key="alt",
+        abnormal_direction="low",
+    )
+    original_query = db.query
+
+    def query(model):
+        if model.__name__ != "StandardIndicator":
+            return original_query(model)
+
+        class Query:
+            def filter(self, *args, **kwargs): return self
+            def first(self): return existing
+
+        return Query()
+
+    db.query = query
+
+    with pytest.raises(ValueError, match="abnormal_direction"):
+        import_manifest_rules(db, manifest=manifest, version_id=4, admin_id=7)

@@ -28,6 +28,8 @@ def test_standard_entities_and_projection_columns_exist():
     assert {"segment_id", "source_type", "candidate_json"}.issubset(StandardParseCandidate.__table__.columns.keys())
     assert {"rule_id", "node_type", "payload"}.issubset(StandardRuleCondition.__table__.columns.keys())
     assert {"entity_type", "before_json", "after_json", "reason"}.issubset(StandardChangeLog.__table__.columns.keys())
+    assert "abnormal_direction" in StandardIndicator.__table__.columns
+    assert StandardIndicator.__table__.columns["abnormal_direction"].nullable is False
 
 
 def test_standard_document_model_and_one_to_one_version_link():

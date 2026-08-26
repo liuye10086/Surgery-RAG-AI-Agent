@@ -322,8 +322,12 @@ CREATE TABLE IF NOT EXISTS standard_indicators (
     default_unit VARCHAR(50),
     clinical_dimension VARCHAR(100),
     allows_numeric_comparison BOOLEAN NOT NULL DEFAULT FALSE,
+    abnormal_direction VARCHAR(50) NOT NULL DEFAULT 'none',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT uq_standard_indicators_canonical_key UNIQUE (canonical_key)
+    CONSTRAINT uq_standard_indicators_canonical_key UNIQUE (canonical_key),
+    CONSTRAINT ck_standard_indicators_abnormal_direction CHECK (
+        abnormal_direction IN ('high', 'low', 'ordinal_high', 'ordinal_low', 'contextual', 'none')
+    )
 );
 
 CREATE TABLE IF NOT EXISTS standard_segments (
