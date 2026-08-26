@@ -266,6 +266,46 @@ ALTER TABLE reference_standards
     REFERENCES reference_standard_versions(id)
     ON DELETE SET NULL;
 
+CREATE OR REPLACE FUNCTION enforce_reference_standard_current_version()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM reference_standards rs
+    LEFT JOIN reference_standard_versions v ON v.id = rs.current_version_id
+    WHERE rs.current_version_id IS NOT NULL
+      AND (v.id IS NULL OR v.standard_id <> rs.id OR v.status <> 'approved')
+  ) THEN
+    RAISE EXCEPTION 'current_version_id must reference an approved version of the same standard'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'ck_reference_standards_current_version_deferred'
+  ) THEN
+    CREATE CONSTRAINT TRIGGER ck_reference_standards_current_version_deferred
+    AFTER INSERT OR UPDATE OF current_version_id ON reference_standards
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION enforce_reference_standard_current_version();
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'ck_reference_standard_versions_current_target_deferred'
+  ) THEN
+    CREATE CONSTRAINT TRIGGER ck_reference_standard_versions_current_target_deferred
+    AFTER INSERT OR UPDATE OR DELETE ON reference_standard_versions
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION enforce_reference_standard_current_version();
+  END IF;
+END;
+$$;
+
 CREATE INDEX IF NOT EXISTS ix_reference_standard_versions_standard_status
 ON reference_standard_versions(standard_id, status);
 

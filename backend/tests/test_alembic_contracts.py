@@ -269,6 +269,37 @@ class AlembicContractTests(unittest.TestCase):
             migration_op.method_calls.index(create_call),
         )
 
+    def test_standard_current_version_invariant_follows_0010(self):
+        migration = _load_revision(
+            "0011_standard_current_version_invariant.py",
+            "migration_0011",
+        )
+        self.assertEqual(migration.revision, "0011")
+        self.assertEqual(migration.down_revision, "0010")
+
+    def test_standard_current_version_upgrade_rejects_existing_invalid_pointer(self):
+        migration = _load_revision(
+            "0011_standard_current_version_invariant.py",
+            "migration_0011_guard",
+        )
+        bind = MagicMock()
+        invalid = MagicMock()
+        invalid.scalar_one.return_value = 1
+        bind.execute.return_value = invalid
+        migration_op = MagicMock()
+        migration_op.get_bind.return_value = bind
+        with patch.object(migration, "op", migration_op):
+            with self.assertRaisesRegex(RuntimeError, "invalid current standard version"):
+                migration.upgrade()
+        executed = "\n".join(str(item.args[0]) for item in bind.execute.call_args_list)
+        self.assertIn("current_version_id", executed)
+
+    def test_standard_current_version_migration_creates_deferred_constraint_triggers(self):
+        source = (BACKEND_ROOT / "alembic/versions/0011_standard_current_version_invariant.py").read_text(encoding="utf-8")
+        self.assertIn("DEFERRABLE INITIALLY DEFERRED", source)
+        self.assertIn("ck_reference_standards_current_version_deferred", source)
+        self.assertIn("ck_reference_standard_versions_current_target_deferred", source)
+
     def test_env_excludes_langchain_internal_tables(self):
         env_source = (BACKEND_ROOT / "alembic/env.py").read_text(encoding="utf-8")
         self.assertIn('name.startswith("langchain_pg_")', env_source)
