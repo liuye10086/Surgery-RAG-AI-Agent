@@ -30,7 +30,7 @@
 
 - 指标：`alt` / 谷丙转氨酶
 - 条目类型：`rule`
-- 建议 actionability：`evidence-only`
+- 建议 actionability：`calculable`
 - 审核状态：`approved`
 - 审核备注：无
 - 原文位置：paragraph=None, table=1, row=1, column=None
@@ -40,7 +40,7 @@
 
 - 指标：`alt` / 谷丙转氨酶
 - 条目类型：`rule`
-- 建议 actionability：`evidence-only`
+- 建议 actionability：`calculable`
 - 审核状态：`approved`
 - 审核备注：无
 - 原文位置：paragraph=None, table=1, row=1, column=None
@@ -50,7 +50,7 @@
 
 - 指标：`ast` / 谷草转氨酶
 - 条目类型：`rule`
-- 建议 actionability：`evidence-only`
+- 建议 actionability：`calculable`
 - 审核状态：`approved`
 - 审核备注：无
 - 原文位置：paragraph=None, table=1, row=2, column=None
@@ -70,7 +70,7 @@
 
 - 指标：`ggt` / γ-谷氨酰转肽酶
 - 条目类型：`rule`
-- 建议 actionability：`evidence-only`
+- 建议 actionability：`calculable`
 - 审核状态：`approved`
 - 审核备注：无
 - 原文位置：paragraph=None, table=1, row=3, column=None
@@ -80,7 +80,7 @@
 
 - 指标：`ggt` / γ-谷氨酰转肽酶
 - 条目类型：`rule`
-- 建议 actionability：`evidence-only`
+- 建议 actionability：`calculable`
 - 审核状态：`approved`
 - 审核备注：无
 - 原文位置：paragraph=None, table=1, row=3, column=None

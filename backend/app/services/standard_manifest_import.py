@@ -98,6 +98,7 @@ def import_manifest_rules(db: Any, *, manifest, version_id: int, admin_id: int) 
         applicability = dict(rule_data.pop("applicability") or {})
         applicability["_manifest_entry_id"] = entry.entry_id
         applicability["_manifest_sha256"] = manifest.source_document_sha256
+        applicability["_manifest_reviewed_at"] = manifest.reviewed_at.isoformat()
         conditions = rule_data.pop("conditions") or {}
         rule = StandardRule(
             version_id=version_id,

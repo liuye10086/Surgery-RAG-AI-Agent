@@ -16,6 +16,10 @@ CORE_INDICATORS: dict[str, tuple[str, ...]] = {
     "ad": ("mmse", "moca", "cdr", "nfl", "p-tau217", "aβ42/aβ40"),
 }
 
+OWNER_REVIEWED_APPROXIMATE_INDICATORS = frozenset({"alt", "ast", "ggt"})
+OWNER_REVIEWED_APPROXIMATE_POLICY = "owner_reviewed_strict"
+APPROXIMATE_SOURCE_TOKENS = ("约", "常见为", "常作正常参考", "大约", "通常为")
+
 
 @dataclass(frozen=True)
 class ManifestFinding:
@@ -44,6 +48,26 @@ def _segment_key(item: Any) -> tuple[int | None, int | None, int | None, int | N
     return (item.paragraph_index, item.table_index, item.row_index, item.column_index)
 
 
+def _has_valid_approximate_override(manifest: StandardManifest, entry: Any) -> bool:
+    rule = entry.rule
+    applicability = rule.applicability or {}
+    return (
+        manifest.dataset == "fatty_liver"
+        and entry.indicator.canonical_key in OWNER_REVIEWED_APPROXIMATE_INDICATORS
+        and manifest.review_state == "approved"
+        and manifest.reviewed_at is not None
+        and entry.review_status == "approved"
+        and rule.rule_type == "numeric_range"
+        and rule.lower is not None
+        and rule.upper is not None
+        and rule.lower_inclusive is True
+        and rule.upper_inclusive is True
+        and bool(rule.unit)
+        and applicability.get("source_language") == "approximate"
+        and applicability.get("approximate_boundary_policy") == OWNER_REVIEWED_APPROXIMATE_POLICY
+    )
+
+
 def validate_standard_manifest(
     manifest: StandardManifest,
     *,
@@ -65,6 +89,21 @@ def validate_standard_manifest(
             key = _segment_key(entry.source)
             if locations.get(key) != entry.source.raw_text:
                 errors.append(ManifestFinding("source_segment_mismatch", "源片段定位或原文不一致", entry.entry_id))
+
+        rule = entry.rule
+        if rule is not None and rule.machine_actionability == "calculable":
+            applicability = rule.applicability or {}
+            raw_text = entry.source.raw_text or ""
+            approximate = (
+                applicability.get("source_language") == "approximate"
+                or any(token in raw_text for token in APPROXIMATE_SOURCE_TOKENS)
+            )
+            if approximate and not _has_valid_approximate_override(manifest, entry):
+                errors.append(ManifestFinding(
+                    "invalid_approximate_override",
+                    "近似范围只有经审核的脂肪肝 ALT、AST、GGT 闭区间可以严格计算",
+                    entry.entry_id,
+                ))
 
     covered = {entry.indicator.canonical_key for entry in manifest.entries}
     missing = sorted(set(CORE_INDICATORS[manifest.dataset]) - covered)

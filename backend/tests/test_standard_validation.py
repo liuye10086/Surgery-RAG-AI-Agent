@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from app.services.standard_validation import (
     build_condition_tree,
     is_projection_eligible,
@@ -136,11 +138,83 @@ def test_ad_directions_are_indicator_specific():
     assert "invalid_ad_direction" not in {item.code for item in cdr.errors}
 
 
-def test_approximate_or_context_incomplete_calculable_rule_is_rejected():
-    approximate = validate_rule(_rule(
-        source_segment=SimpleNamespace(raw_text="AST 约 15–40 U/L")
+def test_reviewed_fatty_approximate_range_is_calculable_with_complete_provenance():
+    result = validate_rule(_rule(
+        indicator=SimpleNamespace(
+            canonical_key="ast",
+            data_type="numeric",
+            allows_numeric_comparison=True,
+            abnormal_direction="high",
+        ),
+        source_segment=SimpleNamespace(raw_text="AST 约 15–40 U/L"),
+        lower=15,
+        upper=40,
+        lower_inclusive=True,
+        upper_inclusive=True,
+        unit="U/L",
+        applicability={
+            "source_language": "approximate",
+            "approximate_boundary_policy": "owner_reviewed_strict",
+            "_manifest_entry_id": "fatty-ast-reference",
+            "_manifest_sha256": "a" * 64,
+            "_manifest_reviewed_at": "2026-08-26T01:14:26Z",
+        },
     ), disease_key="fatty_liver")
-    assert "approximate_calculable_rule" in {item.code for item in approximate.errors}
+    assert result.actionability == "calculable"
+    assert "approximate_calculable_rule" not in {item.code for item in result.errors}
+
+
+def test_reviewed_approximate_override_requires_complete_manifest_provenance():
+    result = validate_rule(_rule(
+        indicator=SimpleNamespace(
+            canonical_key="ast",
+            data_type="numeric",
+            allows_numeric_comparison=True,
+            abnormal_direction="high",
+        ),
+        source_segment=SimpleNamespace(raw_text="AST 约 15–40 U/L"),
+        lower=15,
+        upper=40,
+        lower_inclusive=True,
+        upper_inclusive=True,
+        unit="U/L",
+        applicability={
+            "source_language": "approximate",
+            "approximate_boundary_policy": "owner_reviewed_strict",
+            "_manifest_entry_id": "fatty-ast-reference",
+            "_manifest_sha256": "a" * 64,
+        },
+    ), disease_key="fatty_liver")
+    assert "approximate_calculable_rule" in {item.code for item in result.errors}
+
+
+@pytest.mark.parametrize("key", ["bmi", "mmse"])
+def test_reviewed_approximate_override_does_not_apply_to_other_indicators(key: str):
+    result = validate_rule(_rule(
+        indicator=SimpleNamespace(
+            canonical_key=key,
+            data_type="numeric",
+            allows_numeric_comparison=True,
+            abnormal_direction="high" if key == "bmi" else "ordinal_low",
+        ),
+        source_segment=SimpleNamespace(raw_text=f"{key} 约 15–40"),
+        lower=15,
+        upper=40,
+        lower_inclusive=True,
+        upper_inclusive=True,
+        unit="points" if key == "mmse" else "kg/m²",
+        applicability={
+            "source_language": "approximate",
+            "approximate_boundary_policy": "owner_reviewed_strict",
+            "_manifest_entry_id": f"reviewed-{key}",
+            "_manifest_sha256": "a" * 64,
+            "_manifest_reviewed_at": "2026-08-26T01:14:26Z",
+        },
+    ), disease_key="fatty_liver" if key == "bmi" else "ad")
+    assert "approximate_calculable_rule" in {item.code for item in result.errors}
+
+
+def test_context_incomplete_calculable_rule_is_rejected():
 
     ptau = validate_rule(_rule(
         indicator=SimpleNamespace(canonical_key="p-tau217", data_type="numeric", allows_numeric_comparison=True, abnormal_direction="high"),

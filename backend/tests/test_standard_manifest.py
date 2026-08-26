@@ -275,3 +275,80 @@ def test_approved_blocked_entry_is_rejected_by_lint(tmp_path: Path):
         parsed_document=_parsed(manifest.entries[0].source.raw_text),
     )
     assert "approved_blocked_rule" in {item.code for item in result.errors}
+
+
+def _approved_approximate_manifest_payload(*, dataset: str = "fatty_liver", key: str = "alt") -> dict:
+    payload = _manifest()
+    payload["dataset"] = dataset
+    payload["disease_name"] = "脂肪肝" if dataset == "fatty_liver" else "阿尔茨海默病"
+    payload["review_state"] = "approved"
+    payload["reviewed_at"] = "2026-08-26T01:14:26Z"
+    entry = payload["entries"][0]
+    entry["review_status"] = "approved"
+    entry["indicator"]["canonical_key"] = key
+    entry["rule"]["machine_actionability"] = "calculable"
+    entry["rule"]["applicability"] = {
+        "source_language": "approximate",
+        "approximate_boundary_policy": "owner_reviewed_strict",
+    }
+    return payload
+
+
+def test_approved_fatty_liver_approximate_range_accepts_owner_reviewed_strict_override(tmp_path: Path):
+    from app.services.standard_manifest import validate_standard_manifest
+
+    payload = _approved_approximate_manifest_payload()
+    source = tmp_path / "fatty.docx"
+    source.write_bytes(b"stable")
+    payload["source_document_sha256"] = hashlib.sha256(b"stable").hexdigest()
+    manifest = StandardManifest.model_validate(payload)
+
+    result = validate_standard_manifest(
+        manifest,
+        source_path=source,
+        parsed_document=_parsed(payload["entries"][0]["source"]["raw_text"]),
+    )
+
+    assert "invalid_approximate_override" not in {item.code for item in result.errors}
+
+
+@pytest.mark.parametrize("dataset,key", [("fatty_liver", "bmi"), ("ad", "mmse")])
+def test_owner_reviewed_strict_override_is_rejected_outside_fatty_alt_ast_ggt(
+    tmp_path: Path,
+    dataset: str,
+    key: str,
+):
+    from app.services.standard_manifest import validate_standard_manifest
+
+    payload = _approved_approximate_manifest_payload(dataset=dataset, key=key)
+    source = tmp_path / "standard.docx"
+    source.write_bytes(b"stable")
+    payload["source_document_sha256"] = hashlib.sha256(b"stable").hexdigest()
+    manifest = StandardManifest.model_validate(payload)
+
+    result = validate_standard_manifest(
+        manifest,
+        source_path=source,
+        parsed_document=_parsed(payload["entries"][0]["source"]["raw_text"]),
+    )
+
+    assert "invalid_approximate_override" in {item.code for item in result.errors}
+
+
+def test_approximate_calculable_range_requires_explicit_owner_reviewed_policy(tmp_path: Path):
+    from app.services.standard_manifest import validate_standard_manifest
+
+    payload = _approved_approximate_manifest_payload()
+    payload["entries"][0]["rule"]["applicability"] = {"source_language": "approximate"}
+    source = tmp_path / "fatty.docx"
+    source.write_bytes(b"stable")
+    payload["source_document_sha256"] = hashlib.sha256(b"stable").hexdigest()
+    manifest = StandardManifest.model_validate(payload)
+
+    result = validate_standard_manifest(
+        manifest,
+        source_path=source,
+        parsed_document=_parsed(payload["entries"][0]["source"]["raw_text"]),
+    )
+
+    assert "invalid_approximate_override" in {item.code for item in result.errors}

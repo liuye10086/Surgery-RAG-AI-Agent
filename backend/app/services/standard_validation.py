@@ -24,6 +24,8 @@ AD_CONTEXT_REQUIRED = {
     "p-tau217": {"sample", "platform", "method"},
     "aβ42/aβ40": {"sample", "platform", "method"},
 }
+OWNER_REVIEWED_APPROXIMATE_INDICATORS = frozenset({"alt", "ast", "ggt"})
+APPROXIMATE_SOURCE_TOKENS = ("约", "常见为", "常作正常参考", "大约", "通常为")
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,26 @@ class RuleValidation:
 
 def _finding(level: str, code: str, message: str) -> ValidationFinding:
     return ValidationFinding(level=level, code=code, message=message)
+
+
+def has_owner_reviewed_approximate_override(rule: Any, *, disease_key: str | None) -> bool:
+    applicability = getattr(rule, "applicability", {}) or {}
+    indicator = getattr(rule, "indicator", None)
+    return (
+        disease_key == "fatty_liver"
+        and getattr(indicator, "canonical_key", None) in OWNER_REVIEWED_APPROXIMATE_INDICATORS
+        and getattr(rule, "rule_type", None) == "numeric_range"
+        and getattr(rule, "lower", None) is not None
+        and getattr(rule, "upper", None) is not None
+        and getattr(rule, "lower_inclusive", None) is True
+        and getattr(rule, "upper_inclusive", None) is True
+        and bool(getattr(rule, "unit", None))
+        and applicability.get("source_language") == "approximate"
+        and applicability.get("approximate_boundary_policy") == "owner_reviewed_strict"
+        and bool(applicability.get("_manifest_entry_id"))
+        and bool(applicability.get("_manifest_sha256"))
+        and bool(applicability.get("_manifest_reviewed_at"))
+    )
 
 
 def validate_rule(rule: Any, *, disease_key: str | None = None) -> RuleValidation:
@@ -62,9 +84,13 @@ def validate_rule(rule: Any, *, disease_key: str | None = None) -> RuleValidatio
         if missing and actionability == "calculable":
             errors.append(_finding("error", "ad_biomarker_applicability_missing", f"缺少 AD 适用条件：{', '.join(missing)}"))
     source_segment = getattr(rule, "source_segment", None)
-    if actionability == "calculable" and source_segment is not None:
-        raw_text = str(getattr(source_segment, "raw_text", ""))
-        if any(token in raw_text for token in ("约", "常见为", "常作正常参考", "大约", "通常为")):
+    raw_text = str(getattr(source_segment, "raw_text", "")) if source_segment is not None else ""
+    approximate = (
+        applicability.get("source_language") == "approximate"
+        or any(token in raw_text for token in APPROXIMATE_SOURCE_TOKENS)
+    )
+    if actionability == "calculable" and approximate:
+        if not has_owner_reviewed_approximate_override(rule, disease_key=disease_key):
             errors.append(_finding("error", "approximate_calculable_rule", "近似医学文本不能直接作为 calculable 规则"))
     if rule_type == "threshold" and not applicability:
         actionability = "evidence-only"

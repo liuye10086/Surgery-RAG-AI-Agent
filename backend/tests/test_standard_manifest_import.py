@@ -146,3 +146,15 @@ def test_import_is_idempotent_by_version_and_manifest_entry_id(approved_manifest
     assert result.created_rule_entry_ids == ["fatty-ast"]
     assert result.existing_rule_entry_ids == ["fatty-alt"]
     assert db.commits == 0
+
+
+def test_import_persists_manifest_review_time_for_reviewed_override():
+    manifest = _manifest(_entry("fatty-ast", "ast"))
+    db = ImportSession()
+
+    import_manifest_rules(db, manifest=manifest, version_id=4, admin_id=7)
+
+    rule = next(item for item in db.added if item.__class__.__name__ == "StandardRule")
+    assert rule.applicability["_manifest_entry_id"] == "fatty-ast"
+    assert rule.applicability["_manifest_sha256"] == "a" * 64
+    assert rule.applicability["_manifest_reviewed_at"] == "2026-08-25T12:00:00+00:00"
