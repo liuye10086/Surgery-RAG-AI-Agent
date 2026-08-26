@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import hashlib
 import json
 from typing import Any, Iterable, Literal, Mapping
@@ -14,6 +14,14 @@ from app.services.disease_progression import (
     FATTY_LIVER_ADAPTER,
     DiseaseProgressionAdapter,
 )
+from app.schemas.longitudinal_dataset import (
+    CurrentState,
+    LabelAudit,
+    TargetEvent,
+)
+
+
+HORIZON_DAYS = 365
 
 
 class DatasetValidationError(ValueError):
@@ -57,6 +65,12 @@ class ValidationAudit:
     input_row_count: int
     patient_count: int
     reordered_patient_count: int
+
+
+@dataclass(frozen=True)
+class TargetContext:
+    current_state: CurrentState
+    target_event: TargetEvent
 
 
 _ADAPTERS_BY_DISEASE = {
@@ -292,4 +306,178 @@ def rebuild_patient_timelines(
         input_row_count=len(materialized),
         patient_count=len(patients),
         reordered_patient_count=reordered_patient_count,
+    )
+
+
+def resolve_target(patient: PatientTimeline, as_of: date) -> TargetContext:
+    """Resolve the task state using dated events known by ``as_of`` only."""
+    if patient.adapter.dataset == "fatty_liver":
+        hcc_date = patient.event_dates.get("hcc_date")
+        cirrhosis_date = patient.event_dates.get("cirrhosis_date")
+        if hcc_date is not None and hcc_date <= as_of:
+            return TargetContext(current_state="hcc", target_event="none")
+        if cirrhosis_date is not None and cirrhosis_date <= as_of:
+            return TargetContext(current_state="cirrhosis", target_event="hcc")
+        return TargetContext(
+            current_state="pre_cirrhosis",
+            target_event="cirrhosis_or_hcc",
+        )
+
+    if patient.adapter.dataset == "ad":
+        dementia_date = patient.event_dates.get("dementia_date")
+        if dementia_date is not None and dementia_date <= as_of:
+            return TargetContext(current_state="dementia", target_event="none")
+        return TargetContext(
+            current_state="pre_dementia",
+            target_event="dementia",
+        )
+
+    raise DatasetValidationError("unsupported_disease")
+
+
+def _eligible_target_events(
+    patient: PatientTimeline,
+    target: TargetContext,
+) -> list[tuple[str, date]]:
+    if target.target_event == "cirrhosis_or_hcc":
+        fields = ("cirrhosis_date", "hcc_date")
+    elif target.target_event == "hcc":
+        fields = ("hcc_date",)
+    elif target.target_event == "dementia":
+        fields = ("dementia_date",)
+    else:
+        fields = ()
+    return sorted(
+        (
+            (field, patient.event_dates[field])
+            for field in fields
+            if field in patient.event_dates
+        ),
+        key=lambda item: (item[1], item[0]),
+    )
+
+
+def _reached_event(
+    patient: PatientTimeline,
+    target: TargetContext,
+) -> tuple[str, date]:
+    if target.current_state == "hcc":
+        return "hcc_date", patient.event_dates["hcc_date"]
+    if target.current_state == "dementia":
+        return "dementia_date", patient.event_dates["dementia_date"]
+    raise DatasetValidationError("target_state_inconsistent")
+
+
+def _final_proves_undated_progression(
+    patient: PatientTimeline,
+    target: TargetContext,
+    eligible_events: list[tuple[str, date]],
+) -> bool:
+    if eligible_events:
+        return False
+    final = patient.final_stage
+    if patient.adapter.dataset == "fatty_liver":
+        final_text = str(final or "").strip()
+        if target.target_event == "cirrhosis_or_hcc":
+            return final_text in {"cirrhosis", "hcc"}
+        if target.target_event == "hcc":
+            return final_text == "hcc"
+        return False
+    if patient.adapter.dataset == "ad":
+        try:
+            return float(final) >= 1
+        except (TypeError, ValueError):
+            return False
+    return False
+
+
+def label_fixed_window(patient: PatientTimeline, as_of: date) -> LabelAudit:
+    """Label the fixed interval ``(as_of, as_of + 365 days]``."""
+    target = resolve_target(patient, as_of)
+    window_start = as_of + timedelta(days=1)
+    window_end = as_of + timedelta(days=HORIZON_DAYS)
+    last_followup = max(visit.visit_date for visit in patient.visits)
+
+    if target.target_event == "none":
+        event_type, event_date = _reached_event(patient, target)
+        return LabelAudit(
+            status="not_applicable",
+            training_label=None,
+            reason_code="target_already_reached",
+            window_start=window_start,
+            window_end=window_end,
+            target_event="none",
+            event_type=event_type,
+            event_date=event_date,
+            last_followup_date=last_followup,
+        )
+
+    eligible_events = [
+        event
+        for event in _eligible_target_events(patient, target)
+        if event[1] > as_of
+    ]
+    earliest = eligible_events[0] if eligible_events else None
+    if earliest is not None and earliest[1] <= window_end:
+        return LabelAudit(
+            status="positive",
+            training_label=1,
+            reason_code="target_event_within_window",
+            window_start=window_start,
+            window_end=window_end,
+            target_event=target.target_event,
+            event_type=earliest[0],
+            event_date=earliest[1],
+            last_followup_date=last_followup,
+        )
+
+    if _final_proves_undated_progression(patient, target, eligible_events):
+        return LabelAudit(
+            status="insufficient_observation",
+            training_label=None,
+            reason_code="progressed_without_target_date",
+            window_start=window_start,
+            window_end=window_end,
+            target_event=target.target_event,
+            event_type=None,
+            event_date=None,
+            last_followup_date=last_followup,
+        )
+
+    if earliest is not None:
+        return LabelAudit(
+            status="negative",
+            training_label=0,
+            reason_code="target_event_after_window",
+            window_start=window_start,
+            window_end=window_end,
+            target_event=target.target_event,
+            event_type=earliest[0],
+            event_date=earliest[1],
+            last_followup_date=last_followup,
+        )
+
+    if last_followup >= window_end:
+        return LabelAudit(
+            status="negative",
+            training_label=0,
+            reason_code="full_window_observed_without_event",
+            window_start=window_start,
+            window_end=window_end,
+            target_event=target.target_event,
+            event_type=None,
+            event_date=None,
+            last_followup_date=last_followup,
+        )
+
+    return LabelAudit(
+        status="insufficient_observation",
+        training_label=None,
+        reason_code="followup_ends_before_window",
+        window_start=window_start,
+        window_end=window_end,
+        target_event=target.target_event,
+        event_type=None,
+        event_date=None,
+        last_followup_date=last_followup,
     )
