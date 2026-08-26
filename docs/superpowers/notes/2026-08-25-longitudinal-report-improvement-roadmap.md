@@ -509,6 +509,16 @@ P3-04 前端生成状态与故障解释
 
 ### P0-04：训练、评估并产出双疾病 365 天结局模型
 
+**状态**：`completed`
+
+**Task-ID**：`longitudinal-outcome-model-001`
+
+**设计文档**：`docs/superpowers/specs/2026-08-26-longitudinal-outcome-model-design.md`
+
+**实施计划**：`docs/superpowers/plans/2026-08-26-longitudinal-outcome-model.md`
+
+**验证记录**：已实现 P0-03 JSONL/manifest 严格读取、三任务筛选、患者级划分、特征与泄漏审计、候选模型和安全 CLI。专项及相关回归共 148 项通过（仅 1 条既有 Pydantic 弃用警告）。真实 P0-03 数据审计统计为：脂肪肝未肝硬化 147 个可训练前缀/86 名患者/50 阳性/97 阴性，脂肪肝已肝硬化 53 个可训练前缀/53 名患者/9 阳性/44 阴性，AD 未痴呆 165 个可训练前缀/88 名患者/56 阳性/109 阴性。临时目录成功生成三个任务级 `candidate` artifact 及 metadata，并通过 SHA-256 清单检查；默认 CLI 只读、不训练、不更新 registry。生产 `backend/app/ml_models/` 未修改，旧脚本和旧 artifact 未清除。完整项目回归在正确 `PYTHONPATH=backend;.` 下发现 1 条既有 `test_cleanup_contracts.py` 关于 `.superpowers/sdd` 的失败，与 P0-04 变更无关；未删除该目录或修改无关清理范围。未生成生产模型、未写业务数据库、未自动启用 registry，未声称临床有效性。
+
 **现状**
 
 完整报告缺少 registry 所要求的 outcome artifact；已有旧模型的高 AUC 主要反映完整轨迹和构造数据可分性，不能直接沿用。
