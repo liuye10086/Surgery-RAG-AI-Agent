@@ -144,7 +144,7 @@ manifest 顶层至少包含：
 - 数值边界和比较方向完整；
 - 开闭区间与原文一致；
 - 单位明确且未混入解释文字；
-- 原文不是“约”“常见为”“常作正常参考”等近似表达，除非人工审核明确将其改判为 evidence-only 后另有独立、精确来源规则；
+- 原文不是“约”“常见为”“常作正常参考”等近似表达；唯一例外是脂肪肝 ALT、AST、GGT 的明确上下界范围，经项目所有者逐条审核并显式标记 `approximate_boundary_policy=owner_reviewed_strict` 后，可将原文数值按严格边界执行；
 - 所有影响安全计算的适用条件均已结构化；
 - 规则的疾病专属异常方向明确；
 - 已获得项目所有者逐条批准。
@@ -153,7 +153,7 @@ manifest 顶层至少包含：
 
 以下内容默认只能作为 evidence-only：
 
-- “约”“常见为”“常作正常参考”“按实验室参考范围”；
+- “约”“常见为”“常作正常参考”“按实验室参考范围”；其中只有满足 8.1 节人工审核覆盖条件的脂肪肝 ALT、AST、GGT 明确范围可以例外升级；
 - 单纯升高、降低、影像表现或研究发现；
 - 平台、方法、样本、队列、年龄、教育、语言、量表版本或框架信息不足；
 - 多研究范围、冲突阈值或不能安全择一的内容；
@@ -161,6 +161,23 @@ manifest 顶层至少包含：
 - 不能单独用于诊断或分级的解释性内容。
 
 Evidence-only 规则可以发布为标准证据，但不得生成 `reference_ranges` 投影或参与通用数值判断。
+
+### 8.2.1 近似范围人工审核覆盖
+
+近似文本不能因解析器识别出数字而自动成为 calculable。人工审核覆盖必须同时满足：
+
+- 数据集为 `fatty_liver`；
+- canonical indicator 仅限 `alt`、`ast`、`ggt`；
+- 原文给出完整上下界和明确单位；
+- 性别分列已拆成独立规则；
+- manifest 和条目均为 approved；
+- `applicability.source_language=approximate`；
+- `applicability.approximate_boundary_policy=owner_reviewed_strict`；
+- 导入时保存 manifest 条目 ID、源哈希和审核时间，生命周期校验可以证明该覆盖来自已批准 manifest。
+
+满足以上条件时，原文中的数值按闭区间严格执行：ALT 男性 `[9, 50] U/L`、ALT 女性 `[7, 40] U/L`、AST `[15, 40] U/L`、GGT 男性 `[10, 60] U/L`、GGT 女性 `[7, 45] U/L`。`约`仍保留在原文、适用性和审核记录中，不得从正式规则中抹除。
+
+该覆盖不得扩展到 BMI 的“常作正常参考”、PLT 的“按实验室参考范围”、AD 认知量表或平台/队列特异生物标志物阈值。未来扩展必须重新进行设计和医学审核。
 
 ### 8.3 Blocked
 
@@ -193,7 +210,7 @@ Evidence-only 规则可以发布为标准证据，但不得生成 `reference_ran
 要求：
 
 - 每个核心指标均建立明确 canonical indicator，保留中文名和常见别名。
-- ALT、AST、GGT 原文中的近似参考范围不能自动转成 calculable。
+- ALT、AST、GGT 原文中的近似参考范围不能自动转成 calculable；经项目所有者逐条批准并带有 `owner_reviewed_strict` 显式覆盖后，按原文闭区间转成 calculable。
 - 性别分列必须拆成独立适用规则；不能只保留第一组数值。
 - PLT 等“按实验室参考范围”内容只作为 evidence-only，不补造通用范围。
 - 源文档未提供 AFP 等安全规则时，允许记录“无可用规则”，不得从常识或测试数据补造。
@@ -412,6 +429,8 @@ resolver 继续检查 current version 的状态和归属。数据库或服务层
 ### 17.1 解析安全
 
 - “约”“常见为”“常作正常参考”不得自动成为 calculable。
+- 已批准的脂肪肝 ALT、AST、GGT 明确近似范围只有携带 `owner_reviewed_strict` 覆盖和 manifest 审核溯源时才成为 calculable；缺少标记、审核时间、条目 ID 或源哈希时仍应拒绝。
+- BMI、MMSE、MoCA 和 AD 队列特异阈值即使含数值，也不得通过该覆盖升级。
 - “按实验室参考范围”不得生成伪数值边界。
 - 表格说明列不得污染单位。
 - 性别分列生成独立适用信息。
