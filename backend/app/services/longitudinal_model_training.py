@@ -159,7 +159,7 @@ def make_locked_group_split(rows: Sequence[TrainingRow], *, seed: int, test_frac
 
 
 def make_preprocessor(feature_catalog: FeatureCatalog, *, scale_numeric: bool) -> ColumnTransformer:
-    numeric_steps = [("imputer", SimpleImputer(strategy="median", add_indicator=True))]
+    numeric_steps = [("imputer", SimpleImputer(strategy="median", add_indicator=True, keep_empty_features=True))]
     if scale_numeric:
         numeric_steps.append(("scaler", StandardScaler()))
     return ColumnTransformer([("numeric", Pipeline(numeric_steps), list(feature_catalog.numeric_features)), ("sex", Pipeline([("imputer", SimpleImputer(strategy="most_frequent")), ("onehot", OneHotEncoder(handle_unknown="ignore"))]), list(feature_catalog.categorical_features))], remainder="drop")
@@ -193,8 +193,6 @@ def _frame(rows: Sequence[TrainingRow], catalog: FeatureCatalog):
 def train_task_to_candidate(rows: Sequence[TrainingRow], task: TaskSpec, dataset_input: DatasetInput, output_dir: Path, *, seed: int = 42):
     import joblib
     output = Path(output_dir)
-    if output.exists() and any(output.iterdir()):
-        raise FileExistsError(output)
     output.mkdir(parents=True, exist_ok=True)
     catalog = build_feature_catalog(rows, task)
     candidates = _make_fitted_candidates(catalog, seed)
