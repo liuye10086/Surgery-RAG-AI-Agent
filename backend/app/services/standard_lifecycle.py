@@ -243,6 +243,32 @@ def _validation_for_publish(rules: list[Any], *, disease_key: str | None = None)
         return validate_version_rules(rules)
 
 
+def submit_review_version(
+    db: Any,
+    *,
+    version_id: int,
+    commit: bool = True,
+) -> Any:
+    version = (
+        db.query(ReferenceStandardVersion)
+        .filter(ReferenceStandardVersion.id == version_id)
+        .with_for_update()
+        .first()
+    )
+    if version is None:
+        raise ValueError("标准版本不存在")
+    if version.status != "draft":
+        raise ValueError("只有 draft 版本可以提交审核")
+    version.status = "review"
+    if commit:
+        db.commit()
+        if hasattr(db, "refresh"):
+            db.refresh(version)
+    elif hasattr(db, "flush"):
+        db.flush()
+    return version
+
+
 def publish_review_version(db: Any, *, version_id: int, admin_id: int, commit: bool = True) -> Any:
     """Approve a review version, replace current projections, and update the pointer atomically."""
     version_probe = db.query(ReferenceStandardVersion).filter(

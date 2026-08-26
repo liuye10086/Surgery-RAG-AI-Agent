@@ -15,7 +15,7 @@ for item in (PROJECT_ROOT, BACKEND_ROOT):
 
 from app.services.standard_manifest import load_standard_manifest
 from app.services.standard_manifest_import import import_manifest_rules, plan_manifest_import
-from app.services.standard_lifecycle import publish_review_version
+from app.services.standard_lifecycle import publish_review_version, submit_review_version
 
 
 def configure_stdout_utf8() -> None:
@@ -37,7 +37,10 @@ def open_transaction():
 def execute_changes(db, args):
     manifest = load_standard_manifest(args.manifest)
     result = import_manifest_rules(db, manifest=manifest, version_id=args.version_id, admin_id=args.admin_id) if args.import_rules else None
-    published = publish_review_version(db, version_id=args.version_id, admin_id=args.admin_id, commit=False) if args.publish else None
+    published = None
+    if args.publish:
+        submit_review_version(db, version_id=args.version_id, commit=False)
+        published = publish_review_version(db, version_id=args.version_id, admin_id=args.admin_id, commit=False)
     return result, published
 
 

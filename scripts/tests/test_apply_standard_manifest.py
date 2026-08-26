@@ -29,3 +29,37 @@ def test_execute_path_rolls_back_on_failure(monkeypatch, capsys, tmp_path):
     assert script.main(["--manifest", str(tmp_path / "x.json"), "--source", str(tmp_path / "x.docx"), "--version-id", "4", "--admin-id", "7", "--execute"]) == 2
     assert transaction.rollbacks == 1
     assert transaction.commits == 0
+
+
+def test_execute_publish_submits_draft_for_review_before_publication(monkeypatch):
+    script = _load()
+    args = type("Args", (), {
+        "manifest": Path("approved.json"),
+        "version_id": 4,
+        "admin_id": 7,
+        "import_rules": True,
+        "publish": True,
+    })()
+    events = []
+    manifest = object()
+
+    monkeypatch.setattr(script, "load_standard_manifest", lambda path: manifest)
+    monkeypatch.setattr(
+        script,
+        "import_manifest_rules",
+        lambda db, **kwargs: events.append("import") or object(),
+    )
+    monkeypatch.setattr(
+        script,
+        "submit_review_version",
+        lambda db, **kwargs: events.append("review") or object(),
+    )
+    monkeypatch.setattr(
+        script,
+        "publish_review_version",
+        lambda db, **kwargs: events.append("publish") or object(),
+    )
+
+    script.execute_changes(object(), args)
+
+    assert events == ["import", "review", "publish"]

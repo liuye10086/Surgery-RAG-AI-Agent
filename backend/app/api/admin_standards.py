@@ -37,6 +37,7 @@ from app.services.standard_lifecycle import (
     publish_approved_version,
     publish_review_version,
     retire_current_version,
+    submit_review_version,
     update_draft_rule,
 )
 from app.services.standard_parser import build_llm_candidate, parse_standard_docx
@@ -246,13 +247,10 @@ def parse_version(version_id: int, admin=Depends(require_admin), db: Session = D
 
 @router.post("/admin/reference-standard-versions/{version_id}/submit-review", response_model=StandardVersionOut)
 def submit_review(version_id: int, admin=Depends(require_admin), db: Session = Depends(get_db)):
-    version = _version_or_404(db, version_id, for_update=True)
-    if version.status != "draft":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="只有 draft 版本可以提交审核")
-    version.status = "review"
-    db.commit()
-    db.refresh(version)
-    return version
+    try:
+        return submit_review_version(db, version_id=version_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
 @router.post("/admin/reference-standard-versions/{version_id}/approve", response_model=StandardVersionOut)

@@ -592,6 +592,34 @@ def test_transition_to_approved_uses_ad_evidence_only_exception():
     assert result.status == "approved"
 
 
+def test_submit_review_version_is_transaction_neutral_when_commit_is_false():
+    from app.services import standard_lifecycle
+
+    assert hasattr(standard_lifecycle, "submit_review_version")
+    submit_review_version = standard_lifecycle.submit_review_version
+    version = SimpleNamespace(id=2, status="draft")
+
+    class Query:
+        def filter(self, *args, **kwargs): return self
+        def with_for_update(self): return self
+        def first(self): return version
+
+    class Session:
+        commits = 0
+        flushes = 0
+        def query(self, model): return Query()
+        def flush(self): self.flushes += 1
+        def commit(self): self.commits += 1
+        def refresh(self, value): return None
+
+    db = Session()
+    result = submit_review_version(db, version_id=2, commit=False)
+
+    assert result.status == "review"
+    assert db.flushes == 1
+    assert db.commits == 0
+
+
 def test_transition_version_locks_row_before_status_transition():
     version = SimpleNamespace(
         id=2,
