@@ -115,15 +115,12 @@ def predict_indicator_trends(visits: list[dict[str, Any]], adapter: DiseaseProgr
         model_info = registry.get(indicator)
         direction = "unavailable"
         model = model_info.get("model") if isinstance(model_info, dict) else model_info
-        if model is not None and observed.get("last") is not None:
-            try:
-                direction = str(model.predict([[float(observed["last"])]])[0])
-            except (AttributeError, IndexError, TypeError, ValueError):
-                # A stale or incompatible registry must not block the report;
-                # the observed longitudinal slope remains a transparent fallback.
-                direction = "unavailable"
-        if direction == "unavailable" and observed.get("slope") is not None:
-            direction = "rising" if observed["slope"] > 0 else "falling" if observed["slope"] < 0 else "stable"
+        if model is None or observed.get("last") is None:
+            continue
+        try:
+            direction = str(model.predict([[float(observed["last"])]])[0])
+        except (AttributeError, IndexError, TypeError, ValueError):
+            continue
         forecast_direction = f"likely_{direction}" if direction in {"rising", "falling", "stable"} else "unavailable"
         predictions.append({
             "indicator": indicator,

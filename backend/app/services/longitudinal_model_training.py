@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import subprocess
+import sys
 from typing import Any, Sequence
 
 from sklearn.compose import ColumnTransformer
@@ -13,6 +16,12 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from app.schemas.longitudinal_dataset import FixedWindowSample
+from app.schemas.longitudinal_model_registry import (
+    ARTIFACT_METADATA_SCHEMA_VERSION,
+    TASK_CONTRACTS,
+    ArtifactMetadata,
+    feature_order_sha256,
+)
 from app.schemas.longitudinal_model_training import DatasetInput, GroupSplit, InputAudit, TASK_SPECS, TaskSpec, FoldMetrics, EvaluationSummary
 from app.services.longitudinal_model_evaluation import compute_binary_metrics, select_oof_f1_threshold
 
@@ -32,6 +41,14 @@ class FeatureCatalog:
     feature_names: tuple[str, ...]
     numeric_features: tuple[str, ...]
     categorical_features: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CandidateBundleResult:
+    bundle_dir: Path
+    model_path: Path
+    metadata_path: Path
+    metadata: ArtifactMetadata
 
 
 _FORBIDDEN = {"schema_version", "disease", "disease_name", "source_dataset", "patient_label", "group_id", "is_synthetic", "source_document", "import_version", "as_of", "current_state", "target_event", "history_visit_count", "history_start", "label", "event_type", "event_date", "last_followup_date", "final_stage", "confirmed", "event_dates", "future", "dementia_date"}
@@ -209,8 +226,12 @@ def train_task_to_candidate(rows: Sequence[TrainingRow], task: TaskSpec, dataset
 
 
 def write_candidate_artifact(result, output_dir: Path):
+    """Legacy P0-04 compatibility writer.
+
+    P0-05 callers must use :func:`write_candidate_bundle` so each task owns
+    an immutable directory and complete metadata contract.
+    """
     import joblib
-    import json
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
     model_path = Path(result["model_path"])
@@ -222,6 +243,149 @@ def write_candidate_artifact(result, output_dir: Path):
     metadata = {"schema_version": "longitudinal_outcome_model_training.v1", "task": result["task"], "dataset_manifest_sha256": result["dataset_input"].manifest_sha256, "data_content_sha256": result["dataset_input"].data_content_sha256, "dataset_file_sha256": result["dataset_input"].file_sha256, "feature_order_sha256": hashlib.sha256(json.dumps(catalog.feature_names, separators=(",", ":")).encode()).hexdigest(), "feature_names": list(catalog.feature_names), "row_count": result["row_count"], "patient_count": result["patient_count"], "status": "candidate", "production_enabled": False, "clinical_validity_claim": False, "leakage_audit": {"synthetic_in_formal_metrics": False, "status": "passed"}, "model": {"algorithm": "logistic_regression", "random_seed": result.get("seed", 42)}, "evaluation": result.get("evaluation", {}), "threshold": {"baseline": 0.5, "development_selected": (result.get("evaluation", {}).get("aggregate") or {}).get("oof_threshold"), "selection_method": "oof_f1"}, "calibration": {"status": "not_calibrated"}}
     meta_path.write_text(json.dumps(metadata, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
     return model_path, meta_path
+
+
+def _code_version() -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    return completed.stdout.strip() or "unknown"
+
+
+def _artifact_metadata(result: dict[str, Any], model_path: Path) -> ArtifactMetadata:
+    import joblib
+    import numpy
+    import pandas
+    import sklearn
+
+    task_name = result["task"]
+    contract = TASK_CONTRACTS[task_name]
+    catalog: FeatureCatalog = result["catalog"]
+    names = list(catalog.feature_names)
+    required = [
+        name
+        for name in ("visit_count", "observation_span_days", "days_since_previous_visit")
+        if name in names
+    ]
+    allowed_missing = [name for name in names if name not in required]
+    artifact_hash = _sha256(model_path)
+    evaluation = result.get("evaluation") or {}
+    aggregate = evaluation.get("aggregate") or {}
+    threshold = aggregate.get("oof_threshold")
+    if threshold is None:
+        threshold = 0.5
+    model_name = result.get("model_name", "logistic_regression")
+    created_at = result.get("created_at") or datetime.now(timezone.utc)
+    version = created_at.astimezone(timezone.utc).strftime("%Y.%m.%d.%H%M%S")
+    return ArtifactMetadata.model_validate(
+        {
+            "schema_version": ARTIFACT_METADATA_SCHEMA_VERSION,
+            "artifact_type": "outcome",
+            "task": task_name,
+            "dataset": contract.dataset,
+            "disease": contract.disease,
+            "current_state": contract.current_state,
+            "target": contract.target,
+            "horizon_days": contract.horizon_days,
+            "feature_contract": {
+                "schema_version": "longitudinal_fixed_window_features.v1",
+                "feature_version": "longitudinal_fixed_window_features.v1",
+                "feature_names": names,
+                "feature_order_sha256": feature_order_sha256(names),
+                "numeric_features": list(catalog.numeric_features),
+                "categorical_features": list(catalog.categorical_features),
+                "required_features": required,
+                "allowed_missing_features": allowed_missing,
+                "input_container": "pandas_dataframe",
+                "numeric_imputation": "median_add_indicator",
+                "categorical_imputation": "most_frequent",
+            },
+            "dataset_contract": {
+                "schema_version": result["dataset_input"].schema_version,
+                "manifest_sha256": result["dataset_input"].manifest_sha256,
+                "data_content_sha256": result["dataset_input"].data_content_sha256,
+                "training_file_sha256": result["dataset_input"].file_sha256,
+            },
+            "model_contract": {
+                "model_id": f"{contract.artifact_stem}-{artifact_hash[:12]}",
+                "model_name": model_name,
+                "model_version": version,
+                "algorithm": model_name,
+                "artifact_sha256": artifact_hash,
+                "packages": {
+                    "python": f"{sys.version_info.major}.{sys.version_info.minor}",
+                    "scikit_learn": sklearn.__version__,
+                    "joblib": joblib.__version__,
+                    "numpy": numpy.__version__,
+                    "pandas": pandas.__version__,
+                },
+            },
+            "score_contract": {
+                "semantics": "model_score",
+                "positive_class": 1,
+                "threshold": float(threshold),
+                "minimum": 0.0,
+                "maximum": 1.0,
+            },
+            "calibration": {"status": "not_calibrated", "method": None},
+            "audit": {
+                "leakage_status": (
+                    result.get("leakage_status")
+                    or result.get("leakage_audit", {}).get("status")
+                    or "passed"
+                ),
+                "clinical_validity_claim": False,
+                "code_version": _code_version(),
+            },
+            "status": "candidate",
+            "production_enabled": False,
+            "created_at": created_at,
+        }
+    )
+
+
+def write_candidate_bundle(
+    result: dict[str, Any], bundle_root: Path
+) -> CandidateBundleResult:
+    import joblib
+
+    root = Path(bundle_root)
+    contract = TASK_CONTRACTS[result["task"]]
+    bundle_dir = root / contract.artifact_stem
+    if bundle_dir.exists():
+        raise FileExistsError(bundle_dir)
+    bundle_dir.mkdir(parents=True, exist_ok=False)
+    model_path = bundle_dir / f"{contract.artifact_stem}.joblib"
+    metadata_path = bundle_dir / f"{contract.artifact_stem}.meta.json"
+    try:
+        joblib.dump(result["model"], model_path)
+        metadata = _artifact_metadata(result, model_path)
+        metadata_path.write_text(
+            metadata.model_dump_json(indent=2), encoding="utf-8"
+        )
+    except Exception:
+        if metadata_path.exists():
+            metadata_path.unlink()
+        if model_path.exists():
+            model_path.unlink()
+        try:
+            bundle_dir.rmdir()
+        except OSError:
+            pass
+        raise
+    return CandidateBundleResult(
+        bundle_dir=bundle_dir,
+        model_path=model_path,
+        metadata_path=metadata_path,
+        metadata=metadata,
+    )
 
 
 def run_development_cv(rows: Sequence[TrainingRow], task: TaskSpec, *, seed: int = 42) -> EvaluationSummary:

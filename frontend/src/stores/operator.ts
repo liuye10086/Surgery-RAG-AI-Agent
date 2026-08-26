@@ -113,7 +113,7 @@ export const useOperatorStore = defineStore('operator', () => {
     if (!currentLongitudinalCase.value && result.cases.length) currentLongitudinalCase.value = result.cases[0]
   }
 
-  async function saveLongitudinalCase(data: { disease_id: number; patient_label: string; sex?: string | null; baseline_stage?: string | null; notes?: string | null; visits?: Array<{ visit_date: string; indicators: IndicatorInput[]; notes?: string | null }> }) {
+  async function saveLongitudinalCase(data: { disease_id: number; patient_label: string; sex?: string | null; baseline_stage?: import('@/api/operator').BaselineStage | null; notes?: string | null; visits?: Array<{ visit_date: string; indicators: IndicatorInput[]; notes?: string | null }> }) {
     const { visits, ...caseData } = data
     const saved = currentLongitudinalCase.value?.id
       ? await updateLongitudinalCase(currentLongitudinalCase.value.id, caseData)

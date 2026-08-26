@@ -100,13 +100,23 @@ export interface LongitudinalVisit {
   notes?: string | null
 }
 
+export type BaselineStage =
+  | 'pre_cirrhosis'
+  | 'cirrhosis'
+  | 'suspected_cirrhosis'
+  | 'hcc'
+  | 'normal'
+  | 'mci'
+  | 'pre_dementia'
+  | 'dementia'
+
 export interface LongitudinalCase {
   id: number
   user_id: number
   disease_id: number
   patient_label: string
   sex?: 'male' | 'female' | null
-  baseline_stage?: string | null
+  baseline_stage?: BaselineStage | string | null
   notes?: string | null
   status: string
   visits: LongitudinalVisit[]
@@ -127,7 +137,7 @@ export function listLongitudinalCases(diseaseId?: number): Promise<{ cases: Long
   return request.get('/v1/operator/longitudinal-cases', { params: diseaseId ? { disease_id: diseaseId } : {} })
 }
 
-export function createLongitudinalCase(data: { disease_id: number; patient_label: string; sex?: string | null; baseline_stage?: string | null; notes?: string | null }): Promise<LongitudinalCase> {
+export function createLongitudinalCase(data: { disease_id: number; patient_label: string; sex?: string | null; baseline_stage?: BaselineStage | null; notes?: string | null }): Promise<LongitudinalCase> {
   return request.post('/v1/operator/longitudinal-cases', data)
 }
 

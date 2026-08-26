@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.longitudinal_model_registry import ModelRuntimeStatus
+
 
 class StageProjection(BaseModel):
     status: Literal["available", "not_estimated"]
@@ -51,7 +53,14 @@ class TrendPrediction(BaseModel):
     importance: dict[str, Any] = Field(default_factory=dict)
 
 
-class LongitudinalPredictionResult(BaseModel):
+class PredictionModelStatus(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    outcome: ModelRuntimeStatus
+    stage: ModelRuntimeStatus
+    trend: ModelRuntimeStatus
+
+
+class LongitudinalPredictionResultV1(BaseModel):
     model_config = ConfigDict(extra="forbid")
     schema_version: Literal["longitudinal_prediction.v1"] = "longitudinal_prediction.v1"
     disease: dict[str, Any]
@@ -60,6 +69,37 @@ class LongitudinalPredictionResult(BaseModel):
     trend_predictions: list[TrendPrediction] = Field(default_factory=list)
     evidence: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
+
+
+class LongitudinalPredictionResultV2(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    schema_version: Literal["longitudinal_prediction.v2"] = "longitudinal_prediction.v2"
+    disease: dict[str, Any]
+    observation: dict[str, Any]
+    outcome_prediction: OutcomePrediction
+    trend_predictions: list[TrendPrediction] = Field(default_factory=list)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    model_status: PredictionModelStatus
+
+    @model_validator(mode="after")
+    def unavailable_models_have_no_predictions(self):
+        if self.model_status.outcome.status != "available" and (
+            self.outcome_prediction.risk_score is not None
+            or self.outcome_prediction.risk_band is not None
+        ):
+            raise ValueError("不可用 outcome 模型不能输出风险结果")
+        stage = self.outcome_prediction.stage_projection
+        if self.model_status.stage.status != "available" and (
+            stage.likely_next_stage is not None or stage.stage_candidates
+        ):
+            raise ValueError("不可用 stage 模型不能输出阶段猜测")
+        if self.model_status.trend.status != "available" and self.trend_predictions:
+            raise ValueError("不可用 trend 模型不能输出未来趋势")
+        return self
+
+
+LongitudinalPredictionResult = LongitudinalPredictionResultV2
 
 
 class LongitudinalReportRequest(BaseModel):

@@ -304,7 +304,7 @@ async function handleLongitudinalCaseSaved(draft: any) {
         })),
         notes: visit.notes || null,
       }))
-    const saved = await operatorStore.saveLongitudinalCase({ disease_id: draft.disease_id, patient_label: draft.patient_label, sex: draft.sex, visits })
+    const saved = await operatorStore.saveLongitudinalCase({ disease_id: draft.disease_id, patient_label: draft.patient_label, sex: draft.sex, baseline_stage: draft.baseline_stage || null, visits })
     operatorStore.generateLongitudinalReport(saved.id)
     ElMessage.success('已开始生成纵向预测报告')
   } catch (error: any) {

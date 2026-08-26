@@ -35,5 +35,14 @@ class DocumentGrantTests(unittest.TestCase):
         self.assertFalse(source_grants_document({"document_id": 13}, 12))
 
 
+class LongitudinalErrorTests(unittest.TestCase):
+    def test_safe_longitudinal_error_is_stable_and_contains_no_details(self):
+        from app.services.longitudinal_report_generator import safe_longitudinal_error
+
+        persisted, message = safe_longitudinal_error("longitudinal_prediction_failed")
+        self.assertEqual(persisted, "longitudinal_prediction_failed")
+        self.assertEqual(message, "纵向预测暂时无法完成")
+
+
 if __name__ == "__main__":
     unittest.main()

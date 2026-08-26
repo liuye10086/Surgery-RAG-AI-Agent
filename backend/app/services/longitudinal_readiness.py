@@ -30,6 +30,8 @@ from app.services.disease_progression import (
     DiseaseProgressionAdapter,
 )
 from app.services.longitudinal_features import build_prefixes
+from app.services.longitudinal_model_registry import load_model_registry
+from app.schemas.longitudinal_model_registry import TASK_CONTRACTS
 from scripts.check_model_artifacts import sha256_file
 
 
@@ -455,6 +457,101 @@ def check_outcome_artifact(
     )
 
 
+def _runtime_to_readiness(status) -> ArtifactReadiness:
+    return ArtifactReadiness(
+        status=status.status,
+        artifact_type="outcome",
+        task=status.task,
+        reason_code=status.reason_code,
+        lifecycle_status=status.lifecycle_status,
+        model_id=status.model_id,
+        model_name=status.model_name,
+        model_version=status.model_version,
+        artifact_sha256=status.artifact_sha256,
+        metadata={
+            key: value
+            for key, value in {
+                "target": status.target,
+                "horizon_days": status.horizon_days,
+                "feature_version": status.feature_version,
+                "score_semantics": status.score_semantics,
+                "calibration_status": status.calibration_status,
+            }.items()
+            if value is not None
+        },
+        issues=[] if status.status == "available" else [status.reason_code],
+    )
+
+
+def check_outcome_tasks(
+    dataset: str,
+    registry_root: Path,
+) -> tuple[dict[str, ArtifactReadiness], list[ReadinessReason]]:
+    registry = load_model_registry(dataset, registry_root=registry_root)
+    tasks = {
+        task: _runtime_to_readiness(entry.status)
+        for task, entry in registry.outcomes.items()
+    }
+    reasons = [
+        _reason(
+            artifact.reason_code or "outcome_model_unavailable",
+            "未来365天结局模型当前不可用于正式推理",
+            "blocked",
+            "P0-05",
+            task=task,
+            runtime_status=artifact.status,
+        )
+        for task, artifact in tasks.items()
+        if artifact.status != "available"
+    ]
+    return tasks, reasons
+
+
+def summarize_outcome_tasks(
+    dataset: str,
+    tasks: dict[str, ArtifactReadiness],
+) -> ArtifactReadiness:
+    applicable = [
+        artifact
+        for task, artifact in tasks.items()
+        if TASK_CONTRACTS[task].dataset == dataset
+    ]
+    available = [item for item in applicable if item.status == "available"]
+    if available:
+        return ArtifactReadiness(
+            status="available",
+            artifact_type="outcome",
+            reason_code="at_least_one_outcome_task_available",
+            metadata={
+                "available_task_count": len(available),
+                "task_count": len(applicable),
+                "calibration_status": (
+                    "calibrated"
+                    if all(
+                        item.metadata.get("calibration_status") == "calibrated"
+                        for item in available
+                    )
+                    else "not_calibrated"
+                ),
+            },
+        )
+    severity = {"missing": 0, "disabled": 1, "incompatible": 2}
+    worst = max(applicable, key=lambda item: severity.get(item.status, 0))
+    return ArtifactReadiness(
+        status=worst.status,
+        artifact_type="outcome",
+        reason_code=worst.reason_code,
+        issues=sorted(
+            {
+                item.reason_code
+                for item in applicable
+                if item.reason_code is not None
+            }
+        ),
+        metadata={"available_task_count": 0, "task_count": len(applicable)},
+    )
+
+
 def check_optional_artifacts(
     adapter: DiseaseProgressionAdapter,
     model_dir: Path,
@@ -757,9 +854,10 @@ def build_readiness_report(
             dataset=adapter.dataset,
         )
         reasons.extend(standard_reasons)
-        outcome, outcome_reasons = check_outcome_artifact(
+        outcome_tasks, outcome_reasons = check_outcome_tasks(
             adapter.dataset, Path(model_dir)
         )
+        outcome = summarize_outcome_tasks(adapter.dataset, outcome_tasks)
         reasons.extend(outcome_reasons)
         stage, trends, optional_reasons = check_optional_artifacts(
             adapter, Path(model_dir)
@@ -783,6 +881,7 @@ def build_readiness_report(
             standard=standard,
             models=ModelReadiness(
                 outcome=outcome,
+                outcome_tasks=outcome_tasks,
                 stage=stage,
                 trends=trends,
             ),

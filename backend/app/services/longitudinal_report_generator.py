@@ -9,6 +9,18 @@ from typing import AsyncGenerator, Any
 from app.services.longitudinal_prediction import prediction_result_to_dict, run_longitudinal_prediction
 
 
+SAFE_LONGITUDINAL_ERRORS = {
+    "longitudinal_prediction_failed": "纵向预测暂时无法完成",
+}
+
+
+def safe_longitudinal_error(code: str) -> tuple[str, str]:
+    stable_code = (
+        code if code in SAFE_LONGITUDINAL_ERRORS else "longitudinal_prediction_failed"
+    )
+    return stable_code, SAFE_LONGITUDINAL_ERRORS[stable_code]
+
+
 def _sse(event: str, data: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -54,7 +66,50 @@ def _render_source(source: dict[str, Any]) -> str:
     return f"参考病例：{source.get('patient_label', '未标记来源')}（{source.get('provenance', 'reference')}）"
 
 
+def normalize_prediction_for_render(prediction: dict[str, Any]) -> dict[str, Any]:
+    value = dict(prediction)
+    if value.get("schema_version") == "longitudinal_prediction.v2" and isinstance(
+        value.get("model_status"), dict
+    ):
+        return value
+    value.setdefault("schema_version", "longitudinal_prediction.v1")
+    value["model_status"] = None
+    return value
+
+
+def _model_status_lines(prediction: dict[str, Any]) -> list[str]:
+    statuses = prediction.get("model_status")
+    if not isinstance(statuses, dict):
+        return []
+    outcome = statuses.get("outcome") or {}
+    stage = statuses.get("stage") or {}
+    trend = statuses.get("trend") or {}
+    if outcome.get("status") == "available":
+        outcome_line = (
+            f"365 天结局模型：已启用并参与本次推理；任务 {outcome.get('task')}，"
+            f"版本 {outcome.get('model_version') or '未记录'}。"
+        )
+    elif outcome.get("status") == "disabled":
+        outcome_line = "365 天结局模型：未启用，因此未计算风险分数。"
+    elif outcome.get("status") == "missing":
+        outcome_line = "365 天结局模型：尚未配置，因此未计算风险分数。"
+    else:
+        outcome_line = "365 天结局模型：与当前契约不兼容，因此未计算风险分数。"
+    stage_line = (
+        "阶段模型：尚未配置，因此未预测下一阶段。"
+        if stage.get("status") != "available"
+        else "阶段模型：已参与本次推理。"
+    )
+    trend_line = (
+        "趋势模型：尚未配置，仅展示已观察到的指标变化。"
+        if trend.get("status") != "available"
+        else "趋势模型：已参与本次推理。"
+    )
+    return [outcome_line, stage_line, trend_line]
+
+
 def render_longitudinal_markdown(prediction: dict[str, Any], sources: list[dict[str, Any]] | None = None) -> str:
+    prediction = normalize_prediction_for_render(prediction)
     outcome = prediction["outcome_prediction"]
     stage = outcome["stage_projection"]
     lines = [
@@ -75,6 +130,7 @@ def render_longitudinal_markdown(prediction: dict[str, Any], sources: list[dict[
         forecast = item["forecast"]
         lines.append(f"- {item['indicator']}: {forecast.get('direction') or '不可估计'}（{forecast['status']}）。")
     lines.extend(["", "## 5. 疾病阶段与进展结局预测", f"阶段模型状态：{stage['status']}。", f"可能下一阶段：{stage.get('likely_next_stage') or '未估计'}。", "", "## 6. 关键进展信号"])
+    lines[lines.index("## 5. 疾病阶段与进展结局预测") + 1:lines.index("## 5. 疾病阶段与进展结局预测") + 1] = _model_status_lines(prediction)
     lines.extend([f"- {item['indicator']}: {item['importance'].get('role')}" for item in prediction.get("trend_predictions", [])])
     lines.extend(["", "## 7. 相似病例与参考依据"])
     for source in sources or []:
@@ -112,10 +168,11 @@ async def generate_longitudinal_report(db, report_id: int, case: dict[str, Any],
             report.error_message = "用户取消生成"
             db.commit()
         return
-    except Exception as exc:
+    except Exception:
+        code, message = safe_longitudinal_error("longitudinal_prediction_failed")
         report = db.query(AIReport).filter(AIReport.id == report_id).first()
         if report is not None:
             report.status = "failed"
-            report.error_message = str(exc)
+            report.error_message = code
             db.commit()
-        yield _sse("error", {"message": str(exc)})
+        yield _sse("error", {"message": message, "code": code})

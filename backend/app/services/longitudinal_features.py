@@ -15,6 +15,16 @@ from math import isfinite
 from statistics import fmean
 from typing import Any, Iterable
 
+from app.schemas.longitudinal_model_registry import ArtifactMetadata
+
+
+class InferenceContractError(ValueError):
+    """Privacy-safe failure in the online feature contract."""
+
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
 
 def _visit_date(value: Any) -> date:
     """Normalize supported date representations to a calendar date."""
@@ -328,3 +338,79 @@ def build_feature_vector(
         value = summary.get(indicator_name.strip().lower(), {}).get(statistic)
         vector.append(float(value) if value is not None else float("nan"))
     return vector
+
+
+def _reject_non_finite_inputs(visits: Iterable[dict[str, Any]]) -> None:
+    for visit in visits:
+        for indicator in visit.get("indicators") or []:
+            if not isinstance(indicator, dict):
+                continue
+            raw = indicator.get("value")
+            if raw is None:
+                continue
+            if isinstance(raw, bool):
+                raise InferenceContractError("non_finite_feature")
+            try:
+                numeric = float(raw)
+            except (TypeError, ValueError) as exc:
+                raise InferenceContractError("non_finite_feature") from exc
+            if not isfinite(numeric):
+                raise InferenceContractError("non_finite_feature")
+
+
+def build_fixed_window_inference_features(
+    case: dict[str, Any],
+    visits: Iterable[dict[str, Any]],
+    metadata: ArtifactMetadata,
+):
+    """Build one P0-04-compatible, metadata-ordered inference DataFrame."""
+    import pandas as pd
+
+    visit_rows = list(visits)
+    _reject_non_finite_inputs(visit_rows)
+    contract = metadata.feature_contract
+    if contract.input_container != "pandas_dataframe":
+        raise InferenceContractError("input_container_mismatch")
+    if not contract.feature_names or len(contract.feature_names) != len(
+        set(contract.feature_names)
+    ):
+        raise InferenceContractError("feature_names_invalid")
+
+    summary = summarize_fixed_window_history(visit_rows)
+    values: dict[str, Any] = {
+        "age": None,
+        "sex": case.get("sex"),
+        "visit_count": summary["visit_count"],
+        "observation_span_days": summary["observation_span_days"],
+        "days_since_previous_visit": summary["days_since_previous_visit"],
+    }
+    for indicator_name, indicator in summary["indicators"].items():
+        for statistic, value in indicator.items():
+            values[f"{indicator_name}.{statistic}"] = value
+
+    row = {name: values.get(name) for name in contract.feature_names}
+    for name in contract.required_features:
+        value = row.get(name)
+        if value is None or (isinstance(value, float) and not isfinite(value)):
+            raise InferenceContractError("required_feature_missing")
+    allowed_missing = set(contract.allowed_missing_features)
+    for name, value in row.items():
+        if value is None:
+            if name not in allowed_missing:
+                raise InferenceContractError("required_feature_missing")
+            continue
+        if name in contract.numeric_features:
+            if isinstance(value, bool):
+                raise InferenceContractError("non_finite_feature")
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError) as exc:
+                raise InferenceContractError("non_finite_feature") from exc
+            if not isfinite(numeric):
+                raise InferenceContractError("non_finite_feature")
+            row[name] = numeric
+
+    frame = pd.DataFrame([row], columns=contract.feature_names)
+    if list(frame.columns) != contract.feature_names:
+        raise InferenceContractError("feature_order_mismatch")
+    return frame

@@ -322,11 +322,7 @@ async def create_longitudinal_report(
     db.add(report)
     db.commit()
     db.refresh(report)
-    try:
-        model_registry = load_model_registry(adapter.dataset)
-    except Exception:
-        logger.exception("Longitudinal model artifacts unavailable for dataset=%s", adapter.dataset)
-        model_registry = {}
+    model_registry = load_model_registry(adapter.dataset)
     return StreamingResponse(generate_longitudinal_report(db, report.id, snapshot, visits, adapter, model_registry=model_registry, sources=sources), media_type="text/event-stream")
 
 

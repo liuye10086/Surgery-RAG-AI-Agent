@@ -4,6 +4,8 @@ from __future__ import annotations
 from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.longitudinal_model_registry import TASK_CONTRACTS
+
 MODEL_TRAINING_SCHEMA_VERSION = "longitudinal_outcome_model_training.v1"
 
 class StrictModel(BaseModel):
@@ -17,9 +19,14 @@ class TaskSpec(StrictModel):
     dataset_file: str
 
 TASK_SPECS = {
-    "fatty_liver.pre_cirrhosis_to_progression": TaskSpec(task="fatty_liver.pre_cirrhosis_to_progression", disease="fatty_liver", current_state="pre_cirrhosis", target_event="cirrhosis_or_hcc", dataset_file="fatty_liver/real_train.jsonl"),
-    "fatty_liver.cirrhosis_to_hcc": TaskSpec(task="fatty_liver.cirrhosis_to_hcc", disease="fatty_liver", current_state="cirrhosis", target_event="hcc", dataset_file="fatty_liver/real_train.jsonl"),
-    "ad.pre_dementia_to_dementia": TaskSpec(task="ad.pre_dementia_to_dementia", disease="ad", current_state="pre_dementia", target_event="dementia", dataset_file="ad/real_train.jsonl"),
+    name: TaskSpec(
+        task=name,
+        disease=contract.dataset,
+        current_state=contract.current_state,
+        target_event=contract.target,
+        dataset_file=contract.dataset_file,
+    )
+    for name, contract in TASK_CONTRACTS.items()
 }
 
 class DatasetInput(StrictModel):

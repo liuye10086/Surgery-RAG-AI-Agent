@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import shutil
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,7 +14,7 @@ for path in (ROOT, BACKEND):
         sys.path.insert(0, str(path))
 
 from app.schemas.longitudinal_model_training import TASK_SPECS
-from app.services.longitudinal_model_training import ModelInputError, read_dataset_manifest, read_real_train_samples, select_task_samples, train_task_to_candidate, write_candidate_artifact
+from app.services.longitudinal_model_training import ModelInputError, read_dataset_manifest, read_real_train_samples, select_task_samples, train_task_to_candidate, write_candidate_bundle
 
 
 def build_error_payload(code: str) -> dict[str, object]:
@@ -37,11 +38,25 @@ def run_training(dataset_dir: Path, output_dir: Path, *, seed: int = 42) -> dict
     output.mkdir(parents=True, exist_ok=True)
     dataset = read_dataset_manifest(dataset_dir)
     results = {}
-    for name, task in TASK_SPECS.items():
-        rows = select_task_samples(read_real_train_samples(dataset_dir, task.disease), name)
-        result = train_task_to_candidate(rows, task, dataset, output, seed=seed)
-        model_path, meta_path = write_candidate_artifact(result, output)
-        results[name] = {"model": model_path.name, "metadata": meta_path.name, "status": "candidate"}
+    fit_dir = output / ".fit"
+    try:
+        for name, task in TASK_SPECS.items():
+            rows = select_task_samples(read_real_train_samples(dataset_dir, task.disease), name)
+            result = train_task_to_candidate(rows, task, dataset, fit_dir, seed=seed)
+            bundle = write_candidate_bundle(result, output)
+            results[name] = {
+                "bundle": bundle.bundle_dir.name,
+                "model": bundle.model_path.name,
+                "metadata": bundle.metadata_path.name,
+                "model_id": bundle.metadata.model_contract.model_id,
+                "model_version": bundle.metadata.model_contract.model_version,
+                "artifact_sha256": bundle.metadata.model_contract.artifact_sha256,
+                "status": "candidate",
+                "production_enabled": False,
+            }
+    finally:
+        if fit_dir.is_dir():
+            shutil.rmtree(fit_dir)
     return {"schema_version": "longitudinal_outcome_model_training.v1", "status": "candidate", "tasks": results}
 
 

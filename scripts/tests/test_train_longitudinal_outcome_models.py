@@ -1,6 +1,7 @@
 import importlib.util
 import json
 from pathlib import Path
+from types import SimpleNamespace
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -37,3 +38,38 @@ def test_cli_sanitizes_errors(cli, monkeypatch, tmp_path, capsys):
 def test_cli_never_auto_enables_registry(cli, monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run_training", lambda *args, **kwargs: {"status": "candidate"})
     assert cli.main(["--dataset-dir", str(tmp_path), "--train", "--output-dir", str(tmp_path / "out")]) == 0
+
+
+def test_training_summary_contains_only_candidate_bundles(cli, monkeypatch, tmp_path):
+    class Bundle:
+        def __init__(self, task):
+            self.bundle_dir = tmp_path / "out" / task.replace(".", "_")
+            self.model_path = self.bundle_dir / "model.joblib"
+            self.metadata_path = self.bundle_dir / "model.meta.json"
+            self.metadata = SimpleNamespace(
+                model_contract=SimpleNamespace(
+                    model_id=f"{task}-model",
+                    model_version="2026.08.26.1",
+                    artifact_sha256="a" * 64,
+                )
+            )
+
+    monkeypatch.setattr(cli, "read_dataset_manifest", lambda _: object())
+    monkeypatch.setattr(cli, "read_real_train_samples", lambda *_: [object()])
+    monkeypatch.setattr(cli, "select_task_samples", lambda samples, task: [task])
+    def fake_train(*args, **kwargs):
+        fit_dir = Path(args[3])
+        fit_dir.mkdir(parents=True, exist_ok=True)
+        (fit_dir / f"{args[1].task}.joblib").write_bytes(b"intermediate")
+        return {"task": args[1].task}
+
+    monkeypatch.setattr(cli, "train_task_to_candidate", fake_train)
+    monkeypatch.setattr(cli, "write_candidate_bundle", lambda result, root: Bundle(result["task"]))
+
+    payload = cli.run_training(tmp_path / "dataset", tmp_path / "out")
+    assert payload["status"] == "candidate"
+    assert set(payload["tasks"]) == set(cli.TASK_SPECS)
+    assert all(item["status"] == "candidate" for item in payload["tasks"].values())
+    assert not list((tmp_path / "out").rglob("review*.json"))
+    assert not list((tmp_path / "out").rglob("release*.json"))
+    assert not (tmp_path / "out" / ".fit").exists()

@@ -578,6 +578,22 @@ P3-04 前端生成状态与故障解释
 
 ### P0-05：统一模型 registry、状态和推理契约
 
+**状态**：`completed`
+
+**Task-ID**：`longitudinal-registry-001`
+
+**设计文档**：`docs/superpowers/specs/2026-08-26-longitudinal-registry-design.md`
+
+**实施计划**：`docs/superpowers/plans/2026-08-26-longitudinal-registry.md`
+
+**验证记录**：已建立共享任务级 registry、严格 artifact metadata/hash 校验、candidate → reviewed → enabled 的不可变临时发布链、运行时 `available | missing | incompatible | disabled` 状态和 `longitudinal_prediction.v2` 推理契约。正式任务固定为 `fatty_liver.pre_cirrhosis_to_progression`、`fatty_liver.cirrhosis_to_hcc` 和 `ad.pre_dementia_to_dementia`；脂肪肝基线阶段按已确认阶段路由，`疑似肝硬化` 返回 `disabled / baseline_stage_uncertain`，不猜任务、不输出风险分数，同时保留 3 次访视观察事实。线上 age 保持缺失，不从标签、notes 或指标推断。
+
+P0-05 专项测试通过：`79 passed`。纵向推理、报告、readiness、PDF、安全回归通过：`80 passed, 1 warning`。P0-03/P0-04 数据、训练、评估和审计回归通过：`135 passed, 1 warning`。旧训练/progression engine/API 回归通过：`22 passed, 1 warning`；旧前端 progression 契约：`3 passed`。前端全部 Node 契约：`19 passed`；`vue-tsc` 与 Vite build 成功（仅既有 Rollup 注释和大 chunk 警告）。
+
+真实双疾病临时 smoke 目录为 `.tmp/p005-verification-20260826-155121`，证据包括 `dataset-build.json`、`training.json`、`candidate-checks.json`、`release-smoke.json`、`registry-check.json`、`inference-smoke.json`。三个任务均完成 candidate 检查、临时 review、临时 enable、registry load 和真实 fixed-window inference；每个可用结果均记录 task、model version、artifact SHA-256、365 天 target、feature version、`model_score` 语义和未校准状态。`backend/app/ml_models/` 前后 SHA-256 完全一致；限定到 checker/release/registry/inference 对外证据 JSON 的敏感信息扫描无匹配。静态 artifact 检查未调用 `predict`/`predict_proba`。
+
+完整 `python -m pytest -q` 按要求执行；首个失败是既有 `backend/tests/test_cleanup_contracts.py::CleanupContractTests::test_removed_files_do_not_exist`，原因是项目要求清理但当前仍存在 `.superpowers/sdd`，未删除目录掩盖问题。为取得可复核的后续证据，使用 `--maxfail=1` 重跑时在 `research/tests/test_attribution_shap.py::test_lag_ablation_signal_group_drop_positive` 发现既有研究基线随机/数据敏感断言失败（本次 AFP `auc_drop=-0.006542...`）。`backend + scripts` 广泛回归另有既有外部 DOCX 缺失、跨测试 SQLAlchemy metadata 重复定义以及同一 cleanup 失败；P0-05 专项和产品相关分层回归均已通过。上述既有失败未修改、未删除相关目录或数据。
+
 **现状**
 
 快速预测与完整报告使用不同模型路径；完整报告 registry 只检查文件是否存在，没有完整校验数据集、目标、窗口、特征和版本。

@@ -11,6 +11,7 @@ from app.schemas.longitudinal_model_training import (
     FoldMetrics,
     ModelMetadata,
 )
+from app.schemas.longitudinal_model_registry import ArtifactMetadata
 
 
 def _sample(*, disease="fatty_liver", current_state="pre_cirrhosis", target_event="cirrhosis_or_hcc", label=1, group="a"):
@@ -103,6 +104,13 @@ def test_metadata_rejects_non_candidate_status():
         ModelMetadata(**_valid_metadata_kwargs(status="enabled", production_enabled=True, clinical_validity_claim=True))
 
 
+def test_training_task_specs_reuse_shared_registry_contracts():
+    from app.schemas.longitudinal_model_registry import TASK_CONTRACTS
+
+    assert TASK_SPECS["fatty_liver.cirrhosis_to_hcc"].target_event == TASK_CONTRACTS["fatty_liver.cirrhosis_to_hcc"].target
+    assert TASK_SPECS["ad.pre_dementia_to_dementia"].current_state == TASK_CONTRACTS["ad.pre_dementia_to_dementia"].current_state
+
+
 def test_evaluation_records_unestimable_metrics_without_zero_filling():
     metrics = FoldMetrics(
         fold=1,
@@ -188,3 +196,80 @@ def test_development_cv_uses_grouped_stratified_folds():
     assert result.split_method == "StratifiedGroupKFold"
     for fold in result.folds:
         assert set(fold.train_groups).isdisjoint(fold.validation_groups)
+
+
+def test_candidate_bundle_contains_complete_p005_metadata(tmp_path):
+    from app.schemas.longitudinal_model_training import DatasetInput
+    from app.services.longitudinal_model_training import (
+        select_task_samples,
+        train_task_to_candidate,
+        write_candidate_bundle,
+    )
+    from scripts.check_model_artifacts import sha256_file
+
+    task = TASK_SPECS["fatty_liver.pre_cirrhosis_to_progression"]
+    rows = select_task_samples(
+        [_sample(label=i % 2, group=format(i, "x")) for i in range(12)],
+        task.task,
+    )
+    dataset = DatasetInput(
+        dataset_dir=str(tmp_path / "dataset"),
+        schema_version="longitudinal_fixed_window_dataset.v1",
+        manifest_sha256="a" * 64,
+        data_content_sha256="b" * 64,
+        file_sha256="c" * 64,
+    )
+    result = train_task_to_candidate(rows, task, dataset, tmp_path / "fit", seed=42)
+    bundle = write_candidate_bundle(result, tmp_path / "bundles")
+    metadata = ArtifactMetadata.model_validate_json(
+        bundle.metadata_path.read_text(encoding="utf-8")
+    )
+
+    assert metadata.status == "candidate"
+    assert metadata.production_enabled is False
+    assert metadata.artifact_type == "outcome"
+    assert metadata.horizon_days == 365
+    assert metadata.model_contract.artifact_sha256 == sha256_file(bundle.model_path)
+    assert bundle.model_path.name == "fatty_liver_pre_cirrhosis_to_progression_365d.joblib"
+    assert bundle.metadata_path.name == "fatty_liver_pre_cirrhosis_to_progression_365d.meta.json"
+    assert metadata.feature_contract.feature_names[-1] == "sex"
+    assert "age" in metadata.feature_contract.allowed_missing_features
+    assert metadata.feature_contract.input_container == "pandas_dataframe"
+    assert metadata.score_contract.semantics == "model_score"
+    assert metadata.calibration.status == "not_calibrated"
+
+
+def test_candidate_bundle_is_task_scoped_and_never_overwrites(tmp_path):
+    from app.schemas.longitudinal_model_training import DatasetInput
+    from app.services.longitudinal_model_training import (
+        select_task_samples,
+        train_task_to_candidate,
+        write_candidate_bundle,
+    )
+
+    task = TASK_SPECS["ad.pre_dementia_to_dementia"]
+    rows = select_task_samples(
+        [
+            _sample(
+                disease="ad",
+                current_state="pre_dementia",
+                target_event="dementia",
+                label=i % 2,
+                group=format(i, "x"),
+            )
+            for i in range(12)
+        ],
+        task.task,
+    )
+    dataset = DatasetInput(
+        dataset_dir=str(tmp_path / "dataset"),
+        schema_version="longitudinal_fixed_window_dataset.v1",
+        manifest_sha256="a" * 64,
+        data_content_sha256="b" * 64,
+        file_sha256="c" * 64,
+    )
+    result = train_task_to_candidate(rows, task, dataset, tmp_path / "fit", seed=42)
+    first = write_candidate_bundle(result, tmp_path / "bundles")
+    assert first.bundle_dir.name == "ad_pre_dementia_to_dementia_365d"
+    with pytest.raises(FileExistsError):
+        write_candidate_bundle(result, tmp_path / "bundles")

@@ -54,6 +54,23 @@ def test_case_schema_normalizes_label_and_validates_sex():
         OperatorCaseCreate(disease_id=11, patient_label="case-A", sex="unknown")
 
 
+def test_case_schema_trims_canonical_or_legacy_baseline_stage():
+    from app.schemas.longitudinal_case import OperatorCaseCreate
+
+    canonical = OperatorCaseCreate(
+        disease_id=11,
+        patient_label="case-A",
+        baseline_stage="  pre_cirrhosis  ",
+    )
+    legacy = OperatorCaseCreate(
+        disease_id=11,
+        patient_label="case-B",
+        baseline_stage="  S1  ",
+    )
+    assert canonical.baseline_stage == "pre_cirrhosis"
+    assert legacy.baseline_stage == "S1"
+
+
 def test_snapshot_contains_sorted_visits_without_user_identity():
     from app.services.longitudinal_case_service import build_input_snapshot
 

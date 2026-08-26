@@ -18,6 +18,7 @@ from app.services.longitudinal_readiness import (
     build_readiness_report,
     check_optional_artifacts,
     check_outcome_artifact,
+    check_outcome_tasks,
     collect_longitudinal_readiness,
     load_database_snapshot,
 )
@@ -412,6 +413,31 @@ def test_legacy_progression_model_is_not_accepted_as_365_day_outcome(
     assert reasons[0].code == "outcome_model_missing"
 
 
+def test_readiness_reports_each_fatty_liver_task_independently(tmp_path):
+    import importlib.util
+    from pathlib import Path
+
+    helper_path = Path(__file__).with_name("test_longitudinal_model_registry.py")
+    spec = importlib.util.spec_from_file_location("registry_helpers_readiness", helper_path)
+    helpers = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(helpers)
+    helpers._write_enabled_release(
+        tmp_path, task="fatty_liver.pre_cirrhosis_to_progression"
+    )
+
+    tasks, reasons = check_outcome_tasks("fatty_liver", tmp_path)
+    assert tasks["fatty_liver.pre_cirrhosis_to_progression"].status == "available"
+    assert tasks["fatty_liver.cirrhosis_to_hcc"].status == "missing"
+    assert any(reason.details.get("task") == "fatty_liver.cirrhosis_to_hcc" for reason in reasons)
+
+
+def test_readiness_no_longer_accepts_old_disease_level_outcome_pair(tmp_path):
+    _write_outcome_artifact(tmp_path)
+    tasks, _ = check_outcome_tasks("fatty_liver", tmp_path)
+    assert all(item.status == "missing" for item in tasks.values())
+
+
 def test_stage_not_configured_and_missing_trends_are_degraded(tmp_path):
     stage, trends, reasons = check_optional_artifacts(
         FATTY_LIVER_ADAPTER, tmp_path
@@ -596,7 +622,7 @@ def test_build_report_keeps_diseases_separate_and_aggregates_worst_status(
     assert report.diseases["ad"].disease_name == "阿尔茨海默病"
     assert report.overall_status == "blocked"
     assert "P0-02" in report.diseases["fatty_liver"].next_tasks
-    assert "P0-04" in report.diseases["ad"].next_tasks
+    assert "P0-05" in report.diseases["ad"].next_tasks
 
 
 def test_collect_readiness_calls_snapshot_loader_once(monkeypatch, tmp_path):

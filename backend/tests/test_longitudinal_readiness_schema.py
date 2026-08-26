@@ -40,6 +40,12 @@ def _disease(dataset: str, reasons: list[ReadinessReason]) -> DiseaseReadiness:
         standard={"status": "available"},
         models={
             "outcome": {"status": "available", "artifact_type": "outcome"},
+            "outcome_tasks": {
+                ("fatty_liver.pre_cirrhosis_to_progression" if dataset == "fatty_liver" else "ad.pre_dementia_to_dementia"): {
+                    "status": "available",
+                    "artifact_type": "outcome",
+                }
+            },
             "stage": {"status": "not_configured", "artifact_type": "stage"},
             "trends": [],
         },

@@ -68,6 +68,13 @@ class StandardReadiness(StrictModel):
 class ArtifactReadiness(StrictModel):
     status: ArtifactStatus
     artifact_type: Literal["outcome", "stage", "trend"]
+    task: str | None = None
+    reason_code: str | None = None
+    lifecycle_status: Literal["candidate", "reviewed", "enabled"] | None = None
+    model_id: str | None = None
+    model_name: str | None = None
+    model_version: str | None = None
+    artifact_sha256: str | None = None
     indicator: str | None = None
     model_file: str | None = None
     metadata_file: str | None = None
@@ -77,6 +84,7 @@ class ArtifactReadiness(StrictModel):
 
 class ModelReadiness(StrictModel):
     outcome: ArtifactReadiness
+    outcome_tasks: dict[str, ArtifactReadiness] = Field(default_factory=dict)
     stage: ArtifactReadiness
     trends: list[ArtifactReadiness] = Field(default_factory=list)
 

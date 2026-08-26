@@ -1,6 +1,11 @@
 """Historical-prefix and missingness contracts for longitudinal features."""
 
 import pytest
+import hashlib
+import json
+import pandas
+
+from app.schemas.longitudinal_model_registry import ArtifactMetadata
 
 from app.services.longitudinal_features import (
     build_feature_vector,
@@ -196,3 +201,140 @@ def test_future_visit_cannot_change_existing_prefix_features():
     summarize_fixed_window_history(prefix + [_visit("2025-01-01", 999)])
 
     assert summarize_fixed_window_history(prefix) == before
+
+
+def _inference_metadata(*, required_features=None):
+    names = [
+        "age",
+        "visit_count",
+        "observation_span_days",
+        "days_since_previous_visit",
+        "alt.first",
+        "alt.last",
+        "alt.time_slope_per_day",
+        "alt.missing_ratio",
+        "sex",
+    ]
+    order_hash = hashlib.sha256(
+        json.dumps(names, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    required = required_features or [
+        "visit_count",
+        "observation_span_days",
+        "days_since_previous_visit",
+    ]
+    return ArtifactMetadata.model_validate(
+        {
+            "schema_version": "longitudinal_outcome_artifact.v1",
+            "artifact_type": "outcome",
+            "task": "fatty_liver.pre_cirrhosis_to_progression",
+            "dataset": "fatty_liver",
+            "disease": "脂肪肝",
+            "current_state": "pre_cirrhosis",
+            "target": "cirrhosis_or_hcc",
+            "horizon_days": 365,
+            "feature_contract": {
+                "schema_version": "longitudinal_fixed_window_features.v1",
+                "feature_version": "longitudinal_fixed_window_features.v1",
+                "feature_names": names,
+                "feature_order_sha256": order_hash,
+                "numeric_features": names[:-1],
+                "categorical_features": ["sex"],
+                "required_features": required,
+                "allowed_missing_features": [name for name in names if name not in required],
+                "input_container": "pandas_dataframe",
+                "numeric_imputation": "median_add_indicator",
+                "categorical_imputation": "most_frequent",
+            },
+            "dataset_contract": {
+                "schema_version": "longitudinal_fixed_window_dataset.v1",
+                "manifest_sha256": "a" * 64,
+                "data_content_sha256": "b" * 64,
+                "training_file_sha256": "c" * 64,
+            },
+            "model_contract": {
+                "model_id": "fatty-model",
+                "model_name": "logistic_regression",
+                "model_version": "2026.08.26.1",
+                "algorithm": "logistic_regression",
+                "artifact_sha256": "d" * 64,
+                "packages": {
+                    "python": "3.11",
+                    "scikit_learn": "1.9.0",
+                    "joblib": "1.5.3",
+                    "numpy": "2.3.5",
+                    "pandas": "3.0.3",
+                },
+            },
+            "score_contract": {
+                "semantics": "model_score",
+                "positive_class": 1,
+                "threshold": 0.5,
+                "minimum": 0.0,
+                "maximum": 1.0,
+            },
+            "calibration": {"status": "not_calibrated", "method": None},
+            "audit": {
+                "leakage_status": "passed",
+                "clinical_validity_claim": False,
+                "code_version": "test",
+            },
+            "status": "candidate",
+            "production_enabled": False,
+            "created_at": "2026-08-26T00:00:00Z",
+        }
+    )
+
+
+def test_inference_features_match_metadata_order_and_container():
+    from app.services.longitudinal_features import build_fixed_window_inference_features
+
+    frame = build_fixed_window_inference_features(
+        {"sex": "female", "baseline_stage": "pre_cirrhosis"},
+        [_visit("2024-01-01", 10), _visit("2024-06-01", 20), _visit("2024-12-31", 30)],
+        _inference_metadata(),
+    )
+    assert isinstance(frame, pandas.DataFrame)
+    assert list(frame.columns) == _inference_metadata().feature_contract.feature_names
+    assert frame.shape == (1, 9)
+    assert frame.loc[0, "visit_count"] == 3
+    assert frame.loc[0, "observation_span_days"] == 365
+    assert frame.loc[0, "alt.time_slope_per_day"] is not None
+
+
+def test_online_age_is_missing_and_never_guessed():
+    from app.services.longitudinal_features import build_fixed_window_inference_features
+
+    frame = build_fixed_window_inference_features(
+        {"patient_label": "年龄70岁的病例", "sex": "male", "notes": "患者约70岁"},
+        [_visit("2024-01-01", 10), _visit("2024-06-01", 20), _visit("2024-12-31", 30)],
+        _inference_metadata(),
+    )
+    assert pandas.isna(frame.loc[0, "age"])
+
+
+def test_required_online_age_is_rejected_instead_of_guessed():
+    from app.services.longitudinal_features import (
+        InferenceContractError,
+        build_fixed_window_inference_features,
+    )
+
+    with pytest.raises(InferenceContractError) as error:
+        build_fixed_window_inference_features(
+            {"patient_label": "70岁", "sex": "female"},
+            [_visit("2024-01-01", 10), _visit("2024-06-01", 20), _visit("2024-12-31", 30)],
+            _inference_metadata(required_features=["age", "visit_count"]),
+        )
+    assert error.value.code == "required_feature_missing"
+
+
+def test_non_finite_raw_indicator_is_rejected():
+    from app.services.longitudinal_features import (
+        InferenceContractError,
+        build_fixed_window_inference_features,
+    )
+
+    visits = [_visit("2024-01-01", 10), _visit("2024-06-01", float("inf")), _visit("2024-12-31", 30)]
+    with pytest.raises(InferenceContractError) as error:
+        build_fixed_window_inference_features({}, visits, _inference_metadata())
+    assert error.value.code == "non_finite_feature"
