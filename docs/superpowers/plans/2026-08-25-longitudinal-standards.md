@@ -1680,6 +1680,400 @@ Provide the two Markdown paths, source hashes, entry counts and proposed calcula
 
 ---
 
+### Task 8A: Apply the approved strict-boundary override for approximate ALT/AST/GGT ranges
+
+**Files:**
+- Modify: `backend/tests/test_standard_manifest.py`
+- Modify: `backend/tests/test_standard_manifest_import.py`
+- Modify: `backend/tests/test_standard_validation.py`
+- Modify: `backend/app/services/standard_manifest.py`
+- Modify: `backend/app/services/standard_manifest_import.py`
+- Modify: `backend/app/services/standard_validation.py`
+- Modify: `standard_manifests/fatty_liver.v1.json`
+- Modify: `docs/superpowers/reviews/2026-08-25-fatty-liver-standard-rules-review.md`
+
+**Interfaces:**
+- Consumes the approved design rule `applicability.approximate_boundary_policy=owner_reviewed_strict`.
+- Produces `has_owner_reviewed_approximate_override(rule: Any, *, disease_key: str | None) -> bool` in `standard_validation.py`.
+- Persists `_manifest_reviewed_at`, `_manifest_entry_id` and `_manifest_sha256` in imported rule applicability.
+- Upgrades only the five approved fatty-liver entries for ALT male/female, AST and GGT male/female to calculable closed ranges.
+- Does not change parser candidate actionability, BMI, PLT, MMSE, MoCA or AD biomarker rules.
+
+- [ ] **Step 1: Write failing manifest-lint tests for the narrow override**
+
+Extend `backend/tests/test_standard_manifest.py` with tests that construct approved manifests and assert:
+
+```python
+def test_approved_fatty_liver_approximate_range_accepts_owner_reviewed_strict_override(tmp_path: Path):
+    payload = _manifest()
+    payload["review_state"] = "approved"
+    payload["reviewed_at"] = "2026-08-26T01:14:26Z"
+    entry = payload["entries"][0]
+    entry["review_status"] = "approved"
+    entry["rule"]["machine_actionability"] = "calculable"
+    entry["rule"]["applicability"] = {
+        "source_language": "approximate",
+        "approximate_boundary_policy": "owner_reviewed_strict",
+    }
+    source = tmp_path / "fatty.docx"
+    source.write_bytes(b"stable")
+    payload["source_document_sha256"] = hashlib.sha256(b"stable").hexdigest()
+    manifest = StandardManifest.model_validate(payload)
+
+    result = validate_standard_manifest(
+        manifest,
+        source_path=source,
+        parsed_document=_parsed(entry["source"]["raw_text"]),
+    )
+
+    assert "invalid_approximate_override" not in {item.code for item in result.errors}
+
+
+@pytest.mark.parametrize("dataset,key", [("fatty_liver", "bmi"), ("ad", "mmse")])
+def test_owner_reviewed_strict_override_is_rejected_outside_fatty_alt_ast_ggt(tmp_path: Path, dataset: str, key: str):
+    payload = _manifest()
+    payload["dataset"] = dataset
+    payload["disease_name"] = "脂肪肝" if dataset == "fatty_liver" else "阿尔茨海默病"
+    payload["review_state"] = "approved"
+    payload["reviewed_at"] = "2026-08-26T01:14:26Z"
+    entry = payload["entries"][0]
+    entry["review_status"] = "approved"
+    entry["indicator"]["canonical_key"] = key
+    entry["rule"]["machine_actionability"] = "calculable"
+    entry["rule"]["applicability"] = {
+        "source_language": "approximate",
+        "approximate_boundary_policy": "owner_reviewed_strict",
+    }
+    source = tmp_path / "standard.docx"
+    source.write_bytes(b"stable")
+    payload["source_document_sha256"] = hashlib.sha256(b"stable").hexdigest()
+    manifest = StandardManifest.model_validate(payload)
+
+    result = validate_standard_manifest(
+        manifest,
+        source_path=source,
+        parsed_document=_parsed(entry["source"]["raw_text"]),
+    )
+
+    assert "invalid_approximate_override" in {item.code for item in result.errors}
+
+
+def test_approximate_calculable_range_requires_explicit_owner_reviewed_policy(tmp_path: Path):
+    payload = _manifest()
+    payload["review_state"] = "approved"
+    payload["reviewed_at"] = "2026-08-26T01:14:26Z"
+    entry = payload["entries"][0]
+    entry["review_status"] = "approved"
+    entry["rule"]["machine_actionability"] = "calculable"
+    entry["rule"]["applicability"] = {"source_language": "approximate"}
+    source = tmp_path / "fatty.docx"
+    source.write_bytes(b"stable")
+    payload["source_document_sha256"] = hashlib.sha256(b"stable").hexdigest()
+    manifest = StandardManifest.model_validate(payload)
+
+    result = validate_standard_manifest(
+        manifest,
+        source_path=source,
+        parsed_document=_parsed(entry["source"]["raw_text"]),
+    )
+
+    assert "invalid_approximate_override" in {item.code for item in result.errors}
+```
+
+- [ ] **Step 2: Run manifest tests and verify RED**
+
+Run:
+
+```powershell
+python -m pytest backend/tests/test_standard_manifest.py -q
+```
+
+Expected: the new acceptance/rejection assertions fail because manifest lint does not yet recognize the reviewed override.
+
+- [ ] **Step 3: Implement manifest-level override validation**
+
+In `backend/app/services/standard_manifest.py`, add constants for the allowlist and a private validator used by `validate_standard_manifest()`:
+
+```python
+OWNER_REVIEWED_APPROXIMATE_INDICATORS = frozenset({"alt", "ast", "ggt"})
+OWNER_REVIEWED_APPROXIMATE_POLICY = "owner_reviewed_strict"
+```
+
+For each calculable entry whose source text or `applicability.source_language` is approximate:
+
+- accept only `dataset == "fatty_liver"` and an allowlisted canonical key;
+- require manifest and entry approved states plus `reviewed_at`;
+- require `numeric_range`, both boundaries, a unit and inclusive lower/upper boundaries;
+- require `source_language=approximate` and the exact policy value;
+- otherwise append `ManifestFinding("invalid_approximate_override", ...)`;
+- leave all non-override approximate calculable content blocked.
+
+Do not alter `standard_parser.py`; parser candidates containing approximate language must remain evidence-only.
+
+- [ ] **Step 4: Run manifest tests and verify GREEN**
+
+Run:
+
+```powershell
+python -m pytest backend/tests/test_standard_manifest.py -q
+```
+
+Expected: all manifest tests pass.
+
+- [ ] **Step 5: Write failing validation tests for imported-rule provenance**
+
+Replace the old blanket-rejection assertion in `backend/tests/test_standard_validation.py` with three explicit cases:
+
+```python
+def test_reviewed_fatty_approximate_range_is_calculable_with_complete_provenance():
+    result = validate_rule(_rule(
+        indicator=SimpleNamespace(
+            canonical_key="ast",
+            data_type="numeric",
+            allows_numeric_comparison=True,
+            abnormal_direction="high",
+        ),
+        source_segment=SimpleNamespace(raw_text="AST 约 15–40 U/L"),
+        lower=15,
+        upper=40,
+        lower_inclusive=True,
+        upper_inclusive=True,
+        unit="U/L",
+        applicability={
+            "source_language": "approximate",
+            "approximate_boundary_policy": "owner_reviewed_strict",
+            "_manifest_entry_id": "fatty-ast-reference",
+            "_manifest_sha256": "a" * 64,
+            "_manifest_reviewed_at": "2026-08-26T01:14:26Z",
+        },
+    ), disease_key="fatty_liver")
+    assert result.actionability == "calculable"
+    assert "approximate_calculable_rule" not in {item.code for item in result.errors}
+
+
+def test_reviewed_approximate_override_requires_complete_manifest_provenance():
+    result = validate_rule(_rule(
+        indicator=SimpleNamespace(
+            canonical_key="ast",
+            data_type="numeric",
+            allows_numeric_comparison=True,
+            abnormal_direction="high",
+        ),
+        source_segment=SimpleNamespace(raw_text="AST 约 15–40 U/L"),
+        lower=15,
+        upper=40,
+        lower_inclusive=True,
+        upper_inclusive=True,
+        unit="U/L",
+        applicability={
+            "source_language": "approximate",
+            "approximate_boundary_policy": "owner_reviewed_strict",
+            "_manifest_entry_id": "fatty-ast-reference",
+            "_manifest_sha256": "a" * 64,
+        },
+    ), disease_key="fatty_liver")
+    assert "approximate_calculable_rule" in {item.code for item in result.errors}
+
+
+@pytest.mark.parametrize("key", ["bmi", "mmse"])
+def test_reviewed_approximate_override_does_not_apply_to_other_indicators(key: str):
+    result = validate_rule(_rule(
+        indicator=SimpleNamespace(
+            canonical_key=key,
+            data_type="numeric",
+            allows_numeric_comparison=True,
+            abnormal_direction="high" if key == "bmi" else "ordinal_low",
+        ),
+        source_segment=SimpleNamespace(raw_text=f"{key} 约 15–40"),
+        lower=15,
+        upper=40,
+        lower_inclusive=True,
+        upper_inclusive=True,
+        unit="points" if key == "mmse" else "kg/m²",
+        applicability={
+            "source_language": "approximate",
+            "approximate_boundary_policy": "owner_reviewed_strict",
+            "_manifest_entry_id": f"reviewed-{key}",
+            "_manifest_sha256": "a" * 64,
+            "_manifest_reviewed_at": "2026-08-26T01:14:26Z",
+        },
+    ), disease_key="fatty_liver" if key == "bmi" else "ad")
+    assert "approximate_calculable_rule" in {item.code for item in result.errors}
+```
+
+Add `import pytest` at the top of `backend/tests/test_standard_validation.py` for the parameterized rejection test.
+
+- [ ] **Step 6: Run validation tests and verify RED**
+
+Run:
+
+```powershell
+python -m pytest backend/tests/test_standard_validation.py -q
+```
+
+Expected: the AST override case fails because current validation rejects every calculable rule containing `约`.
+
+- [ ] **Step 7: Implement the runtime validation helper**
+
+In `backend/app/services/standard_validation.py`, add:
+
+```python
+OWNER_REVIEWED_APPROXIMATE_INDICATORS = frozenset({"alt", "ast", "ggt"})
+
+
+def has_owner_reviewed_approximate_override(rule: Any, *, disease_key: str | None) -> bool:
+    applicability = getattr(rule, "applicability", {}) or {}
+    indicator = getattr(rule, "indicator", None)
+    return (
+        disease_key == "fatty_liver"
+        and getattr(indicator, "canonical_key", None) in OWNER_REVIEWED_APPROXIMATE_INDICATORS
+        and getattr(rule, "rule_type", None) == "numeric_range"
+        and getattr(rule, "lower", None) is not None
+        and getattr(rule, "upper", None) is not None
+        and getattr(rule, "lower_inclusive", None) is True
+        and getattr(rule, "upper_inclusive", None) is True
+        and bool(getattr(rule, "unit", None))
+        and applicability.get("source_language") == "approximate"
+        and applicability.get("approximate_boundary_policy") == "owner_reviewed_strict"
+        and bool(applicability.get("_manifest_entry_id"))
+        and bool(applicability.get("_manifest_sha256"))
+        and bool(applicability.get("_manifest_reviewed_at"))
+    )
+```
+
+Change only the approximate-source check in `validate_rule()` so that it emits `approximate_calculable_rule` unless this helper returns true. Keep all other context, direction, unit and condition validation unchanged.
+
+- [ ] **Step 8: Run validation tests and verify GREEN**
+
+Run:
+
+```powershell
+python -m pytest backend/tests/test_standard_validation.py -q
+```
+
+Expected: all validation tests pass, including rejection for BMI and AD.
+
+- [ ] **Step 9: Write a failing manifest-import provenance test**
+
+Extend `backend/tests/test_standard_manifest_import.py`:
+
+```python
+def test_import_persists_manifest_review_time_for_reviewed_override():
+    manifest = _manifest(_entry("fatty-ast", "ast"))
+    db = ImportSession()
+
+    import_manifest_rules(db, manifest=manifest, version_id=4, admin_id=7)
+
+    rule = next(item for item in db.added if item.__class__.__name__ == "StandardRule")
+    assert rule.applicability["_manifest_entry_id"] == "fatty-ast"
+    assert rule.applicability["_manifest_sha256"] == "a" * 64
+    assert rule.applicability["_manifest_reviewed_at"] == "2026-08-25T12:00:00+00:00"
+```
+
+- [ ] **Step 10: Run the import test and verify RED**
+
+Run:
+
+```powershell
+python -m pytest backend/tests/test_standard_manifest_import.py::test_import_persists_manifest_review_time_for_reviewed_override -q
+```
+
+Expected: FAIL with missing `_manifest_reviewed_at`.
+
+- [ ] **Step 11: Persist manifest review time during import**
+
+In `backend/app/services/standard_manifest_import.py`, after adding `_manifest_entry_id` and `_manifest_sha256`, add:
+
+```python
+applicability["_manifest_reviewed_at"] = manifest.reviewed_at.isoformat()
+```
+
+`_require_approved()` already guarantees an approved manifest has `reviewed_at`; do not invent a timestamp during import.
+
+- [ ] **Step 12: Run import tests and verify GREEN**
+
+Run:
+
+```powershell
+python -m pytest backend/tests/test_standard_manifest_import.py -q
+```
+
+Expected: all import tests pass.
+
+- [ ] **Step 13: Update only the five approved fatty-liver manifest entries**
+
+In `standard_manifests/fatty_liver.v1.json`, update:
+
+```text
+fatty-alt-male-reference
+fatty-alt-female-reference
+fatty-ast-reference
+fatty-ggt-male-reference
+fatty-ggt-female-reference
+```
+
+For each entry:
+
+- change `machine_actionability` from `evidence-only` to `calculable`;
+- retain the current numeric boundaries, units, sex and closed inclusivity;
+- set `applicability` to include both `source_language: approximate` and `approximate_boundary_policy: owner_reviewed_strict`;
+- set `actionability_reason` to state that the project owner approved strict use of the approximate source boundary;
+- retain the exact source `raw_text` containing `约`.
+
+Do not change BMI, PLT, AFP or any AD entry.
+
+- [ ] **Step 14: Regenerate and check the fatty-liver review document**
+
+Run:
+
+```powershell
+python scripts/check_standard_manifests.py `
+  --manifest standard_manifests/fatty_liver.v1.json `
+  --source backend/tests/fixtures/standards/fatty_liver_standard.docx `
+  --review-output docs/superpowers/reviews/2026-08-25-fatty-liver-standard-rules-review.md `
+  --write-review
+
+python scripts/check_standard_manifests.py `
+  --manifest standard_manifests/fatty_liver.v1.json `
+  --source backend/tests/fixtures/standards/fatty_liver_standard.docx `
+  --review-output docs/superpowers/reviews/2026-08-25-fatty-liver-standard-rules-review.md `
+  --check
+```
+
+Expected: exit `0`, approved state, 13 entries, no Markdown drift, 10 calculable rules, one evidence-only rule and two no-safe-rule conclusions.
+
+- [ ] **Step 15: Run the focused non-database regression set**
+
+Run:
+
+```powershell
+python -m pytest `
+  backend/tests/test_standard_manifest.py `
+  backend/tests/test_standard_manifest_import.py `
+  backend/tests/test_standard_parser.py `
+  backend/tests/test_standard_validation.py `
+  backend/tests/test_standard_lifecycle.py `
+  backend/tests/test_standard_resolver.py `
+  scripts/tests/test_check_standard_manifests.py `
+  scripts/tests/test_apply_standard_manifest.py -q
+```
+
+Expected: all pass. Confirm parser tests still classify automatically parsed approximate candidates as evidence-only.
+
+- [ ] **Step 16: Commit the reviewed override implementation**
+
+Run:
+
+```powershell
+git diff --check
+git add -- backend/tests/test_standard_manifest.py backend/tests/test_standard_manifest_import.py backend/tests/test_standard_validation.py backend/app/services/standard_manifest.py backend/app/services/standard_manifest_import.py backend/app/services/standard_validation.py standard_manifests/fatty_liver.v1.json docs/superpowers/reviews/2026-08-25-fatty-liver-standard-rules-review.md docs/superpowers/plans/2026-08-25-longitudinal-standards.md
+git commit -m "feat(standards): approve strict approximate liver ranges"
+```
+
+Do not run `prepare_standard_drafts.py --execute`, migrations or any manifest publish command in this task. Database checkpoint one remains separately gated by an explicit authorization after a fresh dry-run.
+
+---
+
 ### Task 9: Database checkpoint one — create and parse fresh draft versions
 
 **Files:**
