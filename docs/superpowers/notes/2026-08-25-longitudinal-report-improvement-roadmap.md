@@ -432,6 +432,16 @@ P3-04 前端生成状态与故障解释
 
 ### P0-03：构建无未来泄漏的固定窗口训练数据集
 
+**状态**：`completed`
+
+**Task-ID**：`longitudinal-prefix-dataset-001`
+
+**设计文档**：`docs/superpowers/specs/2026-08-26-fixed-window-longitudinal-dataset-design.md`
+
+**实施计划**：`docs/superpowers/plans/2026-08-26-fixed-window-longitudinal-dataset.md`
+
+**验证记录**：`python scripts/build_longitudinal_dataset.py` 已以只读方式连续两次生成完全一致的双疾病匿名审计摘要。脂肪肝真实患者 150 名、692 次访视、392 个候选前缀，其中 59 个阳性、141 个阴性、167 个观察不足、25 个不适用，正式可训练前缀 200 个，涉及 106 名患者；AD 真实患者 150 名、672 次访视、372 个候选前缀，其中 56 个阳性、109 个阴性、23 个观察不足、184 个不适用，正式可训练前缀 165 个，涉及 88 名患者。显式临时导出验证了稳定 JSONL、manifest、SHA-256、不覆盖、真实/合成隔离和禁止字段防护；正式训练文件中合成样本为 0，模型特征中禁止字段为 0。P0-03 聚焦测试、旧训练脚本回归、readiness 回归和相关纵向测试通过；未训练模型、未写数据库、未生成生产 artifact。
+
 **现状**
 
 旧模型使用患者完整轨迹和最终 `confirmed` 标签，不能回答“从当前时间点开始未来 365 天是否进展”。现有前缀训练辅助函数尚未形成完整数据库到训练集的 CLI 闭环。
