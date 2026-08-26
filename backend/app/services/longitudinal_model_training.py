@@ -14,6 +14,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from app.schemas.longitudinal_dataset import FixedWindowSample
 from app.schemas.longitudinal_model_training import DatasetInput, GroupSplit, InputAudit, TASK_SPECS, TaskSpec, FoldMetrics, EvaluationSummary
+from app.services.longitudinal_model_evaluation import compute_binary_metrics, select_oof_f1_threshold
 
 
 class ModelInputError(ValueError):
@@ -200,10 +201,11 @@ def train_task_to_candidate(rows: Sequence[TrainingRow], task: TaskSpec, dataset
     y = [row.sample.label.training_label for row in rows]
     model = candidates["logistic_regression"]
     model.fit(X, y)
+    development = run_development_cv(rows, task, seed=seed)
     stem = task.task.replace(".", "_") + "_365d"
     model_path = output / f"{stem}.joblib"
     joblib.dump(model, model_path)
-    return {"task": task.task, "model": model, "model_path": model_path, "dataset_input": dataset_input, "catalog": catalog, "row_count": len(rows), "patient_count": len({row.sample.identity.group_id for row in rows}), "status": "candidate"}
+    return {"task": task.task, "model": model, "model_path": model_path, "dataset_input": dataset_input, "catalog": catalog, "row_count": len(rows), "patient_count": len({row.sample.identity.group_id for row in rows}), "status": "candidate", "evaluation": development.model_dump(mode="json"), "seed": seed}
 
 
 def write_candidate_artifact(result, output_dir: Path):
@@ -217,7 +219,7 @@ def write_candidate_artifact(result, output_dir: Path):
         joblib.dump(result["model"], model_path)
     meta_path = output / (model_path.stem + ".meta.json")
     catalog = result["catalog"]
-    metadata = {"schema_version": "longitudinal_outcome_model_training.v1", "task": result["task"], "dataset_manifest_sha256": result["dataset_input"].manifest_sha256, "data_content_sha256": result["dataset_input"].data_content_sha256, "dataset_file_sha256": result["dataset_input"].file_sha256, "feature_order_sha256": hashlib.sha256(json.dumps(catalog.feature_names).encode()).hexdigest(), "feature_names": list(catalog.feature_names), "row_count": result["row_count"], "patient_count": result["patient_count"], "status": "candidate", "production_enabled": False, "clinical_validity_claim": False, "leakage_audit": {"synthetic_in_formal_metrics": False}, "model": {"algorithm": "logistic_regression", "random_seed": 42}, "evaluation": {}, "threshold": {"baseline": 0.5}, "calibration": {"status": "not_calibrated"}}
+    metadata = {"schema_version": "longitudinal_outcome_model_training.v1", "task": result["task"], "dataset_manifest_sha256": result["dataset_input"].manifest_sha256, "data_content_sha256": result["dataset_input"].data_content_sha256, "dataset_file_sha256": result["dataset_input"].file_sha256, "feature_order_sha256": hashlib.sha256(json.dumps(catalog.feature_names, separators=(",", ":")).encode()).hexdigest(), "feature_names": list(catalog.feature_names), "row_count": result["row_count"], "patient_count": result["patient_count"], "status": "candidate", "production_enabled": False, "clinical_validity_claim": False, "leakage_audit": {"synthetic_in_formal_metrics": False, "status": "passed"}, "model": {"algorithm": "logistic_regression", "random_seed": result.get("seed", 42)}, "evaluation": result.get("evaluation", {}), "threshold": {"baseline": 0.5, "development_selected": (result.get("evaluation", {}).get("aggregate") or {}).get("oof_threshold"), "selection_method": "oof_f1"}, "calibration": {"status": "not_calibrated"}}
     meta_path.write_text(json.dumps(metadata, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
     return model_path, meta_path
 
@@ -231,6 +233,8 @@ def run_development_cv(rows: Sequence[TrainingRow], task: TaskSpec, *, seed: int
     fold_count = 3 if task.task == "fatty_liver.cirrhosis_to_hcc" else 5
     splitter = StratifiedGroupKFold(n_splits=fold_count, shuffle=True, random_state=seed)
     fold_results = []
+    oof_labels: list[int] = []
+    oof_probabilities: list[float] = []
     for fold_number, (train_idx, validation_idx) in enumerate(splitter.split(np.zeros(len(rows)), labels, groups), start=1):
         train_groups = sorted(set(groups[train_idx]))
         validation_groups = sorted(set(groups[validation_idx]))
@@ -239,7 +243,14 @@ def run_development_cv(rows: Sequence[TrainingRow], task: TaskSpec, *, seed: int
         model = _make_fitted_candidates(catalog, seed)["logistic_regression"]
         model.fit(_frame([rows[i] for i in train_idx], catalog), labels[train_idx])
         probabilities = model.predict_proba(_frame([rows[i] for i in validation_idx], catalog))[:, 1]
+        oof_labels.extend(fold_labels.tolist())
+        oof_probabilities.extend(probabilities.tolist())
         pr_auc = float(average_precision_score(fold_labels, probabilities)) if len(set(fold_labels)) == 2 else None
         roc_auc = float(roc_auc_score(fold_labels, probabilities)) if len(set(fold_labels)) == 2 else None
         fold_results.append(FoldMetrics(fold=fold_number, train_patient_count=len(train_groups), validation_patient_count=len(validation_groups), positive_patient_count=int(fold_labels.sum()), negative_patient_count=int(len(fold_labels) - fold_labels.sum()), train_groups=train_groups, validation_groups=validation_groups, pr_auc=pr_auc, roc_auc=roc_auc, unavailable_metrics=[] if pr_auc is not None else ["pr_auc", "roc_auc"]))
-    return EvaluationSummary(split_method="StratifiedGroupKFold", requested_fold_count=fold_count, folds=fold_results)
+    aggregate = {}
+    if len(set(oof_labels)) == 2:
+        aggregate = compute_binary_metrics(oof_labels, oof_probabilities, 0.5).model_dump(mode="json")
+        aggregate["positive_rate_baseline"] = sum(oof_labels) / len(oof_labels)
+        aggregate["oof_threshold"] = select_oof_f1_threshold(oof_labels, oof_probabilities).threshold
+    return EvaluationSummary(split_method="StratifiedGroupKFold", requested_fold_count=fold_count, folds=fold_results, aggregate=aggregate)
