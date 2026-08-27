@@ -22,6 +22,7 @@ from app.services.longitudinal_features import (
     summarize_observation,
 )
 from app.services.longitudinal_model_registry import empty_optional_model_status
+from app.services.longitudinal_signal_interpreter import interpret_observation_signals
 from app.services.longitudinal_task_routing import route_outcome_task
 
 
@@ -174,7 +175,14 @@ def _routing_status(route: BaselineStageRoute) -> ModelRuntimeStatus:
     )
 
 
-def run_longitudinal_prediction(case: dict[str, Any], visits: list[dict[str, Any]], adapter: DiseaseProgressionAdapter, model_registry: LongitudinalModelRegistry | dict[str, Any] | None = None) -> LongitudinalPredictionResult:
+def run_longitudinal_prediction(
+    case: dict[str, Any],
+    visits: list[dict[str, Any]],
+    adapter: DiseaseProgressionAdapter,
+    model_registry: LongitudinalModelRegistry | dict[str, Any] | None = None,
+    *,
+    standard_sources: list[dict[str, Any]] | None = None,
+) -> LongitudinalPredictionResult:
     observation = summarize_observation(visits)
     registry = _registry_v2(adapter.dataset, model_registry)
     route = route_outcome_task(adapter.dataset, case.get("baseline_stage"))
@@ -184,9 +192,20 @@ def run_longitudinal_prediction(case: dict[str, Any], visits: list[dict[str, Any
         outcome_status = outcome_result.status
         score = outcome_result.risk_score
         band = outcome_result.risk_band
+        outcome_feature_names = (
+            entry.metadata.feature_contract.feature_names if entry.metadata else None
+        )
     else:
         outcome_status = _routing_status(route)
         score = band = None
+        outcome_feature_names = None
+    progression_signals = interpret_observation_signals(
+        dataset=adapter.dataset,
+        visits=visits,
+        standard_sources=standard_sources,
+        outcome_status=outcome_status,
+        feature_names=outcome_feature_names,
+    )
     stage = StageProjection(status="not_estimated")
     warnings = [adapter.synthetic_data_warning]
     if score is not None and outcome_status.calibration_status == "not_calibrated":
@@ -205,6 +224,7 @@ def run_longitudinal_prediction(case: dict[str, Any], visits: list[dict[str, Any
             "stage": registry.stage,
             "trend": registry.trend,
         },
+        progression_signals=progression_signals,
         evidence={}, warnings=warnings,
     )
     return validate_prediction_result(result)

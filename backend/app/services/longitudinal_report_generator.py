@@ -13,6 +13,35 @@ SAFE_LONGITUDINAL_ERRORS = {
     "longitudinal_prediction_failed": "纵向预测暂时无法完成",
 }
 
+REASON_TEXT = {
+    "directional_change": "总体变化方向符合该疾病的关注方向",
+    "persistent_direction": "多次观察均朝同一方向变化",
+    "latest_above_reference": "最新值高于适用参考范围",
+    "latest_below_reference": "最新值低于适用参考范围",
+    "reference_unavailable": "当前没有可用的正式参考范围",
+    "reference_not_applicable": "现有标准仅作证据参考，未进行数值异常判断",
+    "unit_missing": "缺少单位，未进行范围判断",
+    "unit_conflict": "单位不一致，无法安全比较",
+    "unsupported_unit": "单位不受当前标准支持",
+    "insufficient_observations": "有效观察次数不足三次",
+    "model_unavailable": "本次没有可用的结局模型",
+    "feature_not_used": "该指标未进入本次结局模型特征",
+    "contribution_unavailable": "暂无可靠的个体模型贡献信息",
+}
+
+_DIRECTION_TEXT = {
+    "rising": "上升",
+    "falling": "下降",
+    "stable": "基本稳定",
+    "unavailable": "无法判断",
+}
+
+_ATTENTION_TEXT = {
+    "priority": "优先关注",
+    "attention": "关注",
+    "none": "未列为关键信号",
+}
+
 
 def safe_longitudinal_error(code: str) -> tuple[str, str]:
     stable_code = (
@@ -108,6 +137,55 @@ def _model_status_lines(prediction: dict[str, Any]) -> list[str]:
     return [outcome_line, stage_line, trend_line]
 
 
+def _signal_lines(prediction: dict[str, Any]) -> list[str]:
+    interpretation = prediction.get("progression_signals")
+    if not isinstance(interpretation, dict):
+        if prediction.get("schema_version") == "longitudinal_prediction.v1":
+            return ["历史 v1 报告未保存结构化关键信号，未重新计算。"]
+        return ["当前结果未包含结构化关键信号。"]
+    signals = interpretation.get("signals")
+    if not isinstance(signals, list) or not signals:
+        return ["当前没有足够的关键进展信号。"]
+
+    lines: list[str] = []
+    for signal in signals:
+        if not isinstance(signal, dict):
+            continue
+        display_name = signal.get("display_name") or signal.get("indicator") or "未命名指标"
+        unit = f" {signal['unit']}" if signal.get("unit") else ""
+        direction = _DIRECTION_TEXT.get(
+            str(signal.get("observed_direction")), "无法判断"
+        )
+        level = _ATTENTION_TEXT.get(
+            str(signal.get("attention_level")), "关注"
+        )
+        lines.append(
+            f"- [{level}] {display_name}：首次 {_format_number(signal.get('first_value'))}{unit}，"
+            f"最近 {_format_number(signal.get('latest_value'))}{unit}，总体{direction}；"
+            f"共 {signal.get('observation_count', 0)} 次有效观察。"
+        )
+        reason_texts = [
+            REASON_TEXT[code]
+            for code in signal.get("reason_codes") or []
+            if code in REASON_TEXT
+        ]
+        if reason_texts:
+            lines.append(f"  - 判断依据：{'；'.join(reason_texts)}。")
+        if signal.get("used_by_outcome_model"):
+            features = "、".join(signal.get("model_feature_names") or []) or "未记录"
+            lines.append(f"  - 模型关系：本次结局模型使用了派生特征 {features}。")
+        else:
+            lines.append("  - 模型关系：未确认本次结局模型使用了该指标。")
+        if (
+            signal.get("model_contribution_status") in {"unavailable", "not_supported"}
+            and "contribution_unavailable" not in (signal.get("reason_codes") or [])
+        ):
+            lines.append("  - 暂无可靠的个体模型贡献信息。")
+        for limitation in signal.get("limitations") or []:
+            lines.append(f"  - 局限：{limitation}。")
+    return lines or ["当前没有足够的关键进展信号。"]
+
+
 def render_longitudinal_markdown(prediction: dict[str, Any], sources: list[dict[str, Any]] | None = None) -> str:
     prediction = normalize_prediction_for_render(prediction)
     outcome = prediction["outcome_prediction"]
@@ -131,7 +209,7 @@ def render_longitudinal_markdown(prediction: dict[str, Any], sources: list[dict[
         lines.append(f"- {item['indicator']}: {forecast.get('direction') or '不可估计'}（{forecast['status']}）。")
     lines.extend(["", "## 5. 疾病阶段与进展结局预测", f"阶段模型状态：{stage['status']}。", f"可能下一阶段：{stage.get('likely_next_stage') or '未估计'}。", "", "## 6. 关键进展信号"])
     lines[lines.index("## 5. 疾病阶段与进展结局预测") + 1:lines.index("## 5. 疾病阶段与进展结局预测") + 1] = _model_status_lines(prediction)
-    lines.extend([f"- {item['indicator']}: {item['importance'].get('role')}" for item in prediction.get("trend_predictions", [])])
+    lines.extend(_signal_lines(prediction))
     lines.extend(["", "## 7. 相似病例与参考依据"])
     for source in sources or []:
         lines.append(f"- {_render_source(source)}")
@@ -145,7 +223,13 @@ async def generate_longitudinal_report(db, report_id: int, case: dict[str, Any],
     from app.db.models import AIReport
     try:
         yield _sse("stage", {"stage": "feature_extraction"})
-        result = run_longitudinal_prediction(case, visits, adapter, model_registry)
+        result = run_longitudinal_prediction(
+            case,
+            visits,
+            adapter,
+            model_registry,
+            standard_sources=sources,
+        )
         payload = prediction_result_to_dict(result)
         payload["evidence"] = {"sources": sources or []}
         yield _sse("prediction", payload)

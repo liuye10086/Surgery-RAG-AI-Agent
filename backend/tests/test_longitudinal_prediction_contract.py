@@ -133,3 +133,117 @@ def test_unavailable_outcome_emits_no_risk_but_keeps_observation_and_evidence():
     assert result.observation["indicators"]["alt"]["last"] == 40
     assert result.evidence == {}
     assert result.model_status.outcome.reason_code == "baseline_stage_missing"
+
+
+def test_prediction_v2_contains_signals_when_outcome_is_unavailable():
+    from backend.tests.test_longitudinal_features import _visit
+
+    result = run_longitudinal_prediction(
+        {"baseline_stage": None},
+        [
+            _visit("2024-01-01", 20),
+            _visit("2024-06-01", 35),
+            _visit("2024-12-31", 60),
+        ],
+        FATTY_LIVER_ADAPTER,
+        {},
+    )
+
+    assert (
+        result.progression_signals.schema_version
+        == "longitudinal_signal_interpretation.v1"
+    )
+    signal = result.progression_signals.signals[0]
+    assert signal.used_by_outcome_model is False
+    assert "model_unavailable" in signal.reason_codes
+
+
+def test_prediction_signal_does_not_change_outcome_score():
+    from app.schemas.longitudinal_model_registry import (
+        LoadedModelEntry,
+        LongitudinalModelRegistry,
+        ModelRuntimeStatus,
+    )
+    from app.services.longitudinal_model_registry import empty_optional_model_status
+    from backend.tests.test_longitudinal_features import _inference_metadata, _visit
+
+    metadata = _inference_metadata()
+    model = _ScoreModel()
+    status = ModelRuntimeStatus(
+        artifact_type="outcome",
+        task=metadata.task,
+        status="available",
+        reason_code="artifact_available",
+        lifecycle_status="enabled",
+        model_id=metadata.model_contract.model_id,
+        model_name=metadata.model_contract.model_name,
+        model_version=metadata.model_contract.model_version,
+        artifact_sha256=metadata.model_contract.artifact_sha256,
+        target=metadata.target,
+        horizon_days=metadata.horizon_days,
+        feature_version=metadata.feature_contract.feature_version,
+        score_semantics=metadata.score_contract.semantics,
+        calibration_status=metadata.calibration.status,
+    )
+    registry = LongitudinalModelRegistry(
+        dataset="fatty_liver",
+        outcomes={
+            metadata.task: LoadedModelEntry(
+                status=status,
+                metadata=metadata,
+                model=model,
+            )
+        },
+        stage=empty_optional_model_status("stage", "stage_model_missing"),
+        trend=empty_optional_model_status("trend", "trend_model_missing"),
+    )
+    result = run_longitudinal_prediction(
+        {"baseline_stage": "pre_cirrhosis", "sex": "female"},
+        [
+            _visit("2024-01-01", 10),
+            _visit("2024-06-01", 20),
+            _visit("2024-12-31", 30),
+        ],
+        FATTY_LIVER_ADAPTER,
+        registry,
+    )
+
+    assert result.outcome_prediction.risk_score == 0.75
+    assert model.calls == 1
+    signal = result.progression_signals.signals[0]
+    assert signal.used_by_outcome_model is True
+    assert signal.model_feature_names == [
+        "alt.first",
+        "alt.last",
+        "alt.missing_ratio",
+        "alt.time_slope_per_day",
+    ]
+    assert signal.model_contribution is None
+
+
+def test_prediction_v2_uses_passed_standard_snapshot():
+    from backend.tests.test_longitudinal_features import _visit
+
+    result = run_longitudinal_prediction(
+        {"baseline_stage": None},
+        [
+            _visit("2024-01-01", 20),
+            _visit("2024-06-01", 35),
+            _visit("2024-12-31", 60),
+        ],
+        FATTY_LIVER_ADAPTER,
+        {},
+        standard_sources=[
+            {
+                "source_type": "reference_range",
+                "indicator": "ALT",
+                "unit": "U/L",
+                "lower": 7,
+                "upper": 40,
+                "standard_version_id": 3,
+                "standard_rule_id": 2,
+            }
+        ],
+    )
+
+    assert result.progression_signals.signals[0].attention_level == "priority"

@@ -650,6 +650,24 @@ P0-05 专项测试通过：`79 passed`。纵向推理、报告、readiness、PDF
 
 ### P0-06：建立双疾病关键进展信号解释器
 
+**状态**：`completed`
+
+**Task-ID**：`longitudinal-signals-001`
+
+**设计文档**：`docs/superpowers/specs/2026-08-27-longitudinal-signal-interpreter-design.md`
+
+**实施计划**：`docs/superpowers/plans/2026-08-27-longitudinal-signal-interpreter.md`
+
+**验证记录**：已新增确定性的双疾病信号解释器和严格 `longitudinal_signal_interpretation.v1` schema，并只挂载到 `longitudinal_prediction.v2`；历史 v1 和旧 progression API 保持不变。脂肪肝显式支持 ALT、AST、GGT、TBIL、ALB、HbA1c、腰围、PLT、AFP、BMI，AD 显式支持 MMSE、MoCA、CDR、NfL、p-tau217、Aβ42/Aβ40；p-tau181 不与 p-tau217 合并。所有指标统一要求至少 3 次有效数值观察，4 次以上使用全部有效观察，不截取最近三次，也不为凑数补足三条信号。CDR 只作为阶段相关观察；个体模型贡献始终为 `null`，解释器不调用模型预测。
+
+正式范围判断只消费 approved resolver 快照。脂肪肝版本 3 的 ALT 男性规则 1（9–50 U/L）、ALT 女性规则 2（7–40 U/L）和 ALB 规则 7（≥35 g/L）可计算；AD 版本 4 的 MMSE 规则 28、MoCA 规则 29、CDR 规则 30、NfL 规则 31、p-tau217 规则 32 均按证据状态处理，不猜测数值阈值。缺单位、单位冲突、观察单位不受支持以及正式标准单位不匹配均安全降级，不输出 above/below；标准单位不匹配回归按 TDD 先得到预期失败，再修复为 `unsupported_unit`。
+
+P0-06 解释器测试：`15 passed`。解释器、特征、证据、预测、报告、端到端和安全专项：`74 passed, 1 warning`。P0-02/P0-03/P0-04/P0-05、旧 progression engine/API 分层回归：`212 passed, 1 warning`；旧前端 progression 合约：`3 passed`。真实 smoke 位于 `.tmp/p006-20260827-084139/fatty-liver-signal-smoke.json` 和 `.tmp/p006-20260827-084139/ad-signal-smoke.json`：脂肪肝输出 4 次 ALT/ALB/PLT 观察，其中 ALT、ALB 结合正式范围为 priority，PLT 因无可用范围为 attention；AD 输出 3 次 MMSE/MoCA 方向信号，只有 1 次的 NfL/p-tau217 按 `insufficient_observations` 省略。两个文件的数据库 URL、密码、traceback、本机路径、患者编号和旧 `progression_signal` 精确字段扫描均无匹配。
+
+`git diff --check` 退出码为 0（仅 Windows LF/CRLF 提示）；生产模型、数据库 schema/migration、前端均无 diff。生产 artifact SHA-256 保持为：脂肪肝模型 `baf711866e22f4a03cfcfc2a047d47a281f856100d269c84ed4dc13dfba63a47`、metadata `935ff03d81fa970a97b4de877cb51fb0b3a16567b5a39f33139d7980b95f6c30`；AD 模型 `a645d369631c0dcced6b402cfb61a4bb0afe7e7955fd73f6f88cc722a06cf803`、metadata `7c56d974ed1fa9e42a0953addee7c8c45118879fe779c4927aca7d3e5c04e3e8`。
+
+完整 `python -m pytest -q --maxfail=1` 已执行，结果为 `1 failed, 74 passed, 2 subtests passed, 10 warnings`；首个失败仍是既有 `backend/tests/test_cleanup_contracts.py::CleanupContractTests::test_removed_files_do_not_exist`，原因是 `.superpowers/sdd` 存在，与 P0-06 改动无关。未删除该目录掩盖失败，未声称全仓测试全部通过。
+
 **现状**
 
 所有指标统一输出 `progression_signal`，没有方向、阈值、强度、原因和疾病差异。
@@ -721,7 +739,7 @@ P0-05 专项测试通过：`79 passed`。纵向推理、报告、readiness、PDF
 
 **完成标准**
 
-- 报告至少提供 3 条有具体原因的关键信号，或明确说明没有达到关注条件；
+- 每个指标至少有 3 次有效观察才可形成信号；报告展示全部实际达标信号，不为凑数补足三条，没有信号时明确说明未达到关注条件；
 - 不再直接展示 `progression_signal`；
 - 每条信号能够追溯到观察数据和标准规则；
 - 脂肪肝与 AD 的方向解释分别正确。

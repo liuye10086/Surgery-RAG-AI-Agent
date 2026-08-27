@@ -60,6 +60,53 @@ class PredictionModelStatus(BaseModel):
     trend: ModelRuntimeStatus
 
 
+class LongitudinalSignal(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    indicator: str
+    display_name: str
+    unit: str | None = None
+    first_value: float | None = None
+    latest_value: float | None = None
+    absolute_change: float | None = None
+    relative_change: float | None = None
+    observation_count: int = Field(ge=0)
+    observation_span_days: int = Field(ge=0)
+    observed_direction: Literal["rising", "falling", "stable", "unavailable"]
+    disease_attention_direction: Literal["rising", "falling", "none"]
+    reference_status: Literal[
+        "within_range",
+        "above_range",
+        "below_range",
+        "unit_missing",
+        "unit_conflict",
+        "unsupported_unit",
+        "reference_unavailable",
+        "reference_not_applicable",
+    ]
+    reference_rule_id: int | None = None
+    reference_version_id: int | None = None
+    attention_level: Literal["none", "attention", "priority"]
+    reason_codes: list[str] = Field(default_factory=list)
+    used_by_outcome_model: bool = False
+    model_feature_names: list[str] = Field(default_factory=list)
+    model_contribution_status: Literal["not_supported", "unavailable"]
+    model_contribution: None = None
+    provenance: dict[str, Any] = Field(default_factory=dict)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class SignalInterpretationResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["longitudinal_signal_interpretation.v1"] = (
+        "longitudinal_signal_interpretation.v1"
+    )
+    signals: list[LongitudinalSignal] = Field(default_factory=list)
+    omitted_indicators: list[dict[str, Any]] = Field(default_factory=list)
+    summary: dict[str, Any] = Field(default_factory=dict)
+
+
 class LongitudinalPredictionResultV1(BaseModel):
     model_config = ConfigDict(extra="forbid")
     schema_version: Literal["longitudinal_prediction.v1"] = "longitudinal_prediction.v1"
@@ -81,6 +128,9 @@ class LongitudinalPredictionResultV2(BaseModel):
     evidence: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     model_status: PredictionModelStatus
+    progression_signals: SignalInterpretationResult = Field(
+        default_factory=SignalInterpretationResult
+    )
 
     @model_validator(mode="after")
     def unavailable_models_have_no_predictions(self):

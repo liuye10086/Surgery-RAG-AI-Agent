@@ -1,4 +1,4 @@
-from app.services.disease_progression import FATTY_LIVER_ADAPTER
+from app.services.disease_progression import AD_ADAPTER, FATTY_LIVER_ADAPTER
 from app.services.longitudinal_prediction import run_longitudinal_prediction
 from app.services.longitudinal_report_generator import render_longitudinal_markdown
 from pathlib import Path
@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import asyncio
+import json
 import pytest
 
 
@@ -104,3 +105,124 @@ def test_prediction_failure_does_not_leak_sensitive_details(secret, monkeypatch)
     serialized = "".join(events) + str(report.error_message)
     assert secret not in serialized
     assert "longitudinal_prediction_failed" in serialized
+
+
+def test_ad_mmse_moca_signals_survive_without_outcome_model():
+    visits = [
+        {
+            "visit_date": visit_date,
+            "indicators": [
+                {"name": "MMSE", "value": mmse, "unit": "分"},
+                {"name": "MoCA", "value": moca, "unit": "分"},
+            ],
+        }
+        for visit_date, mmse, moca in [
+            ("2024-01-01", 28, 25),
+            ("2024-06-01", 25, 22),
+            ("2024-12-31", 22, 18),
+        ]
+    ]
+
+    result = run_longitudinal_prediction(
+        {"baseline_stage": "mci"}, visits, AD_ADAPTER, {}
+    )
+
+    names = {item.indicator for item in result.progression_signals.signals}
+    assert {"mmse", "moca"}.issubset(names)
+    assert all(
+        item.used_by_outcome_model is False
+        for item in result.progression_signals.signals
+    )
+
+
+def test_signal_provenance_and_limitations_do_not_leak_sensitive_values():
+    visits = [
+        {
+            "visit_date": visit_date,
+            "indicators": [{"name": "ALT", "value": value, "unit": "U/L"}],
+        }
+        for visit_date, value in [
+            ("2024-01-01", 20),
+            ("2024-06-01", 35),
+            ("2024-12-31", 60),
+        ]
+    ]
+    result = run_longitudinal_prediction(
+        {"baseline_stage": None}, visits, FATTY_LIVER_ADAPTER, {}
+    )
+    serialized = json.dumps(result.model_dump(mode="json"), ensure_ascii=False)
+
+    for secret in (
+        "postgresql://",
+        "password",
+        "Traceback",
+        "C:\\Users\\",
+        "P001",
+    ):
+        assert secret not in serialized
+
+
+def test_report_generator_passes_safe_standard_sources_to_prediction(monkeypatch):
+    from app.services import longitudinal_report_generator as generator
+
+    visits = [
+        {
+            "visit_date": visit_date,
+            "indicators": [{"name": "ALT", "value": value, "unit": "U/L"}],
+        }
+        for visit_date, value in [
+            ("2024-01-01", 20),
+            ("2024-06-01", 35),
+            ("2024-12-31", 60),
+        ]
+    ]
+    prediction = run_longitudinal_prediction(
+        {"baseline_stage": None}, visits, FATTY_LIVER_ADAPTER, {}
+    )
+    captured = {}
+
+    def fake_prediction(*args, **kwargs):
+        captured.update(kwargs)
+        return prediction
+
+    monkeypatch.setattr(generator, "run_longitudinal_prediction", fake_prediction)
+    sources = [
+        {
+            "source_type": "reference_range",
+            "indicator": "ALT",
+            "unit": "U/L",
+            "lower": 7,
+            "upper": 40,
+            "standard_version_id": 3,
+            "standard_rule_id": 2,
+        }
+    ]
+    report = SimpleNamespace(
+        id=10,
+        status="generating",
+        error_message=None,
+        prediction_result=None,
+        sources=None,
+        content=None,
+        analysis_type=None,
+    )
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = report
+
+    async def collect():
+        return [
+            event
+            async for event in generator.generate_longitudinal_report(
+                db,
+                10,
+                {"baseline_stage": None},
+                visits,
+                FATTY_LIVER_ADAPTER,
+                model_registry={},
+                sources=sources,
+            )
+        ]
+
+    asyncio.run(collect())
+
+    assert captured["standard_sources"] == sources
