@@ -54,6 +54,37 @@ def test_observation_summary_reports_span_and_missingness():
     assert result["indicators"]["alt"]["latest_reference_status"] == "unknown"
 
 
+def test_observation_summary_persists_series_and_unit_state_for_rendering():
+    visits = [
+        _visit("2024-01-01", 10),
+        _visit("2024-06-01", 12),
+        _visit("2025-01-01", 14),
+    ]
+
+    alt = summarize_observation(visits)["indicators"]["alt"]
+
+    assert alt["unit"] == "U/L"
+    assert alt["unit_state"] == "consistent"
+    assert alt["series"] == [
+        {"visit_date": "2024-01-01", "value": 10.0, "unit": "U/L"},
+        {"visit_date": "2024-06-01", "value": 12.0, "unit": "U/L"},
+        {"visit_date": "2025-01-01", "value": 14.0, "unit": "U/L"},
+    ]
+
+
+def test_observation_summary_marks_conflicting_units():
+    visits = [
+        _visit("2024-01-01", 10),
+        {"visit_date": "2024-06-01", "indicators": [{"name": "ALT", "value": 12, "unit": "IU/L"}]},
+        _visit("2025-01-01", 14),
+    ]
+
+    alt = summarize_observation(visits)["indicators"]["alt"]
+
+    assert alt["unit"] is None
+    assert alt["unit_state"] == "conflict"
+
+
 def test_sort_visits_rejects_duplicate_dates():
     with pytest.raises(ValueError, match="日期重复"):
         sort_visits([_visit("2024-01-01"), _visit("2024-01-01")])

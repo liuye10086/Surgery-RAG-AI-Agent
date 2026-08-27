@@ -40,8 +40,8 @@ def test_report_formats_numbers_and_typed_evidence_without_duplicates():
     result = run_longitudinal_prediction(
         {"patient_label": "case-A", "baseline_stage": "pre_cirrhosis"},
         [
-            {"visit_date": "2024-01-01", "indicators": [{"name": "ALT", "value": 10}]},
-            {"visit_date": "2024-06-01", "indicators": [{"name": "alt", "value": 11.3}]},
+            {"visit_date": "2024-01-01", "indicators": [{"name": "ALT", "value": 10, "unit": "U/L"}]},
+            {"visit_date": "2024-06-01", "indicators": [{"name": "alt", "value": 11.3, "unit": "U/L"}]},
         ],
         FATTY_LIVER_ADAPTER,
         {},
@@ -51,8 +51,8 @@ def test_report_formats_numbers_and_typed_evidence_without_duplicates():
         {"source_type": "similar_case", "patient_label": "P001", "overlap_features": ["alt", "ast"], "provenance": "reference"},
     ])
 
-    assert markdown.count("alt: 首次") == 1
-    assert "变化 1.30" in markdown
+    assert markdown.count("| alt |") == 1
+    assert "| alt | 10.00 | 11.30 | 1.30 |" in markdown
     assert "模型分数：0.70" in render_longitudinal_markdown({
         **result.model_dump(mode="json"),
         "outcome_prediction": {

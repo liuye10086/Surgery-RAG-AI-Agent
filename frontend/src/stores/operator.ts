@@ -64,6 +64,14 @@ export const useOperatorStore = defineStore('operator', () => {
     }
   }
 
+  async function loadSavedReport(reportId: number) {
+    cancelGeneration()
+    longitudinalPrediction.value = null
+    longitudinalReportContent.value = ''
+    currentSources.value = []
+    return fetchReport(reportId)
+  }
+
   async function removeReport(reportId: number) {
     await deleteReport(reportId)
     reports.value = reports.value.filter((r) => r.id !== reportId)
@@ -174,6 +182,7 @@ export const useOperatorStore = defineStore('operator', () => {
 
     fetchReports,
     fetchReport,
+    loadSavedReport,
     removeReport,
     fetchDiseases,
     fetchCases,

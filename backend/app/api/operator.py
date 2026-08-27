@@ -438,11 +438,12 @@ def download_report_pdf(
     title = report.title or "分析报告"
 
     try:
-        pdf_bytes = generate_pdf(report.content, title)
-    except RuntimeError as e:
+        pdf_bytes = generate_pdf(report.content, title, report.prediction_result)
+    except RuntimeError:
+        logger.warning("PDF generation failed for report_id=%s", report_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
+            detail="PDF 生成暂时失败，请稍后重试",
         )
 
     # 更新下载计数

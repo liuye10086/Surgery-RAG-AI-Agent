@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import dataclass, field
 from typing import AsyncGenerator, Any
 
 from app.services.longitudinal_prediction import prediction_result_to_dict, run_longitudinal_prediction
@@ -43,6 +44,78 @@ _ATTENTION_TEXT = {
 }
 
 
+@dataclass(frozen=True)
+class IndicatorDisplay:
+    name: str
+    render_mode: str
+    observation_count: int
+    unit: str | None = None
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class ReportView:
+    prediction: dict[str, Any]
+    sources: list[dict[str, Any]] = field(default_factory=list)
+    input_snapshot: dict[str, Any] = field(default_factory=dict)
+    indicator_table: dict[str, IndicatorDisplay] = field(default_factory=dict)
+
+
+def build_report_view(
+    prediction: dict[str, Any],
+    sources: list[dict[str, Any]] | None = None,
+    input_snapshot: dict[str, Any] | None = None,
+) -> ReportView:
+    """Build a presentation-only view from persisted structured results."""
+    observation = prediction.get("observation") or {}
+    indicators = observation.get("indicators") or {}
+    snapshot_visits = (input_snapshot or {}).get("visits") or []
+    units_by_name: dict[str, set[str]] = {}
+    missing_units: set[str] = set()
+    for visit in snapshot_visits:
+        for raw_indicator in (visit or {}).get("indicators") or []:
+            if not isinstance(raw_indicator, dict):
+                continue
+            raw_name = str(raw_indicator.get("name") or "").strip().lower()
+            if not raw_name:
+                continue
+            unit = str(raw_indicator.get("unit") or "").strip()
+            units_by_name.setdefault(raw_name, set())
+            if unit:
+                units_by_name[raw_name].add(unit)
+            else:
+                missing_units.add(raw_name)
+    displays: dict[str, IndicatorDisplay] = {}
+    for name, item in indicators.items():
+        if not isinstance(item, dict):
+            continue
+        count = int(item.get("n_observations") or 0)
+        normalized_name = str(name).strip().lower()
+        persisted_unit_state = str(item.get("unit_state") or "").strip().lower()
+        units = units_by_name.get(normalized_name, set())
+        unit_problem = persisted_unit_state in {"conflict", "missing"} or len(units) > 1 or normalized_name in missing_units
+        unit = item.get("unit") if item.get("unit") else (next(iter(units), None) if len(units) == 1 else None)
+        displays[str(name)] = IndicatorDisplay(
+            name=str(name),
+            observation_count=count,
+            render_mode=(
+                "table_only_unit_problem"
+                if unit_problem
+                else "chart_and_table"
+                if count >= 3
+                else "table_only_insufficient_observations"
+            ),
+            unit=unit,
+            reason=("单位不一致或缺失" if unit_problem else None),
+        )
+    return ReportView(
+        prediction=dict(prediction),
+        sources=list(sources or []),
+        input_snapshot=dict(input_snapshot or {}),
+        indicator_table=displays,
+    )
+
+
 def safe_longitudinal_error(code: str) -> tuple[str, str]:
     stable_code = (
         code if code in SAFE_LONGITUDINAL_ERRORS else "longitudinal_prediction_failed"
@@ -61,6 +134,10 @@ def _format_number(value: Any) -> str:
         return f"{float(value):.2f}"
     except (TypeError, ValueError):
         return str(value)
+
+
+def _markdown_cell(value: Any) -> str:
+    return str(value).replace("|", "\\|").replace("\n", " ").strip()
 
 
 def _format_reference_range(source: dict[str, Any]) -> str:
@@ -186,36 +263,112 @@ def _signal_lines(prediction: dict[str, Any]) -> list[str]:
     return lines or ["当前没有足够的关键进展信号。"]
 
 
-def render_longitudinal_markdown(prediction: dict[str, Any], sources: list[dict[str, Any]] | None = None) -> str:
+def render_longitudinal_markdown(
+    prediction: dict[str, Any],
+    sources: list[dict[str, Any]] | None = None,
+    input_snapshot: dict[str, Any] | None = None,
+) -> str:
+    view = build_report_view(prediction, sources, input_snapshot)
     prediction = normalize_prediction_for_render(prediction)
     outcome = prediction["outcome_prediction"]
     stage = outcome["stage_projection"]
+    observation = prediction.get("observation") or {}
+    disease = prediction.get("disease") or {}
+    model_status = prediction.get("model_status") or {}
+    signal_result = prediction.get("progression_signals") or {}
+    signal_count = len(signal_result.get("signals") or []) if isinstance(signal_result, dict) else 0
+    model_lines = _model_status_lines(prediction)
     lines = [
         "# 纵向进展预测报告",
         "",
         "## 1. 报告摘要",
-        f"模型风险等级：{outcome.get('risk_band') or '未估计'}。模型分数：{_format_number(outcome.get('risk_score'))}，不代表临床概率。",
+        f"数据够用性：已有 {observation.get('visit_count', 0)} 次访视，当前可用于描述已观察变化。",
+        (
+            "模型是否可用：365 天风险模型已可用。"
+            if (model_status.get("outcome") or {}).get("status") == "available"
+            else "模型是否可用：365 天风险模型暂不可用，因此未计算未来风险分数。"
+        ),
+        f"实际看到的信号：当前有 {signal_count} 个关键进展信号。",
+        "以上内容分别对应数据事实、模型状态和结构化信号；不构成诊断或治疗建议。",
         "",
-        "## 2. 病例与数据概况",
-        f"疾病：{prediction['disease'].get('name')}；访视次数：{prediction['observation'].get('visit_count')}；观察跨度：{prediction['observation'].get('observation_span_days')} 天。",
+        "## 2. 病例与预测范围",
+        f"疾病：{disease.get('name') or '未注明'}；访视次数：{observation.get('visit_count', 0)}；观察跨度：{observation.get('observation_span_days', 0)} 天；预测范围：未来 365 天。",
         "",
-        "## 3. 已观察到的纵向变化",
+        "## 3. 数据质量与适用性",
+        f"数据质量概况：共记录 {observation.get('visit_count', 0)} 次访视；已纳入 {len(view.indicator_table)} 个指标。",
+        "",
+        "## 4. 已观察到的纵向变化",
+        "下表只描述已经发生的观察事实，不是模型对未来的预测。",
+        "",
+        "| 指标 | 首次值 | 最近值 | 变化 | 有效观察 | 单位 | 展示说明 |",
+        "| --- | ---: | ---: | ---: | ---: | --- | --- |",
     ]
-    for name, item in prediction["observation"].get("indicators", {}).items():
-        lines.append(f"- {name}: 首次 {_format_number(item.get('first'))}，最近 {_format_number(item.get('last'))}，变化 {_format_number(item.get('delta'))}，趋势斜率 {_format_number(item.get('slope'))}。")
-    lines.extend(["", "## 4. 未来指标趋势预测"])
-    for item in prediction.get("trend_predictions", []):
-        forecast = item["forecast"]
-        lines.append(f"- {item['indicator']}: {forecast.get('direction') or '不可估计'}（{forecast['status']}）。")
-    lines.extend(["", "## 5. 疾病阶段与进展结局预测", f"阶段模型状态：{stage['status']}。", f"可能下一阶段：{stage.get('likely_next_stage') or '未估计'}。", "", "## 6. 关键进展信号"])
-    lines[lines.index("## 5. 疾病阶段与进展结局预测") + 1:lines.index("## 5. 疾病阶段与进展结局预测") + 1] = _model_status_lines(prediction)
+    for name, item in observation.get("indicators", {}).items():
+        display = view.indicator_table.get(name)
+        if display and display.render_mode == "table_only_unit_problem":
+            delta_text = "无法安全比较"
+            unit_text = "单位不一致或缺失"
+            mode_text = "仅表格：单位问题，未绘制趋势或判断异常"
+        elif display and display.render_mode == "chart_and_table":
+            delta_text = _format_number(item.get("delta"))
+            unit_text = display.unit or "单位未提供"
+            mode_text = "可绘制已观察变化图"
+        else:
+            delta_text = _format_number(item.get("delta"))
+            unit_text = (display.unit if display else None) or "单位未提供"
+            mode_text = "仅表格：有效观察不足 3 次"
+        lines.append(
+            "| "
+            + " | ".join(
+                _markdown_cell(value)
+                for value in (
+                    name,
+                    _format_number(item.get("first")),
+                    _format_number(item.get("last")),
+                    delta_text,
+                    f"{item.get('n_observations', 0)} 次",
+                    unit_text,
+                    mode_text,
+                )
+            )
+            + " |"
+        )
+    lines.extend(["", "## 5. 未来 365 天进展风险", "（兼容旧版标题：未来指标趋势预测）"])
+    lines.extend(model_lines or [f"模型风险等级：{outcome.get('risk_band') or '当前未提供'}。模型分数：{_format_number(outcome.get('risk_score'))}，不代表临床概率。"])
+    if outcome.get("risk_score") is not None and not any("模型分数" in line for line in lines[-4:]):
+        lines.append(f"模型风险等级：{outcome.get('risk_band') or '当前未提供'}。模型分数：{_format_number(outcome.get('risk_score'))}，不代表临床概率。")
+    lines.extend(["", "## 6. 阶段模型和下一次随访趋势的可用状态", "（兼容旧版标题：疾病阶段与进展结局预测）"])
+    lines.extend([
+        "阶段模型：已参与本次推理。" if stage.get("status") == "available" else "阶段模型：尚未配置，因此未预测下一阶段。",
+        "趋势模型：已参与本次推理。" if (model_status.get("trend") or {}).get("status") == "available" else "趋势模型：尚未配置，仅展示已观察到的指标变化。",
+    ])
+    lines.extend(["", "## 7. 关键进展信号"])
     lines.extend(_signal_lines(prediction))
-    lines.extend(["", "## 7. 相似病例与参考依据"])
+    lines.extend(["", "## 8. 参考标准和相似病例"])
+    source_items = list(sources or [])
+    has_reference_range = any(
+        source.get("source_type") == "reference_range"
+        for source in source_items
+        if isinstance(source, dict)
+    )
+    has_standard_evidence = any(
+        source.get("source_type") == "standard_evidence"
+        for source in source_items
+        if isinstance(source, dict)
+    )
+    if not has_reference_range:
+        lines.append(
+            "- 当前来源仅有标准证据，没有可用于数值判断的正式参考范围。"
+            if has_standard_evidence
+            else "- 当前没有可用的正式参考标准；未进行参考范围异常判断。"
+        )
     for source in sources or []:
         lines.append(f"- {_render_source(source)}")
-    lines.extend(["", "## 8. 不确定性与局限性"])
+    lines.extend(["", "## 9. 不确定性与局限性"])
     lines.extend([f"- {warning}" for warning in prediction.get("warnings", [])])
-    lines.extend(["", "## 9. 随访与人工复核建议", "建议由专业人员结合完整病史、检查结果和实际随访情况复核。", "", "## 10. 技术附录", "本报告由结构化模型结果生成；不构成诊断或治疗建议。"])
+    if not prediction.get("warnings"):
+        lines.append("- 当前未记录额外限制；仍需结合原始病历进行人工复核。")
+    lines.extend(["", "## 10. 人工复核重点", "- 请结合原始病历核对观察条件、单位和标准适用性。", "", "## 11. 模型和数据技术附录", "（兼容旧版标题：技术附录）", "本报告由结构化模型结果和已保存观察数据生成；不构成诊断或治疗建议。"])
     return "\n".join(lines)
 
 
@@ -233,7 +386,7 @@ async def generate_longitudinal_report(db, report_id: int, case: dict[str, Any],
         payload = prediction_result_to_dict(result)
         payload["evidence"] = {"sources": sources or []}
         yield _sse("prediction", payload)
-        content = render_longitudinal_markdown(payload, sources)
+        content = render_longitudinal_markdown(payload, sources, case)
         report = db.query(AIReport).filter(AIReport.id == report_id).first()
         if report is not None:
             report.prediction_result = payload

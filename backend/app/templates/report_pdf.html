@@ -6,7 +6,7 @@
 <style>
   @page {
     size: A4;
-    margin: 0;
+    margin: 20mm 22mm;
   }
 
   /* ===== 基础排版 ===== */
@@ -160,6 +160,66 @@
   /* 内容容器 */
   .content {
     max-width: 100%;
+  }
+
+  .report-summary,
+  .signal-block,
+  .review-block {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .observed-charts-print {
+    margin: 0.8em 0 1.2em;
+  }
+
+  .observed-chart-print {
+    margin: 0.8em 0;
+    padding: 0.7em 0.9em;
+    border: 1px solid #d9e0e5;
+    background: #f8fafb;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .chart-title-print {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0 0 0.4em;
+  }
+
+  .chart-title-print span {
+    color: #666;
+    font-size: 9pt;
+  }
+
+  .observed-chart-print svg {
+    display: block;
+    width: 100%;
+    max-width: 520px;
+    height: auto;
+    color: #65727c;
+  }
+
+  .observed-chart-print line {
+    stroke: #9aa8b2;
+    stroke-width: 1;
+  }
+
+  .observed-chart-print polyline {
+    fill: none;
+    stroke: #247ca6;
+    stroke-width: 3;
+  }
+
+  .observed-chart-print circle {
+    fill: #247ca6;
+  }
+
+  .observed-chart-print text {
+    fill: #65727c;
+    font-size: 11px;
   }
 
   /* 引用标记 [1] [2] 等 */

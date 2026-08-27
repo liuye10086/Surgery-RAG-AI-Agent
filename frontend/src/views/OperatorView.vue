@@ -32,6 +32,16 @@
         <!-- 病例库视图 -->
         <CaseManageView v-if="activeView === 'cases'" />
 
+        <LongitudinalReportView
+          v-else-if="reportReadingMode"
+          :report="operatorStore.currentReport"
+          :prediction-result="operatorStore.longitudinalPrediction"
+          :rendered-content="renderMarkdown(operatorStore.generating ? operatorStore.longitudinalReportContent : operatorStore.currentReport?.content || '')"
+          :generating="operatorStore.generating"
+          @back="closeReport"
+          @download="handleDownload"
+        />
+
         <!-- 纵向进展预测视图 -->
         <div v-else class="progression-view">
           <div class="progression-inner">
@@ -175,33 +185,6 @@
           </div>
         </div>
 
-        <section v-if="operatorStore.generating && operatorStore.longitudinalReportContent" class="report-content longitudinal-report-content">
-          <div class="markdown-body" v-html="renderMarkdown(operatorStore.longitudinalReportContent)" />
-        </section>
-
-        <section v-else-if="operatorStore.currentReport" class="report-content longitudinal-report-content">
-          <div class="report-head">
-            <h3>{{ operatorStore.currentReport.title || '纵向预测报告' }}</h3>
-            <div class="report-head-meta">
-              <el-tag :type="statusTagType(operatorStore.currentReport.status)" size="small">
-                {{ statusLabel(operatorStore.currentReport.status) }}
-              </el-tag>
-              <span class="meta-time">{{ formatTime(operatorStore.currentReport.created_at) }}</span>
-              <el-button v-if="operatorStore.currentReport.status === 'completed'" size="small" type="primary" @click="handleDownload">
-                下载 PDF
-              </el-button>
-            </div>
-          </div>
-          <div class="markdown-body" v-html="renderMarkdown(operatorStore.currentReport.content)" />
-          <div v-if="operatorStore.currentReport.sources?.length" class="sources-section">
-            <h4>参考来源</h4>
-            <div v-for="(src, idx) in operatorStore.currentReport.sources" :key="idx" class="source-card">
-              <span class="source-index">[{{ src.citation_index }}]</span>
-              <span class="source-title">{{ src.title || '未知来源' }}</span>
-              <span v-if="src.page_number" class="source-page">第 {{ src.page_number }} 页</span>
-            </div>
-          </div>
-        </section>
       </div>
     </div>
   </div>
@@ -218,6 +201,7 @@ import CaseManageView from '@/components/CaseManageView.vue'
 import IndicatorRowsEditor from '@/components/IndicatorRowsEditor.vue'
 import LongitudinalCaseEditor from '@/components/LongitudinalCaseEditor.vue'
 import LongitudinalPredictionSummary from '@/components/LongitudinalPredictionSummary.vue'
+import LongitudinalReportView from '@/components/LongitudinalReportView.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useOperatorStore } from '@/stores/operator'
 import { downloadReport, type IndicatorInput } from '@/api/operator'
@@ -252,6 +236,24 @@ const progressionDiseases = computed(() =>
 )
 
 const progressionResult = computed(() => operatorStore.progressionResult)
+const reportReadingMode = computed(() =>
+  activeView.value === 'progression'
+  && Boolean(operatorStore.generating || operatorStore.currentReport),
+)
+
+const REPORT_SECTIONS = [
+  { id: 'section-1', title: '报告摘要' },
+  { id: 'section-2', title: '病例与预测范围' },
+  { id: 'section-3', title: '数据质量与适用性' },
+  { id: 'section-4', title: '已观察到的纵向变化' },
+  { id: 'section-5', title: '未来 365 天进展风险' },
+  { id: 'section-6', title: '阶段模型和下一次随访趋势的可用状态' },
+  { id: 'section-7', title: '关键进展信号' },
+  { id: 'section-8', title: '参考标准和相似病例' },
+  { id: 'section-9', title: '不确定性与局限性' },
+  { id: 'section-10', title: '人工复核重点' },
+  { id: 'section-11', title: '模型和数据技术附录' },
+]
 
 const canPredictProgression = computed(() => {
   if (!progressionDiseaseId.value || !progressionVisits.value.length) return false
@@ -267,7 +269,7 @@ function toggleSidebar() {
 
 function renderMarkdown(md: string): string {
   const raw = marked.parse(md || '', { breaks: true }) as string
-  return DOMPurify.sanitize(raw, {
+  const safe = DOMPurify.sanitize(raw, {
     ALLOWED_TAGS: [
       'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
       'p', 'ul', 'ol', 'li',
@@ -277,6 +279,13 @@ function renderMarkdown(md: string): string {
       'sup', 'sub', 'a', 'span', 'div',
     ],
   })
+  const document = new DOMParser().parseFromString(safe, 'text/html')
+  const headings = Array.from(document.body.querySelectorAll('h2'))
+  REPORT_SECTIONS.forEach((section) => {
+    const heading = headings.find((item) => item.textContent?.includes(section.title))
+    if (heading) heading.id = section.id
+  })
+  return document.body.innerHTML
 }
 
 function isValidIndicator(row: IndicatorInput) {
@@ -313,6 +322,7 @@ async function handleLongitudinalCaseSaved(draft: any) {
 }
 
 function startNewLongitudinalCase() {
+  operatorStore.clearCurrent()
   operatorStore.currentLongitudinalCase = null
   operatorStore.longitudinalPrediction = null
   operatorStore.longitudinalReportContent = ''
@@ -376,7 +386,12 @@ async function handleSelect(id: number) {
   // 从病例库选择历史报告时，切回纵向报告视图
   activeView.value = 'progression'
   operatorStore.clearCurrent()
-  await operatorStore.fetchReport(id)
+  await operatorStore.loadSavedReport(id)
+}
+
+function closeReport() {
+  if (operatorStore.generating) operatorStore.cancelGeneration()
+  operatorStore.clearCurrent()
 }
 
 async function handleDelete(id: number) {
@@ -391,34 +406,6 @@ async function handleDelete(id: number) {
   } catch {
     // 用户取消
   }
-}
-
-function statusLabel(status: string): string {
-  const map: Record<string, string> = {
-    pending: '等待中',
-    generating: '生成中',
-    completed: '已完成',
-    failed: '失败',
-    cancelled: '已取消',
-  }
-  return map[status] || status
-}
-
-function statusTagType(status: string): 'info' | 'success' | 'danger' | 'warning' | '' {
-  const map: Record<string, 'info' | 'success' | 'danger' | 'warning' | ''> = {
-    pending: 'info',
-    generating: 'warning',
-    completed: 'success',
-    failed: 'danger',
-    cancelled: 'info',
-  }
-  return map[status] || 'info'
-}
-
-function formatTime(iso: string): string {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 onMounted(async () => {

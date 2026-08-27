@@ -197,6 +197,35 @@ def summarize_observation(visits: Iterable[dict[str, Any]]) -> dict[str, Any]:
     total_visits = len(ordered)
     for name, values_with_index in observations.items():
         values = [value for _, value in values_with_index]
+        series = []
+        units: set[str] = set()
+        has_missing_unit = False
+        for visit in ordered:
+            for indicator in visit.get("indicators") or []:
+                if str(indicator.get("name") or "").strip().lower() != name:
+                    continue
+                value = _as_finite_float(indicator.get("value"))
+                if value is None:
+                    continue
+                unit = str(indicator.get("unit") or "").strip() or None
+                if unit is None:
+                    has_missing_unit = True
+                else:
+                    units.add(unit)
+                series.append(
+                    {
+                        "visit_date": visit["visit_date"],
+                        "value": value,
+                        "unit": unit,
+                    }
+                )
+        unit_state = (
+            "conflict"
+            if len(units) > 1
+            else "missing"
+            if has_missing_unit
+            else "consistent"
+        )
         first, last = values[0], values[-1]
         delta = last - first
         # Use the latest valid observation and carry forward the nearest
@@ -223,6 +252,9 @@ def summarize_observation(visits: Iterable[dict[str, Any]]) -> dict[str, Any]:
             "rises_count": sum(a < b for a, b in zip(values, values[1:])),
             "falls_count": sum(a > b for a, b in zip(values, values[1:])),
             "n_observations": len(values),
+            "unit": next(iter(units), None) if unit_state == "consistent" else None,
+            "unit_state": unit_state,
+            "series": series,
             "latest_reference_status": _reference_status(latest_raw, last),
         }
     missingness = {}
