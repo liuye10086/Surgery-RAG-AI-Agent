@@ -16,13 +16,14 @@ from app.schemas.longitudinal_model_registry import ArtifactMetadata
 
 def _sample(*, disease="fatty_liver", current_state="pre_cirrhosis", target_event="cirrhosis_or_hcc", label=1, group="a"):
     from app.schemas.longitudinal_dataset import FixedWindowSample
+    group_hash = group if len(group) == 64 else group * 64
     payload = {
         "identity": {
             "disease": disease,
             "disease_name": "脂肪肝" if disease == "fatty_liver" else "阿尔茨海默病",
             "source_dataset": "fixture",
             "patient_label": f"P-{group}",
-            "group_id": "patient.v1." + group * 64,
+            "group_id": "patient.v1." + group_hash,
             "is_synthetic": False,
             "as_of": "2024-01-01",
             "current_state": current_state,
@@ -70,6 +71,53 @@ def _manifest_export(tmp_path: Path, samples: list[dict], disease="fatty_liver")
     content_hash = hashlib.sha256(json.dumps(stable, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     manifest = {**stable, "data_content_sha256": content_hash}
     (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def _multi_file_manifest_export(tmp_path: Path):
+    files: dict[str, str] = {}
+    payloads = {
+        "ad/real_audit.jsonl": [{"kind": "audit"}],
+        "ad/real_train.jsonl": [
+            _sample(
+                disease="ad",
+                current_state="pre_dementia",
+                target_event="dementia",
+                label=1,
+                group="a",
+            ).model_dump(mode="json")
+        ],
+        "fatty_liver/real_train.jsonl": [
+            _sample(label=0, group="b").model_dump(mode="json")
+        ],
+    }
+    for relative_path, rows in payloads.items():
+        path = tmp_path / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "".join(
+                json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+                for row in rows
+            ),
+            encoding="utf-8",
+        )
+        files[relative_path] = hashlib.sha256(path.read_bytes()).hexdigest()
+    stable = {
+        "schema_version": "longitudinal_fixed_window_dataset.v1",
+        "minimum_visits": 3,
+        "horizon_days": 365,
+        "training_profile": "synthetic_demonstration",
+        "clinical_validity_claim": False,
+        "generator": None,
+        "summary": {},
+        "files": files,
+    }
+    content_hash = hashlib.sha256(
+        json.dumps(stable, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({**stable, "data_content_sha256": content_hash}),
+        encoding="utf-8",
+    )
 
 
 def _valid_metadata_kwargs(**overrides):
@@ -134,6 +182,82 @@ def test_reader_accepts_only_p003_real_train_and_manifest(tmp_path):
     loaded = read_real_train_samples(tmp_path, "fatty_liver")
     assert dataset.schema_version == "longitudinal_fixed_window_dataset.v1"
     assert len(loaded) == 2
+
+
+def test_demonstration_reader_accepts_only_explicit_synthetic_profile(tmp_path):
+    from app.services.longitudinal_model_training import (
+        read_dataset_manifest,
+        read_training_samples,
+    )
+
+    sample = _sample(label=1, group="a").model_copy(
+        update={
+            "identity": _sample(label=1, group="a").identity.model_copy(
+                update={"is_synthetic": True}
+            )
+        }
+    )
+    disease_dir = tmp_path / "fatty_liver"
+    disease_dir.mkdir()
+    training_path = disease_dir / "demonstration_train.jsonl"
+    training_path.write_text(sample.model_dump_json() + "\n", encoding="utf-8")
+    files = {
+        "fatty_liver/demonstration_train.jsonl": hashlib.sha256(
+            training_path.read_bytes()
+        ).hexdigest()
+    }
+    stable = {
+        "schema_version": "longitudinal_fixed_window_dataset.v1",
+        "minimum_visits": 3,
+        "horizon_days": 365,
+        "training_profile": "synthetic_demonstration",
+        "clinical_validity_claim": False,
+        "generator": None,
+        "summary": {},
+        "files": files,
+    }
+    manifest = {
+        **stable,
+        "data_content_sha256": hashlib.sha256(
+            json.dumps(
+                stable,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest(),
+        "training_file_by_disease": {
+            "fatty_liver": "fatty_liver/demonstration_train.jsonl"
+        },
+    }
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    dataset = read_dataset_manifest(tmp_path)
+    loaded = read_training_samples(tmp_path, "fatty_liver", dataset=dataset)
+
+    assert dataset.training_profile == "synthetic_demonstration"
+    assert len(loaded) == 1
+    assert loaded[0].identity.is_synthetic is True
+
+
+def test_manifest_reader_returns_hash_for_requested_training_file(tmp_path):
+    from app.services.longitudinal_model_training import read_dataset_manifest
+
+    _multi_file_manifest_export(tmp_path)
+    dataset = read_dataset_manifest(tmp_path)
+
+    def sha256_file(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    assert dataset.file_sha256("ad/real_train.jsonl") == sha256_file(
+        tmp_path / "ad" / "real_train.jsonl"
+    )
+    assert dataset.file_sha256("fatty_liver/real_train.jsonl") == sha256_file(
+        tmp_path / "fatty_liver" / "real_train.jsonl"
+    )
+    assert dataset.file_sha256("ad/real_train.jsonl") != dataset.file_sha256(
+        "ad/real_audit.jsonl"
+    )
 
 
 def test_reader_rejects_legacy_or_outcome_fields(tmp_path):
@@ -217,7 +341,10 @@ def test_candidate_bundle_contains_complete_p005_metadata(tmp_path):
         schema_version="longitudinal_fixed_window_dataset.v1",
         manifest_sha256="a" * 64,
         data_content_sha256="b" * 64,
-        file_sha256="c" * 64,
+        file_sha256_by_path={
+            task.dataset_file: "c" * 64,
+            "group_splits.json": "d" * 64,
+        },
     )
     result = train_task_to_candidate(rows, task, dataset, tmp_path / "fit", seed=42)
     bundle = write_candidate_bundle(result, tmp_path / "bundles")
@@ -266,10 +393,163 @@ def test_candidate_bundle_is_task_scoped_and_never_overwrites(tmp_path):
         schema_version="longitudinal_fixed_window_dataset.v1",
         manifest_sha256="a" * 64,
         data_content_sha256="b" * 64,
-        file_sha256="c" * 64,
+        file_sha256_by_path={task.dataset_file: "c" * 64},
     )
     result = train_task_to_candidate(rows, task, dataset, tmp_path / "fit", seed=42)
     first = write_candidate_bundle(result, tmp_path / "bundles")
     assert first.bundle_dir.name == "ad_pre_dementia_to_dementia_365d"
     with pytest.raises(FileExistsError):
         write_candidate_bundle(result, tmp_path / "bundles")
+
+
+def _outcome_rows(task_name: str, count: int = 30):
+    from app.services.longitudinal_model_training import select_task_samples
+
+    task = TASK_SPECS[task_name]
+    samples = [
+        _sample(
+            disease=task.disease,
+            current_state=task.current_state,
+            target_event=task.target_event,
+            label=index % 2,
+            group=f"{index + (100 if task.current_state == 'cirrhosis' else 0):064x}",
+        )
+        for index in range(count)
+    ]
+    return samples, select_task_samples(samples, task_name)
+
+
+def _outcome_dataset_input(tmp_path: Path, task_name: str):
+    from app.schemas.longitudinal_model_training import DatasetInput
+
+    task = TASK_SPECS[task_name]
+    return DatasetInput(
+        dataset_dir=str(tmp_path / "dataset"),
+        schema_version="longitudinal_fixed_window_dataset.v1",
+        manifest_sha256="a" * 64,
+        data_content_sha256="b" * 64,
+        file_sha256_by_path={
+            task.dataset_file: "c" * 64,
+            "group_splits.json": "d" * 64,
+        },
+        group_split_file="group_splits.json",
+        group_split_sha256="d" * 64,
+    )
+
+
+def test_outcome_selection_reads_locked_test_only_after_candidate_is_frozen(
+    monkeypatch, tmp_path
+):
+    import app.services.longitudinal_model_training as training
+    from app.services.longitudinal_group_split import make_disease_group_split
+
+    task = TASK_SPECS["ad.pre_dementia_to_dementia"]
+    samples, rows = _outcome_rows(task.task)
+    split = make_disease_group_split(
+        samples,
+        task.disease,
+        seed=42,
+        validation_fraction=0.2,
+        test_fraction=0.2,
+    )
+    calls = []
+    original = training.evaluate_locked_test
+
+    def record_locked(*args, **kwargs):
+        calls.append("locked")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(training, "evaluate_locked_test", record_locked)
+    result = training.train_outcome_task(
+        rows,
+        task,
+        split,
+        _outcome_dataset_input(tmp_path, task.task),
+        tmp_path / "fit",
+        seed=42,
+    )
+
+    assert result.selection_trace[-1] == "candidate_frozen"
+    assert calls == ["locked"]
+    assert result.evaluation.locked_test_used_for_selection is False
+
+
+def test_fatty_liver_outcome_tasks_use_identical_disease_split(tmp_path):
+    from app.services.longitudinal_group_split import make_disease_group_split
+    from app.services.longitudinal_model_training import prepare_outcome_task
+
+    pre_samples, pre_rows = _outcome_rows(
+        "fatty_liver.pre_cirrhosis_to_progression"
+    )
+    hcc_samples, hcc_rows = _outcome_rows("fatty_liver.cirrhosis_to_hcc")
+    all_samples = pre_samples + hcc_samples
+    split = make_disease_group_split(
+        all_samples,
+        "fatty_liver",
+        seed=42,
+        validation_fraction=0.2,
+        test_fraction=0.2,
+    )
+
+    first = prepare_outcome_task(
+        pre_rows,
+        TASK_SPECS["fatty_liver.pre_cirrhosis_to_progression"],
+        split,
+    )
+    second = prepare_outcome_task(
+        hcc_rows,
+        TASK_SPECS["fatty_liver.cirrhosis_to_hcc"],
+        split,
+    )
+
+    assert first.split_sha256 == second.split_sha256 == split.sha256
+
+
+def test_outcome_v2_bundle_binds_training_split_and_evaluation_hashes(tmp_path):
+    from app.schemas.longitudinal_model_suite import ArtifactMetadataV2, EvaluationArtifact
+    from app.services.longitudinal_group_split import make_disease_group_split
+    from app.services.longitudinal_model_training import (
+        train_outcome_task,
+        write_outcome_candidate_bundle,
+    )
+
+    task = TASK_SPECS["ad.pre_dementia_to_dementia"]
+    samples, rows = _outcome_rows(task.task)
+    split = make_disease_group_split(
+        samples,
+        task.disease,
+        seed=42,
+        validation_fraction=0.2,
+        test_fraction=0.2,
+    )
+    dataset = _outcome_dataset_input(tmp_path, task.task)
+    candidate = train_outcome_task(
+        rows,
+        task,
+        split,
+        dataset,
+        tmp_path / "fit",
+        seed=42,
+    )
+    bundle = write_outcome_candidate_bundle(candidate, tmp_path / "bundles")
+    metadata = ArtifactMetadataV2.model_validate_json(
+        bundle.metadata_path.read_text(encoding="utf-8")
+    )
+    evaluation = EvaluationArtifact.model_validate_json(
+        bundle.evaluation_path.read_text(encoding="utf-8")
+    )
+
+    assert metadata.dataset_contract.training_file == task.dataset_file
+    assert metadata.dataset_contract.training_file_sha256 == dataset.file_sha256(
+        task.dataset_file
+    )
+    assert metadata.split_sha256 == split.sha256
+    assert metadata.evaluation_sha256 == hashlib.sha256(
+        bundle.evaluation_path.read_bytes()
+    ).hexdigest()
+    assert evaluation.locked_test_used_for_selection is False
+    assert {path.suffix for path in bundle.bundle_dir.iterdir()} == {
+        ".joblib",
+        ".json",
+    }
+    assert len(list(bundle.bundle_dir.iterdir())) == 3

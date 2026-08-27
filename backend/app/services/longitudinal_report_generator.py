@@ -43,6 +43,21 @@ _ATTENTION_TEXT = {
     "none": "未列为关键信号",
 }
 
+_STAGE_TEXT = {
+    "fatty_liver": "未肝硬化阶段",
+    "pre_cirrhosis": "未肝硬化阶段",
+    "stay_pre_cirrhosis": "维持未肝硬化阶段",
+    "cirrhosis": "肝硬化阶段",
+    "stay_cirrhosis": "维持肝硬化阶段",
+    "hcc": "肝细胞癌阶段",
+    "normal": "正常认知阶段",
+    "stay_normal": "维持正常认知阶段",
+    "mci": "轻度认知障碍阶段",
+    "stay_mci": "维持轻度认知障碍阶段",
+    "pre_dementia": "痴呆前阶段",
+    "dementia": "痴呆阶段",
+}
+
 
 @dataclass(frozen=True)
 class IndicatorDisplay:
@@ -174,7 +189,10 @@ def _render_source(source: dict[str, Any]) -> str:
 
 def normalize_prediction_for_render(prediction: dict[str, Any]) -> dict[str, Any]:
     value = dict(prediction)
-    if value.get("schema_version") == "longitudinal_prediction.v2" and isinstance(
+    if value.get("schema_version") in {
+        "longitudinal_prediction.v2",
+        "longitudinal_prediction.v3",
+    } and isinstance(
         value.get("model_status"), dict
     ):
         return value
@@ -192,7 +210,7 @@ def _model_status_lines(prediction: dict[str, Any]) -> list[str]:
     trend = statuses.get("trend") or {}
     if outcome.get("status") == "available":
         outcome_line = (
-            f"365 天结局模型：已启用并参与本次推理；任务 {outcome.get('task')}，"
+            "365 天结局模型：已启用并参与本次推理；"
             f"版本 {outcome.get('model_version') or '未记录'}。"
         )
     elif outcome.get("status") == "disabled":
@@ -212,6 +230,88 @@ def _model_status_lines(prediction: dict[str, Any]) -> list[str]:
         else "趋势模型：已参与本次推理。"
     )
     return [outcome_line, stage_line, trend_line]
+
+
+def _observed_direction(item: dict[str, Any]) -> str:
+    delta = item.get("delta")
+    try:
+        numeric = float(delta)
+    except (TypeError, ValueError):
+        return "unavailable"
+    if numeric > 0:
+        return "rising"
+    if numeric < 0:
+        return "falling"
+    return "stable"
+
+
+def _stage_prediction_lines(stage: dict[str, Any]) -> list[str]:
+    if stage.get("status") != "available" or not stage.get("likely_next_stage"):
+        return ["阶段模型暂不可用，未生成下一疾病阶段预测。"]
+    likely = _STAGE_TEXT.get(
+        str(stage.get("likely_next_stage")), "未识别的阶段类别"
+    )
+    lines = [f"模型预测的下一疾病阶段：{likely}。"]
+    candidates = stage.get("stage_candidates") or []
+    if candidates:
+        lines.extend(
+            [
+                "",
+                "| 候选阶段 | 模型分数 |",
+                "| --- | ---: |",
+            ]
+        )
+        for candidate in candidates:
+            raw_stage = str((candidate or {}).get("stage") or "")
+            label = _STAGE_TEXT.get(
+                raw_stage,
+                _DIRECTION_TEXT.get(raw_stage, "未识别的阶段类别"),
+            )
+            lines.append(
+                f"| {_markdown_cell(label)} | {_format_number((candidate or {}).get('model_score'))} |"
+            )
+        lines.append("候选分数是模型分数，不代表临床概率。")
+    return lines
+
+
+def _trend_prediction_lines(prediction: dict[str, Any]) -> list[str]:
+    trends = prediction.get("trend_predictions") or []
+    if not trends:
+        return ["当前没有已保存的下一次访视指标趋势预测。"]
+    lines = [
+        "| 指标 | 已观察方向 | 模型预测方向 | 模型状态 |",
+        "| --- | --- | --- | --- |",
+    ]
+    for trend in trends:
+        observed = trend.get("observed") or {}
+        forecast = trend.get("forecast") or {}
+        status = trend.get("model_status") or {}
+        available = (
+            status.get("status") == "available"
+            and forecast.get("status") == "direction_only"
+            and forecast.get("basis") == "next_visit_trend_model"
+        )
+        predicted = (
+            _DIRECTION_TEXT.get(str(forecast.get("direction")), "无法估计")
+            if available
+            else "无法估计"
+        )
+        status_text = "模型已参与" if available else "模型未参与或推理失败"
+        lines.append(
+            "| "
+            + " | ".join(
+                _markdown_cell(value)
+                for value in (
+                    trend.get("indicator") or "未命名指标",
+                    _DIRECTION_TEXT.get(_observed_direction(observed), "无法判断"),
+                    predicted,
+                    status_text,
+                )
+            )
+            + " |"
+        )
+    lines.append("已观察方向只描述既往事实；模型预测方向只来自下一次访视趋势模型。")
+    return lines
 
 
 def _signal_lines(prediction: dict[str, Any]) -> list[str]:
@@ -336,12 +436,17 @@ def render_longitudinal_markdown(
     lines.extend(["", "## 5. 未来 365 天进展风险", "（兼容旧版标题：未来指标趋势预测）"])
     lines.extend(model_lines or [f"模型风险等级：{outcome.get('risk_band') or '当前未提供'}。模型分数：{_format_number(outcome.get('risk_score'))}，不代表临床概率。"])
     if outcome.get("risk_score") is not None and not any("模型分数" in line for line in lines[-4:]):
-        lines.append(f"模型风险等级：{outcome.get('risk_band') or '当前未提供'}。模型分数：{_format_number(outcome.get('risk_score'))}，不代表临床概率。")
+        lines.append(f"模型风险等级：{outcome.get('risk_band') or '当前未提供'}。模型分数：{_format_number(outcome.get('risk_score'))}；这是模型分数，不代表临床概率。")
     lines.extend(["", "## 6. 阶段模型和下一次随访趋势的可用状态", "（兼容旧版标题：疾病阶段与进展结局预测）"])
     lines.extend([
         "阶段模型：已参与本次推理。" if stage.get("status") == "available" else "阶段模型：尚未配置，因此未预测下一阶段。",
         "趋势模型：已参与本次推理。" if (model_status.get("trend") or {}).get("status") == "available" else "趋势模型：尚未配置，仅展示已观察到的指标变化。",
+        "",
+        "### 6.1 下一疾病阶段预测",
     ])
+    lines.extend(_stage_prediction_lines(stage))
+    lines.extend(["", "### 6.2 下一次访视指标趋势预测"])
+    lines.extend(_trend_prediction_lines(prediction))
     lines.extend(["", "## 7. 关键进展信号"])
     lines.extend(_signal_lines(prediction))
     lines.extend(["", "## 8. 参考标准和相似病例"])
@@ -368,7 +473,15 @@ def render_longitudinal_markdown(
     lines.extend([f"- {warning}" for warning in prediction.get("warnings", [])])
     if not prediction.get("warnings"):
         lines.append("- 当前未记录额外限制；仍需结合原始病历进行人工复核。")
-    lines.extend(["", "## 10. 人工复核重点", "- 请结合原始病历核对观察条件、单位和标准适用性。", "", "## 11. 模型和数据技术附录", "（兼容旧版标题：技术附录）", "本报告由结构化模型结果和已保存观察数据生成；不构成诊断或治疗建议。"])
+    lines.extend(["", "## 10. 人工复核重点", "- 请结合原始病历核对观察条件、单位和标准适用性。", "", "## 11. 模型和数据技术附录", "（兼容旧版标题：技术附录）"])
+    release_set = prediction.get("release_set") or {}
+    if release_set.get("release_set_id"):
+        lines.append(
+            "本报告固定使用模型组版本："
+            f"{_markdown_cell(release_set.get('release_set_id'))}；"
+            f"数据版本：{_markdown_cell(release_set.get('data_release_id') or '未记录')}。"
+        )
+    lines.append("本报告由结构化模型结果和已保存观察数据生成；不构成诊断或治疗建议。")
     return "\n".join(lines)
 
 

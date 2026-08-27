@@ -80,7 +80,7 @@ export interface ReportListItem {
   analysis_type: string
   disease_id: number | null
   indicators: Record<string, unknown>[]
-  prediction_result: Record<string, unknown>
+  prediction_result: LongitudinalPrediction | null
   created_at: string
   updated_at: string
 }
@@ -124,14 +124,118 @@ export interface LongitudinalCase {
   updated_at?: string
 }
 
-export interface LongitudinalPrediction {
-  schema_version: string
+export interface LongitudinalRuntimeStatus {
+  artifact_type: 'outcome' | 'stage' | 'trend'
+  task?: string | null
+  status: 'available' | 'missing' | 'incompatible' | 'disabled'
+  reason_code: string
+  lifecycle_status?: 'candidate' | 'reviewed' | 'enabled' | null
+  model_id?: string | null
+  model_name?: string | null
+  model_version?: string | null
+  artifact_sha256?: string | null
+  target?: string | null
+  horizon_days?: number | null
+  feature_version?: string | null
+  score_semantics?: string | null
+  calibration_status?: string | null
+}
+
+export interface LongitudinalModelStatuses {
+  outcome: LongitudinalRuntimeStatus
+  stage: LongitudinalRuntimeStatus
+  trend: LongitudinalRuntimeStatus
+}
+
+export interface LongitudinalStageProjection {
+  status: 'available' | 'not_estimated'
+  likely_next_stage?: string | null
+  stage_candidates?: Array<{ stage: string; model_score: number }>
+}
+
+export interface LongitudinalOutcomePrediction {
+  risk_band?: string | null
+  risk_score?: number | null
+  score_semantics?: 'model_score'
+  stage_projection: LongitudinalStageProjection
+  confidence?: Record<string, unknown>
+}
+
+export interface LongitudinalObservedIndicator {
+  first?: number | null
+  last?: number | null
+  delta?: number | null
+  n_observations?: number
+  unit?: string | null
+  unit_state?: string | null
+  series?: Array<{ visit_date: string; value: number; unit?: string | null }>
+}
+
+export interface LongitudinalObservation {
+  visit_count?: number
+  observation_span_days?: number
+  indicators?: Record<string, LongitudinalObservedIndicator>
+  [key: string]: unknown
+}
+
+export interface LongitudinalTrendPrediction {
+  indicator: string
+  unit?: string | null
+  observed?: LongitudinalObservedIndicator
+  reference?: Record<string, unknown>
+  forecast: {
+    direction?: 'rising' | 'stable' | 'falling' | null
+    status: 'direction_only' | 'not_estimable' | 'not_available'
+    window?: 'next_followup'
+    projected_value?: null
+    prediction_interval?: null
+    basis?: string | null
+  }
+  importance?: Record<string, unknown>
+}
+
+export interface LongitudinalTrendPredictionV3 extends LongitudinalTrendPrediction {
+  model_status: LongitudinalRuntimeStatus
+}
+
+export interface LongitudinalReleaseSetIdentity {
+  dataset: 'fatty_liver' | 'ad'
+  release_set_id: string
+  release_set_sha256: string
+  data_release_id: string
+  split_sha256: string
+}
+
+interface LongitudinalPredictionBase {
   disease: Record<string, unknown>
-  observation: Record<string, any>
-  outcome_prediction: Record<string, any>
-  trend_predictions: Array<Record<string, any>>
+  observation: LongitudinalObservation
+  outcome_prediction: LongitudinalOutcomePrediction
+  evidence?: Record<string, unknown>
   warnings: string[]
 }
+
+export interface LongitudinalPredictionV1 extends LongitudinalPredictionBase {
+  schema_version: 'longitudinal_prediction.v1'
+  trend_predictions: LongitudinalTrendPrediction[]
+}
+
+export interface LongitudinalPredictionV2 extends LongitudinalPredictionBase {
+  schema_version: 'longitudinal_prediction.v2'
+  trend_predictions: LongitudinalTrendPrediction[]
+  model_status: LongitudinalModelStatuses
+  progression_signals?: Record<string, any>
+}
+
+export interface LongitudinalPredictionV3 extends LongitudinalPredictionBase {
+  schema_version: 'longitudinal_prediction.v3'
+  release_set: LongitudinalReleaseSetIdentity
+  trend_predictions: LongitudinalTrendPredictionV3[]
+  model_status: LongitudinalModelStatuses
+  progression_signals?: Record<string, any>
+}
+
+export type LongitudinalPrediction =
+  LongitudinalPredictionV1 | LongitudinalPredictionV2 | LongitudinalPredictionV3
 
 export function listLongitudinalCases(diseaseId?: number): Promise<{ cases: LongitudinalCase[]; total: number }> {
   return request.get('/v1/operator/longitudinal-cases', { params: diseaseId ? { disease_id: diseaseId } : {} })

@@ -19,7 +19,7 @@ for item in (ROOT, BACKEND):
         sys.path.insert(0, str(item))
 
 from app.services.disease_progression import AD_ADAPTER, FATTY_LIVER_ADAPTER
-from app.services.longitudinal_model_registry import load_model_registry
+from app.services.longitudinal_model_registry import load_active_model_registry
 from app.services.longitudinal_prediction import run_longitudinal_prediction
 
 
@@ -115,7 +115,7 @@ def load_online_smoke_case(
 
 def _result_summary(result) -> dict[str, object]:
     outcome = result.model_status.outcome
-    payload = {
+    outcome_payload = {
         "task": outcome.task,
         "status": outcome.status,
         "reason_code": outcome.reason_code,
@@ -128,8 +128,43 @@ def _result_summary(result) -> dict[str, object]:
         "calibration_status": outcome.calibration_status,
         "risk_score": result.outcome_prediction.risk_score,
         "risk_band": result.outcome_prediction.risk_band,
-        "observation_visit_count": result.observation.get("visit_count"),
     }
+    stage = result.model_status.stage
+    trend_items = list(result.trend_predictions)
+    payload = {
+        "schema_version": result.schema_version,
+        "observation_visit_count": result.observation.get("visit_count"),
+        "outcome": outcome_payload,
+        "stage": {
+            "status": stage.status,
+            "reason_code": stage.reason_code,
+            "model_version": stage.model_version,
+            "likely_next_stage": result.outcome_prediction.stage_projection.likely_next_stage,
+        },
+        "trends": {
+            "required_count": len(trend_items),
+            "available_count": sum(
+                item.model_status.status == "available" for item in trend_items
+            ),
+            "items": [
+                {
+                    "indicator": item.indicator,
+                    "status": item.model_status.status,
+                    "reason_code": item.model_status.reason_code,
+                    "direction": item.forecast.direction,
+                }
+                for item in trend_items
+            ],
+        },
+    }
+    release_set = getattr(result, "release_set", None)
+    if release_set is not None:
+        payload.update(
+            release_set_id=release_set.release_set_id,
+            release_set_sha256=release_set.release_set_sha256,
+            data_release_id=release_set.data_release_id,
+            split_sha256=release_set.split_sha256,
+        )
     assert_safe_payload(payload)
     return payload
 
@@ -161,8 +196,8 @@ def run_smoke(registry_dir: Path, data_root: Path) -> dict[str, object]:
     ]
     results = {}
     registries = {
-        "fatty_liver": load_model_registry("fatty_liver", registry_dir),
-        "ad": load_model_registry("ad", registry_dir),
+        "fatty_liver": load_active_model_registry("fatty_liver", registry_dir),
+        "ad": load_active_model_registry("ad", registry_dir),
     }
     for name, adapter, stage, patients, visits in scenarios:
         case, timeline = load_online_smoke_case(
@@ -184,7 +219,7 @@ def run_smoke(registry_dir: Path, data_root: Path) -> dict[str, object]:
         case, timeline, FATTY_LIVER_ADAPTER, registries["fatty_liver"]
     )
     results["fatty_liver_suspected_cirrhosis"] = _result_summary(uncertain)
-    if results["fatty_liver_suspected_cirrhosis"]["risk_score"] is not None:
+    if results["fatty_liver_suspected_cirrhosis"]["outcome"]["risk_score"] is not None:
         raise ValueError("uncertain_stage_returned_score")
     payload = {"status": "passed", "scenarios": results}
     assert_safe_payload(payload)

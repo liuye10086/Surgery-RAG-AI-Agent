@@ -1,0 +1,11 @@
+{
+  "dataset": "fatty_liver",
+  "note": "approved-demonstration-production-activation",
+  "release_set_id": "fatty_liver-6f9c8a2da687-a13186ccaa8f",
+  "release_set_path": "release_sets/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f.json",
+  "release_set_sha256": "acb2bc1570cb3eee2bfdf557432909800a8a095095121b8efcef85037a66fe24",
+  "review_id": "review-set-01ca449b517a6bbaa1151419",
+  "reviewed_at": "2026-08-27T07:06:44.686748+00:00",
+  "reviewer": "owner",
+  "schema_version": "longitudinal_disease_release_set_review.v1"
+}

@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
@@ -547,3 +548,154 @@ def test_release_can_be_explicitly_disabled(tmp_path):
         "disabled",
         "production_disabled",
     )
+
+
+def test_active_release_set_loads_one_immutable_suite(monkeypatch, tmp_path):
+    from app.schemas.longitudinal_model_suite import ArtifactMetadataV2
+    from app.services import longitudinal_model_registry as registry
+    from backend.tests.test_longitudinal_model_suite_schema import valid_metadata
+
+    root = tmp_path / "registry"
+    release_path = root / "release_sets" / "ad" / "ad-set-v1.json"
+    release_path.parent.mkdir(parents=True)
+    bundles = []
+    for artifact_type, task, indicator in [
+        ("outcome", "ad.pre_dementia_to_dementia", None),
+        ("stage", "ad.next_stage", None),
+        ("trend", "ad.next_visit_trend.mmse", "mmse"),
+    ]:
+        bundle_dir = root / "bundles" / task.replace(".", "-")
+        bundle_dir.mkdir(parents=True)
+        model_path = bundle_dir / "model.joblib"
+        metadata_path = bundle_dir / "model.meta.json"
+        evaluation_path = bundle_dir / "model.evaluation.json"
+        model_path.write_bytes(b"model")
+        evaluation_path.write_text("{}", encoding="utf-8")
+        payload = valid_metadata(artifact_type)
+        payload["task"] = task
+        payload["target"] = (
+            "dementia"
+            if artifact_type == "outcome"
+            else "next_stage"
+            if artifact_type == "stage"
+            else f"next_visit_direction:{indicator}"
+        )
+        if artifact_type == "trend":
+            payload["horizon"] = {"kind": "next_visit", "value": None}
+        metadata = ArtifactMetadataV2.model_validate(payload)
+        metadata_path.write_text(metadata.model_dump_json(), encoding="utf-8")
+        bundles.append(
+            {
+                "task": task,
+                "artifact_type": artifact_type,
+                "indicator": indicator,
+                "model_path": model_path.relative_to(root).as_posix(),
+                "metadata_path": metadata_path.relative_to(root).as_posix(),
+                "evaluation_path": evaluation_path.relative_to(root).as_posix(),
+                "manifest_path": "dataset/manifest.json",
+            }
+        )
+    release_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "longitudinal_disease_release_set.v1",
+                "dataset": "ad",
+                "release_set_id": "ad-set-v1",
+                "status": "reviewed",
+                "data_release_id": "ad-data-v1",
+                "dataset_manifest_sha256": "a" * 64,
+                "split_sha256": "b" * 64,
+                "bundles": bundles,
+                "created_at": "2026-08-27T00:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+    active = root / "active" / "ad.json"
+    active.parent.mkdir(parents=True)
+    active.write_text(
+        json.dumps(
+            {
+                "schema_version": "longitudinal_disease_release_pointer.v1",
+                "dataset": "ad",
+                "release_set_id": "ad-set-v1",
+                "release_set_sha256": _sha256(release_path),
+                "changed_by": "owner",
+                "changed_at": "2026-08-27T00:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        registry,
+        "validate_bundle_files",
+        lambda **kwargs: SimpleNamespace(
+            status=SimpleNamespace(status="available", reason_code="bundle_valid"),
+            metadata=ArtifactMetadataV2.model_validate_json(
+                kwargs["metadata_path"].read_text(encoding="utf-8")
+            ),
+        ),
+    )
+    monkeypatch.setattr(registry.joblib, "load", lambda path: {"loaded": path.name})
+
+    suite = registry.load_disease_model_suite("ad", root)
+
+    assert suite.release_set_id == "ad-set-v1"
+    assert set(suite.outcomes) == {"ad.pre_dementia_to_dementia"}
+    assert suite.stage.metadata.task == "ad.next_stage"
+    assert set(suite.trends) == {"mmse"}
+
+
+def test_active_release_set_prevents_fallback_to_legacy_task_releases(monkeypatch, tmp_path):
+    from app.services import longitudinal_model_registry as registry
+
+    monkeypatch.setattr(
+        registry,
+        "load_disease_model_suite",
+        lambda dataset, root: (_ for _ in ()).throw(ValueError("active set broken")),
+    )
+    monkeypatch.setattr(
+        registry,
+        "load_task_model",
+        lambda *args, **kwargs: pytest.fail("legacy fallback must not run"),
+    )
+    (tmp_path / "active").mkdir()
+    (tmp_path / "active" / "ad.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="active set broken"):
+        registry.load_active_model_registry("ad", tmp_path)
+
+
+def test_inactive_release_pointer_restores_legacy_registry_fallback(
+    monkeypatch, tmp_path
+):
+    from app.services import longitudinal_model_registry as registry
+
+    (tmp_path / "active").mkdir()
+    (tmp_path / "active" / "ad.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "longitudinal_disease_release_pointer.v1",
+                "status": "inactive",
+                "dataset": "ad",
+                "previous_release_set_id": "ad-set-v1",
+                "previous_release_set_sha256": "a" * 64,
+                "changed_by": "owner",
+                "changed_at": "2026-08-27T00:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        registry,
+        "load_disease_model_suite",
+        lambda *args, **kwargs: pytest.fail("inactive pointer must not load v3 suite"),
+    )
+    monkeypatch.setattr(
+        registry,
+        "load_model_registry",
+        lambda *args, **kwargs: "legacy",
+    )
+
+    assert registry.load_active_model_registry("ad", tmp_path) == "legacy"

@@ -7,6 +7,7 @@ from typing import Mapping, Sequence
 import numpy as np
 from sklearn.metrics import (
     average_precision_score,
+    balanced_accuracy_score,
     brier_score_loss,
     confusion_matrix,
     f1_score,
@@ -16,6 +17,7 @@ from sklearn.metrics import (
 )
 
 from app.schemas.longitudinal_model_training import BinaryMetrics
+from app.schemas.longitudinal_model_suite import MulticlassMetrics
 
 
 @dataclass(frozen=True)
@@ -76,3 +78,54 @@ def patient_bootstrap_ci(labels_by_group: Mapping[str, Sequence[int]], probabili
         values.append(compute_binary_metrics(labels, probabilities, threshold).f1 or 0.0)
     lower, upper = np.percentile(values, [2.5, 97.5]).tolist()
     return ConfidenceInterval("group_id", float(lower), float(upper), False)
+
+
+def compute_multiclass_metrics(
+    labels: Sequence[str],
+    predictions: Sequence[str],
+    class_order: Sequence[str],
+) -> MulticlassMetrics:
+    fixed_order = list(class_order)
+    if not fixed_order or len(fixed_order) != len(set(fixed_order)):
+        raise ValueError("class_order_invalid")
+    if len(labels) != len(predictions):
+        raise ValueError("label_prediction_length_mismatch")
+    allowed = set(fixed_order)
+    if any(value not in allowed for value in labels) or any(
+        value not in allowed for value in predictions
+    ):
+        raise ValueError("unknown_class")
+    support = {name: sum(value == name for value in labels) for name in fixed_order}
+    unavailable: list[str] = []
+    if not labels:
+        macro_f1 = None
+        balanced = None
+        unavailable.extend(["macro_f1", "balanced_accuracy"])
+    else:
+        macro_f1 = float(
+            f1_score(
+                labels,
+                predictions,
+                labels=fixed_order,
+                average="macro",
+                zero_division=0,
+            )
+        )
+        present_classes = {value for value in labels}
+        if len(present_classes) < 2:
+            balanced = None
+            unavailable.append("balanced_accuracy")
+        else:
+            balanced = float(balanced_accuracy_score(labels, predictions))
+    return MulticlassMetrics(
+        class_order=fixed_order,
+        class_support=support,
+        macro_f1=macro_f1,
+        balanced_accuracy=balanced,
+        confusion_matrix=confusion_matrix(
+            labels,
+            predictions,
+            labels=fixed_order,
+        ).tolist(),
+        unavailable_metrics=unavailable,
+    )

@@ -55,3 +55,27 @@ def test_smoke_payload_sanitizer_rejects_patient_identifiers():
         assert str(error) == "sensitive_output_detected"
     else:
         raise AssertionError("patient identifier was accepted")
+
+
+def test_complete_suite_summary_includes_release_outcome_stage_and_trends():
+    from backend.tests.test_longitudinal_prediction_contract import (
+        _ad_visits,
+        _complete_ad_suite,
+    )
+    from app.services.disease_progression import AD_ADAPTER
+    from app.services.longitudinal_prediction import run_longitudinal_prediction
+    from scripts.smoke_longitudinal_registry import _result_summary
+
+    result = run_longitudinal_prediction(
+        {"baseline_stage": "mci", "sex": "female"},
+        _ad_visits(),
+        AD_ADAPTER,
+        _complete_ad_suite(),
+    )
+    summary = _result_summary(result)
+
+    assert summary["release_set_id"] == "ad-set-v1"
+    assert summary["outcome"]["status"] == "available"
+    assert summary["stage"]["status"] == "available"
+    assert summary["trends"]["available_count"] == 2
+    assert summary["trends"]["required_count"] == 2

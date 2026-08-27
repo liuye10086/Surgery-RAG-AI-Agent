@@ -1,0 +1,278 @@
+<style>
+  #p007-summary-choice {
+    --p007-primary: hsl(200, 65%, 40%);
+    --p007-primary-light: hsl(200, 65%, 92%);
+    --p007-accent: hsl(25, 55%, 52%);
+    --p007-accent-light: hsl(25, 55%, 93%);
+    --p007-canvas: hsl(40, 15%, 98%);
+    --p007-surface: #ffffff;
+    --p007-text: hsl(210, 18%, 18%);
+    --p007-muted: hsl(210, 6%, 45%);
+    --p007-border: hsl(210, 8%, 88%);
+    --p007-border-light: hsl(210, 10%, 93%);
+    --p007-success: hsl(155, 50%, 40%);
+    --p007-warning: hsl(38, 70%, 48%);
+    color: var(--p007-text);
+  }
+
+  #p007-summary-choice .p007-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+  }
+
+  #p007-summary-choice .p007-option {
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--p007-border);
+    border-radius: 8px;
+    background: var(--p007-surface);
+    cursor: pointer;
+    transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+  }
+
+  #p007-summary-choice .p007-option:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  }
+
+  #p007-summary-choice .p007-option.selected {
+    border-color: var(--p007-primary);
+    box-shadow: 0 0 0 2px var(--p007-primary-light);
+  }
+
+  #p007-summary-choice .p007-head {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 16px;
+    border-bottom: 1px solid var(--p007-border-light);
+  }
+
+  #p007-summary-choice .p007-letter {
+    display: grid;
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border-radius: 6px;
+    color: var(--p007-primary);
+    background: var(--p007-primary-light);
+    font-weight: 600;
+  }
+
+  #p007-summary-choice .p007-head h3 {
+    margin: 0 0 4px;
+  }
+
+  #p007-summary-choice .p007-head p {
+    margin: 0;
+    color: var(--p007-muted);
+  }
+
+  #p007-summary-choice .p007-recommend {
+    color: var(--p007-accent);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  #p007-summary-choice .p007-preview {
+    min-height: 450px;
+    padding: 14px;
+    background: var(--p007-canvas);
+  }
+
+  #p007-summary-choice .p007-title {
+    margin-bottom: 4px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  #p007-summary-choice .p007-meta {
+    margin-bottom: 12px;
+    color: var(--p007-muted);
+    font-size: 9px;
+  }
+
+  #p007-summary-choice .p007-status-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  #p007-summary-choice .p007-status {
+    min-height: 92px;
+    padding: 9px;
+    border: 1px solid var(--p007-border-light);
+    border-radius: 6px;
+    background: var(--p007-surface);
+  }
+
+  #p007-summary-choice .p007-status-label {
+    display: block;
+    margin-bottom: 7px;
+    color: var(--p007-muted);
+    font-size: 9px;
+  }
+
+  #p007-summary-choice .p007-status-value {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  #p007-summary-choice .p007-status-note {
+    color: var(--p007-muted);
+    font-size: 8px;
+    line-height: 1.4;
+  }
+
+  #p007-summary-choice .ok { color: var(--p007-success); }
+  #p007-summary-choice .warn { color: var(--p007-warning); }
+  #p007-summary-choice .blue { color: var(--p007-primary); }
+
+  #p007-summary-choice .p007-explain {
+    margin-top: 12px;
+    padding: 10px;
+    border-left: 3px solid var(--p007-primary);
+    background: var(--p007-primary-light);
+    color: var(--p007-text);
+    font-size: 9px;
+    line-height: 1.55;
+  }
+
+  #p007-summary-choice .p007-next {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--p007-border-light);
+  }
+
+  #p007-summary-choice .p007-next strong {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 10px;
+  }
+
+  #p007-summary-choice .p007-next p {
+    margin: 0;
+    color: var(--p007-muted);
+    font-size: 9px;
+    line-height: 1.45;
+  }
+
+  #p007-summary-choice .p007-paragraph {
+    padding: 14px;
+    border: 1px solid var(--p007-border-light);
+    border-radius: 6px;
+    background: var(--p007-surface);
+    color: var(--p007-muted);
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  #p007-summary-choice .p007-paragraph strong {
+    color: var(--p007-text);
+  }
+
+  #p007-summary-choice .p007-keywords {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 14px;
+  }
+
+  #p007-summary-choice .p007-keyword {
+    padding: 8px 6px;
+    border-top: 2px solid var(--p007-border);
+    background: var(--p007-canvas);
+    color: var(--p007-muted);
+    font-size: 8px;
+    line-height: 1.4;
+  }
+
+  #p007-summary-choice .p007-keyword strong {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--p007-text);
+    font-size: 9px;
+  }
+
+  #p007-summary-choice .p007-paragraph-warning {
+    margin-top: 14px;
+    padding: 9px;
+    border-left: 3px solid var(--p007-warning);
+    background: color-mix(in srgb, var(--p007-warning) 10%, var(--p007-surface));
+    color: var(--p007-muted);
+    font-size: 9px;
+    line-height: 1.45;
+  }
+
+  @media (max-width: 760px) {
+    #p007-summary-choice .p007-options {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<div id="p007-summary-choice">
+  <h2>报告摘要怎样让医生一眼看懂？</h2>
+  <p class="subtitle">两种方案都用普通中文；区别是三个关键信息是否在最上方分开呈现。</p>
+
+  <div class="p007-options">
+    <article class="p007-option" data-choice="a-three-status-blocks" onclick="toggleSelect(this)">
+      <header class="p007-head">
+        <div class="p007-letter">A</div>
+        <div>
+          <h3>三个状态块 + 人话解释 <span class="p007-recommend">推荐</span></h3>
+          <p>先回答“数据、模型、信号”三个问题，再补充原因和下一步复核。</p>
+        </div>
+      </header>
+      <div class="p007-preview" aria-label="三个状态块和人话解释的报告摘要示意">
+        <div class="p007-title">1. 报告摘要</div>
+        <div class="p007-meta">匿名病例 · 脂肪肝 · 2026-08-27 生成</div>
+        <div class="p007-status-grid">
+          <div class="p007-status">
+            <span class="p007-status-label">数据够不够</span>
+            <span class="p007-status-value ok">够用</span>
+            <span class="p007-status-note">3 次有效观察，跨度 410 天</span>
+          </div>
+          <div class="p007-status">
+            <span class="p007-status-label">模型是否可用</span>
+            <span class="p007-status-value warn">暂不可用</span>
+            <span class="p007-status-note">缺少已启用的 365 天风险模型</span>
+          </div>
+          <div class="p007-status">
+            <span class="p007-status-label">实际看到什么</span>
+            <span class="p007-status-value blue">2 个信号</span>
+            <span class="p007-status-note">ALT 持续升高；BMI 总体上升</span>
+          </div>
+        </div>
+        <div class="p007-explain">这份报告可以可靠描述过去三次随访中观察到的变化，但不能给出未来 365 天风险分数。关键信号来自至少三次有效观察；它们提示需要人工复核，不是诊断或治疗建议。</div>
+        <div class="p007-next"><strong>建议先看</strong><p>先查看“已观察到的纵向变化”和“关键进展信号”，再查看模型不可用的具体原因。</p></div>
+      </div>
+    </article>
+
+    <article class="p007-option" data-choice="b-single-paragraph" onclick="toggleSelect(this)">
+      <header class="p007-head">
+        <div class="p007-letter">B</div>
+        <div>
+          <h3>一段连续摘要</h3>
+          <p>文字更像传统报告，但关键信息需要在句子中寻找。</p>
+        </div>
+      </header>
+      <div class="p007-preview" aria-label="一段连续摘要的报告示意">
+        <div class="p007-title">1. 报告摘要</div>
+        <div class="p007-meta">匿名病例 · 脂肪肝 · 2026-08-27 生成</div>
+        <div class="p007-paragraph"><strong>本病例共有 3 次有效观察，数据基本够用。</strong> 当前 365 天风险模型暂不可用，因此未计算风险分数；阶段模型和趋势模型也未启用。根据已有观察，ALT 从 42 U/L 升至 68 U/L，BMI 从 27.8 升至 29.1，系统形成了两个关键进展信号，建议结合原始病历进行人工复核。</div>
+        <div class="p007-keywords">
+          <div class="p007-keyword"><strong>数据</strong>够用，但需要读完整句话</div>
+          <div class="p007-keyword"><strong>模型</strong>不可用的原因埋在中间</div>
+          <div class="p007-keyword"><strong>信号</strong>需要自己从数字中找</div>
+        </div>
+        <div class="p007-paragraph-warning">风险：当摘要内容变长，医生可能先看到“两个关键进展信号”，却没注意到风险模型没有给出分数。</div>
+      </div>
+    </article>
+  </div>
+</div>

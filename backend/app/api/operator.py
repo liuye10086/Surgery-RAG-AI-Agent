@@ -71,7 +71,7 @@ from app.services.longitudinal_case_service import (
 )
 from app.services.disease_progression import get_progression_adapter
 from app.services.longitudinal_report_generator import generate_longitudinal_report
-from app.services.longitudinal_model_registry import load_model_registry
+from app.services.longitudinal_model_registry import load_active_model_registry
 from app.services.longitudinal_evidence import (
     build_reference_range_sources,
     mark_synthetic_source,
@@ -322,7 +322,7 @@ async def create_longitudinal_report(
     db.add(report)
     db.commit()
     db.refresh(report)
-    model_registry = load_model_registry(adapter.dataset)
+    model_registry = load_active_model_registry(adapter.dataset)
     return StreamingResponse(generate_longitudinal_report(db, report.id, snapshot, visits, adapter, model_registry=model_registry, sources=sources), media_type="text/event-stream")
 
 

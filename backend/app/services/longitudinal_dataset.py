@@ -93,6 +93,8 @@ class DatasetBuildResult:
     real_audit: tuple[FixedWindowSample, ...]
     synthetic_audit: tuple[FixedWindowSample, ...]
     summary: DatasetAuditSummary
+    real_timelines: tuple[PatientTimeline, ...] = ()
+    synthetic_timelines: tuple[PatientTimeline, ...] = ()
 
 
 _ADAPTERS_BY_DISEASE = {
@@ -753,6 +755,12 @@ def build_fixed_window_dataset(
         real_audit=tuple(real_audit),
         synthetic_audit=tuple(synthetic_audit),
         summary=DatasetAuditSummary(diseases=disease_summaries),
+        real_timelines=tuple(
+            patient for patient in patients if not patient.is_synthetic
+        ),
+        synthetic_timelines=tuple(
+            patient for patient in patients if patient.is_synthetic
+        ),
     )
 
 
@@ -765,6 +773,17 @@ def load_case_rows(connection) -> list[dict[str, object]]:
             "cr.patient_label, cr.indicators, cr.metadata "
             "FROM case_records cr JOIN diseases d ON d.id = cr.disease_id "
             "WHERE d.name IN (:fatty_liver_name, :ad_name) "
+            "AND ("
+            "  cr.metadata @> '{\"dataset_active\": true}'::jsonb "
+            "  OR ("
+            "    NOT (cr.metadata ? 'dataset_active') "
+            "    AND NOT EXISTS ("
+            "      SELECT 1 FROM case_records active_cr "
+            "      WHERE active_cr.disease_id = cr.disease_id "
+            "      AND active_cr.metadata @> '{\"dataset_active\": true}'::jsonb"
+            "    )"
+            "  )"
+            ") "
             "ORDER BY d.id, cr.id"
         ),
         {

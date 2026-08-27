@@ -284,6 +284,31 @@ def test_outcome_can_be_available_while_stage_remains_unavailable():
     assert "模型分数：0.75" in content
 
 
+def test_complete_v3_report_separates_observation_outcome_stage_and_trend():
+    from backend.tests.test_longitudinal_prediction_contract import (
+        _ad_visits as complete_ad_visits,
+        _complete_ad_suite,
+    )
+
+    result = run_longitudinal_prediction(
+        {"baseline_stage": "mci", "sex": "female"},
+        complete_ad_visits(),
+        AD_ADAPTER,
+        _complete_ad_suite(),
+    )
+    content = render_longitudinal_markdown(result.model_dump(mode="json"), [])
+
+    assert "已观察到的纵向变化" in content
+    assert "未来 365 天进展风险" in content
+    assert "下一疾病阶段预测" in content
+    assert "下一次访视指标趋势预测" in content
+    assert "模型分数，不代表临床概率" in content
+    assert "已观察方向" in content
+    assert "模型预测方向" in content
+    assert "dementia" not in content
+    assert "direction_only" not in content
+
+
 def test_missing_standard_and_unit_conflict_degrade_without_fabrication():
     visits = [
         {

@@ -25,7 +25,7 @@ def make_sqlite_db(autoflush=True):
     from sqlalchemy.ext.compiler import compiles
     from sqlalchemy.orm import sessionmaker
 
-    from backend.app.db.models import CaseRecord, Disease
+    from app.db.models import CaseRecord, Disease
 
     @compiles(JSONB, "sqlite")
     def _compile_jsonb_sqlite(type_, compiler, **kw):
@@ -38,7 +38,7 @@ def make_sqlite_db(autoflush=True):
 
 
 def import_helpers():
-    from backend.app.db.models import CaseRecord, Disease
+    from app.db.models import CaseRecord, Disease
     return CaseRecord, Disease
 
 
@@ -268,6 +268,71 @@ class ImportLongitudinalTests(unittest.TestCase):
         self.assertEqual(result["skipped"], 0)
         self.assertEqual(db.query(CaseRecord).count(), 1)
 
+    def test_release_signature_includes_dataset_release_id(self):
+        """同一版本重复导入应幂等，新版本应与旧版本共存。"""
+        CaseRecord, _ = import_helpers()
+        db = make_sqlite_db()
+        patients = [
+            {
+                "patient_id": "P001",
+                "age": "60",
+                "sex": "female",
+                "cohort_group": "fatty_liver_progression",
+                "final_stage": "cirrhosis",
+                "cirrhosis_date": "2021-01-01",
+            },
+        ]
+        visits = [
+            {
+                "patient_id": "P001",
+                "visit_date": "2019-09-20",
+                "alt": "60.0",
+            },
+        ]
+
+        first = self.importer.import_dataset(
+            db,
+            "fatty_liver",
+            patients=patients,
+            visits=visits,
+            source_documents={},
+            dataset_release_id="fl-v1",
+            data_content_sha256="a" * 64,
+        )
+        repeated = self.importer.import_dataset(
+            db,
+            "fatty_liver",
+            patients=patients,
+            visits=visits,
+            source_documents={},
+            dataset_release_id="fl-v1",
+            data_content_sha256="a" * 64,
+        )
+        second = self.importer.import_dataset(
+            db,
+            "fatty_liver",
+            patients=patients,
+            visits=visits,
+            source_documents={},
+            dataset_release_id="fl-v2",
+            data_content_sha256="b" * 64,
+        )
+        db.commit()
+
+        self.assertEqual(first["inserted"], 1)
+        self.assertEqual(repeated["skipped"], 1)
+        self.assertEqual(second["inserted"], 1)
+        rows = db.query(CaseRecord).order_by(CaseRecord.id).all()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(
+            [row.case_metadata["dataset_release_id"] for row in rows],
+            ["fl-v1", "fl-v2"],
+        )
+        self.assertEqual(
+            [row.case_metadata["data_content_sha256"] for row in rows],
+            ["a" * 64, "b" * 64],
+        )
+
     def test_reset_and_import_rolls_back_together_on_failure(self):
         """reset 与重导必须同一事务：导入失败时旧数据不能已被永久删除。"""
         CaseRecord, _ = import_helpers()
@@ -370,6 +435,37 @@ class ImportLongitudinalTests(unittest.TestCase):
     def test_main_rejects_invalid_dataset(self):
         with self.assertRaises(SystemExit):
             self.importer.main(["--dataset", "invalid"])
+
+    def test_parse_args_requires_release_hash_with_release_id(self):
+        with self.assertRaises(SystemExit):
+            self.importer.parse_args(
+                [
+                    "--dataset",
+                    "fatty_liver",
+                    "--release-id",
+                    "fl-v2",
+                ]
+            )
+
+    def test_parse_args_rejects_activate_without_release_id(self):
+        with self.assertRaises(SystemExit):
+            self.importer.parse_args(["--dataset", "fatty_liver", "--activate"])
+
+    def test_parse_args_accepts_complete_release_activation(self):
+        args = self.importer.parse_args(
+            [
+                "--dataset",
+                "fatty_liver",
+                "--release-id",
+                "fl-v2",
+                "--data-content-sha256",
+                "a" * 64,
+                "--activate",
+            ]
+        )
+        self.assertEqual(args.release_id, "fl-v2")
+        self.assertEqual(args.data_content_sha256, "a" * 64)
+        self.assertTrue(args.activate)
 
     def test_datasets_config_is_complete(self):
         for name, cfg in self.importer.DATASETS.items():

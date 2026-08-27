@@ -1,0 +1,96 @@
+{
+  "bundles": [
+    {
+      "artifact_type": "outcome",
+      "evaluation_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/00-ad.pre_dementia_to_dementia/ad_pre_dementia_to_dementia_365d.evaluation.json",
+      "evaluation_sha256": "d30e2cca5390f5e07f4c1d5f86334e52e9a3918cace8c9788594e7ea6c2becfe",
+      "indicator": null,
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/00-ad.pre_dementia_to_dementia/ad_pre_dementia_to_dementia_365d.meta.json",
+      "metadata_sha256": "00e9e0e326ee3b97e8c5386fe2ca352fc50cd10634541c61ae4ebb5881c9082c",
+      "model_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/00-ad.pre_dementia_to_dementia/ad_pre_dementia_to_dementia_365d.joblib",
+      "model_sha256": "63152c7d6f80293835ed5848cd44a74c7f8a9171569c5e6bc31febe6a4549636",
+      "task": "ad.pre_dementia_to_dementia"
+    },
+    {
+      "artifact_type": "stage",
+      "evaluation_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/01-ad.next_stage/ad_next_stage_365d.evaluation.json",
+      "evaluation_sha256": "b8dd7545208e0c945e9be83759a49bd0438e9ebcf661fa950e0e4e7e17e462ae",
+      "indicator": null,
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/01-ad.next_stage/ad_next_stage_365d.meta.json",
+      "metadata_sha256": "8df6e422f29d0f9cf3c9d3f98ae42da95b1c5255f8b7c822b5ef31aa272c8592",
+      "model_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/01-ad.next_stage/ad_next_stage_365d.joblib",
+      "model_sha256": "e5400f57c84480e6df7f168f9bfdcc2745c72ff835bffe663399aa6b23dc5650",
+      "task": "ad.next_stage"
+    },
+    {
+      "artifact_type": "trend",
+      "evaluation_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/02-ad.next_visit_trend.cdr/ad_next_visit_trend_cdr.evaluation.json",
+      "evaluation_sha256": "01006a41721c641722314e890f3c577c8ee2789619e947df03a085521f85f190",
+      "indicator": "cdr",
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/02-ad.next_visit_trend.cdr/ad_next_visit_trend_cdr.meta.json",
+      "metadata_sha256": "579ac8c0267256266896c48da2f8b2ddbf952dfca30b61a09df37ca87b55e2ec",
+      "model_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/02-ad.next_visit_trend.cdr/ad_next_visit_trend_cdr.joblib",
+      "model_sha256": "3e1d65abeb1eb74f9f57604a1ec73f46999115e9cdccc977a62a5c048227f40f",
+      "task": "ad.next_visit_trend.cdr"
+    },
+    {
+      "artifact_type": "trend",
+      "evaluation_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/03-ad.next_visit_trend.mmse/ad_next_visit_trend_mmse.evaluation.json",
+      "evaluation_sha256": "497a3915a204e0109030d0d30e90b5d46eebe73657131c91ddd23bbb23407af1",
+      "indicator": "mmse",
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/03-ad.next_visit_trend.mmse/ad_next_visit_trend_mmse.meta.json",
+      "metadata_sha256": "c3146d3b35047c37b358a1d884a510dc03392476c402b628e7778686e608cf48",
+      "model_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/03-ad.next_visit_trend.mmse/ad_next_visit_trend_mmse.joblib",
+      "model_sha256": "e8bd743609f76d0da9d697e9426a7b97ff1242a5f0f5a801436f38da0e3234ae",
+      "task": "ad.next_visit_trend.mmse"
+    },
+    {
+      "artifact_type": "trend",
+      "evaluation_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/04-ad.next_visit_trend.moca/ad_next_visit_trend_moca.evaluation.json",
+      "evaluation_sha256": "b33efcb993dd849cd1741f7ffa307b01d177e5b80f811c44758315b4133715d4",
+      "indicator": "moca",
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/04-ad.next_visit_trend.moca/ad_next_visit_trend_moca.meta.json",
+      "metadata_sha256": "339afed70bdb7400e0a768a6dca29772cd3bbd464eece0fab3ff16bf6a0d9a16",
+      "model_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/04-ad.next_visit_trend.moca/ad_next_visit_trend_moca.joblib",
+      "model_sha256": "e8bd743609f76d0da9d697e9426a7b97ff1242a5f0f5a801436f38da0e3234ae",
+      "task": "ad.next_visit_trend.moca"
+    },
+    {
+      "artifact_type": "trend",
+      "evaluation_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/05-ad.next_visit_trend.plasma_nfl/ad_next_visit_trend_plasma_nfl.evaluation.json",
+      "evaluation_sha256": "a3d515e15d3e90f56921ed24accdc04cfe9b1a50b2dada8ac089038fdc98127f",
+      "indicator": "plasma_nfl",
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/05-ad.next_visit_trend.plasma_nfl/ad_next_visit_trend_plasma_nfl.meta.json",
+      "metadata_sha256": "e16cfb1e7712386b2ac12d17803f035885bbd7f4f05aa75324ac8d2854d10493",
+      "model_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/05-ad.next_visit_trend.plasma_nfl/ad_next_visit_trend_plasma_nfl.joblib",
+      "model_sha256": "e8bd743609f76d0da9d697e9426a7b97ff1242a5f0f5a801436f38da0e3234ae",
+      "task": "ad.next_visit_trend.plasma_nfl"
+    },
+    {
+      "artifact_type": "trend",
+      "evaluation_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/06-ad.next_visit_trend.plasma_ptau217/ad_next_visit_trend_plasma_ptau217.evaluation.json",
+      "evaluation_sha256": "cf47fb2a4ba29d4f2713c98ad42dd7c2e7db2d90a0addbeb8378bda923c878f7",
+      "indicator": "plasma_ptau217",
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/06-ad.next_visit_trend.plasma_ptau217/ad_next_visit_trend_plasma_ptau217.meta.json",
+      "metadata_sha256": "fe8cd57f37b700cac6d498c3a82acf517cf8b42b49d86e3cc433dd764305337b",
+      "model_path": "bundles/ad/ad-6f9c8a2da687-3acb488b1a87/06-ad.next_visit_trend.plasma_ptau217/ad_next_visit_trend_plasma_ptau217.joblib",
+      "model_sha256": "e8bd743609f76d0da9d697e9426a7b97ff1242a5f0f5a801436f38da0e3234ae",
+      "task": "ad.next_visit_trend.plasma_ptau217"
+    }
+  ],
+  "created_at": "2026-08-27T07:07:20.521355+00:00",
+  "data_release_id": "dataset-6f9c8a2da687",
+  "dataset": "ad",
+  "dataset_manifest_sha256": "c41f3afc14b3660181a6f3328038c608880a189e111c24bbe43f709362c083dc",
+  "release_set_id": "ad-6f9c8a2da687-3acb488b1a87",
+  "schema_version": "longitudinal_disease_release_set.v1",
+  "split_sha256": "3acb488b1a876d20a1fb434b94b909b78f2feb07c4a374ab09012c47c78d5308",
+  "status": "reviewed"
+}

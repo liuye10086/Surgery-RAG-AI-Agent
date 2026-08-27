@@ -47,25 +47,29 @@ def patient_rows(
 
 def mixed_result():
     rows = []
-    rows += patient_rows(
-        "fatty-real",
-        event_dates={"cirrhosis_date": "2024-06-01"},
-        final_stage="cirrhosis",
-    )
+    for index in range(12):
+        event_date = "2024-06-01" if index % 2 else "2025-06-01"
+        rows += patient_rows(
+            f"fatty-real-{index}",
+            event_dates={"cirrhosis_date": event_date},
+            final_stage="cirrhosis",
+        )
     rows += patient_rows(
         "fatty-synthetic",
         event_dates={"cirrhosis_date": "2024-06-01"},
         final_stage="cirrhosis",
         is_synthetic=True,
     )
-    rows += patient_rows(
-        "ad-real",
-        source_dataset="ad_longitudinal_300",
-        disease_name="阿尔茨海默病",
-        indicator_name="MMSE",
-        event_dates={"dementia_date": "2024-06-01"},
-        final_stage="1",
-    )
+    for index in range(12):
+        event_date = "2024-06-01" if index % 2 else "2025-06-01"
+        rows += patient_rows(
+            f"ad-real-{index}",
+            source_dataset="ad_longitudinal_300",
+            disease_name="阿尔茨海默病",
+            indicator_name="MMSE",
+            event_dates={"dementia_date": event_date},
+            final_stage="1",
+        )
     rows += patient_rows(
         "ad-synthetic",
         source_dataset="ad_longitudinal_300",
@@ -102,6 +106,7 @@ def test_export_writes_expected_files_per_disease(tmp_path):
             "real_train.jsonl",
             "real_audit.jsonl",
             "synthetic_audit.jsonl",
+            "real_timelines.jsonl",
         }
         assert all(
             row["identity"]["is_synthetic"] is False
@@ -118,6 +123,108 @@ def test_export_writes_expected_files_per_disease(tmp_path):
     assert manifest["minimum_visits"] == 3
     assert manifest["horizon_days"] == 365
     assert manifest["window"] == "(as_of,as_of+365d]"
+
+
+def test_demonstration_profile_writes_separate_training_files_and_provenance(tmp_path):
+    target = tmp_path / "dataset"
+
+    manifest = export_fixed_window_dataset(
+        mixed_result(),
+        target,
+        generated_at=datetime(2026, 8, 27, tzinfo=timezone.utc),
+        code_version="test-revision",
+        training_profile="synthetic_demonstration",
+        generator_version="longitudinal-demonstration.v1",
+        generator_seed=20260827,
+    )
+
+    assert manifest["training_profile"] == "synthetic_demonstration"
+    assert manifest["clinical_validity_claim"] is False
+    assert manifest["synthetic_usage"] == "training_and_evaluation_for_demonstration_only"
+    assert manifest["generator"] == {
+        "version": "longitudinal-demonstration.v1",
+        "seed": 20260827,
+    }
+    for disease in ("fatty_liver", "ad"):
+        disease_dir = target / disease
+        training_rows = _jsonl(disease_dir / "demonstration_train.jsonl")
+        timeline_rows = _jsonl(disease_dir / "demonstration_timelines.jsonl")
+        assert training_rows
+        assert timeline_rows
+        assert any(row["identity"]["is_synthetic"] is True for row in training_rows)
+        assert all(row["provenance"] == "synthetic_demonstration" for row in timeline_rows)
+        assert not (disease_dir / "real_train.jsonl").exists()
+        assert not (disease_dir / "real_timelines.jsonl").exists()
+
+
+def test_default_profile_still_excludes_synthetic_training_rows(tmp_path):
+    target = tmp_path / "dataset"
+    manifest = export_fixed_window_dataset(
+        mixed_result(),
+        target,
+        generated_at=datetime(2026, 8, 27, tzinfo=timezone.utc),
+        code_version="test-revision",
+    )
+
+    assert manifest["training_profile"] == "real_only"
+    assert manifest["synthetic_usage"] == "audit_only"
+    for disease in ("fatty_liver", "ad"):
+        assert all(
+            row["identity"]["is_synthetic"] is False
+            for row in _jsonl(target / disease / "real_train.jsonl")
+        )
+
+
+def test_demonstration_generator_identity_is_bound_into_data_content_hash(tmp_path):
+    first = export_fixed_window_dataset(
+        mixed_result(),
+        tmp_path / "first",
+        generated_at=datetime(2026, 8, 27, tzinfo=timezone.utc),
+        code_version="test-revision",
+        training_profile="synthetic_demonstration",
+        generator_version="longitudinal-demonstration.v1",
+        generator_seed=20260827,
+    )
+    second = export_fixed_window_dataset(
+        mixed_result(),
+        tmp_path / "second",
+        generated_at=datetime(2026, 8, 27, tzinfo=timezone.utc),
+        code_version="test-revision",
+        training_profile="synthetic_demonstration",
+        generator_version="longitudinal-demonstration.v1",
+        generator_seed=20260828,
+    )
+
+    assert first["files"] == second["files"]
+    assert first["data_content_sha256"] != second["data_content_sha256"]
+
+
+def test_exported_training_timelines_are_anonymous_and_hash_bound(tmp_path):
+    target = tmp_path / "dataset"
+    manifest = export_fixed_window_dataset(
+        mixed_result(),
+        target,
+        generated_at=datetime(2026, 8, 27, tzinfo=timezone.utc),
+        code_version="test-revision",
+    )
+
+    for disease in ("fatty_liver", "ad"):
+        relative = f"{disease}/real_timelines.jsonl"
+        rows = _jsonl(target / relative)
+        rendered = json.dumps(rows, ensure_ascii=False)
+        assert rows
+        assert all(row["group_id"].startswith("patient.v1.") for row in rows)
+        assert all(row["disease"] == disease for row in rows)
+        assert all(row["visits"] for row in rows)
+        assert manifest["files"][relative] == sha256_file(target / relative)
+        for forbidden in (
+            "patient_label",
+            "source_document",
+            "source_dataset",
+            "fatty-real-",
+            "ad-real-",
+        ):
+            assert forbidden not in rendered
 
 
 def test_export_is_deterministic_across_run_timestamps(tmp_path):
@@ -144,6 +251,68 @@ def test_export_is_deterministic_across_run_timestamps(tmp_path):
     for relative_path in manifest_one["files"]:
         assert (first / relative_path).read_bytes() == (second / relative_path).read_bytes()
         assert sha256_file(first / relative_path) == sha256_file(second / relative_path)
+
+
+def test_export_manifest_records_anonymous_provenance_and_group_split(tmp_path):
+    target = tmp_path / "dataset"
+
+    manifest = export_fixed_window_dataset(
+        mixed_result(),
+        target,
+        generated_at=datetime(2026, 8, 27, tzinfo=timezone.utc),
+        code_version="test-revision",
+    )
+
+    split_path = target / "group_splits.json"
+    split_payload = json.loads(split_path.read_text(encoding="utf-8"))
+    rendered = json.dumps(manifest, ensure_ascii=False)
+
+    assert manifest["run_id"] == f"dataset-{manifest['data_content_sha256'][:12]}"
+    assert manifest["group_split_file"] == "group_splits.json"
+    assert manifest["group_split_sha256"] == sha256_file(split_path)
+    assert manifest["files"]["group_splits.json"] == sha256_file(split_path)
+    assert {item["disease"] for item in split_payload["splits"]} == {
+        "fatty_liver",
+        "ad",
+    }
+    assert all(
+        item["source_id"].startswith("source-") and len(item["sha256"]) == 64
+        for item in manifest["source_provenance"]
+    )
+    for forbidden in (
+        "fatty-real-",
+        "ad-real-",
+        "fatty-synthetic",
+        "ad-synthetic",
+        "private-source",
+    ):
+        assert forbidden not in rendered
+
+
+def test_different_split_seed_changes_split_identity(tmp_path):
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    result = mixed_result()
+
+    manifest_one = export_fixed_window_dataset(
+        result,
+        first,
+        generated_at=datetime(2026, 8, 27, tzinfo=timezone.utc),
+        code_version="same-revision",
+        split_seed=42,
+    )
+    manifest_two = export_fixed_window_dataset(
+        result,
+        second,
+        generated_at=datetime(2026, 8, 27, tzinfo=timezone.utc),
+        code_version="same-revision",
+        split_seed=7,
+    )
+
+    assert manifest_one["group_split_sha256"] != manifest_two["group_split_sha256"]
+    assert (first / "group_splits.json").read_bytes() != (
+        second / "group_splits.json"
+    ).read_bytes()
 
 
 def test_export_rows_follow_stable_sample_order(tmp_path):

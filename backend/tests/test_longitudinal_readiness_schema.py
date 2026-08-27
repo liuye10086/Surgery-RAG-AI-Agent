@@ -105,3 +105,23 @@ def test_schema_rejects_unknown_fields():
             next_task="P0-01",
             unexpected=True,
         )
+
+
+def test_readiness_schema_records_active_data_and_complete_model_set_identity():
+    disease = _disease("ad", [])
+    payload = disease.model_dump(mode="json")
+    payload["data"]["active_release_id"] = "ad-data-v2"
+    payload["models"].update(
+        release_set_id="ad-set-v2",
+        release_set_sha256="a" * 64,
+        data_release_id="ad-data-v2",
+        split_sha256="b" * 64,
+        required_model_count=7,
+        available_model_count=7,
+    )
+
+    validated = DiseaseReadiness.model_validate(payload)
+
+    assert validated.data.active_release_id == "ad-data-v2"
+    assert validated.models.release_set_id == "ad-set-v2"
+    assert validated.models.available_model_count == validated.models.required_model_count

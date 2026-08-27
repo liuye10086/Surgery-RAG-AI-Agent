@@ -10,6 +10,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+
 REGISTRY_SCHEMA_VERSION = "longitudinal_model_registry.v1"
 ARTIFACT_METADATA_SCHEMA_VERSION = "longitudinal_outcome_artifact.v1"
 REVIEW_RECORD_SCHEMA_VERSION = "longitudinal_model_review.v1"
@@ -277,7 +278,7 @@ class ReleaseRecord(StrictModel):
 
 class ModelRuntimeStatus(StrictModel):
     artifact_type: ArtifactType
-    task: TaskName | None = None
+    task: str | None = None
     status: RuntimeLoadStatus
     reason_code: str = Field(min_length=1, max_length=120)
     lifecycle_status: ArtifactLifecycle | None = None
@@ -301,13 +302,14 @@ class ModelRuntimeStatus(StrictModel):
                 self.model_version,
                 self.artifact_sha256,
                 self.target,
-                self.horizon_days,
                 self.feature_version,
                 self.score_semantics,
                 self.calibration_status,
             )
             if any(value in (None, "") for value in required):
                 raise ValueError("available model status requires complete identity")
+            if self.artifact_type != "trend" and self.horizon_days is None:
+                raise ValueError("available non-trend status requires a day horizon")
             if self.lifecycle_status != "enabled":
                 raise ValueError("available model status requires enabled lifecycle")
         return self
@@ -317,6 +319,39 @@ class LoadedModelEntry(StrictModel):
     status: ModelRuntimeStatus
     metadata: ArtifactMetadata | None = None
     model: Any | None = Field(default=None, exclude=True)
+
+
+class SuiteModelEntry(StrictModel):
+    status: ModelRuntimeStatus
+    metadata: Any | None = None
+    model: Any | None = Field(default=None, exclude=True)
+
+
+class LoadedDiseaseModelSuite(StrictModel):
+    dataset: Literal["fatty_liver", "ad"]
+    release_set_id: str = Field(min_length=1, max_length=200)
+    release_set_sha256: Sha256 = Field(pattern=r"^[0-9a-f]{64}$")
+    data_release_id: str = Field(min_length=1, max_length=200)
+    split_sha256: Sha256 = Field(pattern=r"^[0-9a-f]{64}$")
+    outcomes: dict[str, SuiteModelEntry]
+    stage: SuiteModelEntry
+    trends: dict[str, SuiteModelEntry]
+
+    @model_validator(mode="after")
+    def validate_suite_scope(self):
+        entries = [*self.outcomes.values(), self.stage, *self.trends.values()]
+        if any(
+            entry.metadata is not None and entry.metadata.dataset != self.dataset
+            for entry in entries
+        ):
+            raise ValueError("suite entry dataset mismatch")
+        if self.stage.status.artifact_type != "stage":
+            raise ValueError("suite stage entry must be a stage artifact")
+        if any(entry.status.artifact_type != "outcome" for entry in self.outcomes.values()):
+            raise ValueError("suite outcome entry must be an outcome artifact")
+        if any(entry.status.artifact_type != "trend" for entry in self.trends.values()):
+            raise ValueError("suite trend entry must be a trend artifact")
+        return self
 
 
 class LongitudinalModelRegistry(StrictModel):

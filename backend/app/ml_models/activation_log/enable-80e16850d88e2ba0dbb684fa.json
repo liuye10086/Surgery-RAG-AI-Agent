@@ -1,0 +1,9 @@
+{
+  "action": "enable",
+  "changed_at": "2026-08-27T07:13:25.524823+00:00",
+  "changed_by": "owner",
+  "dataset": "fatty_liver",
+  "release_set_id": "fatty_liver-6f9c8a2da687-a13186ccaa8f",
+  "release_set_sha256": "acb2bc1570cb3eee2bfdf557432909800a8a095095121b8efcef85037a66fe24",
+  "schema_version": "longitudinal_disease_release_pointer.v1"
+}

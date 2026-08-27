@@ -64,7 +64,15 @@ def build_reference_range_sources(db, indicator_names: list[str], patient_sex: s
 
 def select_similar_longitudinal_cases(db, disease_id: int, visits: list[dict[str, Any]], adapter, limit: int = 5) -> list[dict[str, Any]]:
     from app.db.models import CaseRecord
+    from app.services.longitudinal_data_release import select_active_release_rows
+
     rows = db.query(CaseRecord).filter(CaseRecord.disease_id == disease_id, CaseRecord.confirmed.is_(True)).limit(max(limit * 10, limit)).all()
+    logical_dataset = {
+        "fatty_liver": "longitudinal_300",
+        "ad": "ad_longitudinal_300",
+    }.get(getattr(adapter, "dataset", None))
+    if logical_dataset is not None:
+        rows = select_active_release_rows(rows, logical_dataset)
     requested = {str(item.get("name", "")).lower() for visit in visits for item in visit.get("indicators", [])}
     results_by_label: dict[str, dict[str, Any]] = {}
     for row in rows:

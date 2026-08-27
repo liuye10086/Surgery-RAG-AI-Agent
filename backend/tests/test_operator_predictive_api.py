@@ -274,6 +274,15 @@ class TestReportStateMachine(unittest.TestCase):
         r.status = "completed"
         self.assertEqual(r.status, "completed")
 
+    def test_longitudinal_report_loads_one_active_disease_release_set(self):
+        import inspect
+
+        from app.api.operator import create_longitudinal_report
+
+        source = inspect.getsource(create_longitudinal_report)
+        self.assertIn("load_active_model_registry(adapter.dataset)", source)
+        self.assertNotIn("load_model_registry(adapter.dataset)", source)
+
     def test_download_count_increments(self):
         """PDF 下载后 download_count 自增（operator.py download 端点）。"""
         from app.db.models import AIReport

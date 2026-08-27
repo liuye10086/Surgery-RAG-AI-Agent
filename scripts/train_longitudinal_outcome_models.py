@@ -14,7 +14,18 @@ for path in (ROOT, BACKEND):
         sys.path.insert(0, str(path))
 
 from app.schemas.longitudinal_model_training import TASK_SPECS
-from app.services.longitudinal_model_training import ModelInputError, read_dataset_manifest, read_real_train_samples, select_task_samples, train_task_to_candidate, write_candidate_bundle
+from app.services.longitudinal_group_split import (
+    GroupSplitError,
+    read_disease_group_splits,
+)
+from app.services.longitudinal_model_training import (
+    ModelInputError,
+    read_dataset_manifest,
+    read_real_train_samples,
+    select_task_samples,
+    train_outcome_task,
+    write_outcome_candidate_bundle,
+)
 
 
 def build_error_payload(code: str) -> dict[str, object]:
@@ -37,27 +48,42 @@ def run_training(dataset_dir: Path, output_dir: Path, *, seed: int = 42) -> dict
         raise FileExistsError(output)
     output.mkdir(parents=True, exist_ok=True)
     dataset = read_dataset_manifest(dataset_dir)
+    splits = read_disease_group_splits(dataset_dir)
     results = {}
     fit_dir = output / ".fit"
     try:
         for name, task in TASK_SPECS.items():
             rows = select_task_samples(read_real_train_samples(dataset_dir, task.disease), name)
-            result = train_task_to_candidate(rows, task, dataset, fit_dir, seed=seed)
-            bundle = write_candidate_bundle(result, output)
+            try:
+                split = splits[task.disease]
+            except KeyError as exc:
+                raise ModelInputError("disease_split_missing") from exc
+            result = train_outcome_task(
+                rows,
+                task,
+                split,
+                dataset,
+                fit_dir,
+                seed=seed,
+            )
+            bundle = write_outcome_candidate_bundle(result, output)
             results[name] = {
                 "bundle": bundle.bundle_dir.name,
                 "model": bundle.model_path.name,
                 "metadata": bundle.metadata_path.name,
+                "evaluation": bundle.evaluation_path.name,
                 "model_id": bundle.metadata.model_contract.model_id,
                 "model_version": bundle.metadata.model_contract.model_version,
                 "artifact_sha256": bundle.metadata.model_contract.artifact_sha256,
+                "evaluation_sha256": bundle.metadata.evaluation_sha256,
+                "split_sha256": bundle.metadata.split_sha256,
                 "status": "candidate",
                 "production_enabled": False,
             }
     finally:
         if fit_dir.is_dir():
             shutil.rmtree(fit_dir)
-    return {"schema_version": "longitudinal_outcome_model_training.v1", "status": "candidate", "tasks": results}
+    return {"schema_version": "longitudinal_model_artifact.v2", "status": "candidate", "tasks": results}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -84,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     except FileExistsError:
         print(json.dumps(build_error_payload("output_exists"), ensure_ascii=False, sort_keys=True))
         return 2
-    except ModelInputError as error:
+    except (ModelInputError, GroupSplitError) as error:
         code = str(error) if str(error) in {"dataset_dir_required", "output_dir_required", "production_artifact_export_not_authorized"} else "input_or_output_error"
         print(json.dumps(build_error_payload(code), ensure_ascii=False, sort_keys=True))
         return 2

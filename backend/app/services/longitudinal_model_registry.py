@@ -20,13 +20,22 @@ from app.schemas.longitudinal_model_registry import (
     ArtifactValidationResult,
     LoadedModelEntry,
     LongitudinalModelRegistry,
+    LoadedDiseaseModelSuite,
+    SuiteModelEntry,
     ModelRuntimeStatus,
     ReleaseRecord,
     ReviewRecord,
     TaskName,
     feature_order_sha256,
 )
+from app.schemas.longitudinal_model_suite import (
+    ArtifactMetadataV2,
+    BundleValidationResult,
+    BundleValidationStatus,
+    EvaluationArtifact,
+)
 from app.services.progression_engine import MODEL_DIR
+from app.services.longitudinal_release_set import load_disease_release_set
 
 
 HEX64 = set("0123456789abcdef")
@@ -38,6 +47,125 @@ def sha256_file(path: Path) -> str:
 
 def _valid_hash(value: Any) -> bool:
     return isinstance(value, str) and len(value) == 64 and set(value) <= HEX64
+
+
+def _bundle_validation(
+    status: Literal["available", "missing", "incompatible"],
+    reason_code: str,
+    metadata: ArtifactMetadataV2 | None = None,
+) -> BundleValidationResult:
+    return BundleValidationResult(
+        status=BundleValidationStatus(status=status, reason_code=reason_code),
+        metadata=metadata,
+        prediction_executed=False,
+    )
+
+
+def validate_bundle_files(
+    *,
+    model_path: Path,
+    metadata_path: Path,
+    evaluation_path: Path,
+    manifest_path: Path,
+) -> BundleValidationResult:
+    """Validate a v2 bundle hash chain without loading or executing its model."""
+    paths = {
+        "artifact_missing": Path(model_path),
+        "metadata_missing": Path(metadata_path),
+        "evaluation_missing": Path(evaluation_path),
+        "manifest_missing": Path(manifest_path),
+    }
+    for reason_code, path in paths.items():
+        if not path.is_file():
+            return _bundle_validation("missing", reason_code)
+    try:
+        metadata = ArtifactMetadataV2.model_validate_json(
+            Path(metadata_path).read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, ValidationError):
+        return _bundle_validation("incompatible", "metadata_invalid")
+    try:
+        manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return _bundle_validation("incompatible", "manifest_invalid", metadata)
+    if not isinstance(manifest, dict):
+        return _bundle_validation("incompatible", "manifest_invalid", metadata)
+    if sha256_file(Path(model_path)) != metadata.model_contract.artifact_sha256:
+        return _bundle_validation("incompatible", "artifact_hash_mismatch", metadata)
+    if sha256_file(Path(manifest_path)) != metadata.dataset_contract.manifest_sha256:
+        return _bundle_validation("incompatible", "manifest_hash_mismatch", metadata)
+    if manifest.get("data_content_sha256") != metadata.dataset_contract.data_content_sha256:
+        return _bundle_validation("incompatible", "data_content_hash_mismatch", metadata)
+    files = manifest.get("files")
+    if not isinstance(files, dict):
+        return _bundle_validation("incompatible", "manifest_files_missing", metadata)
+    training_file = metadata.dataset_contract.training_file
+    expected_training_hash = files.get(training_file)
+    if expected_training_hash != metadata.dataset_contract.training_file_sha256:
+        return _bundle_validation(
+            "incompatible", "training_file_hash_mismatch", metadata
+        )
+    training_path = Path(manifest_path).parent / training_file
+    if not training_path.is_file() or sha256_file(training_path) != expected_training_hash:
+        return _bundle_validation(
+            "incompatible", "training_file_hash_mismatch", metadata
+        )
+    split_file = manifest.get("group_split_file")
+    if (
+        not isinstance(split_file, str)
+        or files.get(split_file) != manifest.get("group_split_sha256")
+    ):
+        return _bundle_validation("incompatible", "split_hash_mismatch", metadata)
+    split_path = Path(manifest_path).parent / split_file
+    if (
+        not split_path.is_file()
+        or sha256_file(split_path) != manifest.get("group_split_sha256")
+    ):
+        return _bundle_validation("incompatible", "split_hash_mismatch", metadata)
+    try:
+        split_payload = json.loads(split_path.read_text(encoding="utf-8"))
+        disease_splits = split_payload.get("splits")
+        disease_split = next(
+            item
+            for item in disease_splits
+            if isinstance(item, dict)
+            and item.get("disease") == metadata.dataset
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError, TypeError, StopIteration):
+        return _bundle_validation("incompatible", "split_hash_mismatch", metadata)
+    if disease_split.get("sha256") != metadata.split_sha256:
+        return _bundle_validation("incompatible", "split_hash_mismatch", metadata)
+    if sha256_file(Path(evaluation_path)) != metadata.evaluation_sha256:
+        return _bundle_validation("incompatible", "evaluation_hash_mismatch", metadata)
+    try:
+        evaluation = EvaluationArtifact.model_validate_json(
+            Path(evaluation_path).read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, ValidationError):
+        return _bundle_validation("incompatible", "evaluation_invalid", metadata)
+    expected_evaluation_identity = (
+        metadata.artifact_type,
+        metadata.task,
+        metadata.dataset,
+        metadata.dataset_contract.manifest_sha256,
+        metadata.dataset_contract.data_content_sha256,
+        metadata.dataset_contract.training_file_sha256,
+        metadata.split_sha256,
+    )
+    actual_evaluation_identity = (
+        evaluation.artifact_type,
+        evaluation.task,
+        evaluation.dataset,
+        evaluation.dataset_manifest_sha256,
+        evaluation.data_content_sha256,
+        evaluation.training_file_sha256,
+        evaluation.split_sha256,
+    )
+    if actual_evaluation_identity != expected_evaluation_identity:
+        return _bundle_validation(
+            "incompatible", "evaluation_contract_mismatch", metadata
+        )
+    return _bundle_validation("available", "bundle_valid", metadata)
 
 
 def _status(
@@ -664,3 +792,155 @@ def load_model_registry(
         stage=empty_optional_model_status("stage", "stage_model_missing"),
         trend=empty_optional_model_status("trend", "trend_model_missing"),
     )
+
+
+def _suite_entry_from_bundle(
+    bundle: dict[str, Any],
+    root: Path,
+) -> SuiteModelEntry:
+    artifact_type = str(bundle.get("artifact_type", ""))
+    task = str(bundle.get("task", ""))
+    if artifact_type not in {"outcome", "stage", "trend"} or not task:
+        raise ValueError("release_set_bundle_invalid")
+    paths = {}
+    for name in (
+        "model_path",
+        "metadata_path",
+        "evaluation_path",
+        "manifest_path",
+    ):
+        relative = bundle.get(name)
+        if not isinstance(relative, str):
+            raise ValueError("release_set_bundle_invalid")
+        resolved = _inside(root, relative)
+        if resolved is None:
+            raise ValueError("registry_path_escape")
+        paths[name] = resolved
+    validation = validate_bundle_files(
+        model_path=paths["model_path"],
+        metadata_path=paths["metadata_path"],
+        evaluation_path=paths["evaluation_path"],
+        manifest_path=paths["manifest_path"],
+    )
+    metadata = validation.metadata
+    if metadata is None:
+        return SuiteModelEntry(
+            status=ModelRuntimeStatus(
+                artifact_type=artifact_type,
+                task=task,
+                status=validation.status.status,
+                reason_code=validation.status.reason_code,
+            )
+        )
+    if metadata.task != task or metadata.artifact_type != artifact_type:
+        return SuiteModelEntry(
+            status=ModelRuntimeStatus(
+                artifact_type=artifact_type,
+                task=task,
+                status="incompatible",
+                reason_code="release_set_bundle_mismatch",
+            ),
+            metadata=metadata,
+        )
+    if validation.status.status != "available":
+        return SuiteModelEntry(
+            status=ModelRuntimeStatus(
+                artifact_type=artifact_type,
+                task=task,
+                status=validation.status.status,
+                reason_code=validation.status.reason_code,
+                model_id=metadata.model_contract.model_id,
+                model_name=metadata.model_contract.model_name,
+                model_version=metadata.model_contract.model_version,
+                artifact_sha256=metadata.model_contract.artifact_sha256,
+                target=metadata.target,
+                horizon_days=metadata.horizon.value,
+                feature_version=metadata.feature_contract.feature_version,
+                score_semantics=metadata.output_contract.score_semantics,
+                calibration_status=metadata.calibration.status,
+            ),
+            metadata=metadata,
+        )
+    try:
+        model = joblib.load(paths["model_path"])
+    except Exception:
+        return SuiteModelEntry(
+            status=ModelRuntimeStatus(
+                artifact_type=artifact_type,
+                task=task,
+                status="incompatible",
+                reason_code="artifact_load_failed",
+            ),
+            metadata=metadata,
+        )
+    status = ModelRuntimeStatus(
+        artifact_type=artifact_type,
+        task=task,
+        status="available",
+        reason_code="artifact_available",
+        lifecycle_status="enabled",
+        model_id=metadata.model_contract.model_id,
+        model_name=metadata.model_contract.model_name,
+        model_version=metadata.model_contract.model_version,
+        artifact_sha256=metadata.model_contract.artifact_sha256,
+        target=metadata.target,
+        horizon_days=metadata.horizon.value,
+        feature_version=metadata.feature_contract.feature_version,
+        score_semantics=metadata.output_contract.score_semantics,
+        calibration_status=metadata.calibration.status,
+    )
+    return SuiteModelEntry(status=status, metadata=metadata, model=model)
+
+
+def load_disease_model_suite(
+    dataset: str,
+    registry_root: Path | str,
+) -> LoadedDiseaseModelSuite:
+    root = Path(registry_root).resolve()
+    release_set = load_disease_release_set(dataset, root)
+    outcomes: dict[str, SuiteModelEntry] = {}
+    stage: SuiteModelEntry | None = None
+    trends: dict[str, SuiteModelEntry] = {}
+    for bundle in release_set.bundles:
+        entry = _suite_entry_from_bundle(bundle, root)
+        artifact_type = str(bundle.get("artifact_type"))
+        if artifact_type == "outcome":
+            outcomes[str(bundle["task"])] = entry
+        elif artifact_type == "stage":
+            if stage is not None:
+                raise ValueError("multiple_stage_bundles")
+            stage = entry
+        else:
+            indicator = bundle.get("indicator")
+            if not isinstance(indicator, str) or not indicator:
+                raise ValueError("trend_indicator_missing")
+            trends[indicator] = entry
+    if stage is None:
+        raise ValueError("required_bundle_missing")
+    return LoadedDiseaseModelSuite(
+        dataset=dataset,
+        release_set_id=release_set.release_set_id,
+        release_set_sha256=release_set.record_sha256,
+        data_release_id=release_set.data_release_id,
+        split_sha256=release_set.split_sha256,
+        outcomes=outcomes,
+        stage=stage,
+        trends=trends,
+    )
+
+
+def load_active_model_registry(
+    dataset: str,
+    registry_root: Path | str | None = None,
+):
+    root = Path(registry_root or MODEL_DIR)
+    active_pointer = root / "active" / f"{dataset}.json"
+    if active_pointer.exists():
+        try:
+            pointer_payload = json.loads(active_pointer.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            pointer_payload = None
+        if isinstance(pointer_payload, dict) and pointer_payload.get("status") == "inactive":
+            return load_model_registry(dataset, registry_root=root)
+        return load_disease_model_suite(dataset, root)
+    return load_model_registry(dataset, registry_root=root)

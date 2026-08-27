@@ -77,6 +77,8 @@ def test_load_case_rows_sets_read_only_before_scoped_select():
     assert first_sql == "SET TRANSACTION READ ONLY"
     assert "FROM case_records" in select_sql
     assert "confirmed" not in select_sql.lower()
+    assert "dataset_active" in select_sql
+    assert "NOT EXISTS" in select_sql.upper()
     assert set(rows[0]) == {
         "record_id",
         "disease_name",

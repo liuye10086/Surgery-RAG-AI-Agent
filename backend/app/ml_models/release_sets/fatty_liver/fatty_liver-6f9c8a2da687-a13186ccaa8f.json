@@ -1,0 +1,132 @@
+{
+  "bundles": [
+    {
+      "artifact_type": "outcome",
+      "evaluation_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/00-fatty_liver.pre_cirrhosis_to_progression/fatty_liver_pre_cirrhosis_to_progression_365d.evaluation.json",
+      "evaluation_sha256": "28e7ddd22e10209096893f6050217f4a53be6206916e7a76874a38256dc9c84a",
+      "indicator": null,
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/00-fatty_liver.pre_cirrhosis_to_progression/fatty_liver_pre_cirrhosis_to_progression_365d.meta.json",
+      "metadata_sha256": "cd011c64279d432a61e35f5ea282b9d8fa4c4a2b11c518b15e9b051437f3d04b",
+      "model_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/00-fatty_liver.pre_cirrhosis_to_progression/fatty_liver_pre_cirrhosis_to_progression_365d.joblib",
+      "model_sha256": "a95151c161725e31d017a45e2a1961b7cecb9ef01fe61c322166347eefeac146",
+      "task": "fatty_liver.pre_cirrhosis_to_progression"
+    },
+    {
+      "artifact_type": "outcome",
+      "evaluation_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/01-fatty_liver.cirrhosis_to_hcc/fatty_liver_cirrhosis_to_hcc_365d.evaluation.json",
+      "evaluation_sha256": "82e3a375e13d523033b372acfaf259005b0ddd5c41da9083d9dfd8a08706d0e7",
+      "indicator": null,
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/01-fatty_liver.cirrhosis_to_hcc/fatty_liver_cirrhosis_to_hcc_365d.meta.json",
+      "metadata_sha256": "bb70108dc0b7afd32a636744fd9ad30c876282432422362320d5a541950398a5",
+      "model_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/01-fatty_liver.cirrhosis_to_hcc/fatty_liver_cirrhosis_to_hcc_365d.joblib",
+      "model_sha256": "2e906b3d131e980215755a8f19d9306b1f7edf1ea6c9ae638e86945b65d9f066",
+      "task": "fatty_liver.cirrhosis_to_hcc"
+    },
+    {
+      "artifact_type": "stage",
+      "evaluation_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/02-fatty_liver.next_stage/fatty_liver_next_stage_365d.evaluation.json",
+      "evaluation_sha256": "29e115e9b6ea2c5be66096122b8a716bafd60065788441573cb6ead7abf799e6",
+      "indicator": null,
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/02-fatty_liver.next_stage/fatty_liver_next_stage_365d.meta.json",
+      "metadata_sha256": "11a451ca30bd9ff5f5ad539898cef2713b4f5a4e32a9110d90593c2c7d5c4e08",
+      "model_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/02-fatty_liver.next_stage/fatty_liver_next_stage_365d.joblib",
+      "model_sha256": "8d79dfe8a9bf53a1b0a43b47f2c69c2691579e7ef2a5c82dbb5cdfbf06fe3738",
+      "task": "fatty_liver.next_stage"
+    },
+    {
+      "artifact_type": "trend",
+      "evaluation_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/03-fatty_liver.next_visit_trend.afp/fatty_liver_next_visit_trend_afp.evaluation.json",
+      "evaluation_sha256": "ae59e7aa59385c24295bda4528791f6d572822b31ee86032fbaf11b9159641a3",
+      "indicator": "afp",
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/03-fatty_liver.next_visit_trend.afp/fatty_liver_next_visit_trend_afp.meta.json",
+      "metadata_sha256": "31e22c7f989126fe7ea7fee3771cca1af35761dae88ce83cecff8d60207dbcf3",
+      "model_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/03-fatty_liver.next_visit_trend.afp/fatty_liver_next_visit_trend_afp.joblib",
+      "model_sha256": "63eb1cd490128b96d63574b69c94b9b0e17dbeb96aa14154d4cd181addea8fe3",
+      "task": "fatty_liver.next_visit_trend.afp"
+    },
+    {
+      "artifact_type": "trend",
+      "evaluation_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/04-fatty_liver.next_visit_trend.alb/fatty_liver_next_visit_trend_alb.evaluation.json",
+      "evaluation_sha256": "f74ba3b306c1294cedad0736448a4c0ad220080f12c4e6dca30a27ce75bc2f41",
+      "indicator": "alb",
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/04-fatty_liver.next_visit_trend.alb/fatty_liver_next_visit_trend_alb.meta.json",
+      "metadata_sha256": "42f98a1d62b54fd5da10bf580179259e0646c8ec3f2591aff02d7a2fc7789d2a",
+      "model_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/04-fatty_liver.next_visit_trend.alb/fatty_liver_next_visit_trend_alb.joblib",
+      "model_sha256": "63eb1cd490128b96d63574b69c94b9b0e17dbeb96aa14154d4cd181addea8fe3",
+      "task": "fatty_liver.next_visit_trend.alb"
+    },
+    {
+      "artifact_type": "trend",
+      "evaluation_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/05-fatty_liver.next_visit_trend.alt/fatty_liver_next_visit_trend_alt.evaluation.json",
+      "evaluation_sha256": "f34785aac894d76d4f1a07561254bb0a2de6614005e0edfd00537ab78f396cc7",
+      "indicator": "alt",
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/05-fatty_liver.next_visit_trend.alt/fatty_liver_next_visit_trend_alt.meta.json",
+      "metadata_sha256": "dedd72492563ffbb11df5b8024b81ca8ede66309afa4899c68876b0feac643d7",
+      "model_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/05-fatty_liver.next_visit_trend.alt/fatty_liver_next_visit_trend_alt.joblib",
+      "model_sha256": "63eb1cd490128b96d63574b69c94b9b0e17dbeb96aa14154d4cd181addea8fe3",
+      "task": "fatty_liver.next_visit_trend.alt"
+    },
+    {
+      "artifact_type": "trend",
+      "evaluation_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/06-fatty_liver.next_visit_trend.ast/fatty_liver_next_visit_trend_ast.evaluation.json",
+      "evaluation_sha256": "a79f71cf8282b716c24d31581d17c2756e155b7b01b72bae60114b1f38fd3e85",
+      "indicator": "ast",
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/06-fatty_liver.next_visit_trend.ast/fatty_liver_next_visit_trend_ast.meta.json",
+      "metadata_sha256": "49e5699da213527a57863ad3250fa0a8c951c420c8471da2e0ae1b5179bf4e2d",
+      "model_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/06-fatty_liver.next_visit_trend.ast/fatty_liver_next_visit_trend_ast.joblib",
+      "model_sha256": "63eb1cd490128b96d63574b69c94b9b0e17dbeb96aa14154d4cd181addea8fe3",
+      "task": "fatty_liver.next_visit_trend.ast"
+    },
+    {
+      "artifact_type": "trend",
+      "evaluation_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/07-fatty_liver.next_visit_trend.ggt/fatty_liver_next_visit_trend_ggt.evaluation.json",
+      "evaluation_sha256": "0bf89817028eceae87ff3ce9452b31d8a58406bf33f42ef13c202b4bfaf5ff07",
+      "indicator": "ggt",
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/07-fatty_liver.next_visit_trend.ggt/fatty_liver_next_visit_trend_ggt.meta.json",
+      "metadata_sha256": "99923b10e1bfb9582d86810110b2f93fc042c95e2655e6ac6420afe17b92ac7b",
+      "model_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/07-fatty_liver.next_visit_trend.ggt/fatty_liver_next_visit_trend_ggt.joblib",
+      "model_sha256": "63eb1cd490128b96d63574b69c94b9b0e17dbeb96aa14154d4cd181addea8fe3",
+      "task": "fatty_liver.next_visit_trend.ggt"
+    },
+    {
+      "artifact_type": "trend",
+      "evaluation_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/08-fatty_liver.next_visit_trend.plt/fatty_liver_next_visit_trend_plt.evaluation.json",
+      "evaluation_sha256": "98d4cf9e0da80aed7cd5418f15915d199c354b0f723980003abce0648d278a80",
+      "indicator": "plt",
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/08-fatty_liver.next_visit_trend.plt/fatty_liver_next_visit_trend_plt.meta.json",
+      "metadata_sha256": "9ca2c4523288e4e88035a8cfcae2cbc0ad8462afa01be62a6156a1b3c3e9f31f",
+      "model_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/08-fatty_liver.next_visit_trend.plt/fatty_liver_next_visit_trend_plt.joblib",
+      "model_sha256": "63eb1cd490128b96d63574b69c94b9b0e17dbeb96aa14154d4cd181addea8fe3",
+      "task": "fatty_liver.next_visit_trend.plt"
+    },
+    {
+      "artifact_type": "trend",
+      "evaluation_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/09-fatty_liver.next_visit_trend.tbil/fatty_liver_next_visit_trend_tbil.evaluation.json",
+      "evaluation_sha256": "798811bd63b30d4499224937019375dba000c18fb5f71f10f5a61efc8074593f",
+      "indicator": "tbil",
+      "manifest_path": "datasets/dataset-6f9c8a2da687/manifest.json",
+      "metadata_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/09-fatty_liver.next_visit_trend.tbil/fatty_liver_next_visit_trend_tbil.meta.json",
+      "metadata_sha256": "ba845c8e990b86cba818792290468dc06f57f1f16e3497d9b14a688b724a06b5",
+      "model_path": "bundles/fatty_liver/fatty_liver-6f9c8a2da687-a13186ccaa8f/09-fatty_liver.next_visit_trend.tbil/fatty_liver_next_visit_trend_tbil.joblib",
+      "model_sha256": "63eb1cd490128b96d63574b69c94b9b0e17dbeb96aa14154d4cd181addea8fe3",
+      "task": "fatty_liver.next_visit_trend.tbil"
+    }
+  ],
+  "created_at": "2026-08-27T07:06:44.686748+00:00",
+  "data_release_id": "dataset-6f9c8a2da687",
+  "dataset": "fatty_liver",
+  "dataset_manifest_sha256": "c41f3afc14b3660181a6f3328038c608880a189e111c24bbe43f709362c083dc",
+  "release_set_id": "fatty_liver-6f9c8a2da687-a13186ccaa8f",
+  "schema_version": "longitudinal_disease_release_set.v1",
+  "split_sha256": "a13186ccaa8f3483fd1bc6f3553700e6c3e0e860fa6118c5c5f0211dbf292b3e",
+  "status": "reviewed"
+}

@@ -27,6 +27,14 @@ class DiseaseProgressionAdapter:
     key_indicators: tuple[str, ...] = ()
     synthetic_data_warning: str = "训练数据包含按规则生成或重组合成病例"
 
+    def event_stage_pairs(self) -> tuple[tuple[str, str], ...]:
+        stages = (
+            self.stage_order[1:]
+            if len(self.event_fields) == len(self.stage_order) - 1
+            else self.stage_order[-len(self.event_fields) :]
+        )
+        return tuple(zip(self.event_fields, stages))
+
     def _metadata(self, patient: dict[str, Any]) -> dict[str, Any]:
         metadata = patient.get("metadata") or patient.get("case_metadata") or {}
         return metadata if isinstance(metadata, dict) else {}
@@ -57,7 +65,7 @@ class DiseaseProgressionAdapter:
 
     def stage_label(self, patient: dict[str, Any], as_of: date) -> str | None:
         event_dates = patient.get("event_dates") or self._metadata(patient).get("event_dates") or {}
-        for field, stage in zip(self.event_fields, self.stage_order[1:]):
+        for field, stage in self.event_stage_pairs():
             if (event := _date(event_dates.get(field))) is not None and event <= as_of:
                 return stage
         final = patient.get("final_stage", self._metadata(patient).get("final_stage"))

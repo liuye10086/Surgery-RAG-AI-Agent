@@ -53,6 +53,19 @@ class TrendPrediction(BaseModel):
     importance: dict[str, Any] = Field(default_factory=dict)
 
 
+class TrendPredictionV3(TrendPrediction):
+    model_status: ModelRuntimeStatus
+
+
+class ReleaseSetIdentity(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    dataset: Literal["fatty_liver", "ad"]
+    release_set_id: str
+    release_set_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    data_release_id: str
+    split_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class PredictionModelStatus(BaseModel):
     model_config = ConfigDict(extra="forbid")
     outcome: ModelRuntimeStatus
@@ -149,7 +162,45 @@ class LongitudinalPredictionResultV2(BaseModel):
         return self
 
 
-LongitudinalPredictionResult = LongitudinalPredictionResultV2
+class LongitudinalPredictionResultV3(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    schema_version: Literal["longitudinal_prediction.v3"] = "longitudinal_prediction.v3"
+    disease: dict[str, Any]
+    release_set: ReleaseSetIdentity
+    observation: dict[str, Any]
+    outcome_prediction: OutcomePrediction
+    trend_predictions: list[TrendPredictionV3] = Field(default_factory=list)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    model_status: PredictionModelStatus
+    progression_signals: SignalInterpretationResult = Field(
+        default_factory=SignalInterpretationResult
+    )
+
+    @model_validator(mode="after")
+    def validate_independent_model_outputs(self):
+        if self.release_set.dataset != self.disease.get("dataset"):
+            raise ValueError("release set dataset mismatch")
+        if self.model_status.outcome.status != "available" and (
+            self.outcome_prediction.risk_score is not None
+            or self.outcome_prediction.risk_band is not None
+        ):
+            raise ValueError("不可用 outcome 模型不能输出风险结果")
+        stage = self.outcome_prediction.stage_projection
+        if self.model_status.stage.status != "available" and (
+            stage.likely_next_stage is not None or stage.stage_candidates
+        ):
+            raise ValueError("不可用 stage 模型不能输出阶段猜测")
+        for trend in self.trend_predictions:
+            if trend.model_status.status != "available" and (
+                trend.forecast.direction is not None
+                or trend.forecast.status == "direction_only"
+            ):
+                raise ValueError("不可用 trend 模型不能输出未来趋势")
+        return self
+
+
+LongitudinalPredictionResult = LongitudinalPredictionResultV2 | LongitudinalPredictionResultV3
 
 
 class LongitudinalReportRequest(BaseModel):

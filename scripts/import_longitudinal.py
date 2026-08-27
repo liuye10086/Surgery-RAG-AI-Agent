@@ -113,6 +113,8 @@ def build_case_metadata(
     total_visits: int,
     is_synthetic: bool,
     source_document: str | None = None,
+    dataset_release_id: str | None = None,
+    data_content_sha256: str | None = None,
 ) -> dict:
     """构造承载纵向语义的 case_metadata（JSONB）。
 
@@ -138,6 +140,12 @@ def build_case_metadata(
     }
     if source_document:
         metadata["source_document"] = source_document
+    if dataset_release_id:
+        metadata["logical_dataset"] = metadata["source_dataset"]
+        metadata["dataset_release_id"] = dataset_release_id
+        metadata["dataset_active"] = False
+    if data_content_sha256:
+        metadata["data_content_sha256"] = data_content_sha256
     return metadata
 
 
@@ -161,9 +169,11 @@ def should_mark_confirmed(dataset: str, final_stage: str) -> bool:
         return False
 
 
-def _existing_signatures(db, dataset: str) -> set[tuple[str, str, str]]:
-    """查询该数据集已导入的 (source_dataset, patient_label, visit_date) 签名。"""
-    from backend.app.db.models import CaseRecord
+def _existing_signatures(
+    db, dataset: str
+) -> set[tuple[str, str | None, str, str]]:
+    """查询该数据集已导入的版本化访视签名。"""
+    from app.db.models import CaseRecord
 
     source_dataset = DATASETS[dataset]["dir"].split("/")[-1]
     rows = (
@@ -174,6 +184,7 @@ def _existing_signatures(db, dataset: str) -> set[tuple[str, str, str]]:
     return {
         (
             (r.case_metadata or {}).get("source_dataset"),
+            (r.case_metadata or {}).get("dataset_release_id"),
             r.patient_label,
             (r.case_metadata or {}).get("visit_date"),
         )
@@ -187,13 +198,15 @@ def import_dataset(
     patients: list | None = None,
     visits: list | None = None,
     source_documents: dict[str, str] | None = None,
+    dataset_release_id: str | None = None,
+    data_content_sha256: str | None = None,
 ) -> dict:
     """把某数据集导入 case_records。幂等：已存在签名跳过。
 
     patients/visits/source_documents 可注入便于测试；缺省从 DATASETS 目录
     加载真实 CSV 与 extracted_cases.json 溯源映射。
     """
-    from backend.app.db.models import CaseRecord, Disease
+    from app.db.models import CaseRecord, Disease
 
     cfg = DATASETS[dataset]
     dataset_dir = ROOT / cfg["dir"]
@@ -223,6 +236,7 @@ def import_dataset(
         for index, visit in enumerate(ordered, start=1):
             signature = (
                 cfg["dir"].split("/")[-1],
+                dataset_release_id,
                 patient_id,
                 visit["visit_date"],
             )
@@ -242,6 +256,8 @@ def import_dataset(
                     total_visits=total,
                     is_synthetic=is_synthetic(dataset, patient_id),
                     source_document=source_documents.get(patient_id),
+                    dataset_release_id=dataset_release_id,
+                    data_content_sha256=data_content_sha256,
                 ),
             )
             db.add(record)
@@ -265,7 +281,7 @@ def reset_dataset(db, dataset: str) -> int:
     （_existing_signatures，autoflush 可能被禁用）能看到删除结果，
     不会把待删记录误判为"已存在"而跳过重新插入。
     """
-    from backend.app.db.models import CaseRecord
+    from app.db.models import CaseRecord
 
     source_dataset = DATASETS[dataset]["dir"].split("/")[-1]
     rows = (
@@ -286,6 +302,8 @@ def reset_and_import(
     patients: list | None = None,
     visits: list | None = None,
     source_documents: dict[str, str] | None = None,
+    dataset_release_id: str | None = None,
+    data_content_sha256: str | None = None,
 ) -> dict:
     """在同一事务内完成（可选）重置与重新导入。
 
@@ -295,7 +313,13 @@ def reset_and_import(
     """
     removed = reset_dataset(db, dataset) if reset else 0
     result = import_dataset(
-        db, dataset, patients=patients, visits=visits, source_documents=source_documents
+        db,
+        dataset,
+        patients=patients,
+        visits=visits,
+        source_documents=source_documents,
+        dataset_release_id=dataset_release_id,
+        data_content_sha256=data_content_sha256,
     )
     result["removed"] = removed
     return result
@@ -313,7 +337,7 @@ def _load_settings() -> str:
     raise RuntimeError(f"{env_path} 中未找到 DATABASE_URL")
 
 
-def main(argv: list | None = None) -> int:
+def parse_args(argv: list | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="导入纵向数据集到 AI 操作者端 case_records（每访视一行快照）"
     )
@@ -333,7 +357,40 @@ def main(argv: list | None = None) -> int:
         default=None,
         help="DATABASE_URL；缺省从 backend/.env 读取",
     )
+    parser.add_argument(
+        "--release-id",
+        default=None,
+        help="显式数据 release ID；正式更新时必须与内容哈希一起提供",
+    )
+    parser.add_argument(
+        "--data-content-sha256",
+        default=None,
+        help="数据 manifest 中的整体内容 SHA-256",
+    )
+    parser.add_argument(
+        "--activate",
+        action="store_true",
+        help="导入成功后在同一事务内激活该数据 release",
+    )
     args = parser.parse_args(argv)
+    has_release_id = bool(args.release_id)
+    has_content_hash = bool(args.data_content_sha256)
+    if has_release_id != has_content_hash:
+        parser.error("--release-id 与 --data-content-sha256 必须成对提供")
+    if has_content_hash and (
+        len(args.data_content_sha256) != 64
+        or any(character not in "0123456789abcdefABCDEF" for character in args.data_content_sha256)
+    ):
+        parser.error("--data-content-sha256 必须是 64 位十六进制 SHA-256")
+    if args.activate and not has_release_id:
+        parser.error("--activate 必须与 --release-id 一起使用")
+    if has_release_id and args.dataset == "all":
+        parser.error("版本化导入必须一次明确选择一种疾病")
+    return args
+
+
+def main(argv: list | None = None) -> int:
+    args = parse_args(argv)
 
     db_url = args.db_url or _load_settings()
     from sqlalchemy import create_engine
@@ -346,7 +403,29 @@ def main(argv: list | None = None) -> int:
     for name in names:
         with Session() as db:
             try:
-                result = reset_and_import(db, name, reset=args.reset)
+                result = reset_and_import(
+                    db,
+                    name,
+                    reset=args.reset,
+                    dataset_release_id=args.release_id,
+                    data_content_sha256=(
+                        args.data_content_sha256.lower()
+                        if args.data_content_sha256
+                        else None
+                    ),
+                )
+                if args.activate:
+                    from app.services.longitudinal_data_release import (
+                        activate_data_release,
+                    )
+
+                    switch = activate_data_release(
+                        db,
+                        DATASETS[name]["dir"].split("/")[-1],
+                        args.release_id,
+                    )
+                    result["active_release_id"] = switch.active_release_id
+                    result["previous_release_id"] = switch.previous_release_id
             except Exception:
                 db.rollback()
                 raise

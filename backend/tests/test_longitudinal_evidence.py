@@ -121,3 +121,54 @@ def test_similar_cases_deduplicate_labels_and_merge_overlapping_indicators():
         "is_synthetic": False,
         "provenance": "reference",
     }]
+
+
+def test_similar_cases_use_only_explicit_active_data_release():
+    class Query:
+        def filter(self, *args, **kwargs):
+            return self
+
+        def limit(self, value):
+            return self
+
+        def all(self):
+            return [
+                SimpleNamespace(
+                    patient_label="legacy",
+                    case_metadata={"source_dataset": "longitudinal_300"},
+                    confirmed=True,
+                    indicators=[{"name": "ALT"}],
+                ),
+                SimpleNamespace(
+                    patient_label="old-release",
+                    case_metadata={
+                        "logical_dataset": "longitudinal_300",
+                        "dataset_release_id": "fl-v1",
+                        "dataset_active": False,
+                    },
+                    confirmed=True,
+                    indicators=[{"name": "ALT"}],
+                ),
+                SimpleNamespace(
+                    patient_label="active-release",
+                    case_metadata={
+                        "logical_dataset": "longitudinal_300",
+                        "dataset_release_id": "fl-v2",
+                        "dataset_active": True,
+                    },
+                    confirmed=True,
+                    indicators=[{"name": "ALT"}],
+                ),
+            ]
+
+    db = SimpleNamespace(query=lambda model: Query())
+    from app.services.longitudinal_evidence import select_similar_longitudinal_cases
+
+    sources = select_similar_longitudinal_cases(
+        db,
+        1,
+        [{"visit_date": "2024-01-01", "indicators": [{"name": "ALT"}]}],
+        SimpleNamespace(dataset="fatty_liver"),
+    )
+
+    assert [source["patient_label"] for source in sources] == ["active-release"]

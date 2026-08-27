@@ -1,0 +1,9 @@
+{
+  "action": "enable",
+  "changed_at": "2026-08-27T07:07:20.776424+00:00",
+  "changed_by": "owner",
+  "dataset": "ad",
+  "release_set_id": "ad-6f9c8a2da687-3acb488b1a87",
+  "release_set_sha256": "d49acb2872010457a92753fcbcb40eb8e9d67a9d73c826333f5dbb2aa1a75681",
+  "schema_version": "longitudinal_disease_release_pointer.v1"
+}

@@ -50,3 +50,15 @@ def test_test_selection_or_synthetic_usage_blocks_training():
     audit = LeakageAudit(test_used_for_selection=True, synthetic_in_formal_metrics=True)
     with pytest.raises(LeakageBlockedError):
         assert_audit_allows_training(audit)
+
+
+def test_cross_task_split_mismatch_blocks_training():
+    audit = LeakageAudit(cross_task_split_mismatch=True, status="blocked")
+    with pytest.raises(LeakageBlockedError):
+        assert_audit_allows_training(audit)
+
+
+def test_source_family_crosses_partitions_blocks_training():
+    audit = LeakageAudit(source_family_overlap=True, status="blocked")
+    with pytest.raises(LeakageBlockedError):
+        assert_audit_allows_training(audit)

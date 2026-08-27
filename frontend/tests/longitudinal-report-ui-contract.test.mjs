@@ -5,6 +5,8 @@ import test from 'node:test'
 const viewPath = new URL('../src/components/LongitudinalReportView.vue', import.meta.url)
 const storePath = new URL('../src/stores/operator.ts', import.meta.url)
 const operatorViewPath = new URL('../src/views/OperatorView.vue', import.meta.url)
+const summaryPath = new URL('../src/components/LongitudinalPredictionSummary.vue', import.meta.url)
+const apiPath = new URL('../src/api/operator.ts', import.meta.url)
 
 test('longitudinal report has three summary answers and eleven sections', async () => {
   const view = await readFile(viewPath, 'utf8')
@@ -43,4 +45,28 @@ test('report directory targets ids assigned to persisted markdown headings', asy
   const operatorView = await readFile(operatorViewPath, 'utf8')
   assert.match(operatorView, /new DOMParser\(\)/)
   assert.match(operatorView, /heading\.id = section\.id/)
+})
+
+test('complete prediction summary exposes outcome stage and trend without probability wording', async () => {
+  const source = await readFile(summaryPath, 'utf8')
+  for (const text of ['未来 365 天结局', '下一疾病阶段', '下一次访视趋势', '模型分数', '不代表临床概率', '已观察方向', '模型预测方向']) {
+    assert.match(source, new RegExp(text))
+  }
+  assert.doesNotMatch(source, /临床概率：/)
+  assert.doesNotMatch(source, /row\.forecast\?\.direction \|\| '不可估计'.*观察趋势/)
+})
+
+test('historical prediction types remain compatible while v3 is strict', async () => {
+  const api = await readFile(apiPath, 'utf8')
+  assert.match(api, /LongitudinalPredictionV1\s*\|\s*LongitudinalPredictionV2\s*\|\s*LongitudinalPredictionV3/)
+  assert.match(api, /schema_version:\s*'longitudinal_prediction\.v3'/)
+  assert.match(api, /release_set:\s*LongitudinalReleaseSetIdentity/)
+  assert.match(api, /model_status:\s*LongitudinalModelStatuses/)
+})
+
+test('report reading view shows saved release identity only as technical detail', async () => {
+  const view = await readFile(viewPath, 'utf8')
+  assert.match(view, /模型组版本/)
+  assert.match(view, /release_set_id/)
+  assert.match(view, /technical-release/)
 })

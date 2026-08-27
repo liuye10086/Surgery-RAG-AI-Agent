@@ -30,8 +30,14 @@ from app.services.disease_progression import (
     DiseaseProgressionAdapter,
 )
 from app.services.longitudinal_features import build_prefixes
-from app.services.longitudinal_model_registry import load_model_registry
-from app.schemas.longitudinal_model_registry import TASK_CONTRACTS
+from app.services.longitudinal_model_registry import (
+    load_disease_model_suite,
+    load_model_registry,
+)
+from app.schemas.longitudinal_model_registry import (
+    LoadedDiseaseModelSuite,
+    TASK_CONTRACTS,
+)
 from scripts.check_model_artifacts import sha256_file
 
 
@@ -80,9 +86,11 @@ CURRENT_IMPLEMENTED_REQUIRED = frozenset(
     {
         "case_identity",
         "input_scope",
+        "data_quality_explanation",
         "observed_longitudinal_changes",
         "outcome_365d",
         "reference_standard_interpretation",
+        "key_progression_signals",
         "evidence_sources",
         "limitations",
         "manual_review_items",
@@ -135,6 +143,28 @@ def aggregate_reference_data(
     rows: list[dict[str, object]],
     adapter: DiseaseProgressionAdapter,
 ) -> tuple[DataReadiness, list[ReadinessReason]]:
+    explicit_active = [
+        row
+        for row in rows
+        if isinstance(row.get("metadata"), dict)
+        and row["metadata"].get("dataset_active") is True
+    ]
+    if explicit_active:
+        rows = explicit_active
+    active_release_ids = {
+        str(row["metadata"].get("dataset_release_id"))
+        for row in rows
+        if isinstance(row.get("metadata"), dict)
+        and row["metadata"].get("dataset_release_id")
+        and row["metadata"].get("dataset_active") is True
+    }
+    active_content_hashes = {
+        str(row["metadata"].get("data_content_sha256"))
+        for row in rows
+        if isinstance(row.get("metadata"), dict)
+        and row["metadata"].get("data_content_sha256")
+        and row["metadata"].get("dataset_active") is True
+    }
     patients: dict[tuple[str, str], dict[str, Any]] = {}
     for row in rows:
         raw_metadata = row.get("metadata")
@@ -183,6 +213,24 @@ def aggregate_reference_data(
                 unknown += 1
 
     reasons: list[ReadinessReason] = []
+    if len(active_release_ids) > 1:
+        reasons.append(
+            _reason(
+                "multiple_active_data_releases",
+                "同一疾病存在多个活动数据版本",
+                "blocked",
+                "P0-03",
+            )
+        )
+    if len(active_content_hashes) > 1:
+        reasons.append(
+            _reason(
+                "active_data_hash_mismatch",
+                "活动数据版本的内容哈希不一致",
+                "blocked",
+                "P0-03",
+            )
+        )
     if not patients or visit_count == 0:
         reasons.append(
             _reason(
@@ -213,6 +261,14 @@ def aggregate_reference_data(
 
     data = DataReadiness(
         status="blocked" if reasons else "available",
+        active_release_id=(
+            next(iter(active_release_ids)) if len(active_release_ids) == 1 else None
+        ),
+        active_data_content_sha256=(
+            next(iter(active_content_hashes))
+            if len(active_content_hashes) == 1
+            else None
+        ),
         patient_count=len(patients),
         visit_count=visit_count,
         all_prefix_count=all_prefixes,
@@ -460,7 +516,7 @@ def check_outcome_artifact(
 def _runtime_to_readiness(status) -> ArtifactReadiness:
     return ArtifactReadiness(
         status=status.status,
-        artifact_type="outcome",
+        artifact_type=status.artifact_type,
         task=status.task,
         reason_code=status.reason_code,
         lifecycle_status=status.lifecycle_status,
@@ -480,6 +536,107 @@ def _runtime_to_readiness(status) -> ArtifactReadiness:
             if value is not None
         },
         issues=[] if status.status == "available" else [status.reason_code],
+    )
+
+
+def assess_loaded_model_suite(
+    adapter: DiseaseProgressionAdapter,
+    suite: LoadedDiseaseModelSuite,
+    data: DataReadiness,
+) -> tuple[ModelReadiness, list[ReadinessReason]]:
+    outcome_tasks = {
+        task: _runtime_to_readiness(entry.status)
+        for task, entry in suite.outcomes.items()
+    }
+    outcome = summarize_outcome_tasks(adapter.dataset, outcome_tasks)
+    stage = _runtime_to_readiness(suite.stage.status)
+    trends = [
+        _runtime_to_readiness(entry.status).model_copy(
+            update={"indicator": indicator}
+        )
+        for indicator, entry in sorted(suite.trends.items())
+    ]
+    statuses = [
+        *(entry.status for entry in suite.outcomes.values()),
+        suite.stage.status,
+        *(entry.status for entry in suite.trends.values()),
+    ]
+    required_count = (
+        sum(
+            contract.dataset == adapter.dataset
+            for contract in TASK_CONTRACTS.values()
+        )
+        + 1
+        + len(adapter.key_indicators)
+    )
+    available_count = sum(status.status == "available" for status in statuses)
+    reasons: list[ReadinessReason] = []
+    expected_outcomes = {
+        task
+        for task, contract in TASK_CONTRACTS.items()
+        if contract.dataset == adapter.dataset
+    }
+    if set(outcome_tasks) != expected_outcomes:
+        reasons.append(
+            _reason(
+                "release_set_incomplete",
+                "活动模型组缺少必需的未来365天结局模型",
+                "blocked",
+                "P0-05",
+            )
+        )
+    if set(suite.trends) != set(adapter.key_indicators):
+        reasons.append(
+            _reason(
+                "release_set_incomplete",
+                "活动模型组缺少必需的下一次访视趋势模型",
+                "blocked",
+                "P0-05",
+            )
+        )
+    if available_count != required_count:
+        reasons.append(
+            _reason(
+                "release_set_model_unavailable",
+                "活动模型组中存在不可用模型",
+                "blocked",
+                "P0-05",
+                required_model_count=required_count,
+                available_model_count=available_count,
+            )
+        )
+    if data.active_release_id is None:
+        reasons.append(
+            _reason(
+                "reference_data_release_unversioned",
+                "既有参考病例仍按兼容模式读取，尚未显式标记活动数据版本",
+                "degraded",
+                "P0-03",
+            )
+        )
+    elif suite.data_release_id != data.active_release_id:
+        reasons.append(
+            _reason(
+                "data_release_mismatch",
+                "活动模型组与活动数据版本不一致",
+                "blocked",
+                "P0-05",
+            )
+        )
+    return (
+        ModelReadiness(
+            release_set_id=suite.release_set_id,
+            release_set_sha256=suite.release_set_sha256,
+            data_release_id=suite.data_release_id,
+            split_sha256=suite.split_sha256,
+            required_model_count=required_count,
+            available_model_count=available_count,
+            outcome=outcome,
+            outcome_tasks=outcome_tasks,
+            stage=stage,
+            trends=trends,
+        ),
+        reasons,
     )
 
 
@@ -854,15 +1011,82 @@ def build_readiness_report(
             dataset=adapter.dataset,
         )
         reasons.extend(standard_reasons)
-        outcome_tasks, outcome_reasons = check_outcome_tasks(
-            adapter.dataset, Path(model_dir)
-        )
-        outcome = summarize_outcome_tasks(adapter.dataset, outcome_tasks)
-        reasons.extend(outcome_reasons)
-        stage, trends, optional_reasons = check_optional_artifacts(
-            adapter, Path(model_dir)
-        )
-        reasons.extend(optional_reasons)
+        active_pointer = Path(model_dir) / "active" / f"{adapter.dataset}.json"
+        release_identity: dict[str, object] = {}
+        if active_pointer.exists():
+            try:
+                loaded_models, model_reasons = assess_loaded_model_suite(
+                    adapter,
+                    load_disease_model_suite(adapter.dataset, Path(model_dir)),
+                    data,
+                )
+            except Exception:
+                outcome_tasks = {
+                    task: ArtifactReadiness(
+                        status="incompatible",
+                        artifact_type="outcome",
+                        task=task,
+                        reason_code="release_set_load_failed",
+                    )
+                    for task, contract in TASK_CONTRACTS.items()
+                    if contract.dataset == adapter.dataset
+                }
+                outcome = summarize_outcome_tasks(
+                    adapter.dataset, outcome_tasks
+                )
+                stage = ArtifactReadiness(
+                    status="incompatible",
+                    artifact_type="stage",
+                    reason_code="release_set_load_failed",
+                )
+                trends = [
+                    ArtifactReadiness(
+                        status="incompatible",
+                        artifact_type="trend",
+                        indicator=indicator,
+                        reason_code="release_set_load_failed",
+                    )
+                    for indicator in adapter.key_indicators
+                ]
+                model_reasons = [
+                    _reason(
+                        "release_set_load_failed",
+                        "活动模型组无法通过完整性预加载",
+                        "blocked",
+                        "P0-05",
+                    )
+                ]
+                loaded_models = ModelReadiness(
+                    required_model_count=len(outcome_tasks) + 1 + len(trends),
+                    available_model_count=0,
+                    outcome=outcome,
+                    outcome_tasks=outcome_tasks,
+                    stage=stage,
+                    trends=trends,
+                )
+            outcome_tasks = loaded_models.outcome_tasks
+            outcome = loaded_models.outcome
+            stage = loaded_models.stage
+            trends = loaded_models.trends
+            release_identity = {
+                "release_set_id": loaded_models.release_set_id,
+                "release_set_sha256": loaded_models.release_set_sha256,
+                "data_release_id": loaded_models.data_release_id,
+                "split_sha256": loaded_models.split_sha256,
+                "required_model_count": loaded_models.required_model_count,
+                "available_model_count": loaded_models.available_model_count,
+            }
+            reasons.extend(model_reasons)
+        else:
+            outcome_tasks, outcome_reasons = check_outcome_tasks(
+                adapter.dataset, Path(model_dir)
+            )
+            outcome = summarize_outcome_tasks(adapter.dataset, outcome_tasks)
+            reasons.extend(outcome_reasons)
+            stage, trends, optional_reasons = check_optional_artifacts(
+                adapter, Path(model_dir)
+            )
+            reasons.extend(optional_reasons)
         contract, contract_reasons, available = assess_report_contract(
             table_columns=table_columns,
             data=data,
@@ -880,6 +1104,7 @@ def build_readiness_report(
             data=data,
             standard=standard,
             models=ModelReadiness(
+                **release_identity,
                 outcome=outcome,
                 outcome_tasks=outcome_tasks,
                 stage=stage,

@@ -30,6 +30,10 @@ class ReadinessReason(StrictModel):
 
 class DataReadiness(StrictModel):
     status: CheckStatus
+    active_release_id: str | None = None
+    active_data_content_sha256: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{64}$"
+    )
     patient_count: int = 0
     visit_count: int = 0
     all_prefix_count: int = 0
@@ -83,10 +87,28 @@ class ArtifactReadiness(StrictModel):
 
 
 class ModelReadiness(StrictModel):
+    release_set_id: str | None = None
+    release_set_sha256: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{64}$"
+    )
+    data_release_id: str | None = None
+    split_sha256: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{64}$"
+    )
+    required_model_count: int = Field(default=0, ge=0)
+    available_model_count: int = Field(default=0, ge=0)
     outcome: ArtifactReadiness
     outcome_tasks: dict[str, ArtifactReadiness] = Field(default_factory=dict)
     stage: ArtifactReadiness
     trends: list[ArtifactReadiness] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def model_counts_are_consistent(self):
+        if self.available_model_count > self.required_model_count:
+            raise ValueError("可用模型数不能超过必需模型数")
+        if self.release_set_id and self.required_model_count == 0:
+            raise ValueError("活动模型组必须记录必需模型数")
+        return self
 
 
 class CapabilityReadiness(StrictModel):

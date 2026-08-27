@@ -29,5 +29,5 @@ def review_scores(metrics: EvaluationSummary, audit: LeakageAudit) -> LeakageAud
 
 
 def assert_audit_allows_training(audit: LeakageAudit) -> None:
-    if audit.status == "blocked" or audit.group_overlap or audit.duplicate_rows or audit.forbidden_feature_hits or audit.test_used_for_selection or audit.synthetic_in_formal_metrics:
+    if audit.status == "blocked" or audit.group_overlap or audit.duplicate_rows or audit.forbidden_feature_hits or audit.test_used_for_selection or audit.synthetic_in_formal_metrics or audit.cross_task_split_mismatch or audit.source_family_overlap or audit.near_duplicate_source_overlap:
         raise LeakageBlockedError("leakage_audit_blocked")

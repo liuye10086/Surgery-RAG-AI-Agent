@@ -1,0 +1,101 @@
+{
+  "schema_version": "longitudinal_model_evaluation.v1",
+  "artifact_type": "trend",
+  "task": "fatty_liver.next_visit_trend.alt",
+  "dataset": "fatty_liver",
+  "dataset_manifest_sha256": "c41f3afc14b3660181a6f3328038c608880a189e111c24bbe43f709362c083dc",
+  "data_content_sha256": "6f9c8a2da687d7718cfa5bb470d493c150a16cb3a8f969fc8030853254fc56a5",
+  "training_file_sha256": "55396675290d1adecee077f028db29940943c630ca9bc2120c3fe45bc9ea58f8",
+  "split_sha256": "a13186ccaa8f3483fd1bc6f3553700e6c3e0e860fa6118c5c5f0211dbf292b3e",
+  "selection_metrics": {
+    "primary": "macro_f1",
+    "tie_breakers": [
+      "balanced_accuracy",
+      "model_name"
+    ],
+    "selected_model": "multinomial_logistic_regression",
+    "selected_metrics": {
+      "class_order": [
+        "rising",
+        "stable",
+        "falling"
+      ],
+      "class_support": {
+        "rising": 12,
+        "stable": 24,
+        "falling": 6
+      },
+      "macro_f1": 1.0,
+      "balanced_accuracy": 1.0,
+      "confusion_matrix": [
+        [
+          12,
+          0,
+          0
+        ],
+        [
+          0,
+          24,
+          0
+        ],
+        [
+          0,
+          0,
+          6
+        ]
+      ],
+      "unavailable_metrics": []
+    },
+    "selection_trace": [
+      "development_candidates_evaluated",
+      "candidate_selected",
+      "candidate_frozen"
+    ],
+    "tolerance": 0.05,
+    "tolerance_version": "relative_tolerance.v1"
+  },
+  "locked_test_metrics": {
+    "class_order": [
+      "rising",
+      "stable",
+      "falling"
+    ],
+    "class_support": {
+      "rising": 12,
+      "stable": 24,
+      "falling": 6
+    },
+    "macro_f1": 1.0,
+    "balanced_accuracy": 1.0,
+    "confusion_matrix": [
+      [
+        12,
+        0,
+        0
+      ],
+      [
+        0,
+        24,
+        0
+      ],
+      [
+        0,
+        0,
+        6
+      ]
+    ],
+    "unavailable_metrics": []
+  },
+  "baselines": {
+    "majority_class": "stable"
+  },
+  "class_support": {
+    "development_rising": 48,
+    "development_stable": 96,
+    "development_falling": 24,
+    "locked_test_rising": 12,
+    "locked_test_stable": 24,
+    "locked_test_falling": 6
+  },
+  "locked_test_used_for_selection": false
+}

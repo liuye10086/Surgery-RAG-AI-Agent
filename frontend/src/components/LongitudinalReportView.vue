@@ -19,6 +19,7 @@
           <div><span>模型是否可用</span><strong :class="outcomeAvailable ? 'ok' : 'warn'">{{ outcomeAvailable ? '可用' : '暂不可用' }}</strong><small>{{ outcomeAvailable ? '可提供 365 天风险结果' : '未计算未来风险分数' }}</small></div>
           <div><span>实际看到了哪些信号</span><strong>{{ signalCount }} 个</strong><small>{{ signalCount ? '来自结构化关键进展信号' : '当前没有足够的关键信号' }}</small></div>
         </div>
+        <p v-if="releaseSetId" class="technical-release">模型组版本：{{ releaseSetId }} · 数据版本：{{ dataReleaseId }}</p>
       </section>
 
       <nav class="report-toc" aria-label="报告目录">
@@ -49,16 +50,21 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ArrowLeft, Download } from '@element-plus/icons-vue'
-import type { ReportDetail } from '@/api/operator'
+import type { LongitudinalPrediction, ReportDetail } from '@/api/operator'
 
-const props = defineProps<{ report?: ReportDetail | null; predictionResult?: any; renderedContent: string; generating?: boolean }>()
+const props = defineProps<{ report?: ReportDetail | null; predictionResult?: LongitudinalPrediction | null; renderedContent: string; generating?: boolean }>()
 defineEmits<{ back: []; download: [] }>()
 
-const prediction = computed<any>(() => props.report?.prediction_result || props.predictionResult || {})
-const observation = computed<any>(() => prediction.value.observation || {})
+const prediction = computed<LongitudinalPrediction | null>(() => props.report?.prediction_result || props.predictionResult || null)
+const observation = computed(() => prediction.value?.observation || {})
 const visitCount = computed(() => Number(observation.value.visit_count || 0))
-const signalCount = computed(() => Number(prediction.value.progression_signals?.summary?.signal_count || prediction.value.progression_signals?.signals?.length || 0))
-const outcomeAvailable = computed(() => prediction.value.model_status?.outcome?.status === 'available')
+const signalCount = computed(() => {
+  const signals = prediction.value && 'progression_signals' in prediction.value ? prediction.value.progression_signals : undefined
+  return Number(signals?.summary?.signal_count || signals?.signals?.length || 0)
+})
+const outcomeAvailable = computed(() => prediction.value && 'model_status' in prediction.value && prediction.value.model_status.outcome.status === 'available')
+const releaseSetId = computed(() => prediction.value?.schema_version === 'longitudinal_prediction.v3' ? prediction.value.release_set.release_set_id : '')
+const dataReleaseId = computed(() => prediction.value?.schema_version === 'longitudinal_prediction.v3' ? prediction.value.release_set.data_release_id : '')
 const chartSeries = computed(() => Object.entries(observation.value.indicators || {}).flatMap(([name, item]: [string, any]) => {
   const series = Array.isArray(item?.series) ? item.series : []
   if (series.length < 3 || item?.unit_state && item.unit_state !== 'consistent') return []
@@ -93,6 +99,7 @@ function formatTime(value?: string) { return value ? new Date(value).toLocaleStr
 .summary-grid span { color:var(--text-secondary); font-size:var(--text-xs); }
 .summary-grid strong { color:var(--text-primary); font-size:var(--text-md); }
 .summary-grid small { color:var(--text-secondary); font-size:var(--text-xs); }
+.technical-release { margin:var(--space-3) 0 0; color:var(--text-secondary); font-family:var(--font-mono); font-size:var(--text-xs); }
 .ok { color:var(--color-success) !important; } .warn { color:var(--color-warning) !important; }
 .report-toc { display:flex; flex-wrap:wrap; gap:var(--space-2) var(--space-4); margin:var(--space-4) 0; padding-bottom:var(--space-3); border-bottom:1px solid var(--border-light); }
 .report-toc strong { width:100%; color:var(--text-primary); font-size:var(--text-sm); }

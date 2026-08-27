@@ -46,25 +46,40 @@ def test_training_summary_contains_only_candidate_bundles(cli, monkeypatch, tmp_
             self.bundle_dir = tmp_path / "out" / task.replace(".", "_")
             self.model_path = self.bundle_dir / "model.joblib"
             self.metadata_path = self.bundle_dir / "model.meta.json"
+            self.evaluation_path = self.bundle_dir / "model.evaluation.json"
             self.metadata = SimpleNamespace(
                 model_contract=SimpleNamespace(
                     model_id=f"{task}-model",
                     model_version="2026.08.26.1",
                     artifact_sha256="a" * 64,
-                )
+                ),
+                evaluation_sha256="b" * 64,
+                split_sha256="c" * 64,
             )
 
     monkeypatch.setattr(cli, "read_dataset_manifest", lambda _: object())
+    monkeypatch.setattr(
+        cli,
+        "read_disease_group_splits",
+        lambda _: {
+            "fatty_liver": SimpleNamespace(disease="fatty_liver"),
+            "ad": SimpleNamespace(disease="ad"),
+        },
+    )
     monkeypatch.setattr(cli, "read_real_train_samples", lambda *_: [object()])
     monkeypatch.setattr(cli, "select_task_samples", lambda samples, task: [task])
     def fake_train(*args, **kwargs):
-        fit_dir = Path(args[3])
+        fit_dir = Path(args[4])
         fit_dir.mkdir(parents=True, exist_ok=True)
         (fit_dir / f"{args[1].task}.joblib").write_bytes(b"intermediate")
-        return {"task": args[1].task}
+        return SimpleNamespace(task=args[1])
 
-    monkeypatch.setattr(cli, "train_task_to_candidate", fake_train)
-    monkeypatch.setattr(cli, "write_candidate_bundle", lambda result, root: Bundle(result["task"]))
+    monkeypatch.setattr(cli, "train_outcome_task", fake_train)
+    monkeypatch.setattr(
+        cli,
+        "write_outcome_candidate_bundle",
+        lambda result, root: Bundle(result.task.task),
+    )
 
     payload = cli.run_training(tmp_path / "dataset", tmp_path / "out")
     assert payload["status"] == "candidate"
@@ -73,3 +88,55 @@ def test_training_summary_contains_only_candidate_bundles(cli, monkeypatch, tmp_
     assert not list((tmp_path / "out").rglob("review*.json"))
     assert not list((tmp_path / "out").rglob("release*.json"))
     assert not (tmp_path / "out" / ".fit").exists()
+
+
+def test_training_uses_disease_splits_and_writes_v2_evaluation(cli, monkeypatch, tmp_path):
+    splits = {
+        "fatty_liver": SimpleNamespace(disease="fatty_liver", sha256="a" * 64),
+        "ad": SimpleNamespace(disease="ad", sha256="b" * 64),
+    }
+    calls = []
+
+    class Bundle:
+        def __init__(self, task):
+            self.bundle_dir = tmp_path / "out" / task.replace(".", "_")
+            self.model_path = self.bundle_dir / "model.joblib"
+            self.metadata_path = self.bundle_dir / "model.meta.json"
+            self.evaluation_path = self.bundle_dir / "model.evaluation.json"
+            self.metadata = SimpleNamespace(
+                model_contract=SimpleNamespace(
+                    model_id=f"{task}-model",
+                    model_version="2026.08.27.1",
+                    artifact_sha256="c" * 64,
+                ),
+                split_sha256=splits[task.split(".", 1)[0]].sha256,
+                evaluation_sha256="d" * 64,
+            )
+
+    monkeypatch.setattr(cli, "read_dataset_manifest", lambda _: object())
+    monkeypatch.setattr(cli, "read_disease_group_splits", lambda _: splits)
+    monkeypatch.setattr(cli, "read_real_train_samples", lambda *_: [object()])
+    monkeypatch.setattr(cli, "select_task_samples", lambda samples, task: [task])
+
+    def fake_train(rows, task, split, dataset, output_dir, **kwargs):
+        calls.append((task.task, split.disease))
+        return SimpleNamespace(task=task)
+
+    monkeypatch.setattr(cli, "train_outcome_task", fake_train)
+    monkeypatch.setattr(
+        cli,
+        "write_outcome_candidate_bundle",
+        lambda candidate, root: Bundle(candidate.task.task),
+    )
+
+    payload = cli.run_training(tmp_path / "dataset", tmp_path / "out")
+
+    assert payload["schema_version"] == "longitudinal_model_artifact.v2"
+    assert calls == [
+        (task_name, task.disease) for task_name, task in cli.TASK_SPECS.items()
+    ]
+    assert all("evaluation" in item for item in payload["tasks"].values())
+    assert all("split_sha256" in item for item in payload["tasks"].values())
+    assert not list((tmp_path / "out").rglob("review*.json"))
+    assert not list((tmp_path / "out").rglob("release*.json"))
+    assert not list((tmp_path / "out").rglob("active*.json"))

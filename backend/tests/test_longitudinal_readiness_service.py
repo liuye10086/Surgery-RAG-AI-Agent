@@ -21,6 +21,7 @@ from app.services.longitudinal_readiness import (
     check_outcome_tasks,
     collect_longitudinal_readiness,
     load_database_snapshot,
+    assess_loaded_model_suite,
 )
 
 
@@ -111,6 +112,39 @@ def test_reference_data_does_not_guess_provenance_from_patient_number():
     data, _ = aggregate_reference_data(rows, FATTY_LIVER_ADAPTER)
     assert data.synthetic_patient_count == 0
     assert data.unknown_provenance_patient_count == 1
+
+
+def test_reference_data_selects_only_explicit_active_release():
+    active = _row(
+        "active-group",
+        "2024-01-01",
+        final_stage="fatty_liver",
+        event_dates={},
+        source="longitudinal_300",
+    )
+    active["metadata"].update(
+        dataset_active=True,
+        dataset_release_id="fl-data-v2",
+        data_content_sha256="a" * 64,
+    )
+    inactive = _row(
+        "inactive-group",
+        "2024-01-01",
+        final_stage="fatty_liver",
+        event_dates={},
+        source="longitudinal_300",
+    )
+    inactive["metadata"].update(
+        dataset_active=False,
+        dataset_release_id="fl-data-v1",
+        data_content_sha256="b" * 64,
+    )
+
+    data, _ = aggregate_reference_data([inactive, active], FATTY_LIVER_ADAPTER)
+
+    assert data.patient_count == 1
+    assert data.active_release_id == "fl-data-v2"
+    assert data.active_data_content_sha256 == "a" * 64
 
 
 def test_ad_uses_ad_event_semantics_for_positive_prefix():
@@ -454,6 +488,60 @@ def test_stage_not_configured_and_missing_trends_are_degraded(tmp_path):
     assert all(reason.severity == "degraded" for reason in reasons)
 
 
+def test_complete_active_suite_reports_one_identity_and_all_model_families():
+    from backend.tests.test_longitudinal_prediction_contract import _complete_ad_suite
+
+    suite = _complete_ad_suite()
+    suite.trends.update(
+        {
+            "cdr": suite.trends["moca"],
+            "plasma_nfl": suite.trends["moca"],
+            "plasma_ptau217": suite.trends["moca"],
+        }
+    )
+    data = _complete_data().model_copy(
+        update={"active_release_id": "ad-data-v1"}
+    )
+    models, reasons = assess_loaded_model_suite(
+        AD_ADAPTER,
+        suite,
+        data,
+    )
+
+    assert reasons == []
+    assert models.release_set_id == "ad-set-v1"
+    assert models.data_release_id == data.active_release_id
+    assert models.outcome.status == "available"
+    assert models.stage.status == "available"
+    assert all(item.status == "available" for item in models.trends)
+    assert models.available_model_count == models.required_model_count
+
+
+def test_complete_suite_with_legacy_reference_rows_is_degraded_not_blocked():
+    from backend.tests.test_longitudinal_prediction_contract import _complete_ad_suite
+
+    suite = _complete_ad_suite()
+    suite.trends.update(
+        {
+            "cdr": suite.trends["moca"],
+            "plasma_nfl": suite.trends["moca"],
+            "plasma_ptau217": suite.trends["moca"],
+        }
+    )
+
+    models, reasons = assess_loaded_model_suite(
+        AD_ADAPTER,
+        suite,
+        _complete_data(),
+    )
+
+    assert models.available_model_count == models.required_model_count
+    assert [reason.code for reason in reasons] == [
+        "reference_data_release_unversioned"
+    ]
+    assert reasons[0].severity == "degraded"
+
+
 def _complete_data():
     return DataReadiness(
         status="available",
@@ -578,6 +666,30 @@ def test_optional_stage_and_trend_capabilities_do_not_block_required_contract():
     assert optional["next_followup_trend_model"].status == "degraded"
 
 
+def test_current_report_contract_includes_p007_quality_and_signal_capabilities():
+    contract, reasons, available = assess_report_contract(
+        table_columns=_table_columns(),
+        data=_complete_data(),
+        standard=_available_standard(),
+        outcome=_artifact(
+            "outcome",
+            "available",
+            metadata={"calibration_status": "calibrated"},
+        ),
+        stage=_artifact("stage", "available"),
+        trends=[_artifact("trend", "available", indicator="alt")],
+    )
+
+    required = {
+        item.key: item for item in contract.capabilities if item.required
+    }
+    assert required["data_quality_explanation"].status == "available"
+    assert required["key_progression_signals"].status == "available"
+    assert "data_quality_explanation" in available
+    assert "key_progression_signals" in available
+    assert "report_contract_invalid" not in {reason.code for reason in reasons}
+
+
 def test_uncalibrated_available_outcome_adds_p2_03_reason():
     _, reasons, _ = assess_report_contract(
         table_columns=_table_columns(),
@@ -623,6 +735,39 @@ def test_build_report_keeps_diseases_separate_and_aggregates_worst_status(
     assert report.overall_status == "blocked"
     assert "P0-02" in report.diseases["fatty_liver"].next_tasks
     assert "P0-05" in report.diseases["ad"].next_tasks
+
+
+def test_build_report_prefers_active_disease_release_set(monkeypatch, tmp_path):
+    from backend.tests.test_longitudinal_prediction_contract import _complete_ad_suite
+
+    suite = _complete_ad_suite()
+    suite.trends.update(
+        {
+            "cdr": suite.trends["moca"],
+            "plasma_nfl": suite.trends["moca"],
+            "plasma_ptau217": suite.trends["moca"],
+        }
+    )
+    active = tmp_path / "active" / "ad.json"
+    active.parent.mkdir()
+    active.write_text("{}", encoding="utf-8")
+    calls = []
+
+    def fake_load(dataset, root):
+        calls.append((dataset, root))
+        return suite
+
+    monkeypatch.setattr(
+        "app.services.longitudinal_readiness.load_disease_model_suite",
+        fake_load,
+    )
+
+    report = build_readiness_report(
+        _snapshot_fixture(), model_dir=tmp_path, code_heads={"0010"}
+    )
+
+    assert calls == [("ad", tmp_path)]
+    assert report.diseases["ad"].models.release_set_id == "ad-set-v1"
 
 
 def test_collect_readiness_calls_snapshot_loader_once(monkeypatch, tmp_path):
