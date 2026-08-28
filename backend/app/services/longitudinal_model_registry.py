@@ -34,7 +34,7 @@ from app.schemas.longitudinal_model_suite import (
     BundleValidationStatus,
     EvaluationArtifact,
 )
-from app.services.progression_engine import MODEL_DIR
+from app.services.model_paths import MODEL_DIR
 from app.services.longitudinal_release_set import load_disease_release_set
 
 

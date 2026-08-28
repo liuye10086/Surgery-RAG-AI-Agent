@@ -10,7 +10,6 @@ import {
   addLongitudinalVisit,
   replaceLongitudinalVisits,
   generateLongitudinalReportStream,
-  predictProgression,
   listDiseases,
   listCases,
   type ReportListItem,
@@ -18,8 +17,6 @@ import {
   type Disease,
   type CaseRecord,
   type IndicatorInput,
-  type ProgressionPredictionRequest,
-  type ProgressionPredictionOut,
   type LongitudinalCase,
   type LongitudinalPrediction,
 } from '@/api/operator'
@@ -35,8 +32,6 @@ export const useOperatorStore = defineStore('operator', () => {
   const currentSources = ref<any[]>([])
   const diseases = ref<Disease[]>([])
   const cases = ref<CaseRecord[]>([])
-  const progressionResult = ref<ProgressionPredictionOut | null>(null)
-  const progressionLoading = ref(false)
   const longitudinalCases = ref<LongitudinalCase[]>([])
   const currentLongitudinalCase = ref<LongitudinalCase | null>(null)
   const longitudinalPrediction = ref<LongitudinalPrediction | null>(null)
@@ -100,21 +95,6 @@ export const useOperatorStore = defineStore('operator', () => {
     currentStage.value = 'cancelled'
   }
 
-  async function predictLongitudinalProgression(request: ProgressionPredictionRequest) {
-    progressionLoading.value = true
-    progressionResult.value = null
-    try {
-      progressionResult.value = await predictProgression(request)
-      return progressionResult.value
-    } finally {
-      progressionLoading.value = false
-    }
-  }
-
-  function clearProgression() {
-    progressionResult.value = null
-  }
-
   async function fetchLongitudinalCases(diseaseId?: number) {
     const result = await listLongitudinalCases(diseaseId)
     longitudinalCases.value = result.cases
@@ -173,8 +153,6 @@ export const useOperatorStore = defineStore('operator', () => {
     currentSources,
     diseases,
     cases,
-    progressionResult,
-    progressionLoading,
     longitudinalCases,
     currentLongitudinalCase,
     longitudinalPrediction,
@@ -188,8 +166,6 @@ export const useOperatorStore = defineStore('operator', () => {
     fetchCases,
     cancelGeneration,
     clearCurrent,
-    predictLongitudinalProgression,
-    clearProgression,
     fetchLongitudinalCases,
     saveLongitudinalCase,
     saveLongitudinalVisit,

@@ -119,7 +119,7 @@ Alembic 会创建 `vector`、`uuid-ossp`、`pg_trgm` 扩展和以下 6 张业务
 
 > **注意：** 启动后端时，`ensure_vectorstore_tables()` 会自动创建 `langchain_pg_collection` 和 `langchain_pg_embedding` 两张 LangChain PGVector 管理表，并在 embedding 表的 `document` 列上创建 pg_trgm GIN 索引。无需手动干预。
 
-`database/schema.sql` 是当前业务结构的参考快照，不是正式迁移入口；`database/migrations/` 中的 006/007/008 是接入 Alembic 前的历史 SQL。
+`database/schema.sql` 是当前业务结构的参考快照，不是正式迁移入口。所有正式版本变更均位于 `backend/alembic/versions/`，部署和升级统一使用 Alembic。
 
 ### 2.4 验证表结构
 
@@ -142,7 +142,7 @@ cd backend
 alembic upgrade head
 ```
 
-若数据库此前由 `database/schema.sql` 和旧版 006/007/008 SQL 创建，首次接入 Alembic 前必须先确认结构已包含这些历史变更，并检查以下三列没有空值：
+既有数据库首次接入 Alembic 前，必须先核对真实表结构、数据约束与已有版本，并检查以下三列没有空值：
 
 ```sql
 SELECT COUNT(*) FROM chunks WHERE document_id IS NULL;
@@ -150,16 +150,16 @@ SELECT COUNT(*) FROM sessions WHERE user_id IS NULL;
 SELECT COUNT(*) FROM messages WHERE session_id IS NULL;
 ```
 
-三项结果都为 `0` 后执行：
+三项结果都为 `0` 后，只能在确认真实结构与某一 Alembic revision 完全一致时执行：
 
 ```bash
 cd backend
-alembic stamp 0001
+alembic stamp <与真实结构匹配的 revision>
 alembic upgrade head
 alembic current
 ```
 
-如果结构不一致或存在空值，停止接入并先人工核查；迁移不会自动删除或修复业务数据。日常升级统一执行 `alembic upgrade head`。需要回退时，先备份数据库并查看当前版本，再按迁移版本逐级执行 `alembic downgrade <revision>`；不要在生产库直接使用 `downgrade base`。
+不得默认所有旧数据库都可直接 stamp `0001`。如果结构不一致、版本无法确认或存在空值，停止接入并先人工核查；迁移不会自动删除或修复业务数据。日常升级统一执行 `alembic upgrade head`。需要回退时，先备份数据库并查看当前版本，再按迁移版本逐级执行 `alembic downgrade <revision>`；不要在生产库直接使用 `downgrade base`。
 
 文档重新处理采用版本化切换：新分块、向量和图片全部构建成功后才替换当前代次；构建失败时原代次继续提供服务。新图片目录格式为：
 

@@ -21,7 +21,7 @@ for import_path in (PROJECT_ROOT, BACKEND_ROOT):
 from app.schemas.longitudinal_readiness import LongitudinalReadinessReport
 from app.core.config import settings
 from app.services.longitudinal_readiness import collect_longitudinal_readiness
-from app.services.progression_engine import MODEL_DIR
+from app.services.model_paths import MODEL_DIR
 
 
 def build_error_payload(code: str) -> dict[str, object]:

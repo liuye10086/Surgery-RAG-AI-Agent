@@ -29,20 +29,17 @@ Alembic 管理 `vector`、`uuid-ossp`、`pg_trgm` 扩展和以下 6 张业务表
 | 文件 | 作用 |
 | --- | --- |
 | `schema.sql` | 当前业务结构的人工核对参考快照，不是正式建库入口 |
-| `migrations/006_*.sql` | Alembic 接入前的历史迁移资料 |
-| `migrations/007_*.sql` | Alembic 接入前的历史迁移资料 |
-| `migrations/008_*.sql` | Alembic 接入前的历史迁移资料 |
 
-如参考快照与 Alembic 迁移链不一致，以 `backend/alembic/` 的最新迁移为准，并同步修正快照。
+所有正式版本变更都位于 `backend/alembic/versions/`。如参考快照与 Alembic 迁移链不一致，以 Alembic 最新 head 为准，并同步修正快照。
 
 ## 旧数据库首次接入
 
-由 `schema.sql` 和旧版 006/007/008 SQL 创建的数据库，不能直接重复执行 `0001`。应先核对结构和数据，再执行：
+既有数据库接入 Alembic 前，必须先核对真实表结构、数据约束与已有版本。只有确认数据库结构与某一 revision 完全一致时，才能 stamp 到该 revision，然后继续升级：
 
 ```bash
 cd backend
-alembic stamp 0001
+alembic stamp <与真实结构匹配的 revision>
 alembic upgrade head
 ```
 
-`0002` 会在收紧外键前检查 `chunks.document_id`、`sessions.user_id`、`messages.session_id` 是否存在空值。发现异常时迁移会停止，不会自动删除或修复业务数据。
+不得默认所有旧数据库都可直接 stamp `0001`。结构不一致、版本无法确认或存在异常数据时，应停止升级并先人工核查；迁移不会自动删除或修复业务数据。

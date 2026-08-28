@@ -14,7 +14,6 @@
 | [MVP开发计划.md](docs/MVP开发计划.md) | MVP 技术方案与里程碑（M0–M7，全部完成） |
 | [DESIGN_SPEC.md](docs/DESIGN_SPEC.md) | UI 设计规范（暖杏蓝色彩体系、排版、组件变体） |
 | [DEPLOY.md](docs/DEPLOY.md) | 部署与密钥运行手册 |
-| [CLAUDE.md](CLAUDE.md) | Claude Code 项目指令（根目录） |
 
 ## 项目结构
 
@@ -43,16 +42,16 @@ surgery-rag/
 │   │   └── router/        # 路由配置
 │   ├── package.json
 │   └── vite.config.ts
-├── database/              # 数据库结构参考与历史 SQL
-│   ├── schema.sql         # 当前业务结构参考快照
-│   └── migrations/        # 旧版 006/007/008 迁移资料
-├── docs/superpowers/      # 设计文档与实施计划
-│   ├── specs/             # 设计规范
-│   └── plans/             # 实施计划
-├── scripts/               # 验证与诊断脚本
-├── uploads/               # 运行时上传文件（不进入 git）
-├── 项目规划.md
-└── MVP开发计划.md
+├── data/generated/         # 双疾病 150/300 例可复现纵向数据
+├── database/               # schema.sql 参考快照；正式迁移位于 backend/alembic
+├── docs/
+│   ├── superpowers/plans/  # 保留的实施计划
+│   └── superpowers/specs/  # 尚未落地的采集规范与本次清理规格
+├── research/               # 独立方法验证子项目
+├── scripts/                # 数据生成、训练、registry、readiness 和诊断工具
+├── standard_manifests/     # 双疾病标准 manifest
+├── outputs/                # 保留的方法验证结论
+└── uploads/                # 运行时上传文件，不进入 Git
 ```
 
 ## 工作流程概览
@@ -71,6 +70,14 @@ surgery-rag/
 3. **安全过滤**：输入侧检测越狱/注入（阻断）和危险症状（标记但不阻断）；输出侧检测确定性诊断/药物剂量。
 4. **流式生成**：DeepSeek 基于检索病例生成回答，`[1]` `[2]` 内联引用，逐字流式输出。
 5. **审计记录**：完整记录检索分块、生成文本、延迟、安全标记。
+
+### AI 操作者纵向报告
+
+1. 保存操作者自有纵向病例和按日期排列的访视指标。
+2. 根据疾病和基线阶段选择当前激活的结局、阶段与趋势模型套件。
+3. 解析当前批准的参考标准，并选择带来源标记的相似病例证据。
+4. 生成严格结构化预测结果，再由确定性模板渲染 Markdown 报告。
+5. 持久化输入快照、模型版本、证据、报告正文，并支持历史查看和 PDF 导出。
 
 ## 本地开发
 
@@ -119,4 +126,4 @@ cd backend
 alembic upgrade head
 ```
 
-Alembic 是业务表结构的正式入口。`database/schema.sql` 仅作为当前结构参考快照；`database/migrations/` 下的旧 SQL 保留为历史资料，不再用于日常升级。LangChain 的 `langchain_pg_collection`、`langchain_pg_embedding` 两张内部表仍由 `langchain-postgres` 管理。
+Alembic 是业务表结构的唯一正式迁移入口。`database/schema.sql` 仅作为当前结构参考快照；LangChain 的 `langchain_pg_collection`、`langchain_pg_embedding` 两张内部表仍由 `langchain-postgres` 管理。

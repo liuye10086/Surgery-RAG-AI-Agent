@@ -159,6 +159,12 @@ def test_checker_source_contains_no_mutating_sql():
         assert forbidden not in source
 
 
+def test_checker_uses_shared_model_path_module():
+    source = SCRIPT_PATH.read_text(encoding="utf-8")
+    assert "from app.services.model_paths import MODEL_DIR" in source
+    assert "progression_engine" not in source
+
+
 def test_cli_reconfigures_gbk_stdout_to_utf8(checker, monkeypatch):
     raw = io.BytesIO()
     stream = io.TextIOWrapper(raw, encoding="gbk")

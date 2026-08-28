@@ -35,10 +35,6 @@ from app.schemas.prediction import (
     DiseaseUpdate,
     ReferenceRangeOut,
 )
-from app.schemas.progression import (
-    LongitudinalPredictRequest,
-    ProgressionPredictionOut,
-)
 from app.schemas.longitudinal_case import (
     OperatorCaseCreate,
     OperatorCaseListOut,
@@ -51,7 +47,6 @@ from app.schemas.longitudinal_case import (
 )
 from app.schemas.longitudinal_report import LongitudinalReportRequest
 from app.services.pdf_generator import generate_pdf
-from app.services.progression_engine import predict_progression
 from app.services.longitudinal_case_service import (
     CaseNotFoundError,
     DuplicateVisitDateError,
@@ -88,11 +83,6 @@ def _integrity_constraint_name(exc: IntegrityError) -> str | None:
 
 router = APIRouter(prefix="/operator", tags=["operator"])
 
-_PROGRESSION_DATASETS = {
-    "脂肪肝": "fatty_liver",
-    "阿尔茨海默病": "ad",
-}
-
 
 def _verify_report_owner(report: AIReport, current_user: User) -> None:
     """校验报告归属权。admin 也只能查看/操作自己创建的报告。"""
@@ -101,36 +91,6 @@ def _verify_report_owner(report: AIReport, current_user: User) -> None:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="报告不存在",
         )
-
-
-@router.post(
-    "/progression-predictions",
-    response_model=ProgressionPredictionOut,
-)
-def create_progression_prediction(
-    request: LongitudinalPredictRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_ai_operator),
-):
-    """Return a synchronous longitudinal risk estimate without persistence."""
-    disease = db.query(Disease).filter(Disease.id == request.disease_id).first()
-    if disease is None:
-        raise HTTPException(status_code=422, detail="疾病不存在")
-    dataset = _PROGRESSION_DATASETS.get(disease.name)
-    if dataset is None:
-        raise HTTPException(status_code=422, detail="该疾病尚无可用进展预测模型")
-
-    visits = [
-        {
-            "visit_date": visit.visit_date.isoformat(),
-            "indicators": [indicator.model_dump() for indicator in visit.indicators],
-        }
-        for visit in request.visits
-    ]
-    try:
-        return predict_progression(dataset, visits)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------

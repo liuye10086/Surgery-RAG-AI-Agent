@@ -67,121 +67,6 @@
               @saved="handleLongitudinalCaseSaved"
             />
             <LongitudinalPredictionSummary :prediction="operatorStore.longitudinalPrediction" />
-            <header class="progression-heading">
-              <div>
-                <h3>纵向进展预测</h3>
-                <p>录入同一患者按时间排列的多次访视指标。</p>
-              </div>
-            </header>
-
-            <div class="progression-form">
-              <div class="progression-disease-row">
-                <label for="progression-disease">预测疾病</label>
-                <el-select
-                  id="progression-disease"
-                  v-model="progressionDiseaseId"
-                  placeholder="选择疾病"
-                  filterable
-                  :disabled="operatorStore.progressionLoading"
-                  style="width: 280px"
-                >
-                  <el-option
-                    v-for="disease in progressionDiseases"
-                    :key="disease.id"
-                    :label="disease.name"
-                    :value="disease.id"
-                  />
-                </el-select>
-              </div>
-
-              <div class="visit-list">
-                <article v-for="(visit, visitIndex) in progressionVisits" :key="visit.id" class="visit-card">
-                  <div class="visit-card-head">
-                    <h4>第 {{ visitIndex + 1 }} 次访视</h4>
-                    <el-button
-                      :icon="Delete"
-                      text
-                      :disabled="operatorStore.progressionLoading"
-                      aria-label="删除访视"
-                      title="删除访视"
-                      @click="removeVisit(visitIndex)"
-                    />
-                  </div>
-                  <el-date-picker
-                    v-model="visit.visit_date"
-                    type="date"
-                    value-format="YYYY-MM-DD"
-                    placeholder="选择访视日期"
-                    :disabled="operatorStore.progressionLoading"
-                  />
-                  <IndicatorRowsEditor
-                    v-model="visit.indicators"
-                    :disabled="operatorStore.progressionLoading"
-                    class="visit-indicators"
-                  />
-                </article>
-              </div>
-
-              <div class="progression-actions">
-                <el-button
-                  :icon="Plus"
-                  :disabled="progressionVisits.length >= 10 || operatorStore.progressionLoading"
-                  @click="addVisit"
-                >
-                  添加访视（{{ progressionVisits.length }}/10）
-                </el-button>
-                <el-button
-                  type="primary"
-                  :loading="operatorStore.progressionLoading"
-                  :disabled="!canPredictProgression"
-                  @click="handleProgressionPredict"
-                >
-                  评估进展风险
-                </el-button>
-              </div>
-            </div>
-
-            <div v-if="progressionResult" class="progression-result">
-              <section class="progression-disclosures" aria-label="模型适用范围">
-                <div class="progression-disclosure">
-                  <div class="disclosure-title">
-                    <el-icon><WarningFilled /></el-icon>
-                    <span>重要使用限制</span>
-                  </div>
-                  <p>{{ progressionResult.disclaimer }}</p>
-                </div>
-                <div class="progression-disclosure">
-                  <div class="disclosure-title">模型验证说明</div>
-                  <p>{{ progressionResult.model_caveat }}</p>
-                </div>
-              </section>
-
-              <section class="progression-risk-card" aria-label="进展风险结果">
-                <div>
-                  <div class="progression-risk-label">进展风险等级</div>
-                  <div class="progression-risk-band">
-                    {{ progressionResult.risk_band }}风险
-                  </div>
-                </div>
-                <div class="progression-risk-score">
-                  <span>模式匹配分数</span>
-                  <strong>{{ formatRiskScore(progressionResult.risk_score) }}</strong>
-                </div>
-              </section>
-
-              <section class="progression-summary">
-                <h4>纵向特征摘要</h4>
-                <el-table :data="progressionResult.feature_summary" size="small">
-                  <el-table-column prop="indicator" label="指标" min-width="120" />
-                  <el-table-column prop="first" label="首次值" min-width="100" />
-                  <el-table-column prop="last" label="末次值" min-width="100" />
-                  <el-table-column label="斜率" min-width="120">
-                    <template #default="{ row }">{{ formatSlope(row.slope) }}</template>
-                  </el-table-column>
-                  <el-table-column prop="rises_count" label="上升次数" min-width="100" />
-                </el-table>
-              </section>
-            </div>
           </div>
         </div>
 
@@ -193,12 +78,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { WarningFilled, Plus, Delete } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import OperatorSidebar from '@/components/OperatorSidebar.vue'
 import CaseManageView from '@/components/CaseManageView.vue'
-import IndicatorRowsEditor from '@/components/IndicatorRowsEditor.vue'
 import LongitudinalCaseEditor from '@/components/LongitudinalCaseEditor.vue'
 import LongitudinalPredictionSummary from '@/components/LongitudinalPredictionSummary.vue'
 import LongitudinalReportView from '@/components/LongitudinalReportView.vue'
@@ -211,31 +94,12 @@ const operatorStore = useOperatorStore()
 
 const sidebarCollapsed = ref(localStorage.getItem('operator_sidebar_collapsed') === 'true')
 const activeView = ref<'progression' | 'cases'>('progression')
-let nextVisitId = 1
-
-interface ProgressionVisitForm {
-  id: number
-  visit_date: string
-  indicators: IndicatorInput[]
-}
-
-function emptyVisit(): ProgressionVisitForm {
-  return {
-    id: nextVisitId++,
-    visit_date: '',
-    indicators: [{ name: '', value: null, unit: '' }],
-  }
-}
-
-const progressionDiseaseId = ref<number | null>(null)
-const progressionVisits = ref<ProgressionVisitForm[]>([emptyVisit()])
 const progressionDiseases = computed(() =>
   operatorStore.diseases.filter((disease) =>
     disease.name === '脂肪肝' || disease.name === '阿尔茨海默病'
   )
 )
 
-const progressionResult = computed(() => operatorStore.progressionResult)
 const reportReadingMode = computed(() =>
   activeView.value === 'progression'
   && Boolean(operatorStore.generating || operatorStore.currentReport),
@@ -254,13 +118,6 @@ const REPORT_SECTIONS = [
   { id: 'section-10', title: '人工复核重点' },
   { id: 'section-11', title: '模型和数据技术附录' },
 ]
-
-const canPredictProgression = computed(() => {
-  if (!progressionDiseaseId.value || !progressionVisits.value.length) return false
-  return progressionVisits.value.every((visit) =>
-    Boolean(visit.visit_date) && visit.indicators.some(isValidIndicator)
-  )
-})
 
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
@@ -330,46 +187,6 @@ function startNewLongitudinalCase() {
 
 function selectLongitudinalCase(caseId: number) {
   operatorStore.currentLongitudinalCase = operatorStore.longitudinalCases.find((item) => item.id === caseId) || null
-}
-
-function addVisit() {
-  if (progressionVisits.value.length >= 10) return
-  progressionVisits.value.push(emptyVisit())
-}
-
-function removeVisit(index: number) {
-  if (progressionVisits.value.length <= 1) {
-    progressionVisits.value = [emptyVisit()]
-    return
-  }
-  progressionVisits.value.splice(index, 1)
-}
-
-async function handleProgressionPredict() {
-  if (!canPredictProgression.value || !progressionDiseaseId.value) return
-  try {
-    await operatorStore.predictLongitudinalProgression({
-      disease_id: progressionDiseaseId.value,
-      visits: progressionVisits.value.map((visit) => ({
-        visit_date: visit.visit_date,
-        indicators: visit.indicators.filter(isValidIndicator).map((indicator) => ({
-          name: indicator.name.trim(),
-          value: Number(indicator.value),
-          unit: indicator.unit.trim(),
-        })),
-      })),
-    })
-  } catch {
-    // 全局请求拦截器负责展示 API 的明确错误信息。
-  }
-}
-
-function formatRiskScore(score: number) {
-  return `${(score * 100).toFixed(1)}%`
-}
-
-function formatSlope(slope: number | null) {
-  return slope === null ? '无法计算' : slope.toFixed(4)
 }
 
 async function handleDownload() {
@@ -480,179 +297,6 @@ onMounted(async () => {
 .progression-inner {
   width: min(100%, var(--content-max-width));
   margin: 0 auto;
-}
-
-.progression-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: var(--space-6);
-}
-
-.progression-heading h3 {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.progression-heading p {
-  margin: var(--space-1) 0 0;
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-}
-
-.progression-form {
-  padding-bottom: var(--space-6);
-  border-bottom: 1px solid var(--border-default);
-}
-
-.progression-disease-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
-}
-
-.progression-disease-row label {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.visit-list {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.visit-card {
-  padding: var(--space-5);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-sm);
-}
-
-.visit-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-3);
-}
-
-.visit-card-head h4 {
-  margin: 0;
-  font-size: var(--text-base);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.visit-indicators {
-  margin-top: var(--space-4);
-}
-
-.progression-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-top: var(--space-5);
-}
-
-.progression-result {
-  display: grid;
-  gap: var(--space-5);
-  margin-top: var(--space-6);
-  padding-bottom: var(--space-8);
-}
-
-.progression-disclosures {
-  display: grid;
-  gap: var(--space-4);
-  padding: var(--space-5) var(--space-6);
-  background: var(--color-accent-light);
-  border: 1px solid var(--color-warning);
-  border-left: 4px solid var(--color-warning);
-  border-radius: var(--radius-card);
-}
-
-.progression-disclosure {
-  font-size: var(--text-md);
-  line-height: 1.6;
-  color: var(--text-primary);
-}
-
-.progression-disclosure + .progression-disclosure {
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-warning);
-}
-
-.disclosure-title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-  font-size: var(--text-md);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.progression-disclosure p {
-  max-width: 80ch;
-  margin: 0;
-}
-
-.progression-risk-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-5);
-  padding: var(--space-5) var(--space-6);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-left: 4px solid var(--color-primary);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-sm);
-}
-
-.progression-risk-label,
-.progression-risk-score span {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-}
-
-.progression-risk-band {
-  margin-top: var(--space-1);
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--color-primary);
-}
-
-.progression-risk-score {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-
-.progression-risk-score strong {
-  margin-top: var(--space-1);
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.progression-summary {
-  padding: var(--space-5);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-card);
-}
-
-.progression-summary h4 {
-  margin: 0 0 var(--space-4);
-  font-size: var(--text-md);
-  font-weight: 600;
-  color: var(--text-primary);
 }
 
 /* ===== 报告内容卡片 ===== */
@@ -817,20 +461,6 @@ onMounted(async () => {
     padding: var(--space-4);
   }
 
-  .progression-disease-row,
-  .progression-actions,
-  .progression-risk-card {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .progression-disease-row :deep(.el-select) {
-    width: 100% !important;
-  }
-
-  .progression-risk-score {
-    align-items: flex-start;
-  }
 }
 
 </style>

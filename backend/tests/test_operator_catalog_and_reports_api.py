@@ -1,4 +1,4 @@
-"""Operator predictive API 测试。"""
+"""Operator disease catalog, reference cases, reports, and router tests."""
 import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -60,14 +60,22 @@ class CaseRecordSchemaTests(unittest.TestCase):
 
 
 class OperatorRouterEndpointTests(unittest.TestCase):
-    def test_predictive_endpoints_registered(self):
-        """预测分析端点保留病例、只读兼容范围和 operator 文档。"""
+    def test_catalog_and_report_endpoints_registered(self):
+        """操作者路由保留目录、纵向病例与报告能力。"""
         from app.api.operator import router
+
         paths = {r.path for r in router.routes}
         self.assertTrue(
-            {"/operator/cases", "/operator/diseases",
-             "/operator/reference-ranges", "/operator/documents"}.issubset(paths)
+            {
+                "/operator/cases",
+                "/operator/diseases",
+                "/operator/reference-ranges",
+                "/operator/documents",
+                "/operator/longitudinal-cases",
+                "/operator/reports",
+            }.issubset(paths)
         )
+        self.assertNotIn("/operator/progression-predictions", paths)
         self.assertNotIn("/operator/reference-ranges/sync", paths)
 
     def test_delete_disease_rejects_current_standard_before_delete(self):

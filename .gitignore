@@ -33,6 +33,15 @@ dist-ssr/
 *.tmp
 *.bak
 
+# Project-local temporary and generated outputs
+/.tmp/
+/.tmp-doc-review/
+/.superpowers/
+/.claude/
+/tmp/
+/output/
+/research/outputs/
+
 # Local databases and backups
 *.sqlite
 *.sqlite3
