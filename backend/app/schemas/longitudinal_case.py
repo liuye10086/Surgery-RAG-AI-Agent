@@ -3,7 +3,7 @@
 import math
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class IndicatorValue(BaseModel):
@@ -34,6 +34,7 @@ class IndicatorValue(BaseModel):
 class OperatorCaseCreate(BaseModel):
     disease_id: int = Field(..., gt=0)
     patient_label: str = Field(..., min_length=1, max_length=100)
+    age: int = Field(..., ge=0, le=120, strict=True)
     sex: str | None = Field(None, pattern=r"^(male|female)$")
     baseline_stage: str | None = Field(None, max_length=100)
     notes: str | None = Field(None, max_length=5000)
@@ -54,6 +55,7 @@ class OperatorCaseCreate(BaseModel):
 class OperatorCaseUpdate(BaseModel):
     disease_id: int | None = Field(None, gt=0)
     patient_label: str | None = Field(None, min_length=1, max_length=100)
+    age: int | None = Field(None, ge=0, le=120, strict=True)
     sex: str | None = Field(None, pattern=r"^(male|female)$")
     baseline_stage: str | None = Field(None, max_length=100)
     notes: str | None = Field(None, max_length=5000)
@@ -70,6 +72,12 @@ class OperatorCaseUpdate(BaseModel):
         if not value and cls.__name__ == "OperatorCaseUpdate":
             raise ValueError("文本字段不能为空")
         return value
+
+    @model_validator(mode="after")
+    def reject_explicit_null_age(self):
+        if "age" in self.model_fields_set and self.age is None:
+            raise ValueError("年龄不能置空")
+        return self
 
 
 class VisitCreate(BaseModel):
@@ -127,6 +135,7 @@ class OperatorCaseOut(BaseModel):
     user_id: int
     disease_id: int
     patient_label: str
+    age: int | None = None
     sex: str | None = None
     baseline_stage: str | None = None
     notes: str | None = None

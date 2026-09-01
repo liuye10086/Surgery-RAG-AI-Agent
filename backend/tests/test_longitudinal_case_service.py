@@ -8,13 +8,14 @@ import pytest
 from pydantic import ValidationError
 
 
-def _case(user_id=7, case_id=3):
+def _case(user_id=7, case_id=3, age=65):
     return SimpleNamespace(
         id=case_id,
         user_id=user_id,
         disease_id=11,
         patient_label="case-A",
         sex="female",
+        age=age,
         baseline_stage="S1",
         notes="internal note",
         status="active",
@@ -48,10 +49,41 @@ def test_visit_rejects_empty_indicators_and_non_finite_values():
 def test_case_schema_normalizes_label_and_validates_sex():
     from app.schemas.longitudinal_case import OperatorCaseCreate
 
-    payload = OperatorCaseCreate(disease_id=11, patient_label="  case-A  ", sex="female")
+    payload = OperatorCaseCreate(
+        disease_id=11,
+        patient_label="  case-A  ",
+        age=65,
+        sex="female",
+    )
     assert payload.patient_label == "case-A"
     with pytest.raises(ValidationError):
-        OperatorCaseCreate(disease_id=11, patient_label="case-A", sex="unknown")
+        OperatorCaseCreate(
+            disease_id=11,
+            patient_label="case-A",
+            age=65,
+            sex="unknown",
+        )
+
+
+def test_case_age_is_required_strict_integer_and_bounded():
+    from app.schemas.longitudinal_case import OperatorCaseCreate
+
+    assert OperatorCaseCreate(disease_id=11, patient_label="case-0", age=0).age == 0
+    assert OperatorCaseCreate(disease_id=11, patient_label="case-120", age=120).age == 120
+    for age in (-1, 121, 1.5, 65.0, "65", None):
+        with pytest.raises(ValidationError):
+            OperatorCaseCreate(disease_id=11, patient_label="case-invalid", age=age)
+
+
+def test_case_update_age_may_be_omitted_but_not_cleared():
+    from app.schemas.longitudinal_case import OperatorCaseUpdate
+
+    assert OperatorCaseUpdate(patient_label="renamed").model_dump(exclude_unset=True) == {
+        "patient_label": "renamed"
+    }
+    assert OperatorCaseUpdate(age=0).age == 0
+    with pytest.raises(ValidationError):
+        OperatorCaseUpdate(age=None)
 
 
 def test_case_schema_trims_canonical_or_legacy_baseline_stage():
@@ -60,11 +92,13 @@ def test_case_schema_trims_canonical_or_legacy_baseline_stage():
     canonical = OperatorCaseCreate(
         disease_id=11,
         patient_label="case-A",
+        age=65,
         baseline_stage="  pre_cirrhosis  ",
     )
     legacy = OperatorCaseCreate(
         disease_id=11,
         patient_label="case-B",
+        age=65,
         baseline_stage="  S1  ",
     )
     assert canonical.baseline_stage == "pre_cirrhosis"
@@ -74,7 +108,7 @@ def test_case_schema_trims_canonical_or_legacy_baseline_stage():
 def test_snapshot_contains_sorted_visits_without_user_identity():
     from app.services.longitudinal_case_service import build_input_snapshot
 
-    case = _case()
+    case = _case(age=0)
     case.user = SimpleNamespace(id=7, real_name="should-not-copy")
     snapshot = build_input_snapshot(case, [_visit("2024-06-01", 2), _visit("2024-01-01")])
 
@@ -83,8 +117,30 @@ def test_snapshot_contains_sorted_visits_without_user_identity():
         "2024-06-01",
     ]
     assert [v["visit_index"] for v in snapshot["visits"]] == [1, 2]
+    assert snapshot["age"] == 0
     assert "real_name" not in snapshot
     assert "user_id" not in snapshot
+
+
+def test_create_operator_case_persists_age():
+    from app.schemas.longitudinal_case import OperatorCaseCreate
+    from app.services.longitudinal_case_service import create_operator_case
+
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(id=11)
+    result = create_operator_case(
+        db,
+        user_id=7,
+        payload=OperatorCaseCreate(
+            disease_id=11,
+            patient_label="case-age",
+            age=67,
+        ),
+    )
+
+    persisted = db.add.call_args.args[0]
+    assert result is persisted
+    assert persisted.age == 67
 
 
 def test_add_visit_rejects_case_owned_by_another_user():
@@ -120,6 +176,7 @@ def test_visit_schema_limits_timeline_to_ten_rows():
     from app.schemas.longitudinal_case import OperatorCaseCreate, VisitCreate
 
     assert OperatorCaseCreate.model_fields["patient_label"].is_required()
+    assert OperatorCaseCreate.model_fields["age"].is_required()
     with pytest.raises(ValidationError):
         VisitCreate(
             visit_date="2024-01-01",
