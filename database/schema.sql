@@ -110,11 +110,14 @@ CREATE TABLE IF NOT EXISTS operator_cases (
     disease_id INTEGER NOT NULL REFERENCES diseases(id) ON DELETE CASCADE,
     patient_label VARCHAR(100) NOT NULL,
     sex VARCHAR(10),
+    age INTEGER,
     baseline_stage VARCHAR(100),
     notes TEXT,
     status VARCHAR(50) NOT NULL DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT ck_operator_cases_age_range
+        CHECK (age IS NULL OR age BETWEEN 0 AND 120)
 );
 
 CREATE INDEX IF NOT EXISTS ix_operator_cases_user_id ON operator_cases(user_id);

@@ -327,6 +327,34 @@ class AlembicContractTests(unittest.TestCase):
             self.assertIn(direction, source)
         self.assertIn("ck_standard_indicators_abnormal_direction", source)
 
+    def test_operator_case_age_migration_follows_0012(self):
+        migration = _load_revision(
+            "0013_operator_case_age.py",
+            "migration_0013",
+        )
+        self.assertEqual(migration.revision, "0013")
+        self.assertEqual(migration.down_revision, "0012")
+
+    def test_operator_case_age_migration_is_nullable_and_bounded(self):
+        migration = _load_revision(
+            "0013_operator_case_age.py",
+            "migration_0013_age",
+        )
+        migration_op = MagicMock()
+
+        with patch.object(migration, "op", migration_op):
+            migration.upgrade()
+
+        added = migration_op.add_column.call_args.args
+        self.assertEqual(added[0], "operator_cases")
+        self.assertEqual(added[1].name, "age")
+        self.assertTrue(added[1].nullable)
+        migration_op.create_check_constraint.assert_called_once_with(
+            "ck_operator_cases_age_range",
+            "operator_cases",
+            "age IS NULL OR age BETWEEN 0 AND 120",
+        )
+
     def test_env_excludes_langchain_internal_tables(self):
         env_source = (BACKEND_ROOT / "alembic/env.py").read_text(encoding="utf-8")
         self.assertIn('name.startswith("langchain_pg_")', env_source)

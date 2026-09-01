@@ -68,6 +68,14 @@ class SchemaContractTests(unittest.TestCase):
                     f"{table.name}.{column.name}",
                 )
 
+    def test_clean_install_schema_bounds_nullable_operator_case_age(self):
+        schema = (Path(__file__).resolve().parents[2] / "database/schema.sql").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("age INTEGER", schema)
+        self.assertIn("CONSTRAINT ck_operator_cases_age_range", schema)
+        self.assertIn("CHECK (age IS NULL OR age BETWEEN 0 AND 120)", schema)
+
 
 if __name__ == "__main__":
     unittest.main()

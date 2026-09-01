@@ -214,6 +214,10 @@ class OperatorCase(Base):
 
     __tablename__ = "operator_cases"
     __table_args__ = (
+        CheckConstraint(
+            "age IS NULL OR age BETWEEN 0 AND 120",
+            name="ck_operator_cases_age_range",
+        ),
         Index("ix_operator_cases_user_id", "user_id"),
         Index("ix_operator_cases_disease_id", "disease_id"),
     )
@@ -223,6 +227,7 @@ class OperatorCase(Base):
     disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="CASCADE"), nullable=False)
     patient_label = Column(String(100), nullable=False)
     sex = Column(String(10))
+    age = Column(Integer, nullable=True)
     baseline_stage = Column(String(100))
     notes = Column(Text)
     status = Column(String(50), nullable=False, default="active", server_default="active")

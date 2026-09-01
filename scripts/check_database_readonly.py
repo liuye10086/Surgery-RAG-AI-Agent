@@ -44,6 +44,7 @@ REQUIRED_COLUMNS = {
         "disease_id",
         "patient_label",
         "sex",
+        "age",
         "baseline_stage",
         "status",
     },
@@ -81,6 +82,9 @@ REQUIRED_COLUMNS = {
     "standard_rule_conditions": {"id", "rule_id", "parent_id", "payload"},
     "standard_change_logs": {"id", "version_id", "entity_type", "entity_id"},
 }
+REQUIRED_COLUMN_TYPES = {
+    ("operator_cases", "age"): "integer",
+}
 
 
 def get_code_heads():
@@ -104,7 +108,7 @@ def collect_checks(connection, code_heads):
     ).scalar_one_or_none()
     column_rows = connection.execute(
         text(
-            "SELECT table_name, column_name FROM information_schema.columns "
+            "SELECT table_name, column_name, data_type FROM information_schema.columns "
             "WHERE table_schema = 'public' AND table_name = ANY(:tables)"
         ),
         {"tables": list(REQUIRED_COLUMNS)},
@@ -112,14 +116,35 @@ def collect_checks(connection, code_heads):
     actual_columns = {}
     for row in column_rows:
         actual_columns.setdefault(row["table_name"], set()).add(row["column_name"])
+    actual_types = {
+        (row["table_name"], row["column_name"]): row["data_type"]
+        for row in column_rows
+    }
     missing_extensions = sorted(REQUIRED_EXTENSIONS - set(extensions))
     missing_columns = {
         table_name: sorted(columns - actual_columns.get(table_name, set()))
         for table_name, columns in REQUIRED_COLUMNS.items()
         if columns - actual_columns.get(table_name, set())
     }
+    column_type_mismatches = [
+        {
+            "table_name": table_name,
+            "column_name": column_name,
+            "expected": expected,
+            "actual": actual_types.get((table_name, column_name)),
+        }
+        for (table_name, column_name), expected in REQUIRED_COLUMN_TYPES.items()
+        if actual_types.get((table_name, column_name)) != expected
+    ]
     revision_matches = revision in code_heads and len(code_heads) == 1
-    status = "PASS" if not missing_extensions and not missing_columns and revision_matches else "FAIL"
+    status = (
+        "PASS"
+        if not missing_extensions
+        and not missing_columns
+        and not column_type_mismatches
+        and revision_matches
+        else "FAIL"
+    )
     return {
         "status": status,
         "server_version": server_version,
@@ -129,6 +154,7 @@ def collect_checks(connection, code_heads):
         "revision_matches": revision_matches,
         "missing_extensions": missing_extensions,
         "missing_columns": missing_columns,
+        "column_type_mismatches": column_type_mismatches,
     }
 
 

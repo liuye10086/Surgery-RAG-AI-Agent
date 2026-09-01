@@ -30,8 +30,9 @@ class _FakeResult:
 
 
 class _FakeConnection:
-    def __init__(self):
+    def __init__(self, operator_case_age_type="integer"):
         self.statements = []
+        self.operator_case_age_type = operator_case_age_type
 
     def execute(self, statement, parameters=None):
         sql = str(statement)
@@ -50,7 +51,15 @@ class _FakeConnection:
             return _FakeResult(["test-head"])
         if "information_schema.columns" in sql:
             return _FakeResult([
-                {"table_name": table_name, "column_name": column_name}
+                {
+                    "table_name": table_name,
+                    "column_name": column_name,
+                    "data_type": (
+                        self.operator_case_age_type
+                        if (table_name, column_name) == ("operator_cases", "age")
+                        else "text"
+                    ),
+                }
                 for table_name, columns in _load_checker().REQUIRED_COLUMNS.items()
                 for column_name in columns
             ])
@@ -82,6 +91,25 @@ class DatabaseBaselineTests(unittest.TestCase):
         source = SCRIPT_PATH.read_text(encoding="utf-8").upper()
         for forbidden in ("DROP ", "TRUNCATE ", "INSERT ", "UPDATE ", "DELETE ", "ALTER "):
             self.assertNotIn(forbidden, source)
+
+    def test_checker_fails_when_operator_case_age_is_not_integer(self):
+        checker = _load_checker()
+        report = checker.collect_checks(
+            _FakeConnection(operator_case_age_type="character varying"),
+            {"test-head"},
+        )
+        self.assertEqual(
+            report["column_type_mismatches"],
+            [
+                {
+                    "table_name": "operator_cases",
+                    "column_name": "age",
+                    "expected": "integer",
+                    "actual": "character varying",
+                }
+            ],
+        )
+        self.assertEqual(report["status"], "FAIL")
 
 
 if __name__ == "__main__":
