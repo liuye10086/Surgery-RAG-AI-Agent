@@ -345,11 +345,12 @@ def load_database_snapshot(connection) -> dict[str, object]:
         text("SELECT version_num FROM alembic_version LIMIT 1")
     ).scalar_one_or_none()
     diseases = connection.execute(
-        text("SELECT id, name FROM diseases ORDER BY id")
+        text("SELECT id, code AS disease_code, name AS disease_name FROM diseases ORDER BY id")
     ).mappings().all()
     case_rows = connection.execute(
         text(
-            "SELECT cr.disease_id, d.name AS disease_name, cr.patient_label, "
+            "SELECT cr.disease_id, d.code AS disease_code, "
+            "d.name AS disease_name, cr.patient_label, "
             "cr.indicators, cr.metadata "
             "FROM case_records cr JOIN diseases d ON d.id = cr.disease_id "
             "ORDER BY cr.disease_id, cr.patient_label, cr.id"
@@ -357,7 +358,8 @@ def load_database_snapshot(connection) -> dict[str, object]:
     ).mappings().all()
     standard_rows = connection.execute(
         text(
-            "SELECT d.id AS disease_id, d.name AS disease_name, "
+            "SELECT d.id AS disease_id, d.code AS disease_code, "
+            "d.name AS disease_name, "
             "rs.id AS standard_id, rs.current_version_id, "
             "rsv.version_label, rsv.status AS version_status, rsv.content_hash, "
             "COUNT(sr.id) AS rule_count, "
@@ -369,7 +371,7 @@ def load_database_snapshot(connection) -> dict[str, object]:
             "LEFT JOIN reference_standard_versions rsv "
             "ON rsv.id = rs.current_version_id "
             "LEFT JOIN standard_rules sr ON sr.version_id = rsv.id "
-            "GROUP BY d.id, d.name, rs.id, rs.current_version_id, "
+            "GROUP BY d.id, d.code, d.name, rs.id, rs.current_version_id, "
             "rsv.version_label, rsv.status, rsv.content_hash "
             "ORDER BY d.id"
         )
@@ -963,7 +965,7 @@ def build_readiness_report(
     generated_at: datetime | str | None = None,
 ) -> LongitudinalReadinessReport:
     diseases = {
-        str(row.get("name")): row
+        str(row.get("disease_code")): row
         for row in snapshot.get("diseases", [])
         if isinstance(row, dict)
     }
@@ -981,14 +983,14 @@ def build_readiness_report(
     }
     disease_results: dict[str, DiseaseReadiness] = {}
     for adapter in CORE_DISEASES:
-        disease_row = diseases.get(adapter.disease_name)
+        disease_row = diseases.get(adapter.dataset)
         reasons: list[ReadinessReason] = []
         disease_id = disease_row.get("id") if disease_row else None
         if disease_row is None:
             reasons.append(
                 _reason(
                     "disease_not_found",
-                    f"数据库中缺少疾病：{adapter.disease_name}",
+                    f"数据库中缺少疾病代码：{adapter.dataset}",
                     "blocked",
                     "P0-01",
                 )
@@ -1099,7 +1101,11 @@ def build_readiness_report(
         ordered = _ordered_reasons(reasons)
         disease_results[adapter.dataset] = DiseaseReadiness(
             dataset=adapter.dataset,
-            disease_name=adapter.disease_name,
+            disease_name=(
+                str(disease_row.get("disease_name"))
+                if disease_row and disease_row.get("disease_name")
+                else adapter.disease_name
+            ),
             status=status_from_reasons(ordered),
             data=data,
             standard=standard,

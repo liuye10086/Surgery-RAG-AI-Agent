@@ -3,6 +3,7 @@ import importlib.util
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "scripts" / "import_longitudinal.py"
@@ -20,7 +21,7 @@ def make_sqlite_db(autoflush=True):
     autoflush=False 复现生产 main() 的会话配置，用于验证同一事务内
     reset 后立即查询是否能看到未提交的删除（避免脏读导致重导被误跳过）。
     """
-    from sqlalchemy import create_engine
+    from sqlalchemy import CheckConstraint, create_engine
     from sqlalchemy.dialects.postgresql import JSONB
     from sqlalchemy.ext.compiler import compiles
     from sqlalchemy.orm import sessionmaker
@@ -31,10 +32,22 @@ def make_sqlite_db(autoflush=True):
     def _compile_jsonb_sqlite(type_, compiler, **kw):
         return "JSON"
 
+    @compiles(CheckConstraint, "sqlite")
+    def _compile_check_constraint_sqlite(constraint, compiler, **kw):
+        return "CHECK (1)"
+
     engine = create_engine("sqlite:///:memory:")
     Disease.__table__.create(engine)
     CaseRecord.__table__.create(engine)
-    return sessionmaker(bind=engine, autoflush=autoflush)()
+    db = sessionmaker(bind=engine, autoflush=autoflush)()
+    db.add_all(
+        [
+            Disease(code="fatty_liver", name="脂肪肝"),
+            Disease(code="ad", name="阿尔茨海默病"),
+        ]
+    )
+    db.commit()
+    return db
 
 
 def import_helpers():
@@ -164,6 +177,76 @@ class ImportLongitudinalTests(unittest.TestCase):
         self.assertEqual(result2["inserted"], 0)
         self.assertEqual(result2["skipped"], 3)
         self.assertEqual(db.query(CaseRecord).count(), 3)
+
+    def test_import_resolves_existing_disease_by_code_and_never_creates_one(self):
+        from app.db.models import CaseRecord, Disease
+
+        disease = SimpleNamespace(id=7, code="ad", name="AD（展示名已修改）")
+
+        class Query:
+            def __init__(self, model):
+                self.model = model
+                self.condition = None
+
+            def filter(self, condition):
+                self.condition = condition
+                return self
+
+            def first(self):
+                if self.model is Disease and getattr(self.condition.left, "key", None) == "code":
+                    return disease
+                return None
+
+            def all(self):
+                return []
+
+        class ImportSession:
+            def __init__(self):
+                self.added_diseases = []
+
+            def query(self, model):
+                return Query(model)
+
+            def add(self, value):
+                if isinstance(value, Disease):
+                    self.added_diseases.append(value)
+
+            def flush(self):
+                return None
+
+        db = ImportSession()
+        result = self.importer.import_dataset(
+            db, "ad", patients=[], visits=[], source_documents={}
+        )
+
+        self.assertEqual(result["inserted"], 0)
+        self.assertEqual(db.added_diseases, [])
+
+    def test_import_fails_clearly_when_stable_disease_code_is_missing(self):
+        from app.db.models import Disease
+
+        class Query:
+            def filter(self, condition):
+                return self
+
+            def first(self):
+                return None
+
+        class ImportSession:
+            def query(self, model):
+                return Query()
+
+            def add(self, value):
+                if isinstance(value, Disease):
+                    value.id = 99
+
+            def flush(self):
+                return None
+
+        with self.assertRaisesRegex(ValueError, "ad"):
+            self.importer.import_dataset(
+                ImportSession(), "ad", patients=[], visits=[], source_documents={}
+            )
 
     def test_import_marks_confirmed_and_synthetic_correctly(self):
         CaseRecord, _ = import_helpers()
@@ -470,7 +553,8 @@ class ImportLongitudinalTests(unittest.TestCase):
     def test_datasets_config_is_complete(self):
         for name, cfg in self.importer.DATASETS.items():
             self.assertIn("dir", cfg)
-            self.assertIn("disease_name", cfg)
+            self.assertEqual(cfg["disease_code"], name)
+            self.assertNotIn("disease_name", cfg)
             self.assertIn("synthetic_from", cfg)
             self.assertTrue((ROOT / cfg["dir"]).is_dir())
             self.assertTrue((ROOT / cfg["dir"] / "patients.csv").is_file())

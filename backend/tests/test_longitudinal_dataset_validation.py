@@ -15,6 +15,7 @@ def patient_rows(
     *,
     source_dataset: str = "longitudinal_300",
     patient_label: str = "P001",
+    disease_code: str = "fatty_liver",
     disease_name: str = "脂肪肝",
 ) -> list[dict]:
     dates = ["2023-01-01", "2023-06-01", "2024-01-01"]
@@ -23,6 +24,7 @@ def patient_rows(
         rows.append(
             {
                 "record_id": index,
+                "disease_code": disease_code,
                 "disease_name": disease_name,
                 "patient_label": patient_label,
                 "indicators": [{"name": "ALT", "value": 10 + index}],
@@ -167,6 +169,7 @@ def test_different_disease_under_same_source_patient_identity_fails():
     rows = patient_rows()
     conflicting = deepcopy(rows[0])
     conflicting["record_id"] = 99
+    conflicting["disease_code"] = "ad"
     conflicting["disease_name"] = "阿尔茨海默病"
     conflicting["metadata"]["visit_date"] = "2024-06-01"
     conflicting["metadata"]["final_stage"] = "0"

@@ -28,6 +28,16 @@ def test_seed_script_uses_standard_documents_not_knowledge_documents():
     assert not project_root.joinpath("scripts/upload_standards.py").exists()
 
 
+def test_seed_script_routes_diseases_by_stable_code_only():
+    project_root = Path(__file__).parents[2]
+    source = project_root.joinpath("scripts/seed_standard_drafts.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "Disease.code == disease_code" in source
+    assert "Disease.name ==" not in source
+
+
 def test_standard_document_rejects_non_docx_and_missing_paths(tmp_path):
     script = _seed_script_module()
     non_docx = tmp_path / "standard.pdf"

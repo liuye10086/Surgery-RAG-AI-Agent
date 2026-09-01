@@ -469,14 +469,16 @@ def test_lifecycle_route_locks_row_before_status_transition(endpoint_name, versi
     assert db.queries[0].events[:3] == ["filter", "with_for_update", "first"]
 
 
-def test_validation_endpoint_uses_ad_disease_key(monkeypatch):
+def test_validation_endpoint_uses_stable_disease_code_after_display_name_changes(monkeypatch):
     from app.api.admin_standards import validate_version
 
     captured = {}
     version = SimpleNamespace(
         id=5,
         rules=[SimpleNamespace(machine_actionability="evidence-only")],
-        standard=SimpleNamespace(disease=SimpleNamespace(name="阿尔茨海默病")),
+        standard=SimpleNamespace(
+            disease=SimpleNamespace(code="ad", name="AD（展示名已修改）")
+        ),
     )
     db = _Db({"ReferenceStandardVersion": [version]})
 

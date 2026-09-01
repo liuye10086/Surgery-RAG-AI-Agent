@@ -22,13 +22,13 @@ IMPORT_VERSION = "1.0.0"
 DATASETS = {
     "fatty_liver": {
         "dir": "data/generated/longitudinal_300",
-        "disease_name": "脂肪肝",
+        "disease_code": "fatty_liver",
         "synthetic_from": 151,  # P151-P300 为分层重组合成（见 DATA_PROVENANCE）
         "final_stage_fields": {"cirrhosis", "hcc"},
     },
     "ad": {
         "dir": "data/generated/ad_longitudinal_300",
-        "disease_name": "阿尔茨海默病",
+        "disease_code": "ad",
         "synthetic_from": 151,
         "final_stage_fields": None,  # final_stage 为 CDR 分级数值
     },
@@ -217,11 +217,9 @@ def import_dataset(
     if source_documents is None:
         source_documents = load_source_documents(dataset_dir)
 
-    disease = db.query(Disease).filter(Disease.name == cfg["disease_name"]).first()
+    disease = db.query(Disease).filter(Disease.code == cfg["disease_code"]).first()
     if disease is None:
-        disease = Disease(name=cfg["disease_name"])
-        db.add(disease)
-        db.flush()
+        raise ValueError(f"数据库中缺少疾病代码：{cfg['disease_code']}")
 
     existing = _existing_signatures(db, dataset)
     patient_map = {p["patient_id"]: p for p in patients}
@@ -268,7 +266,7 @@ def import_dataset(
     return {
         "dataset": dataset,
         "disease_id": disease.id,
-        "disease_name": cfg["disease_name"],
+        "disease_name": disease.name,
         "inserted": inserted,
         "skipped": skipped,
     }

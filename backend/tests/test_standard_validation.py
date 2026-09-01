@@ -66,7 +66,13 @@ def test_build_condition_tree_returns_nested_orm_nodes():
 
 
 def test_validate_version_public_api_loads_version_rules():
-    version = SimpleNamespace(id=3, rules=[])
+    version = SimpleNamespace(
+        id=3,
+        rules=[],
+        standard=SimpleNamespace(
+            disease=SimpleNamespace(code="fatty_liver", name="脂肪肝（展示名已修改）")
+        ),
+    )
 
     class Query:
         def filter(self, *args, **kwargs): return self
@@ -74,6 +80,46 @@ def test_validate_version_public_api_loads_version_rules():
 
     report = validate_version(SimpleNamespace(query=lambda model: Query()), 3)
     assert {item.code for item in report.errors} == {"formal_rules_missing", "calculable_rules_missing"}
+
+
+def test_validate_version_public_api_uses_stable_ad_code_after_display_name_changes():
+    version = SimpleNamespace(
+        id=3,
+        rules=[
+            SimpleNamespace(
+                machine_actionability="evidence-only",
+                rule_type="qualitative_direction",
+                lower=None,
+                upper=None,
+                unit=None,
+                applicability={},
+                conditions={},
+                target_state_type="evidence",
+                clinical_dimension="cognition",
+                framework=None,
+                biomarker_axis=None,
+                stage=None,
+                indicator=SimpleNamespace(
+                    canonical_key="mmse",
+                    abnormal_direction="ordinal_low",
+                    allows_numeric_comparison=False,
+                ),
+                source_segment=None,
+            )
+        ],
+        standard=SimpleNamespace(
+            disease=SimpleNamespace(code="ad", name="AD（展示名已修改）")
+        ),
+    )
+
+    class Query:
+        def filter(self, *args, **kwargs): return self
+        def first(self): return version
+
+    report = validate_version(SimpleNamespace(query=lambda model: Query()), 3)
+
+    assert report.can_publish is True
+    assert "calculable_rules_missing" not in {item.code for item in report.errors}
 
 
 def _rule(**updates):

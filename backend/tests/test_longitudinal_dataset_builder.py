@@ -8,6 +8,7 @@ from app.services.longitudinal_dataset import (
     DatasetValidationError,
     assert_feature_namespace_safe,
     build_fixed_window_dataset,
+    rebuild_patient_timelines,
 )
 
 
@@ -15,6 +16,7 @@ def patient_rows(
     patient_label: str,
     *,
     source_dataset: str = "longitudinal_300",
+    disease_code: str = "fatty_liver",
     disease_name: str = "脂肪肝",
     visit_dates: tuple[str, ...] = ("2023-01-01", "2023-06-01", "2024-01-01"),
     event_dates: dict | None = None,
@@ -27,6 +29,7 @@ def patient_rows(
         rows.append(
             {
                 "record_id": index,
+                "disease_code": disease_code,
                 "disease_name": disease_name,
                 "patient_label": patient_label,
                 "confirmed": final_stage not in {"fatty_liver", "0"},
@@ -47,6 +50,15 @@ def patient_rows(
             }
         )
     return rows
+
+
+def test_dataset_loader_routes_by_code_after_display_name_changes():
+    timelines, audit = rebuild_patient_timelines(
+        patient_rows("P001", disease_name="脂肪肝（展示名已修改）")
+    )
+
+    assert timelines[0].adapter.dataset == "fatty_liver"
+    assert audit.patient_count == 1
 
 
 def test_six_visits_generate_four_prefixes_using_all_history_to_as_of():

@@ -17,6 +17,7 @@ def patient_rows(
     patient_label: str,
     *,
     source_dataset: str = "longitudinal_300",
+    disease_code: str = "fatty_liver",
     disease_name: str = "脂肪肝",
     event_dates: dict | None = None,
     final_stage="fatty_liver",
@@ -27,6 +28,7 @@ def patient_rows(
     return [
         {
             "record_id": index,
+            "disease_code": disease_code,
             "disease_name": disease_name,
             "patient_label": patient_label,
             "indicators": [{"name": indicator_name, "value": 10 + index}],
@@ -65,6 +67,7 @@ def mixed_result():
         rows += patient_rows(
             f"ad-real-{index}",
             source_dataset="ad_longitudinal_300",
+            disease_code="ad",
             disease_name="阿尔茨海默病",
             indicator_name="MMSE",
             event_dates={"dementia_date": event_date},
@@ -73,6 +76,7 @@ def mixed_result():
     rows += patient_rows(
         "ad-synthetic",
         source_dataset="ad_longitudinal_300",
+        disease_code="ad",
         disease_name="阿尔茨海默病",
         indicator_name="MMSE",
         event_dates={"dementia_date": "2024-06-01"},

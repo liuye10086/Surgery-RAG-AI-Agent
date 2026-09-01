@@ -163,9 +163,7 @@ def validate_version(db: Any, version_id: int) -> ValidationReport:
     version = db.query(ReferenceStandardVersion).filter(ReferenceStandardVersion.id == version_id).first()
     if version is None:
         raise ValueError("标准版本不存在")
-    disease_key = normalize_disease_key(
-        getattr(getattr(getattr(version, "standard", None), "disease", None), "name", None)
-    )
+    disease_key = version.standard.disease.code
     return validate_version_rules(
         list(version.rules or []),
         disease_key=disease_key,

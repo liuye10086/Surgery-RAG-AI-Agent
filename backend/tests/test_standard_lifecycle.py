@@ -511,7 +511,7 @@ def test_legacy_publish_entry_uses_ad_evidence_only_exception():
         id=3,
         current_version=None,
         current_version_id=None,
-        disease=SimpleNamespace(name="阿尔茨海默病"),
+        disease=SimpleNamespace(code="ad", name="AD（展示名已修改）"),
     )
     version = SimpleNamespace(
         id=2,
@@ -570,7 +570,9 @@ def test_transition_to_approved_uses_ad_evidence_only_exception():
         id=2,
         status="review",
         rules=[evidence],
-        standard=SimpleNamespace(disease=SimpleNamespace(name="阿尔茨海默病")),
+        standard=SimpleNamespace(
+            disease=SimpleNamespace(code="ad", name="AD（展示名已修改）")
+        ),
         approved_by=None,
         approved_at=None,
         effective_from=None,
@@ -845,7 +847,7 @@ def test_publish_allows_ad_evidence_only_version_and_creates_no_projection():
         id=3,
         current_version=None,
         current_version_id=None,
-        disease=SimpleNamespace(name="阿尔茨海默病"),
+        disease=SimpleNamespace(code="ad", name="AD（展示名已修改）"),
     )
     version = SimpleNamespace(
         id=2,

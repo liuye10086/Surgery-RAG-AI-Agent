@@ -25,6 +25,7 @@ def test_demonstration_rows_are_reproducible_and_explicitly_synthetic():
 
     assert first == second
     assert len(first) == 15 * 2 * 10
+    assert {row["disease_code"] for row in first} == {"fatty_liver", "ad"}
     assert all(row["metadata"]["is_synthetic"] is True for row in first)
     assert all(
         row["metadata"]["synthetic_purpose"] == "demonstration_training_only"

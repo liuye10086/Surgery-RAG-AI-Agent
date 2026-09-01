@@ -295,8 +295,8 @@ class _FakeConnection:
         ):
             return _FakeResult(
                 [
-                    {"id": 2, "name": "脂肪肝"},
-                    {"id": 4, "name": "阿尔茨海默病"},
+                    {"id": 2, "disease_code": "fatty_liver", "disease_name": "脂肪肝"},
+                    {"id": 4, "disease_code": "ad", "disease_name": "阿尔茨海默病"},
                 ]
             )
         if "FROM case_records" in sql:
@@ -714,8 +714,16 @@ def _snapshot_fixture():
         "server_version": "18.1",
         "alembic_revision": "0010",
         "diseases": [
-            {"id": 2, "name": "脂肪肝"},
-            {"id": 4, "name": "阿尔茨海默病"},
+            {
+                "id": 2,
+                "disease_code": "fatty_liver",
+                "disease_name": "脂肪肝（展示名已修改）",
+            },
+            {
+                "id": 4,
+                "disease_code": "ad",
+                "disease_name": "AD（展示名已修改）",
+            },
         ],
         "case_rows": [],
         "standard_rows": [],
@@ -730,8 +738,8 @@ def test_build_report_keeps_diseases_separate_and_aggregates_worst_status(
         _snapshot_fixture(), model_dir=tmp_path, code_heads={"0010"}
     )
     assert set(report.diseases) == {"fatty_liver", "ad"}
-    assert report.diseases["fatty_liver"].disease_name == "脂肪肝"
-    assert report.diseases["ad"].disease_name == "阿尔茨海默病"
+    assert report.diseases["fatty_liver"].disease_name == "脂肪肝（展示名已修改）"
+    assert report.diseases["ad"].disease_name == "AD（展示名已修改）"
     assert report.overall_status == "blocked"
     assert "P0-02" in report.diseases["fatty_liver"].next_tasks
     assert "P0-05" in report.diseases["ad"].next_tasks

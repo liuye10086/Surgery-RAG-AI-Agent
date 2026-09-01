@@ -48,13 +48,13 @@ def main() -> int:
     parser.add_argument("--admin-id", required=True, type=int)
     args = parser.parse_args()
     with SessionLocal() as db:
-        for disease_name, source, label in (("阿尔茨海默病", args.ad, "AD-2026-08-24"), ("脂肪肝", args.fatty_liver, "fatty-liver-2026-08-24")):
-            disease = db.query(Disease).filter(Disease.name == disease_name).first()
+        for disease_code, source, label in (("ad", args.ad, "AD-2026-08-24"), ("fatty_liver", args.fatty_liver, "fatty-liver-2026-08-24")):
+            disease = db.query(Disease).filter(Disease.code == disease_code).first()
             if disease is None:
-                raise SystemExit(f"疾病不存在：{disease_name}")
+                raise SystemExit(f"疾病代码不存在：{disease_code}")
             document = _standard_document(db, source.resolve(), args.admin_id)
             version = seed_standard_draft(db, disease.id, document.id, label, admin_id=args.admin_id)
-            print(f"{disease_name}: draft version {version.id}")
+            print(f"{disease.name}: draft version {version.id}")
     return 0
 
 

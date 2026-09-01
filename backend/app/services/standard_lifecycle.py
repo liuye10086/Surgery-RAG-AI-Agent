@@ -100,7 +100,7 @@ def transition_version(db, admin_id: int, version_id: int, target_status: str):
     if target_status == "approved":
         disease_key = getattr(
             getattr(getattr(version, "standard", None), "disease", None),
-            "name",
+            "code",
             None,
         )
         report = _validation_for_publish(
@@ -296,7 +296,7 @@ def publish_review_version(db: Any, *, version_id: int, admin_id: int, commit: b
         raise ValueError("标准版本归属异常")
     if version.status != "review":
         raise ValueError("只有 review 版本可以批准")
-    disease = getattr(getattr(standard, "disease", None), "name", None)
+    disease = getattr(getattr(standard, "disease", None), "code", None)
     report = _validation_for_publish(list(version.rules or []), disease_key=disease)
     if not report.can_publish:
         raise ValueError("标准版本存在阻止发布的校验错误")
@@ -418,7 +418,7 @@ def publish_approved_version(db, admin_id: int, version_id: int):
         raise ValueError("标准版本不存在")
     if version.status != "review":
         raise ValueError("只有 review 版本可以批准")
-    disease_key = getattr(getattr(standard, "disease", None), "name", None)
+    disease_key = getattr(getattr(standard, "disease", None), "code", None)
     report = _validation_for_publish(
         list(version.rules or []),
         disease_key=disease_key,

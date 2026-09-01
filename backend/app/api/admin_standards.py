@@ -42,7 +42,7 @@ from app.services.standard_lifecycle import (
 )
 from app.services.standard_parser import build_llm_candidate, parse_standard_docx
 from app.services.standard_llm_adapter import create_deepseek_standard_candidate_adapter
-from app.services.standard_validation import normalize_disease_key, validate_version_rules
+from app.services.standard_validation import validate_version_rules
 
 
 router = APIRouter(prefix="", tags=["admin-standard"])
@@ -304,12 +304,7 @@ def patch_rule(rule_id: int, payload: RulePatch, reason: str = Query(..., min_le
 @router.get("/admin/reference-standard-versions/{version_id}/validation", response_model=ValidationReport)
 def validate_version(version_id: int, admin=Depends(require_admin), db: Session = Depends(get_db)):
     version = _version_or_404(db, version_id)
-    disease_name = getattr(
-        getattr(getattr(version, "standard", None), "disease", None),
-        "name",
-        None,
-    )
-    disease_key = normalize_disease_key(disease_name)
+    disease_key = version.standard.disease.code
     return validate_version_rules(
         list(version.rules or []),
         disease_key=disease_key,

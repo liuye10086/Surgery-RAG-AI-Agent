@@ -14,9 +14,17 @@ def _load():
 
 def test_cli_defaults_to_dry_run(monkeypatch, capsys, tmp_path):
     script = _load()
-    monkeypatch.setattr(script, "build_plan", lambda *args, **kwargs: {"status": "dry_run"})
+    captured = []
+
+    def fake_plan(db, specs):
+        captured.extend(specs)
+        return {"status": "dry_run"}
+
+    monkeypatch.setattr(script, "plan_draft_preparation", fake_plan)
     assert script.main(["--fatty-source", str(tmp_path / "fatty.docx"), "--ad-source", str(tmp_path / "ad.docx"), "--admin-id", "7"]) == 0
     assert json.loads(capsys.readouterr().out)["status"] == "dry_run"
+    assert [spec.dataset for spec in captured] == ["fatty_liver", "ad"]
+    assert all(not hasattr(spec, "disease_name") for spec in captured)
 
 
 def test_execute_path_rolls_back_on_failure(monkeypatch, capsys, tmp_path):

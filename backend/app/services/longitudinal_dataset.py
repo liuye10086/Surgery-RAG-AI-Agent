@@ -97,9 +97,9 @@ class DatasetBuildResult:
     synthetic_timelines: tuple[PatientTimeline, ...] = ()
 
 
-_ADAPTERS_BY_DISEASE = {
-    FATTY_LIVER_ADAPTER.disease_name: FATTY_LIVER_ADAPTER,
-    AD_ADAPTER.disease_name: AD_ADAPTER,
+_ADAPTERS_BY_CODE = {
+    FATTY_LIVER_ADAPTER.dataset: FATTY_LIVER_ADAPTER,
+    AD_ADAPTER.dataset: AD_ADAPTER,
 }
 
 
@@ -224,8 +224,8 @@ def rebuild_patient_timelines(
 
         source = _identity_text(metadata.get("source_dataset"), "source_dataset")
         label = _identity_text(row.get("patient_label"), "patient_label")
-        disease_name = _identity_text(row.get("disease_name"), "disease_name")
-        adapter = _ADAPTERS_BY_DISEASE.get(disease_name)
+        disease_code = _identity_text(row.get("disease_code"), "disease_code")
+        adapter = _ADAPTERS_BY_CODE.get(disease_code)
         if adapter is None:
             raise DatasetValidationError("unsupported_disease")
 
@@ -769,10 +769,11 @@ def load_case_rows(connection) -> list[dict[str, object]]:
     connection.execute(text("SET TRANSACTION READ ONLY"))
     rows = connection.execute(
         text(
-            "SELECT cr.id AS record_id, d.name AS disease_name, "
+            "SELECT cr.id AS record_id, d.code AS disease_code, "
+            "d.name AS disease_name, "
             "cr.patient_label, cr.indicators, cr.metadata "
             "FROM case_records cr JOIN diseases d ON d.id = cr.disease_id "
-            "WHERE d.name IN (:fatty_liver_name, :ad_name) "
+            "WHERE d.code IN ('fatty_liver', 'ad') "
             "AND ("
             "  cr.metadata @> '{\"dataset_active\": true}'::jsonb "
             "  OR ("
@@ -786,9 +787,5 @@ def load_case_rows(connection) -> list[dict[str, object]]:
             ") "
             "ORDER BY d.id, cr.id"
         ),
-        {
-            "fatty_liver_name": FATTY_LIVER_ADAPTER.disease_name,
-            "ad_name": AD_ADAPTER.disease_name,
-        },
     ).mappings().all()
     return [dict(row) for row in rows]

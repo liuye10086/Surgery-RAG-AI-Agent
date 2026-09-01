@@ -23,7 +23,6 @@ def _spec(tmp_path, dataset, content, sha, label):
     sha = hashlib.sha256(source.read_bytes()).hexdigest()
     return DraftPreparationSpec(
         dataset=dataset,
-        disease_name="脂肪肝" if dataset == "fatty_liver" else "阿尔茨海默病",
         source_path=source,
         source_sha256=sha,
         version_label=label,
@@ -40,6 +39,8 @@ class DraftSession:
         self.rollbacks = 0
         self.created_versions = []
         self.added = []
+        self.disease_filter_keys = []
+        self.disease_filter_values = []
 
     def query(self, model):
         session = self
@@ -54,8 +55,16 @@ class DraftSession:
                 return self
             def with_for_update(self): return self
             def first(self):
-                if name == "Disease" and session.diseases:
-                    return session.diseases.pop(0)
+                if name == "Disease":
+                    session.disease_filter_keys.extend(
+                        getattr(condition.left, "key", None)
+                        for condition in self.filters
+                    )
+                    session.disease_filter_values.extend(
+                        getattr(condition.right, "value", None)
+                        for condition in self.filters
+                    )
+                    return session.diseases.pop(0) if session.diseases else None
                 return None
             def all(self): return []
 
@@ -91,7 +100,10 @@ def test_prepare_two_drafts_does_not_commit_or_own_the_outer_rollback(tmp_path, 
     ad = _spec(tmp_path, "ad", b"ad-source", hashlib.sha256(b"ad-source").hexdigest(), "ad-v1")
     db = DraftSession(
         fail_on_dataset="ad",
-        diseases=[SimpleNamespace(id=2, name="脂肪肝"), SimpleNamespace(id=4, name="阿尔茨海默病")],
+        diseases=[
+            SimpleNamespace(id=2, code="fatty_liver", name="脂肪肝（展示名已修改）"),
+            SimpleNamespace(id=4, code="ad", name="AD（展示名已修改）"),
+        ],
     )
     def fail_on_ad(path, *, parser_version):
         if path.stem == "ad":
@@ -106,7 +118,10 @@ def test_prepare_two_drafts_does_not_commit_or_own_the_outer_rollback(tmp_path, 
 
 def test_parse_draft_replaces_only_unapproved_parse_artifacts(tmp_path):
     fatty = _spec(tmp_path, "fatty_liver", FATTY_BYTES, FATTY_SHA256, "fatty-v1")
-    db = DraftSession(version_status="draft", diseases=[SimpleNamespace(id=2, name="脂肪肝")])
+    db = DraftSession(
+        version_status="draft",
+        diseases=[SimpleNamespace(id=2, code="fatty_liver", name="脂肪肝（展示名已修改）")],
+    )
     from app.services.standard_parser import NumericExpression, RuleCandidate, Segment
     import app.services.standard_draft_service as service
     segment = Segment(raw_text="ALT 7-40 U/L", segment_type="table_row", table_index=0, row_index=0)
@@ -122,7 +137,9 @@ def test_parse_draft_replaces_only_unapproved_parse_artifacts(tmp_path):
 
 def test_prepare_draft_uses_database_disease_identity_instead_of_dataset_position(tmp_path, monkeypatch):
     fatty = _spec(tmp_path, "fatty_liver", FATTY_BYTES, FATTY_SHA256, "fatty-v1")
-    db = DraftSession(diseases=[SimpleNamespace(id=27, name="脂肪肝")])
+    db = DraftSession(
+        diseases=[SimpleNamespace(id=27, code="fatty_liver", name="脂肪肝（展示名已修改）")]
+    )
     monkeypatch.setattr(
         "app.services.standard_draft_service.parse_standard_docx",
         lambda *args, **kwargs: SimpleNamespace(segments=[], rule_candidates=[]),
@@ -133,10 +150,17 @@ def test_prepare_draft_uses_database_disease_identity_instead_of_dataset_positio
     assert db.created_versions[0].standard_id == 20
     standard = next(item for item in db.added if item.__class__.__name__ == "ReferenceStandard")
     assert standard.disease_id == 27
+    assert standard.name == "脂肪肝（展示名已修改）标准"
+    assert db.disease_filter_keys == ["code"]
+    assert db.disease_filter_values == ["fatty_liver"]
 
 
 def test_prepare_draft_rejects_missing_database_disease(tmp_path):
     fatty = _spec(tmp_path, "fatty_liver", FATTY_BYTES, FATTY_SHA256, "fatty-v1")
+    db = DraftSession()
 
-    with pytest.raises(ValueError, match="数据库中缺少疾病"):
-        prepare_standard_drafts(DraftSession(), [fatty], admin_id=7)
+    with pytest.raises(ValueError, match="fatty_liver"):
+        prepare_standard_drafts(db, [fatty], admin_id=7)
+
+    assert db.disease_filter_keys == ["code"]
+    assert db.disease_filter_values == ["fatty_liver"]

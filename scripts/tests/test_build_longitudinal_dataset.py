@@ -63,6 +63,7 @@ def test_load_case_rows_sets_read_only_before_scoped_select():
 
     row = {
         "record_id": 1,
+        "disease_code": "fatty_liver",
         "disease_name": "脂肪肝",
         "patient_label": "P001",
         "indicators": [],
@@ -81,15 +82,15 @@ def test_load_case_rows_sets_read_only_before_scoped_select():
     assert "NOT EXISTS" in select_sql.upper()
     assert set(rows[0]) == {
         "record_id",
+        "disease_code",
         "disease_name",
         "patient_label",
         "indicators",
         "metadata",
     }
-    assert connection.statements[1][1] == {
-        "fatty_liver_name": "脂肪肝",
-        "ad_name": "阿尔茨海默病",
-    }
+    assert connection.statements[1][1] is None
+    assert "d.code AS disease_code" in select_sql
+    assert "d.code IN ('fatty_liver', 'ad')" in select_sql
 
 
 class FakeTransaction:

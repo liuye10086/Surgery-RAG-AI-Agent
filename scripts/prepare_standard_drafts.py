@@ -27,8 +27,8 @@ def configure_stdout_utf8() -> None:
 
 def build_plan(args):
     specs = [
-        DraftPreparationSpec("fatty_liver", "脂肪肝", args.fatty_source, FATTY_SHA256, args.fatty_version_label, args.parser_version),
-        DraftPreparationSpec("ad", "阿尔茨海默病", args.ad_source, AD_SHA256, args.ad_version_label, args.parser_version),
+        DraftPreparationSpec("fatty_liver", args.fatty_source, FATTY_SHA256, args.fatty_version_label, args.parser_version),
+        DraftPreparationSpec("ad", args.ad_source, AD_SHA256, args.ad_version_label, args.parser_version),
     ]
     return plan_draft_preparation(None, specs)
 
@@ -40,8 +40,8 @@ def open_transaction():
 
 def execute_changes(db, args):
     specs = [
-        DraftPreparationSpec("fatty_liver", "脂肪肝", args.fatty_source, FATTY_SHA256, args.fatty_version_label, args.parser_version),
-        DraftPreparationSpec("ad", "阿尔茨海默病", args.ad_source, AD_SHA256, args.ad_version_label, args.parser_version),
+        DraftPreparationSpec("fatty_liver", args.fatty_source, FATTY_SHA256, args.fatty_version_label, args.parser_version),
+        DraftPreparationSpec("ad", args.ad_source, AD_SHA256, args.ad_version_label, args.parser_version),
     ]
     return prepare_standard_drafts(db, specs, admin_id=args.admin_id)
 

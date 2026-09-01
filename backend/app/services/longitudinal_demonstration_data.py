@@ -87,6 +87,7 @@ def _patient_rows(
         rows.append(
             {
                 "record_id": f"{disease}-{patient_index}-{visit_index}",
+                "disease_code": disease,
                 "disease_name": disease_name,
                 "patient_label": patient_label,
                 "indicators": _indicator_rows(values),
