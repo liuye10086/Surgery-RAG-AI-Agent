@@ -4,7 +4,18 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+DISEASE_CODE_PATTERN = r"^[a-z][a-z0-9_]*$"
+
+
 class DiseaseCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(
+        ...,
+        min_length=1,
+        max_length=64,
+        pattern=DISEASE_CODE_PATTERN,
+    )
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
 
@@ -15,19 +26,56 @@ class DiseaseCreate(BaseModel):
             return v.strip()
         return v
 
+    @field_validator("description", mode="before")
+    @classmethod
+    def strip_description(cls, v):
+        if isinstance(v, str):
+            return v.strip() or None
+        return v
+
 
 class DiseaseUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
+    operator_enabled: Optional[bool] = None
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def strip_update_name(cls, v):
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def strip_update_description(cls, v):
+        if isinstance(v, str):
+            return v.strip() or None
+        return v
 
 
 class DiseaseOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    code: str
     name: str
     description: Optional[str] = None
-    case_count: int = 0
+    operator_enabled: bool
     created_at: datetime
+
+
+class DiseaseUsageCountsOut(BaseModel):
+    operator_cases: int
+    case_records: int
+    ai_reports: int
+    reference_standards: int
+
+
+class AdminDiseaseOut(DiseaseOut):
+    usage_counts: DiseaseUsageCountsOut
+    can_delete: bool
 
 
 class IndicatorInput(BaseModel):
