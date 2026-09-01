@@ -344,6 +344,21 @@ def test_online_age_is_missing_and_never_guessed():
     assert pandas.isna(frame.loc[0, "age"])
 
 
+def test_online_age_uses_the_explicit_case_value():
+    from app.services.longitudinal_features import build_fixed_window_inference_features
+
+    frame = build_fixed_window_inference_features(
+        {"age": 70, "sex": "male"},
+        [
+            _visit("2024-01-01", 10),
+            _visit("2024-06-01", 20),
+            _visit("2024-12-31", 30),
+        ],
+        _inference_metadata(required_features=["age", "visit_count"]),
+    )
+    assert frame.loc[0, "age"] == 70
+
+
 def test_required_online_age_is_rejected_instead_of_guessed():
     from app.services.longitudinal_features import (
         InferenceContractError,

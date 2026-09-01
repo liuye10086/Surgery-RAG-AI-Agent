@@ -216,8 +216,9 @@ def _suite_frame(
     import pandas as pd
 
     summary = summarize_observation(visits)
+    age = case.get("age")
     fixed = {
-        "age": case.get("age") or case.get("patient_age"),
+        "age": case.get("patient_age") if age is None else age,
         "sex": case.get("sex"),
         "current_stage": case.get("baseline_stage"),
         "visit_count": summary.get("visit_count", len(visits)),

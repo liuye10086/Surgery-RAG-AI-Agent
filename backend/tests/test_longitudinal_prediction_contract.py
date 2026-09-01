@@ -14,6 +14,18 @@ class _ScoreModel:
         return [[0.25, 0.75]]
 
 
+def test_suite_frame_preserves_zero_age_before_legacy_fallback():
+    from types import SimpleNamespace
+
+    from app.services.longitudinal_prediction import _suite_frame
+
+    metadata = SimpleNamespace(
+        feature_contract=SimpleNamespace(feature_names=["age"]),
+    )
+    frame = _suite_frame({"age": 0, "patient_age": 77}, [], metadata)
+    assert frame.loc[0, "age"] == 0
+
+
 def test_safe_outcome_call_uses_selected_task_and_metadata_contract():
     from app.schemas.longitudinal_model_registry import LoadedModelEntry, ModelRuntimeStatus
     from app.services.longitudinal_task_routing import route_outcome_task
