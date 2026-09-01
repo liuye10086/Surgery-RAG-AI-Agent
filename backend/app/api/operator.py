@@ -5,8 +5,6 @@ import urllib.parse
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_ai_operator
@@ -30,9 +28,7 @@ from app.schemas.operator import (
 from app.schemas.prediction import (
     CaseRecordIn,
     CaseRecordOut,
-    DiseaseCreate,
     DiseaseOut,
-    DiseaseUpdate,
     ReferenceRangeOut,
 )
 from app.schemas.longitudinal_case import (
@@ -72,15 +68,9 @@ from app.services.longitudinal_evidence import (
     mark_synthetic_source,
     select_similar_longitudinal_cases,
 )
+from app.services.disease_catalog import DISEASE_CAPABILITIES
 
 logger = logging.getLogger(__name__)
-REFERENCE_STANDARD_DISEASE_FK = "reference_standards_disease_id_fkey"
-
-
-def _integrity_constraint_name(exc: IntegrityError) -> str | None:
-    return getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
-
-
 router = APIRouter(prefix="/operator", tags=["operator"])
 
 
@@ -436,112 +426,21 @@ def download_report_pdf(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/diseases", response_model=DiseaseOut)
-def create_disease(
-    payload: DiseaseCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_ai_operator),
-):
-    if db.query(Disease).filter(Disease.name == payload.name).first():
-        raise HTTPException(status_code=409, detail=f"疾病「{payload.name}」已存在")
-    d = Disease(name=payload.name, description=payload.description)
-    db.add(d)
-    db.commit()
-    db.refresh(d)
-    return d
-
-
-def _disease_to_out(d: Disease, case_count: int) -> DiseaseOut:
-    """显式构造 DiseaseOut。
-
-    注意：Pydantic v2 的 `model_validate` 没有 `update` 参数，
-    `model_validate(d, update={...})` 会抛 TypeError。必须显式传值构造。
-    """
-    return DiseaseOut(
-        id=d.id,
-        name=d.name,
-        description=d.description,
-        case_count=case_count,
-        created_at=d.created_at,
-    )
-
-
 @router.get("/diseases", response_model=list[DiseaseOut])
 def list_diseases(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_operator),
 ):
-    diseases = db.query(Disease).order_by(Disease.id).all()
-    counts = dict(
-        db.query(CaseRecord.disease_id, func.count(CaseRecord.id))
-        .group_by(CaseRecord.disease_id)
+    supported_codes = tuple(DISEASE_CAPABILITIES)
+    return (
+        db.query(Disease)
+        .filter(
+            Disease.operator_enabled.is_(True),
+            Disease.code.in_(supported_codes),
+        )
+        .order_by(Disease.id)
         .all()
     )
-    return [_disease_to_out(d, counts.get(d.id, 0)) for d in diseases]
-
-
-@router.put("/diseases/{disease_id}", response_model=DiseaseOut)
-def update_disease(
-    disease_id: int,
-    payload: DiseaseUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_ai_operator),
-):
-    d = db.query(Disease).filter(Disease.id == disease_id).first()
-    if not d:
-        raise HTTPException(status_code=404, detail="疾病不存在")
-    if payload.name is not None:
-        name = payload.name.strip()
-        if not name:
-            raise HTTPException(status_code=422, detail="疾病名称不能为空")
-        if (
-            db.query(Disease)
-            .filter(Disease.name == name, Disease.id != disease_id)
-            .first()
-        ):
-            raise HTTPException(status_code=409, detail=f"疾病「{name}」已存在")
-        d.name = name
-    if payload.description is not None:
-        d.description = payload.description
-    db.commit()
-    db.refresh(d)
-    return d
-
-
-@router.delete("/diseases/{disease_id}", status_code=204)
-def delete_disease(
-    disease_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_ai_operator),
-):
-    d = (
-        db.query(Disease)
-        .filter(Disease.id == disease_id)
-        .with_for_update()
-        .first()
-    )
-    if not d:
-        raise HTTPException(status_code=404, detail="疾病不存在")
-    if db.query(CaseRecord).filter(CaseRecord.disease_id == disease_id).count():
-        raise HTTPException(status_code=409, detail="该疾病下存在病例，请先删除病例")
-    if (
-        db.query(ReferenceStandard)
-        .filter(ReferenceStandard.disease_id == disease_id)
-        .first()
-    ):
-        raise HTTPException(status_code=409, detail="该疾病已关联参考标准，不能删除")
-    db.delete(d)
-    try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        if _integrity_constraint_name(exc) == REFERENCE_STANDARD_DISEASE_FK:
-            raise HTTPException(
-                status_code=409,
-                detail="该疾病已关联参考标准，不能删除",
-            ) from exc
-        raise
-    return None
 
 
 # ---------------------------------------------------------------------------
