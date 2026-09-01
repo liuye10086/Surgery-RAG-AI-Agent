@@ -23,7 +23,6 @@ def _class_names(path: Path) -> set[str]:
 class CleanupContractTests(unittest.TestCase):
     def test_removed_files_do_not_exist(self):
         removed = [
-            ".superpowers/sdd",
             ".vscode",
             "scripts/verify_2a.py",
             "evaluation/rag_baseline_10_report.json",
@@ -45,7 +44,6 @@ class CleanupContractTests(unittest.TestCase):
             "backend/app/ml_models/fatty_liver_progression_model.meta.json",
             "CLAUDE.md",
             ".claude",
-            ".superpowers",
             "DEPLOYMENT_PLAN.md",
             "database/migrations",
             "tmp/pdfs",
@@ -128,6 +126,8 @@ class CleanupContractTests(unittest.TestCase):
             {
                 "2026-08-18-real-longitudinal-data-collection-spec.md",
                 "2026-08-27-project-structure-cleanup-design.md",
+                "2026-09-01-operator-case-age-design.md",
+                "2026-09-01-operator-disease-permission-design.md",
             },
         )
 

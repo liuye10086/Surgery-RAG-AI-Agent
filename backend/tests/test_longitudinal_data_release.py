@@ -4,7 +4,7 @@ import pytest
 
 
 def _sqlite_db():
-    from sqlalchemy import create_engine
+    from sqlalchemy import CheckConstraint, create_engine
     from sqlalchemy.dialects.postgresql import JSONB
     from sqlalchemy.ext.compiler import compiles
     from sqlalchemy.orm import sessionmaker
@@ -14,6 +14,12 @@ def _sqlite_db():
     @compiles(JSONB, "sqlite")
     def _compile_jsonb_sqlite(type_, compiler, **kw):
         return "JSON"
+
+    @compiles(CheckConstraint, "sqlite")
+    def _compile_check_constraint_sqlite(constraint, compiler, **kw):
+        if constraint.name == "ck_diseases_code_format":
+            return "CHECK (1)"
+        return compiler.visit_check_constraint(constraint, **kw)
 
     engine = create_engine("sqlite:///:memory:")
     Disease.__table__.create(engine)
@@ -26,7 +32,7 @@ def _seed_release(db, release_id: str, *, active: bool):
 
     disease = db.query(Disease).filter(Disease.name == "脂肪肝").first()
     if disease is None:
-        disease = Disease(name="脂肪肝")
+        disease = Disease(code="fatty_liver", name="脂肪肝")
         db.add(disease)
         db.flush()
     db.add(
