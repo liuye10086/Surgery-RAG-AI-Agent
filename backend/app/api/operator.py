@@ -255,6 +255,11 @@ async def create_longitudinal_report(
         case = get_operator_case(db, current_user.id, case_id)
     except CaseNotFoundError as exc:
         raise _longitudinal_error(exc) from exc
+    if case.age is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="请先补录患者年龄（0–120岁）",
+        )
     try:
         adapter = get_progression_adapter({"脂肪肝": "fatty_liver", "阿尔茨海默病": "ad"}.get(case.disease.name, ""))
     except ValueError as exc:

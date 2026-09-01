@@ -1,10 +1,12 @@
 """Contracts for operator-owned longitudinal case and visit workflow."""
 
+import asyncio
 from datetime import date
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
+from fastapi import HTTPException
 from pydantic import ValidationError
 
 
@@ -141,6 +143,37 @@ def test_create_operator_case_persists_age():
     persisted = db.add.call_args.args[0]
     assert result is persisted
     assert persisted.age == 67
+
+
+def test_report_generation_rejects_legacy_case_without_age_before_insert():
+    from app.api.operator import create_longitudinal_report
+
+    db = MagicMock()
+    legacy_case = SimpleNamespace(
+        age=None,
+        disease=SimpleNamespace(name="脂肪肝"),
+    )
+    with patch(
+        "app.api.operator.get_operator_case",
+        return_value=legacy_case,
+    ), patch(
+        "app.api.operator.get_progression_adapter",
+        side_effect=AssertionError("adapter must not load"),
+    ):
+        with pytest.raises(HTTPException) as error:
+            asyncio.run(
+                create_longitudinal_report(
+                    case_id=3,
+                    request=None,
+                    db=db,
+                    current_user=SimpleNamespace(id=7),
+                )
+            )
+
+    assert error.value.status_code == 422
+    assert error.value.detail == "请先补录患者年龄（0–120岁）"
+    db.add.assert_not_called()
+    db.commit.assert_not_called()
 
 
 def test_add_visit_rejects_case_owned_by_another_user():
