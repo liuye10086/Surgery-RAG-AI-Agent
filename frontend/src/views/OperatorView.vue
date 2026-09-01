@@ -153,6 +153,10 @@ function isValidIndicator(row: IndicatorInput) {
 
 async function handleLongitudinalCaseSaved(draft: any) {
   try {
+    if (!Number.isInteger(draft.age) || draft.age < 0 || draft.age > 120) {
+      ElMessage.error('请填写0–120岁的整数年龄')
+      return
+    }
     const invalidVisit = (draft.visits || []).find((visit: any) =>
       !visit.visit_date || !visit.indicators?.length || !visit.indicators.every(isValidIndicator),
     )
@@ -170,7 +174,7 @@ async function handleLongitudinalCaseSaved(draft: any) {
         })),
         notes: visit.notes || null,
       }))
-    const saved = await operatorStore.saveLongitudinalCase({ disease_id: draft.disease_id, patient_label: draft.patient_label, sex: draft.sex, baseline_stage: draft.baseline_stage || null, visits })
+    const saved = await operatorStore.saveLongitudinalCase({ disease_id: draft.disease_id, patient_label: draft.patient_label, age: draft.age, sex: draft.sex, baseline_stage: draft.baseline_stage || null, visits })
     operatorStore.generateLongitudinalReport(saved.id)
     ElMessage.success('已开始生成纵向预测报告')
   } catch (error: any) {

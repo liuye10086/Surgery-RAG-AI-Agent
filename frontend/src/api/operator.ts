@@ -84,6 +84,7 @@ export interface LongitudinalCase {
   user_id: number
   disease_id: number
   patient_label: string
+  age: number | null
   sex?: 'male' | 'female' | null
   baseline_stage?: BaselineStage | string | null
   notes?: string | null
@@ -210,7 +211,7 @@ export function listLongitudinalCases(diseaseId?: number): Promise<{ cases: Long
   return request.get('/v1/operator/longitudinal-cases', { params: diseaseId ? { disease_id: diseaseId } : {} })
 }
 
-export function createLongitudinalCase(data: { disease_id: number; patient_label: string; sex?: string | null; baseline_stage?: BaselineStage | null; notes?: string | null }): Promise<LongitudinalCase> {
+export function createLongitudinalCase(data: { disease_id: number; patient_label: string; age: number; sex?: string | null; baseline_stage?: BaselineStage | null; notes?: string | null }): Promise<LongitudinalCase> {
   return request.post('/v1/operator/longitudinal-cases', data)
 }
 

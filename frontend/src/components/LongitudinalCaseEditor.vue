@@ -9,6 +9,7 @@
     </div>
     <div class="editor-grid">
       <el-input v-model="draft.patient_label" placeholder="病例内部标签" aria-label="病例内部标签" />
+      <el-input-number v-model="draft.age" :min="0" :max="120" :precision="0" placeholder="年龄（岁）" aria-label="年龄（岁）" />
       <el-select v-model="draft.disease_id" placeholder="选择疾病" aria-label="选择疾病">
         <el-option v-for="disease in diseases" :key="disease.id" :label="disease.name" :value="disease.id" />
       </el-select>
@@ -47,6 +48,7 @@ function toDraft(value: LongitudinalCase | null | undefined) {
   return {
     id: value?.id,
     patient_label: value?.patient_label || '',
+    age: value?.age ?? null,
     disease_id: value?.disease_id || null,
     sex: value?.sex || null,
     baseline_stage: value?.baseline_stage || null,
