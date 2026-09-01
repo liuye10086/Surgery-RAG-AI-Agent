@@ -218,7 +218,8 @@
         </div>
       </div>
 
-      <!-- 图片管理（占位） -->
+      <DiseaseManagementView v-else-if="activeSection === 'diseases'" />
+
       <StandardManagementView v-else-if="activeSection === 'standards'" />
 
       <div v-else-if="activeSection === 'images'" class="section-placeholder">
@@ -288,6 +289,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Close, Document, FolderOpened, Folder, Search, Picture, VideoCamera } from '@element-plus/icons-vue'
 import type { UploadInstance, UploadFile } from 'element-plus'
 import AdminSidebar from '@/components/AdminSidebar.vue'
+import DiseaseManagementView from '@/components/DiseaseManagementView.vue'
 import StandardManagementView from '@/components/StandardManagementView.vue'
 import {
   uploadDocument,

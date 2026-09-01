@@ -188,7 +188,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox, type UploadFile, type UploadInstance } from 'element-plus'
 import { Collection, Delete, Plus, Upload } from '@element-plus/icons-vue'
-import { listDiseases, type Disease } from '@/api/operator'
+import { listAdminDiseases, type AdminDisease } from '@/api/adminDiseases'
 import {
   approveVersion,
   createStandard,
@@ -217,7 +217,7 @@ import {
 const emptyValidation = (): ValidationReport => ({ errors: [], warnings: [], infos: [], projection_count: 0 })
 
 const standards = ref<Standard[]>([])
-const diseases = ref<Disease[]>([])
+const diseases = ref<AdminDisease[]>([])
 const selectedStandard = ref<Standard | null>(null)
 const versions = ref<StandardVersion[]>([])
 const selectedVersionId = ref<number | null>(null)
@@ -612,7 +612,7 @@ async function saveRule() {
 onMounted(async () => {
   await Promise.all([
     loadStandards(),
-    listDiseases().then(items => { diseases.value = items }).catch(error => {
+    listAdminDiseases().then(items => { diseases.value = items }).catch(error => {
       ElMessage.error(getErrorMessage(error, '疾病列表加载失败'))
     }),
     loadStandardDocuments(),

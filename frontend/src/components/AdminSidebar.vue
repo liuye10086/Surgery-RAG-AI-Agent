@@ -119,7 +119,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Setting, Fold, Expand, ArrowLeft, Document, Folder, FolderAdd, Picture, VideoCamera, MoreFilled, SwitchButton, DataAnalysis, Collection } from '@element-plus/icons-vue'
+import { Setting, Fold, Expand, ArrowLeft, Document, Folder, FolderAdd, Picture, VideoCamera, MoreFilled, SwitchButton, DataAnalysis, Collection, FirstAidKit } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
 defineProps<{
@@ -144,6 +144,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { key: 'documents', label: '文档管理', icon: Document },
+  { key: 'diseases', label: '疾病管理', icon: FirstAidKit },
   { key: 'standards', label: '标准管理', icon: Collection },
   { key: 'images', label: '图片管理', icon: Picture },
   { key: 'videos', label: '视频管理', icon: VideoCamera },
@@ -259,6 +260,7 @@ function handleLogout() {
   align-items: center;
   gap: var(--space-2);
   padding: 10px var(--space-3);
+  min-height: 44px;
   margin-bottom: var(--space-1);
   border-radius: var(--radius-item);
   cursor: pointer;
@@ -425,8 +427,8 @@ function handleLogout() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--radius-item);
   color: var(--text-secondary);
   cursor: pointer;
