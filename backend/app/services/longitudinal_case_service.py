@@ -7,12 +7,17 @@ from typing import Any, Iterable
 
 from sqlalchemy.exc import IntegrityError
 
-from app.db.models import Disease, OperatorCase, OperatorCaseVisit
+from app.db.models import OperatorCase, OperatorCaseVisit
 from app.schemas.longitudinal_case import (
     OperatorCaseCreate,
     OperatorCaseUpdate,
     VisitCreate,
     VisitUpdate,
+)
+from app.services.disease_catalog import (
+    DiseaseNotFoundError,
+    require_enabled_case_disease,
+    require_operator_disease,
 )
 
 
@@ -21,10 +26,6 @@ class LongitudinalCaseError(ValueError):
 
 
 class CaseNotFoundError(LongitudinalCaseError):
-    pass
-
-
-class DiseaseNotFoundError(LongitudinalCaseError):
     pass
 
 
@@ -61,11 +62,18 @@ def get_operator_case(db, user_id: int, case_id: int) -> OperatorCase:
     return case
 
 
+def get_operator_case_for_write(db, user_id: int, case_id: int) -> OperatorCase:
+    """Load an owned case and reject writes when its disease is unavailable."""
+
+    case = get_operator_case(db, user_id, case_id)
+    require_enabled_case_disease(case)
+    return case
+
+
 def create_operator_case(
     db, user_id: int, payload: OperatorCaseCreate
 ) -> OperatorCase:
-    if db.query(Disease).filter(Disease.id == payload.disease_id).first() is None:
-        raise DiseaseNotFoundError("疾病不存在")
+    require_operator_disease(db, payload.disease_id)
 
     case = OperatorCase(
         user_id=user_id,
@@ -95,11 +103,8 @@ def list_operator_cases(
 def update_operator_case(
     db, user_id: int, case_id: int, payload: OperatorCaseUpdate
 ) -> OperatorCase:
-    case = get_operator_case(db, user_id, case_id)
+    case = get_operator_case_for_write(db, user_id, case_id)
     values = payload.model_dump(exclude_unset=True)
-    if "disease_id" in values:
-        if db.query(Disease).filter(Disease.id == values["disease_id"]).first() is None:
-            raise DiseaseNotFoundError("疾病不存在")
     for field, value in values.items():
         setattr(case, field, value)
     db.commit()
@@ -108,7 +113,7 @@ def update_operator_case(
 
 
 def delete_operator_case(db, user_id: int, case_id: int) -> None:
-    case = get_operator_case(db, user_id, case_id)
+    case = get_operator_case_for_write(db, user_id, case_id)
     db.delete(case)
     db.commit()
 
@@ -144,7 +149,7 @@ def _reindex_visits(db, case_id: int, case: OperatorCase | None = None) -> list[
 
 
 def add_visit(db, user_id: int, case_id: int, payload: VisitCreate) -> OperatorCaseVisit:
-    case = get_operator_case(db, user_id, case_id)
+    case = get_operator_case_for_write(db, user_id, case_id)
     visits = _ordered_visits(db, case_id, case)
     duplicate = (
         db.query(OperatorCaseVisit)
@@ -181,7 +186,7 @@ def add_visit(db, user_id: int, case_id: int, payload: VisitCreate) -> OperatorC
 
 
 def _owned_visit_query(db, user_id: int, case_id: int, visit_id: int):
-    case = get_operator_case(db, user_id, case_id)
+    case = get_operator_case_for_write(db, user_id, case_id)
     visit = (
         db.query(OperatorCaseVisit)
         .filter(
@@ -237,7 +242,7 @@ def replace_visits(
     not part of the editor contract; the immutable report snapshot preserves
     the submitted history used for prediction.
     """
-    case = get_operator_case(db, user_id, case_id)
+    case = get_operator_case_for_write(db, user_id, case_id)
     payloads = list(payloads)
     if len(payloads) > 10:
         raise VisitLimitError("每个病例最多保存 10 次访视")
@@ -317,6 +322,7 @@ def build_input_snapshot(
         "case_id": getattr(case, "id", None),
         "disease_id": getattr(case, "disease_id", None),
         "disease": getattr(disease, "name", None),
+        "disease_code": getattr(disease, "code", None),
         "patient_label": getattr(case, "patient_label", None),
         "age": getattr(case, "age", None),
         "sex": getattr(case, "sex", None),

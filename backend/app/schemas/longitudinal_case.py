@@ -53,7 +53,8 @@ class OperatorCaseCreate(BaseModel):
 
 
 class OperatorCaseUpdate(BaseModel):
-    disease_id: int | None = Field(None, gt=0)
+    model_config = ConfigDict(extra="forbid")
+
     patient_label: str | None = Field(None, min_length=1, max_length=100)
     age: int | None = Field(None, ge=0, le=120, strict=True)
     sex: str | None = Field(None, pattern=r"^(male|female)$")
@@ -128,6 +129,15 @@ class VisitOut(BaseModel):
     created_at: datetime | None = None
 
 
+class OperatorCaseDiseaseOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    code: str
+    name: str
+    operator_enabled: bool
+
+
 class OperatorCaseOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -143,6 +153,7 @@ class OperatorCaseOut(BaseModel):
     visits: list[VisitOut] = Field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    disease: OperatorCaseDiseaseOut
 
 
 class OperatorCaseListOut(BaseModel):

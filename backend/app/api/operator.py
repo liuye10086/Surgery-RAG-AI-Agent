@@ -46,7 +46,6 @@ from app.services.pdf_generator import generate_pdf
 from app.services.longitudinal_case_service import (
     CaseNotFoundError,
     DuplicateVisitDateError,
-    DiseaseNotFoundError,
     VisitLimitError,
     VisitNotFoundError,
     add_visit,
@@ -60,7 +59,6 @@ from app.services.longitudinal_case_service import (
     replace_visits,
     build_input_snapshot,
 )
-from app.services.disease_progression import get_progression_adapter
 from app.services.longitudinal_report_generator import generate_longitudinal_report
 from app.services.longitudinal_model_registry import load_active_model_registry
 from app.services.longitudinal_evidence import (
@@ -68,7 +66,14 @@ from app.services.longitudinal_evidence import (
     mark_synthetic_source,
     select_similar_longitudinal_cases,
 )
-from app.services.disease_catalog import DISEASE_CAPABILITIES
+from app.services.disease_catalog import (
+    DISEASE_CAPABILITIES,
+    DiseaseCapabilityMissingError,
+    DiseaseCatalogError,
+    DiseaseDisabledError,
+    DiseaseNotFoundError,
+    require_enabled_case_disease,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/operator", tags=["operator"])
@@ -92,10 +97,20 @@ def _longitudinal_error(exc: Exception) -> HTTPException:
     if isinstance(exc, (CaseNotFoundError, VisitNotFoundError)):
         # Do not reveal whether another operator owns the resource.
         return HTTPException(status_code=404, detail="病例或访视不存在")
-    if isinstance(exc, DiseaseNotFoundError):
-        return HTTPException(status_code=422, detail="疾病不存在")
+    if isinstance(exc, DiseaseCatalogError):
+        return _disease_http_error(exc)
     if isinstance(exc, (DuplicateVisitDateError, VisitLimitError)):
         return HTTPException(status_code=409, detail=str(exc))
+    return HTTPException(status_code=422, detail=str(exc))
+
+
+def _disease_http_error(exc: DiseaseCatalogError) -> HTTPException:
+    if isinstance(exc, DiseaseDisabledError):
+        return HTTPException(status_code=409, detail="该疾病已停用，病例当前只读")
+    if isinstance(exc, DiseaseCapabilityMissingError):
+        return HTTPException(status_code=422, detail="该疾病未开放 AI 操作者使用")
+    if isinstance(exc, DiseaseNotFoundError):
+        return HTTPException(status_code=422, detail="疾病不存在")
     return HTTPException(status_code=422, detail=str(exc))
 
 
@@ -107,7 +122,7 @@ def create_longitudinal_case(
 ):
     try:
         return create_operator_case(db, current_user.id, payload)
-    except (DiseaseNotFoundError, CaseNotFoundError) as exc:
+    except (DiseaseCatalogError, CaseNotFoundError) as exc:
         raise _longitudinal_error(exc) from exc
 
 
@@ -129,7 +144,7 @@ def get_longitudinal_case(
 ):
     try:
         return get_operator_case(db, current_user.id, case_id)
-    except CaseNotFoundError as exc:
+    except (CaseNotFoundError, DiseaseCatalogError) as exc:
         raise _longitudinal_error(exc) from exc
 
 
@@ -142,7 +157,7 @@ def update_longitudinal_case(
 ):
     try:
         return update_operator_case(db, current_user.id, case_id, payload)
-    except (CaseNotFoundError, DiseaseNotFoundError) as exc:
+    except (CaseNotFoundError, DiseaseCatalogError) as exc:
         raise _longitudinal_error(exc) from exc
 
 
@@ -154,7 +169,7 @@ def delete_longitudinal_case(
 ):
     try:
         delete_operator_case(db, current_user.id, case_id)
-    except CaseNotFoundError as exc:
+    except (CaseNotFoundError, DiseaseCatalogError) as exc:
         raise _longitudinal_error(exc) from exc
     return None
 
@@ -172,7 +187,12 @@ def create_longitudinal_visit(
 ):
     try:
         return add_visit(db, current_user.id, case_id, payload)
-    except (CaseNotFoundError, DuplicateVisitDateError, VisitLimitError) as exc:
+    except (
+        CaseNotFoundError,
+        DiseaseCatalogError,
+        DuplicateVisitDateError,
+        VisitLimitError,
+    ) as exc:
         raise _longitudinal_error(exc) from exc
 
 
@@ -190,6 +210,7 @@ def replace_longitudinal_visits(
         return replace_visits(db, current_user.id, case_id, payload.visits)
     except (
         CaseNotFoundError,
+        DiseaseCatalogError,
         DuplicateVisitDateError,
         VisitLimitError,
     ) as exc:
@@ -211,6 +232,7 @@ def update_longitudinal_visit(
         return update_visit(db, current_user.id, case_id, visit_id, payload)
     except (
         CaseNotFoundError,
+        DiseaseCatalogError,
         VisitNotFoundError,
         DuplicateVisitDateError,
     ) as exc:
@@ -229,7 +251,7 @@ def delete_longitudinal_visit(
 ):
     try:
         delete_visit(db, current_user.id, case_id, visit_id)
-    except (CaseNotFoundError, VisitNotFoundError) as exc:
+    except (CaseNotFoundError, DiseaseCatalogError, VisitNotFoundError) as exc:
         raise _longitudinal_error(exc) from exc
     return None
 
@@ -243,17 +265,18 @@ async def create_longitudinal_report(
 ):
     try:
         case = get_operator_case(db, current_user.id, case_id)
-    except CaseNotFoundError as exc:
+    except (CaseNotFoundError, DiseaseCatalogError) as exc:
         raise _longitudinal_error(exc) from exc
+    try:
+        disease = require_enabled_case_disease(case)
+        adapter = DISEASE_CAPABILITIES[disease.code].adapter
+    except DiseaseCatalogError as exc:
+        raise _disease_http_error(exc) from exc
     if case.age is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="请先补录患者年龄（0–120岁）",
         )
-    try:
-        adapter = get_progression_adapter({"脂肪肝": "fatty_liver", "阿尔茨海默病": "ad"}.get(case.disease.name, ""))
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
     visits = [
         {"visit_date": visit.visit_date.isoformat(), "indicators": visit.indicators or [], "notes": visit.notes}
         for visit in sorted(case.visits, key=lambda item: item.visit_date)

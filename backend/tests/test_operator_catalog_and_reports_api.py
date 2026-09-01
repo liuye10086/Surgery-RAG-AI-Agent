@@ -1,7 +1,9 @@
 """Operator disease catalog, reference cases, reports, and router tests."""
+import asyncio
 import unittest
+from datetime import date
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from fastapi import HTTPException
 from app.schemas.prediction import (
@@ -139,6 +141,128 @@ class TestReportStateMachine(unittest.TestCase):
         source = inspect.getsource(create_longitudinal_report)
         self.assertIn("load_active_model_registry(adapter.dataset)", source)
         self.assertNotIn("load_model_registry(adapter.dataset)", source)
+
+    def test_longitudinal_report_routes_by_disease_code_after_display_name_change(self):
+        from app.api.operator import create_longitudinal_report
+        from app.services.disease_catalog import DISEASE_CAPABILITIES
+
+        case = SimpleNamespace(
+            id=3,
+            user_id=7,
+            disease_id=11,
+            patient_label="case-A",
+            age=65,
+            sex="female",
+            baseline_stage="S1",
+            notes=None,
+            disease=SimpleNamespace(
+                id=11,
+                code="fatty_liver",
+                name="脂肪肝新名称",
+                operator_enabled=True,
+            ),
+            visits=[
+                SimpleNamespace(
+                    id=1,
+                    visit_date=date(2024, 1, 1),
+                    indicators=[{"name": "ALT", "value": 42, "unit": "U/L"}],
+                    notes=None,
+                )
+            ],
+        )
+        db = MagicMock()
+        captured = {}
+
+        def fake_generate(*args, **kwargs):
+            captured["adapter"] = args[4]
+            return iter([b""])
+
+        with patch("app.api.operator.get_operator_case", return_value=case), patch(
+            "app.api.operator.build_reference_range_sources", return_value=[]
+        ), patch(
+            "app.api.operator.select_similar_longitudinal_cases", return_value=[]
+        ), patch(
+            "app.api.operator.load_active_model_registry", return_value={}
+        ), patch(
+            "app.api.operator.generate_longitudinal_report", side_effect=fake_generate
+        ):
+            asyncio.run(
+                create_longitudinal_report(
+                    case_id=3,
+                    request=None,
+                    db=db,
+                    current_user=SimpleNamespace(id=7),
+                )
+            )
+
+        self.assertIs(
+            captured["adapter"],
+            DISEASE_CAPABILITIES["fatty_liver"].adapter,
+        )
+        db.add.assert_called_once()
+
+    def test_disabled_disease_rejects_report_before_insert(self):
+        from app.api.operator import create_longitudinal_report
+
+        case = SimpleNamespace(
+            id=3,
+            user_id=7,
+            disease_id=11,
+            patient_label="case-A",
+            age=65,
+            disease=SimpleNamespace(
+                id=11,
+                code="fatty_liver",
+                name="脂肪肝",
+                operator_enabled=False,
+            ),
+            visits=[],
+        )
+        db = MagicMock()
+
+        with patch("app.api.operator.get_operator_case", return_value=case):
+            with self.assertRaises(HTTPException) as error:
+                asyncio.run(
+                    create_longitudinal_report(
+                        case_id=3,
+                        request=None,
+                        db=db,
+                        current_user=SimpleNamespace(id=7),
+                    )
+                )
+
+        self.assertEqual(error.exception.status_code, 409)
+        self.assertEqual(error.exception.detail, "该疾病已停用，病例当前只读")
+        db.add.assert_not_called()
+        db.commit.assert_not_called()
+
+    def test_disabled_report_guard_precedes_legacy_age_validation(self):
+        from app.api.operator import create_longitudinal_report
+
+        case = SimpleNamespace(
+            age=None,
+            disease=SimpleNamespace(
+                id=11,
+                code="fatty_liver",
+                name="脂肪肝",
+                operator_enabled=False,
+            ),
+            visits=[],
+        )
+
+        with patch("app.api.operator.get_operator_case", return_value=case):
+            with self.assertRaises(HTTPException) as error:
+                asyncio.run(
+                    create_longitudinal_report(
+                        case_id=3,
+                        request=None,
+                        db=MagicMock(),
+                        current_user=SimpleNamespace(id=7),
+                    )
+                )
+
+        self.assertEqual(error.exception.status_code, 409)
+        self.assertEqual(error.exception.detail, "该疾病已停用，病例当前只读")
 
     def test_download_count_increments(self):
         """PDF 下载后 download_count 自增（operator.py download 端点）。"""

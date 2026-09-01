@@ -21,7 +21,13 @@ def _case(user_id=7, case_id=3, age=65):
         baseline_stage="S1",
         notes="internal note",
         status="active",
-        disease=SimpleNamespace(name="脂肪肝"),
+        disease=SimpleNamespace(
+            id=11,
+            code="fatty_liver",
+            name="脂肪肝",
+            operator_enabled=True,
+        ),
+        visits=[],
     )
 
 
@@ -88,6 +94,26 @@ def test_case_update_age_may_be_omitted_but_not_cleared():
         OperatorCaseUpdate(age=None)
 
 
+def test_case_update_rejects_disease_id_even_from_old_client():
+    from app.schemas.longitudinal_case import OperatorCaseUpdate
+
+    with pytest.raises(ValidationError):
+        OperatorCaseUpdate.model_validate({"disease_id": 12})
+
+
+def test_case_output_exposes_nested_disease_identity():
+    from app.schemas.longitudinal_case import OperatorCaseOut
+
+    output = OperatorCaseOut.model_validate(_case())
+
+    assert output.disease.model_dump() == {
+        "id": 11,
+        "code": "fatty_liver",
+        "name": "脂肪肝",
+        "operator_enabled": True,
+    }
+
+
 def test_case_schema_trims_canonical_or_legacy_baseline_stage():
     from app.schemas.longitudinal_case import OperatorCaseCreate
 
@@ -124,12 +150,34 @@ def test_snapshot_contains_sorted_visits_without_user_identity():
     assert "user_id" not in snapshot
 
 
+def test_snapshot_contains_stable_disease_code():
+    from app.services.longitudinal_case_service import build_input_snapshot
+
+    case = _case()
+    case.disease = SimpleNamespace(
+        id=11,
+        code="fatty_liver",
+        name="脂肪肝新名称",
+        operator_enabled=True,
+    )
+
+    snapshot = build_input_snapshot(case, [])
+
+    assert snapshot["disease_id"] == 11
+    assert snapshot["disease"] == "脂肪肝新名称"
+    assert snapshot["disease_code"] == "fatty_liver"
+
+
 def test_create_operator_case_persists_age():
     from app.schemas.longitudinal_case import OperatorCaseCreate
     from app.services.longitudinal_case_service import create_operator_case
 
     db = MagicMock()
-    db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(id=11)
+    db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
+        id=11,
+        code="fatty_liver",
+        operator_enabled=True,
+    )
     result = create_operator_case(
         db,
         user_id=7,
@@ -145,20 +193,49 @@ def test_create_operator_case_persists_age():
     assert persisted.age == 67
 
 
+def test_create_operator_case_rejects_disabled_disease():
+    from app.schemas.longitudinal_case import OperatorCaseCreate
+    from app.services.disease_catalog import DiseaseDisabledError
+    from app.services.longitudinal_case_service import create_operator_case
+
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
+        id=11,
+        code="fatty_liver",
+        operator_enabled=False,
+    )
+
+    with pytest.raises(DiseaseDisabledError):
+        create_operator_case(
+            db,
+            user_id=7,
+            payload=OperatorCaseCreate(
+                disease_id=11,
+                patient_label="case-disabled",
+                age=67,
+            ),
+        )
+
+    db.add.assert_not_called()
+
+
 def test_report_generation_rejects_legacy_case_without_age_before_insert():
     from app.api.operator import create_longitudinal_report
 
     db = MagicMock()
     legacy_case = SimpleNamespace(
         age=None,
-        disease=SimpleNamespace(name="脂肪肝"),
+        disease=SimpleNamespace(
+            id=11,
+            code="fatty_liver",
+            name="脂肪肝",
+            operator_enabled=True,
+        ),
+        visits=[],
     )
     with patch(
         "app.api.operator.get_operator_case",
         return_value=legacy_case,
-    ), patch(
-        "app.api.operator.get_progression_adapter",
-        side_effect=AssertionError("adapter must not load"),
     ):
         with pytest.raises(HTTPException) as error:
             asyncio.run(
@@ -203,6 +280,60 @@ def test_add_visit_rejects_duplicate_date():
             visit_date="2024-01-01",
             indicators=[{"name": "ALT", "value": 42, "unit": "U/L"}],
         ))
+
+
+@pytest.mark.parametrize(
+    "operation_name",
+    [
+        "update_operator_case",
+        "delete_operator_case",
+        "add_visit",
+        "replace_visits",
+        "update_visit",
+        "delete_visit",
+    ],
+)
+def test_disabled_disease_blocks_every_case_mutation(operation_name):
+    from app.schemas.longitudinal_case import (
+        OperatorCaseUpdate,
+        VisitCreate,
+        VisitUpdate,
+    )
+    from app.services import longitudinal_case_service as service
+    from app.services.disease_catalog import DiseaseDisabledError
+
+    case = _case()
+    case.disease.operator_enabled = False
+    db = MagicMock()
+    arguments = {
+        "update_operator_case": (
+            db,
+            7,
+            3,
+            OperatorCaseUpdate(patient_label="renamed"),
+        ),
+        "delete_operator_case": (db, 7, 3),
+        "add_visit": (
+            db,
+            7,
+            3,
+            VisitCreate(
+                visit_date="2024-01-01",
+                indicators=[{"name": "ALT", "value": 42, "unit": "U/L"}],
+            ),
+        ),
+        "replace_visits": (db, 7, 3, []),
+        "update_visit": (db, 7, 3, 9, VisitUpdate(notes="changed")),
+        "delete_visit": (db, 7, 3, 9),
+    }
+
+    with patch.object(service, "get_operator_case", return_value=case):
+        with pytest.raises(DiseaseDisabledError):
+            getattr(service, operation_name)(*arguments[operation_name])
+
+    db.add.assert_not_called()
+    db.delete.assert_not_called()
+    db.commit.assert_not_called()
 
 
 def test_visit_schema_limits_timeline_to_ten_rows():
