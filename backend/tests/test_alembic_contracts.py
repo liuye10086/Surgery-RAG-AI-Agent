@@ -9,6 +9,59 @@ from app.db.models import AuditLog, Chunk, Message, Session
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
 
+class _DiseaseMigrationResult:
+    def __init__(self, *, rows=None, scalar=None):
+        self._rows = list(rows or [])
+        self._scalar = scalar
+
+    def mappings(self):
+        return self
+
+    def all(self):
+        return list(self._rows)
+
+    def scalar_one(self):
+        return self._scalar
+
+
+class _DiseaseMigrationBind:
+    def __init__(self, *, diseases, reference_counts):
+        self.diseases = [dict(row) for row in diseases]
+        self.reference_counts = dict(reference_counts)
+        self.statements = []
+
+    def execute(self, statement, parameters=None):
+        sql = " ".join(str(statement).split())
+        self.statements.append((sql, dict(parameters or {})))
+        if sql.startswith("LOCK TABLE"):
+            return _DiseaseMigrationResult()
+        if sql == "SELECT id, name FROM diseases ORDER BY id":
+            return _DiseaseMigrationResult(rows=self.diseases)
+        if sql.startswith("SELECT count(*) FROM diseases WHERE code IS NULL"):
+            return _DiseaseMigrationResult(
+                scalar=sum(row.get("code") is None for row in self.diseases)
+            )
+        if sql.startswith("SELECT count(*) FROM "):
+            table = sql.split()[3]
+            return _DiseaseMigrationResult(scalar=self.reference_counts[table])
+        if sql.startswith("INSERT INTO diseases"):
+            next_id = max((row["id"] for row in self.diseases), default=0) + 1
+            self.diseases.append(
+                {
+                    "id": next_id,
+                    "name": parameters["name"],
+                    "code": parameters["code"],
+                }
+            )
+            return _DiseaseMigrationResult()
+        if sql.startswith("UPDATE diseases SET code="):
+            for row in self.diseases:
+                if row["name"] == parameters["name"]:
+                    row["code"] = parameters["code"]
+            return _DiseaseMigrationResult()
+        raise AssertionError(f"unexpected SQL: {sql}")
+
+
 def _load_revision(filename: str, module_name: str):
     path = BACKEND_ROOT / "alembic/versions" / filename
     spec = importlib.util.spec_from_file_location(module_name, path)
@@ -353,6 +406,105 @@ class AlembicContractTests(unittest.TestCase):
             "ck_operator_cases_age_range",
             "operator_cases",
             "age IS NULL OR age BETWEEN 0 AND 120",
+        )
+
+    def test_disease_permission_migration_follows_0013(self):
+        migration = _load_revision(
+            "0014_disease_codes_and_operator_permission.py",
+            "migration_0014",
+        )
+        self.assertEqual(migration.revision, "0014")
+        self.assertEqual(migration.down_revision, "0013")
+
+    def test_disease_permission_orm_columns_and_delete_rules(self):
+        from app.db.models import AIReport, CaseRecord, Disease, OperatorCase
+
+        disease_columns = Disease.__table__.columns
+        self.assertFalse(disease_columns["code"].nullable)
+        self.assertFalse(disease_columns["operator_enabled"].nullable)
+        self.assertEqual(
+            disease_columns["operator_enabled"].server_default.arg,
+            "false",
+        )
+        for model in (OperatorCase, CaseRecord, AIReport):
+            fk = next(iter(model.__table__.columns["disease_id"].foreign_keys))
+            self.assertEqual(fk.ondelete, "RESTRICT")
+
+    def test_disease_permission_migration_rejects_third_disease(self):
+        migration = _load_revision(
+            "0014_disease_codes_and_operator_permission.py",
+            "migration_0014_third_disease",
+        )
+        bind = _DiseaseMigrationBind(
+            diseases=[
+                {"id": 1, "name": "脂肪肝"},
+                {"id": 2, "name": "阿尔茨海默病"},
+                {"id": 3, "name": "胃癌"},
+            ],
+            reference_counts={
+                "operator_cases": 0,
+                "case_records": 0,
+                "ai_reports": 0,
+                "reference_standards": 0,
+            },
+        )
+        migration_op = MagicMock()
+        migration_op.get_bind.return_value = bind
+
+        with patch.object(migration, "op", migration_op):
+            with self.assertRaisesRegex(RuntimeError, "unexpected diseases"):
+                migration.upgrade()
+
+        migration_op.create_unique_constraint.assert_not_called()
+
+    def test_disease_permission_migration_initializes_empty_catalog(self):
+        migration = _load_revision(
+            "0014_disease_codes_and_operator_permission.py",
+            "migration_0014_empty",
+        )
+        bind = _DiseaseMigrationBind(
+            diseases=[],
+            reference_counts={
+                "operator_cases": 0,
+                "case_records": 0,
+                "ai_reports": 0,
+                "reference_standards": 0,
+            },
+        )
+        migration_op = MagicMock()
+        migration_op.get_bind.return_value = bind
+
+        with patch.object(migration, "op", migration_op):
+            migration.upgrade()
+
+        self.assertEqual(
+            {(row["name"], row["code"]) for row in bind.diseases},
+            {("脂肪肝", "fatty_liver"), ("阿尔茨海默病", "ad")},
+        )
+
+    def test_disease_permission_migration_rejects_empty_catalog_with_data(self):
+        migration = _load_revision(
+            "0014_disease_codes_and_operator_permission.py",
+            "migration_0014_empty_with_data",
+        )
+        bind = _DiseaseMigrationBind(
+            diseases=[],
+            reference_counts={
+                "operator_cases": 1,
+                "case_records": 0,
+                "ai_reports": 0,
+                "reference_standards": 0,
+            },
+        )
+        migration_op = MagicMock()
+        migration_op.get_bind.return_value = bind
+
+        with patch.object(migration, "op", migration_op):
+            with self.assertRaisesRegex(RuntimeError, "related business data"):
+                migration.upgrade()
+
+        self.assertFalse(
+            any(sql.startswith("INSERT INTO diseases") for sql, _ in bind.statements)
         )
 
     def test_env_excludes_langchain_internal_tables(self):

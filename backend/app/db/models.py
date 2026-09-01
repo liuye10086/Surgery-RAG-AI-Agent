@@ -172,15 +172,31 @@ class Message(Base):
 
 class Disease(Base):
     __tablename__ = "diseases"
+    __table_args__ = (
+        UniqueConstraint("code", name="uq_diseases_code"),
+        CheckConstraint(
+            "code ~ '^[a-z][a-z0-9_]*$'",
+            name="ck_diseases_code_format",
+        ),
+    )
 
     id = Column(Integer, primary_key=True)
+    code = Column(String(64), nullable=False)
     name = Column(String(200), unique=True, nullable=False)
     description = Column(Text)
+    operator_enabled = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    case_records = relationship("CaseRecord", back_populates="disease", cascade="all, delete-orphan")
+    case_records = relationship(
+        "CaseRecord", back_populates="disease", passive_deletes=True
+    )
     operator_cases = relationship(
-        "OperatorCase", back_populates="disease", cascade="all, delete-orphan"
+        "OperatorCase", back_populates="disease", passive_deletes=True
     )
     reference_standards = relationship(
         "ReferenceStandard", back_populates="disease", passive_deletes=True
@@ -192,7 +208,15 @@ class CaseRecord(Base):
     __table_args__ = (Index("ix_case_records_disease_id", "disease_id"),)
 
     id = Column(Integer, primary_key=True)
-    disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="CASCADE"), nullable=False)
+    disease_id = Column(
+        Integer,
+        ForeignKey(
+            "diseases.id",
+            name="fk_operator_cases_disease",
+            ondelete="RESTRICT",
+        ),
+        nullable=False,
+    )
     patient_label = Column(String(100))
     indicators = Column(JSONB, nullable=False, default=list)
     confirmed = Column(Boolean, nullable=False, default=True, server_default="true")
@@ -224,7 +248,15 @@ class OperatorCase(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="CASCADE"), nullable=False)
+    disease_id = Column(
+        Integer,
+        ForeignKey(
+            "diseases.id",
+            name="fk_case_records_disease",
+            ondelete="RESTRICT",
+        ),
+        nullable=False,
+    )
     patient_label = Column(String(100), nullable=False)
     sex = Column(String(10))
     age = Column(Integer, nullable=True)
@@ -560,7 +592,15 @@ class AIReport(Base):
     download_count = Column(Integer, nullable=False, default=0, server_default="0")
     # 预测分析新列（旧数据兼容：全部 nullable/default，旧报告以 analysis_type='retrospective' 标记）
     analysis_type = Column(String(50), nullable=False, default="retrospective", server_default="retrospective")
-    disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="SET NULL"), nullable=True)
+    disease_id = Column(
+        Integer,
+        ForeignKey(
+            "diseases.id",
+            name="fk_ai_reports_disease",
+            ondelete="RESTRICT",
+        ),
+        nullable=True,
+    )
     operator_case_id = Column(
         Integer,
         ForeignKey("operator_cases.id", ondelete="SET NULL"),

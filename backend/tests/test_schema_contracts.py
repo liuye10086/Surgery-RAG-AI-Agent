@@ -51,6 +51,31 @@ class SchemaContractTests(unittest.TestCase):
             schema,
         )
 
+    def test_clean_install_schema_declares_stable_disease_identity(self):
+        schema = (Path(__file__).resolve().parents[2] / "database/schema.sql").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("code VARCHAR(64) NOT NULL", schema)
+        self.assertIn("operator_enabled BOOLEAN NOT NULL DEFAULT FALSE", schema)
+        self.assertIn("CONSTRAINT uq_diseases_code UNIQUE (code)", schema)
+        self.assertIn("CONSTRAINT ck_diseases_code_format", schema)
+        self.assertNotIn("CHECK (name IN", schema)
+
+    def test_clean_install_schema_restricts_all_disease_foreign_keys(self):
+        schema = (Path(__file__).resolve().parents[2] / "database/schema.sql").read_text(
+            encoding="utf-8"
+        )
+        for constraint_name in (
+            "fk_operator_cases_disease",
+            "fk_case_records_disease",
+            "fk_ai_reports_disease",
+        ):
+            self.assertIn(constraint_name, schema)
+        self.assertEqual(
+            schema.count("REFERENCES diseases(id) ON DELETE RESTRICT"),
+            4,
+        )
+
     def test_clean_install_schema_contains_all_orm_business_columns(self):
         schema = (Path(__file__).resolve().parents[2] / "database/schema.sql").read_text(
             encoding="utf-8"

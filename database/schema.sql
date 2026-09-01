@@ -64,14 +64,18 @@ CREATE TABLE IF NOT EXISTS chunks (
 -- 6. 疾病 / 病例 / 参考范围表（AI 操作者预测分析）
 CREATE TABLE IF NOT EXISTS diseases (
     id SERIAL PRIMARY KEY,
+    code VARCHAR(64) NOT NULL,
     name VARCHAR(200) UNIQUE NOT NULL,
     description TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    operator_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT uq_diseases_code UNIQUE (code),
+    CONSTRAINT ck_diseases_code_format CHECK (code ~ '^[a-z][a-z0-9_]*$')
 );
 
 CREATE TABLE IF NOT EXISTS case_records (
     id SERIAL PRIMARY KEY,
-    disease_id INTEGER NOT NULL REFERENCES diseases(id) ON DELETE CASCADE,
+    disease_id INTEGER NOT NULL CONSTRAINT fk_case_records_disease REFERENCES diseases(id) ON DELETE RESTRICT,
     patient_label VARCHAR(100),
     indicators JSONB NOT NULL DEFAULT '[]',
     confirmed BOOLEAN NOT NULL DEFAULT TRUE,
@@ -107,7 +111,7 @@ CREATE INDEX IF NOT EXISTS ix_reference_ranges_indicator ON reference_ranges(ind
 CREATE TABLE IF NOT EXISTS operator_cases (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    disease_id INTEGER NOT NULL REFERENCES diseases(id) ON DELETE CASCADE,
+    disease_id INTEGER NOT NULL CONSTRAINT fk_operator_cases_disease REFERENCES diseases(id) ON DELETE RESTRICT,
     patient_label VARCHAR(100) NOT NULL,
     sex VARCHAR(10),
     age INTEGER,
@@ -151,7 +155,7 @@ CREATE TABLE IF NOT EXISTS ai_reports (
     error_message TEXT,
     download_count INTEGER NOT NULL DEFAULT 0,
     analysis_type VARCHAR(50) NOT NULL DEFAULT 'retrospective',
-    disease_id INTEGER REFERENCES diseases(id) ON DELETE SET NULL,
+    disease_id INTEGER CONSTRAINT fk_ai_reports_disease REFERENCES diseases(id) ON DELETE RESTRICT,
     operator_case_id INTEGER REFERENCES operator_cases(id) ON DELETE SET NULL,
     indicators JSONB DEFAULT '[]',
     prediction_result JSONB DEFAULT '{}',
