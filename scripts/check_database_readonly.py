@@ -23,7 +23,7 @@ REQUIRED_COLUMNS = {
     "messages": {"id", "session_id", "role", "content", "client_request_id"},
     "audit_logs": {"id", "user_id", "session_id", "safety_flags"},
     # AI 操作者纵向病例链路（Alembic 0006/0008）
-    "diseases": {"id", "name"},
+    "diseases": {"id", "code", "name", "operator_enabled"},
     "case_records": {"id", "disease_id", "indicators", "confirmed"},
     "reference_ranges": {
         "id",
@@ -84,6 +84,18 @@ REQUIRED_COLUMNS = {
 }
 REQUIRED_COLUMN_TYPES = {
     ("operator_cases", "age"): "integer",
+    ("diseases", "code"): "character varying",
+    ("diseases", "operator_enabled"): "boolean",
+}
+EXPECTED_BASE_DISEASES = [
+    {"code": "ad", "name": "阿尔茨海默病", "operator_enabled": True},
+    {"code": "fatty_liver", "name": "脂肪肝", "operator_enabled": True},
+]
+EXPECTED_DISEASE_FKS = {
+    "fk_operator_cases_disease",
+    "fk_case_records_disease",
+    "fk_ai_reports_disease",
+    "reference_standards_disease_id_fkey",
 }
 
 
@@ -113,6 +125,29 @@ def collect_checks(connection, code_heads):
         ),
         {"tables": list(REQUIRED_COLUMNS)},
     ).mappings().all()
+    base_diseases = [
+        dict(row)
+        for row in connection.execute(
+            text(
+                "SELECT code, name, operator_enabled FROM diseases "
+                "WHERE code IN ('ad', 'fatty_liver') ORDER BY code"
+            )
+        ).mappings().all()
+    ]
+    disease_fk_rows = connection.execute(
+        text(
+            "SELECT constraint_name, delete_rule "
+            "FROM information_schema.referential_constraints "
+            "WHERE constraint_schema = 'public' "
+            "AND constraint_name = ANY(:constraint_names) "
+            "ORDER BY constraint_name"
+        ),
+        {"constraint_names": sorted(EXPECTED_DISEASE_FKS)},
+    ).mappings().all()
+    disease_fk_rules = {
+        row["constraint_name"]: row["delete_rule"]
+        for row in disease_fk_rows
+    }
     actual_columns = {}
     for row in column_rows:
         actual_columns.setdefault(row["table_name"], set()).add(row["column_name"])
@@ -137,12 +172,19 @@ def collect_checks(connection, code_heads):
         if actual_types.get((table_name, column_name)) != expected
     ]
     revision_matches = revision in code_heads and len(code_heads) == 1
+    base_diseases_match = base_diseases == EXPECTED_BASE_DISEASES
+    disease_fk_rules_match = (
+        set(disease_fk_rules) == EXPECTED_DISEASE_FKS
+        and all(rule == "RESTRICT" for rule in disease_fk_rules.values())
+    )
     status = (
         "PASS"
         if not missing_extensions
         and not missing_columns
         and not column_type_mismatches
         and revision_matches
+        and base_diseases_match
+        and disease_fk_rules_match
         else "FAIL"
     )
     return {
@@ -155,6 +197,10 @@ def collect_checks(connection, code_heads):
         "missing_extensions": missing_extensions,
         "missing_columns": missing_columns,
         "column_type_mismatches": column_type_mismatches,
+        "base_diseases": base_diseases,
+        "base_diseases_match": base_diseases_match,
+        "disease_fk_rules": disease_fk_rules,
+        "disease_fk_rules_match": disease_fk_rules_match,
     }
 
 

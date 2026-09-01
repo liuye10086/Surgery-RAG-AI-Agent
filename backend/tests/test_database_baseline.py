@@ -30,9 +30,24 @@ class _FakeResult:
 
 
 class _FakeConnection:
-    def __init__(self, operator_case_age_type="integer"):
+    def __init__(
+        self,
+        operator_case_age_type="integer",
+        diseases=None,
+        disease_fk_rules=None,
+    ):
         self.statements = []
         self.operator_case_age_type = operator_case_age_type
+        self.diseases = diseases or [
+            {"code": "ad", "name": "阿尔茨海默病", "operator_enabled": True},
+            {"code": "fatty_liver", "name": "脂肪肝", "operator_enabled": True},
+        ]
+        self.disease_fk_rules = disease_fk_rules or {
+            "fk_operator_cases_disease": "RESTRICT",
+            "fk_case_records_disease": "RESTRICT",
+            "fk_ai_reports_disease": "RESTRICT",
+            "reference_standards_disease_id_fkey": "RESTRICT",
+        }
 
     def execute(self, statement, parameters=None):
         sql = str(statement)
@@ -57,12 +72,25 @@ class _FakeConnection:
                     "data_type": (
                         self.operator_case_age_type
                         if (table_name, column_name) == ("operator_cases", "age")
+                        else "character varying"
+                        if (table_name, column_name) == ("diseases", "code")
+                        else "boolean"
+                        if (table_name, column_name) == ("diseases", "operator_enabled")
                         else "text"
                     ),
                 }
                 for table_name, columns in _load_checker().REQUIRED_COLUMNS.items()
                 for column_name in columns
             ])
+        if "FROM diseases" in sql:
+            return _FakeResult(self.diseases)
+        if "information_schema.referential_constraints" in sql:
+            return _FakeResult(
+                [
+                    {"constraint_name": name, "delete_rule": rule}
+                    for name, rule in self.disease_fk_rules.items()
+                ]
+            )
         raise AssertionError(f"unexpected SQL: {sql}")
 
 
@@ -109,6 +137,57 @@ class DatabaseBaselineTests(unittest.TestCase):
                 }
             ],
         )
+        self.assertEqual(report["status"], "FAIL")
+
+    def test_checker_requires_stable_disease_columns_and_types(self):
+        checker = _load_checker()
+        self.assertTrue(
+            {"id", "code", "name", "operator_enabled"}.issubset(
+                checker.REQUIRED_COLUMNS["diseases"]
+            )
+        )
+        self.assertEqual(
+            checker.REQUIRED_COLUMN_TYPES[("diseases", "code")],
+            "character varying",
+        )
+        self.assertEqual(
+            checker.REQUIRED_COLUMN_TYPES[("diseases", "operator_enabled")],
+            "boolean",
+        )
+
+    def test_checker_validates_base_diseases_and_restrictive_foreign_keys(self):
+        checker = _load_checker()
+        report = checker.collect_checks(_FakeConnection(), {"test-head"})
+
+        self.assertEqual(report["base_diseases"], [
+            {"code": "ad", "name": "阿尔茨海默病", "operator_enabled": True},
+            {"code": "fatty_liver", "name": "脂肪肝", "operator_enabled": True},
+        ])
+        self.assertTrue(report["base_diseases_match"])
+        self.assertEqual(set(report["disease_fk_rules"].values()), {"RESTRICT"})
+        self.assertTrue(report["disease_fk_rules_match"])
+        self.assertEqual(report["status"], "PASS")
+
+    def test_checker_fails_for_disabled_base_disease_or_cascade_fk(self):
+        checker = _load_checker()
+        report = checker.collect_checks(
+            _FakeConnection(
+                diseases=[
+                    {"code": "ad", "name": "阿尔茨海默病", "operator_enabled": False},
+                    {"code": "fatty_liver", "name": "脂肪肝", "operator_enabled": True},
+                ],
+                disease_fk_rules={
+                    "fk_operator_cases_disease": "CASCADE",
+                    "fk_case_records_disease": "RESTRICT",
+                    "fk_ai_reports_disease": "RESTRICT",
+                    "reference_standards_disease_id_fkey": "RESTRICT",
+                },
+            ),
+            {"test-head"},
+        )
+
+        self.assertFalse(report["base_diseases_match"])
+        self.assertFalse(report["disease_fk_rules_match"])
         self.assertEqual(report["status"], "FAIL")
 
 
