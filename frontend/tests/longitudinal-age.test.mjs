@@ -15,8 +15,9 @@ test('longitudinal case contracts carry a required integer age when saving', asy
   ])
 
   assert.match(api, /interface LongitudinalCase[\s\S]*?age:\s*number\s*\|\s*null/)
-  assert.match(api, /createLongitudinalCase\(data:\s*\{[\s\S]*?age:\s*number/)
-  assert.match(store, /saveLongitudinalCase\(data:\s*\{[\s\S]*?age:\s*number/)
+  assert.match(api, /interface LongitudinalCaseCreatePayload[\s\S]*?age:\s*number/)
+  assert.match(api, /createLongitudinalCase\(data:\s*LongitudinalCaseCreatePayload/)
+  assert.match(store, /saveLongitudinalCase\(data:\s*LongitudinalCaseCreatePayload/)
   assert.match(view, /age:\s*draft\.age/)
   assert.match(view, /Number\.isInteger\(draft\.age\)/)
   assert.match(view, /请填写0–120岁的整数年龄/)

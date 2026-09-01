@@ -1,24 +1,5 @@
 <template>
   <div class="case-manage-view">
-    <!-- 疾病管理区 -->
-    <div class="manage-section">
-      <h4>疾病字典</h4>
-      <div class="disease-add">
-        <el-input v-model="newDiseaseName" placeholder="新疾病名称" style="width: 220px" />
-        <el-button type="primary" size="small" :disabled="!newDiseaseName.trim()" @click="handleAddDisease">新增</el-button>
-      </div>
-      <el-table :data="operatorStore.diseases" size="small">
-        <el-table-column prop="name" label="疾病" />
-        <el-table-column prop="case_count" label="病例数" width="90" />
-        <el-table-column label="操作" width="140">
-          <template #default="{ row }">
-            <el-button :icon="Edit" text size="small" @click="openDiseaseEdit(row)" />
-            <el-button :icon="Delete" text size="small" @click="handleDeleteDisease(row)" />
-          </template>
-        </el-table-column>
-      </el-table>
-    </div>
-
     <!-- 病例管理区 -->
     <div class="manage-section">
       <h4>病例库（{{ operatorStore.cases.length }}）</h4>
@@ -55,22 +36,6 @@
       </el-table>
     </div>
 
-    <!-- 疾病编辑弹窗 -->
-    <el-dialog v-model="diseaseEditVisible" title="编辑疾病" width="420px">
-      <el-form label-width="70px">
-        <el-form-item label="名称">
-          <el-input v-model="diseaseForm.name" maxlength="200" />
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="diseaseForm.description" type="textarea" :rows="3" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="diseaseEditVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="!diseaseForm.name.trim()" @click="saveDisease">保存</el-button>
-      </template>
-    </el-dialog>
-
     <!-- 病例新增/编辑弹窗 -->
     <el-dialog v-model="caseFormVisible" :title="editingCaseId ? '编辑病例' : '新增病例'" width="560px">
       <el-form label-width="80px">
@@ -104,24 +69,14 @@ import { Edit, Delete } from '@element-plus/icons-vue'
 import IndicatorRowsEditor from '@/components/IndicatorRowsEditor.vue'
 import { useOperatorStore } from '@/stores/operator'
 import {
-  createDisease,
-  updateDisease,
-  deleteDisease,
   createCase,
   updateCase,
   deleteCase,
   type CaseRecord,
-  type Disease,
   type IndicatorInput,
 } from '@/api/operator'
 
 const operatorStore = useOperatorStore()
-
-// ===== 疾病 =====
-const newDiseaseName = ref('')
-const diseaseEditVisible = ref(false)
-const editingDiseaseId = ref<number | null>(null)
-const diseaseForm = reactive<{ name: string; description: string }>({ name: '', description: '' })
 
 // ===== 病例 =====
 const caseFilterDiseaseId = ref<number | null>(null)
@@ -140,61 +95,6 @@ const canSaveCase = computed(() => {
     (r) => r.name.trim() && r.value !== null && r.value !== undefined && r.unit.trim(),
   )
 })
-
-async function handleAddDisease() {
-  const name = newDiseaseName.value.trim()
-  if (!name) return
-  try {
-    await createDisease({ name })
-    ElMessage.success('疾病已新增')
-    newDiseaseName.value = ''
-    await operatorStore.fetchDiseases()
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.detail || '新增疾病失败')
-  }
-}
-
-function openDiseaseEdit(row: Disease) {
-  editingDiseaseId.value = row.id
-  diseaseForm.name = row.name
-  diseaseForm.description = row.description || ''
-  diseaseEditVisible.value = true
-}
-
-async function saveDisease() {
-  if (editingDiseaseId.value === null) return
-  try {
-    await updateDisease(editingDiseaseId.value, {
-      name: diseaseForm.name.trim(),
-      description: diseaseForm.description || undefined,
-    })
-    ElMessage.success('疾病已更新')
-    diseaseEditVisible.value = false
-    await operatorStore.fetchDiseases()
-    await loadCases()
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.detail || '更新疾病失败')
-  }
-}
-
-async function handleDeleteDisease(row: Disease) {
-  try {
-    await ElMessageBox.confirm(`确定删除疾病「${row.name}」？`, '确认删除', {
-      type: 'warning',
-    })
-    await deleteDisease(row.id)
-    ElMessage.success('疾病已删除')
-    if (caseFilterDiseaseId.value === row.id) {
-      caseFilterDiseaseId.value = null
-    }
-    await operatorStore.fetchDiseases()
-    await loadCases()
-  } catch (e: any) {
-    if (e !== 'cancel') {
-      ElMessage.error(e?.response?.data?.detail || '删除疾病失败')
-    }
-  }
-}
 
 async function loadCases() {
   await operatorStore.fetchCases(caseFilterDiseaseId.value || undefined)
@@ -246,8 +146,6 @@ async function saveCase() {
     }
     caseFormVisible.value = false
     await loadCases()
-    // case_count 是实时聚合字段，新增/编辑（含迁移疾病、确诊状态变化）后刷新疾病字典
-    await operatorStore.fetchDiseases()
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.detail || '保存病例失败')
   }
@@ -261,7 +159,6 @@ async function handleDeleteCase(row: CaseRecord) {
     await deleteCase(row.id)
     ElMessage.success('病例已删除')
     await loadCases()
-    await operatorStore.fetchDiseases()
   } catch (e: any) {
     if (e !== 'cancel') {
       ElMessage.error(e?.response?.data?.detail || '删除病例失败')
@@ -297,7 +194,6 @@ onMounted(async () => {
   color: var(--text-secondary);
 }
 
-.disease-add,
 .case-toolbar,
 .sync-toolbar {
   display: flex;

@@ -19,6 +19,8 @@ test('editor exposes disease-aware canonical baseline stages', async () => {
     'pre_dementia',
     'dementia',
   ]) assert.match(editor, new RegExp(value))
+  assert.match(editor, /stageOptionsByCode/)
+  assert.match(editor, /selectedDisease\.value\?\.code/)
   assert.match(editor, /aria-label="基线阶段"/)
 })
 
@@ -29,7 +31,10 @@ test('case save persists baseline_stage', async () => {
     readFile(apiPath, 'utf8'),
   ])
   assert.match(view, /baseline_stage:\s*draft\.baseline_stage/)
-  assert.match(store, /baseline_stage\?:/)
+  assert.match(store, /LongitudinalCaseCreatePayload/)
+  assert.match(store, /LongitudinalCaseUpdatePayload/)
+  assert.match(api, /export interface LongitudinalCaseCreatePayload[\s\S]*?baseline_stage\?:/)
+  assert.match(api, /export interface LongitudinalCaseUpdatePayload[\s\S]*?baseline_stage\?:/)
   assert.match(api, /export type BaselineStage/)
 })
 

@@ -94,11 +94,7 @@ const operatorStore = useOperatorStore()
 
 const sidebarCollapsed = ref(localStorage.getItem('operator_sidebar_collapsed') === 'true')
 const activeView = ref<'progression' | 'cases'>('progression')
-const progressionDiseases = computed(() =>
-  operatorStore.diseases.filter((disease) =>
-    disease.name === '脂肪肝' || disease.name === '阿尔茨海默病'
-  )
-)
+const progressionDiseases = computed(() => operatorStore.diseases)
 
 const reportReadingMode = computed(() =>
   activeView.value === 'progression'
@@ -153,6 +149,10 @@ function isValidIndicator(row: IndicatorInput) {
 
 async function handleLongitudinalCaseSaved(draft: any) {
   try {
+    if (operatorStore.currentLongitudinalCase?.disease.operator_enabled === false) {
+      ElMessage.error('该疾病已停用，病例当前只读')
+      return
+    }
     if (!Number.isInteger(draft.age) || draft.age < 0 || draft.age > 120) {
       ElMessage.error('请填写0–120岁的整数年龄')
       return
@@ -175,6 +175,10 @@ async function handleLongitudinalCaseSaved(draft: any) {
         notes: visit.notes || null,
       }))
     const saved = await operatorStore.saveLongitudinalCase({ disease_id: draft.disease_id, patient_label: draft.patient_label, age: draft.age, sex: draft.sex, baseline_stage: draft.baseline_stage || null, visits })
+    if (saved.disease.operator_enabled === false) {
+      ElMessage.error('该疾病已停用，病例当前只读')
+      return
+    }
     operatorStore.generateLongitudinalReport(saved.id)
     ElMessage.success('已开始生成纵向预测报告')
   } catch (error: any) {

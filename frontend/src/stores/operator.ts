@@ -18,6 +18,8 @@ import {
   type CaseRecord,
   type IndicatorInput,
   type LongitudinalCase,
+  type LongitudinalCaseCreatePayload,
+  type LongitudinalCaseUpdatePayload,
   type LongitudinalPrediction,
 } from '@/api/operator'
 
@@ -101,11 +103,16 @@ export const useOperatorStore = defineStore('operator', () => {
     if (!currentLongitudinalCase.value && result.cases.length) currentLongitudinalCase.value = result.cases[0]
   }
 
-  async function saveLongitudinalCase(data: { disease_id: number; patient_label: string; age: number; sex?: string | null; baseline_stage?: import('@/api/operator').BaselineStage | null; notes?: string | null; visits?: Array<{ visit_date: string; indicators: IndicatorInput[]; notes?: string | null }> }) {
-    const { visits, ...caseData } = data
-    const saved = currentLongitudinalCase.value?.id
-      ? await updateLongitudinalCase(currentLongitudinalCase.value.id, caseData)
-      : await createLongitudinalCase(caseData)
+  async function saveLongitudinalCase(data: LongitudinalCaseCreatePayload & { visits?: Array<{ visit_date: string; indicators: IndicatorInput[]; notes?: string | null }> }) {
+    const { visits, disease_id, ...caseFields } = data
+    let saved: LongitudinalCase
+    if (currentLongitudinalCase.value?.id) {
+      const updatePayload: LongitudinalCaseUpdatePayload = caseFields
+      saved = await updateLongitudinalCase(currentLongitudinalCase.value.id, updatePayload)
+    } else {
+      const createPayload: LongitudinalCaseCreatePayload = { disease_id, ...caseFields }
+      saved = await createLongitudinalCase(createPayload)
+    }
     if (visits) saved.visits = await replaceLongitudinalVisits(saved.id, visits)
     currentLongitudinalCase.value = saved
     longitudinalCases.value = [currentLongitudinalCase.value, ...longitudinalCases.value.filter((item) => item.id !== currentLongitudinalCase.value?.id)]
