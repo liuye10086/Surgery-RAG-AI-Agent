@@ -11,7 +11,7 @@ cd backend
 alembic upgrade head
 ```
 
-Alembic 管理 `vector`、`uuid-ossp`、`pg_trgm` 扩展和以下 6 张业务表：
+Alembic 管理 `vector`、`uuid-ossp`、`pg_trgm` 扩展和当前业务表结构（基础用户/文档/会话表、AI 操作者病例/访视/报告表，以及标准版本化相关表）：
 
 | 表 | 说明 |
 | --- | --- |
@@ -22,13 +22,19 @@ Alembic 管理 `vector`、`uuid-ossp`、`pg_trgm` 扩展和以下 6 张业务表
 | `messages` | 对话消息、LangChain 标准消息和引用来源 |
 | `audit_logs` | RAG 请求、安全标记和响应审计 |
 
+AI 操作者链路还包括 `diseases`、`case_records`、`reference_ranges`、
+`operator_cases`、`operator_case_visits`、`ai_reports`；标准版本化链路还包括
+`reference_standards`、`standard_documents`、`reference_standard_versions`、
+`standard_indicators`、`standard_segments`、`standard_parse_candidates`、
+`standard_rules`、`standard_rule_conditions`、`standard_change_logs`。
+
 `langchain_pg_collection`、`langchain_pg_embedding` 是 `langchain-postgres` 的内部表，由应用和依赖库管理，不纳入 Alembic 迁移。向量表 `document` 列上的全文检索索引由程序维护。
 
 ## 本目录文件职责
 
 | 文件 | 作用 |
 | --- | --- |
-| `schema.sql` | 当前业务结构的人工核对参考快照，不是正式建库入口 |
+| `schema.sql` | Alembic 当前 head 的人工核对参考快照，不是正式建库入口 |
 
 所有正式版本变更都位于 `backend/alembic/versions/`。如参考快照与 Alembic 迁移链不一致，以 Alembic 最新 head 为准，并同步修正快照。
 

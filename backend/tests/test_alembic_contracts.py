@@ -390,6 +390,22 @@ class AlembicContractTests(unittest.TestCase):
         self.assertIn("'[]'::jsonb", source)
         self.assertIn("'{}'::jsonb", source)
 
+    def test_ai_report_orm_matches_final_migration_nullability(self):
+        from app.db.models import AIReport
+
+        cols = {c.name: c for c in AIReport.__table__.columns}
+        for name in (
+            "department_ids",
+            "content",
+            "sources",
+            "retrieval_meta",
+            "status",
+            "download_count",
+            "created_at",
+            "updated_at",
+        ):
+            self.assertFalse(cols[name].nullable, name)
+
 
 if __name__ == "__main__":
     unittest.main()

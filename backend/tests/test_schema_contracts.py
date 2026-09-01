@@ -3,6 +3,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from app.db.base import Base
 from app.db.models import Chunk, Document, Message
 from app.schemas.chat import AskRequest
 
@@ -49,6 +50,23 @@ class SchemaContractTests(unittest.TestCase):
             "REFERENCES diseases(id) ON DELETE RESTRICT",
             schema,
         )
+
+    def test_clean_install_schema_contains_all_orm_business_columns(self):
+        schema = (Path(__file__).resolve().parents[2] / "database/schema.sql").read_text(
+            encoding="utf-8"
+        )
+        for table in Base.metadata.tables.values():
+            table_match = schema.find(f"CREATE TABLE IF NOT EXISTS {table.name} (")
+            self.assertGreaterEqual(table_match, 0, table.name)
+            table_end = schema.find("\n);", table_match)
+            self.assertGreater(table_end, table_match, table.name)
+            table_sql = schema[table_match:table_end]
+            for column in table.columns:
+                self.assertRegex(
+                    table_sql,
+                    rf"(?m)^    {column.name}\s+",
+                    f"{table.name}.{column.name}",
+                )
 
 
 if __name__ == "__main__":

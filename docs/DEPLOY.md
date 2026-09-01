@@ -106,7 +106,7 @@ source venv/bin/activate
 alembic upgrade head
 ```
 
-Alembic 会创建 `vector`、`uuid-ossp`、`pg_trgm` 扩展和以下 6 张业务表：
+Alembic 会创建 `vector`、`uuid-ossp`、`pg_trgm` 扩展及当前版本的全部业务表（基础用户/文档/会话表、AI 操作者病例/访视/报告表、标准版本化相关表）：
 
 | 表名 | 用途 |
 |------|------|
@@ -116,6 +116,12 @@ Alembic 会创建 `vector`、`uuid-ossp`、`pg_trgm` 扩展和以下 6 张业务
 | `sessions` | 对话会话 |
 | `messages` | 会话消息（含 LangChain 标准格式 lc_message、引用来源 sources） |
 | `audit_logs` | 审计日志（请求体、检索片段 ID、安全标记） |
+
+AI 操作者和标准版本化相关表包括：`diseases`、`case_records`、`reference_ranges`、
+`operator_cases`、`operator_case_visits`、`ai_reports`、`reference_standards`、
+`standard_documents`、`reference_standard_versions`、`standard_indicators`、
+`standard_segments`、`standard_parse_candidates`、`standard_rules`、
+`standard_rule_conditions`、`standard_change_logs`。
 
 > **注意：** 启动后端时，`ensure_vectorstore_tables()` 会自动创建 `langchain_pg_collection` 和 `langchain_pg_embedding` 两张 LangChain PGVector 管理表，并在 embedding 表的 `document` 列上创建 pg_trgm GIN 索引。无需手动干预。
 
@@ -127,7 +133,7 @@ Alembic 会创建 `vector`、`uuid-ossp`、`pg_trgm` 扩展和以下 6 张业务
 PGPASSWORD='your_password' psql -h localhost -U surgery_user -d surgery_rag -c "\dt"
 ```
 
-预期输出至少包含：`users`、`documents`、`chunks`、`sessions`、`messages`、`audit_logs`。
+预期输出至少包含上述基础表，以及 AI 操作者和标准版本化相关表。
 
 ---
 

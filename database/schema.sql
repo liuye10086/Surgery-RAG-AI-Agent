@@ -93,6 +93,11 @@ CREATE TABLE IF NOT EXISTS reference_ranges (
     sex VARCHAR(10),
     category VARCHAR(100),
     document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
+    standard_id INTEGER,
+    standard_version_id INTEGER,
+    standard_rule_id INTEGER,
+    applicability_hash VARCHAR(64),
+    is_current_projection BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -135,13 +140,13 @@ CREATE TABLE IF NOT EXISTS ai_reports (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(500),
     query TEXT NOT NULL,
-    department_ids JSONB DEFAULT '[]',
+    department_ids JSONB NOT NULL DEFAULT '[]',
     content TEXT NOT NULL DEFAULT '',
-    sources JSONB DEFAULT '[]',
-    retrieval_meta JSONB DEFAULT '{}',
-    status VARCHAR(50) DEFAULT 'generating',
+    sources JSONB NOT NULL DEFAULT '[]',
+    retrieval_meta JSONB NOT NULL DEFAULT '{}',
+    status VARCHAR(50) NOT NULL DEFAULT 'generating',
     error_message TEXT,
-    download_count INTEGER DEFAULT 0,
+    download_count INTEGER NOT NULL DEFAULT 0,
     analysis_type VARCHAR(50) NOT NULL DEFAULT 'retrospective',
     disease_id INTEGER REFERENCES diseases(id) ON DELETE SET NULL,
     operator_case_id INTEGER REFERENCES operator_cases(id) ON DELETE SET NULL,
@@ -440,6 +445,14 @@ ALTER TABLE reference_ranges
     ADD COLUMN IF NOT EXISTS standard_rule_id INTEGER REFERENCES standard_rules(id) ON DELETE SET NULL,
     ADD COLUMN IF NOT EXISTS applicability_hash VARCHAR(64),
     ADD COLUMN IF NOT EXISTS is_current_projection BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE reference_ranges
+    ADD CONSTRAINT fk_reference_ranges_standard
+        FOREIGN KEY (standard_id) REFERENCES reference_standards(id) ON DELETE SET NULL,
+    ADD CONSTRAINT fk_reference_ranges_standard_version
+        FOREIGN KEY (standard_version_id) REFERENCES reference_standard_versions(id) ON DELETE SET NULL,
+    ADD CONSTRAINT fk_reference_ranges_standard_rule
+        FOREIGN KEY (standard_rule_id) REFERENCES standard_rules(id) ON DELETE SET NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_reference_ranges_current_projection
 ON reference_ranges(standard_id, indicator_name, sex, category, applicability_hash)

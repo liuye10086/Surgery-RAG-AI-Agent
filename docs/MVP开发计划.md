@@ -90,7 +90,7 @@
 | 层级 | 选型 | 理由 |
 | ------ | ------ | ------ |
 | 后端框架 | FastAPI + Pydantic v2 | 异步原生、自动 OpenAPI、SSE 流式友好、适合单人快速开发 |
-| ORM / 迁移 | SQLAlchemy 1.x 声明式 + Alembic | 当前代码使用 `Column(...)` 声明式；`backend/alembic/` 完整管理 6 张业务表和数据库扩展，旧 SQL 仅作历史参考 |
+| ORM / 迁移 | SQLAlchemy 1.x 声明式 + Alembic | 当前代码使用 `Column(...)` 声明式；`backend/alembic/` 完整管理当前全部业务表和数据库扩展，旧 SQL 仅作历史参考 |
 | 认证 | python-jose + passlib | JWT 方案轻量 |
 | 数据库 | PostgreSQL 18.1 + pgvector（与 15+ 兼容） | 用户已本地安装 PostgreSQL 18.1；关系数据与向量存储一体 |
 | 文档解析 | pymupdf、python-docx、PaddleOCR | 分别覆盖 PDF、Word、图片中文 OCR |
