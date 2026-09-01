@@ -141,7 +141,7 @@ PGPASSWORD='your_password' psql -h localhost -U surgery_user -d surgery_rag -c "
 
 ### 数据库迁移
 
-新数据库直接执行：
+新数据库或日常升级均使用 Alembic；`database/schema.sql` 只用于人工核对，不能在既有生产库执行：
 
 ```bash
 cd backend
@@ -166,6 +166,30 @@ alembic current
 ```
 
 不得默认所有旧数据库都可直接 stamp `0001`。如果结构不一致、版本无法确认或存在空值，停止接入并先人工核查；迁移不会自动删除或修复业务数据。日常升级统一执行 `alembic upgrade head`。需要回退时，先备份数据库并查看当前版本，再按迁移版本逐级执行 `alembic downgrade <revision>`；不要在生产库直接使用 `downgrade base`。
+
+#### 疾病许可迁移（0014）
+
+`0014` 增加稳定疾病代码和 AI 操作者许可开关，并把病例、参考病例和报告对疾病的外键删除策略改为 `RESTRICT`。升级到该版本前必须执行专用只读预检，不能直接跳过：
+
+```text
+备份数据库
+→ python scripts/check_operator_disease_migration_readonly.py
+→ 人工确认 status=PASS，并确认 mode 为 empty_initialize 或 existing_backfill
+→ cd backend && alembic upgrade head
+→ python ../scripts/check_database_readonly.py
+→ 重启后端
+→ 对 AD 和脂肪肝分别执行病例读取、病例写入和报告生成冒烟验证
+```
+
+执行边界：
+
+- `empty_initialize` 只适用于疾病目录和四类疾病关联业务数据均为空的新库。
+- `existing_backfill` 要求既有库恰好只有“阿尔茨海默病”和“脂肪肝”。疾病缺失、名称异常或存在第三种疾病时，预检或迁移会失败，必须停止发布并人工核查。
+- 未知生产库不得执行 `stamp`，不得用 `stamp` 绕过 `0014` 的 revision 和疾病数据检查。
+- 既有生产库不得运行 `database/schema.sql`；正式结构变更只通过 Alembic 执行。
+- 停用疾病是可逆操作，不删除历史病例、报告或 PDF；停用期间既有数据只读。
+- 只有 `operator_cases`、`case_records`、`ai_reports`、`reference_standards` 四类使用计数全部为零时，才允许物理删除疾病。
+- 生产回退前必须备份并停止写入。`0014` downgrade 不删除业务数据，但会恢复旧外键规则；回退后仍不得删除已被引用的疾病。
 
 文档重新处理采用版本化切换：新分块、向量和图片全部构建成功后才替换当前代次；构建失败时原代次继续提供服务。新图片目录格式为：
 
