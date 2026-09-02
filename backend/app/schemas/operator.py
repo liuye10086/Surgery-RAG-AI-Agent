@@ -24,6 +24,7 @@ class ReportOut(BaseModel):
     analysis_type: str = "retrospective"
     disease_id: Optional[int] = None
     operator_case_id: Optional[int] = None
+    anonymous_case_code: Optional[str] = None
     indicators: list[dict] = []
     prediction_result: dict = {}
     input_snapshot: dict | None = None
@@ -48,6 +49,7 @@ class ReportListItem(BaseModel):
     analysis_type: str = "retrospective"
     disease_id: Optional[int] = None
     operator_case_id: Optional[int] = None
+    anonymous_case_code: Optional[str] = None
     indicators: list[dict] = []
     prediction_result: dict = {}
     input_snapshot: dict | None = None

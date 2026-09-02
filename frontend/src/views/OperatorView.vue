@@ -67,7 +67,7 @@
                 <el-option
                   v-for="item in operatorStore.longitudinalCases"
                   :key="item.id"
-                  :label="`${item.patient_label}（${caseStatusLabel(item.status)}）`"
+                  :label="`${item.anonymous_case_code || '旧病例未设置匿名编号'}（${caseStatusLabel(item.status)}）`"
                   :value="item.id"
                 />
               </el-select>
@@ -200,7 +200,7 @@ async function handleLongitudinalCaseSaved(draft: any) {
         })),
         notes: visit.notes || null,
       }))
-    const saved = await operatorStore.saveLongitudinalCase({ disease_id: draft.disease_id, patient_label: draft.patient_label, age: draft.age, sex: draft.sex, baseline_stage: draft.baseline_stage || null, visits })
+    const saved = await operatorStore.saveLongitudinalCase({ disease_id: draft.disease_id, age: draft.age, sex: draft.sex, baseline_stage: draft.baseline_stage || null, visits })
     if (saved.disease.operator_enabled === false) {
       ElMessage.error('该疾病已停用，病例当前只读')
       return
@@ -251,7 +251,7 @@ function selectLongitudinalCase(caseId: number) {
 async function handleDownload() {
   if (!operatorStore.currentReport) return
   try {
-    const filename = `${operatorStore.currentReport.title || '分析报告'}.pdf`
+    const filename = `${operatorStore.currentReport.anonymous_case_code || `report-${operatorStore.currentReport.id}`}.pdf`
     await downloadReport(operatorStore.currentReport.id, filename)
   } catch (e: any) {
     ElMessage.error(e.message || '下载失败')

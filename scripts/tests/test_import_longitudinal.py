@@ -305,6 +305,35 @@ class ImportLongitudinalTests(unittest.TestCase):
             by_label["P001"].case_metadata["source_dataset"], "longitudinal_300"
         )
 
+    def test_import_assigns_one_anonymous_code_per_patient_without_changing_group_label(self):
+        CaseRecord, _ = import_helpers()
+        db = make_sqlite_db()
+        patients = [{"patient_id": "P001", "age": "60", "sex": "female",
+                     "cohort_group": "fatty_liver_progression", "final_stage": "cirrhosis"}]
+        visits = [
+            {"patient_id": "P001", "visit_date": "2019-01-01", "alt": "20"},
+            {"patient_id": "P001", "visit_date": "2020-01-01", "alt": "30"},
+        ]
+        self.importer.import_dataset(db, "fatty_liver", patients=patients, visits=visits, source_documents={})
+        db.commit()
+        rows = db.query(CaseRecord).all()
+        self.assertEqual({row.patient_label for row in rows}, {"P001"})
+        self.assertEqual(len({row.anonymous_case_code for row in rows}), 1)
+        self.assertRegex(rows[0].anonymous_case_code, r"^CASE-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$")
+
+    def test_reimport_reuses_existing_anonymous_code_for_same_patient(self):
+        CaseRecord, _ = import_helpers()
+        db = make_sqlite_db()
+        patients = [{"patient_id": "P001", "age": "60", "sex": "female", "cohort_group": "x", "final_stage": "cirrhosis"}]
+        first = [{"patient_id": "P001", "visit_date": "2019-01-01", "alt": "20"}]
+        second = first + [{"patient_id": "P001", "visit_date": "2020-01-01", "alt": "30"}]
+        self.importer.import_dataset(db, "fatty_liver", patients=patients, visits=first, source_documents={})
+        db.commit()
+        original = db.query(CaseRecord).first().anonymous_case_code
+        self.importer.import_dataset(db, "fatty_liver", patients=patients, visits=second, source_documents={})
+        db.commit()
+        self.assertEqual({row.anonymous_case_code for row in db.query(CaseRecord).all()}, {original})
+
     def test_reset_removes_only_that_dataset(self):
         CaseRecord, _ = import_helpers()
         db = make_sqlite_db()

@@ -371,7 +371,8 @@ async def create_longitudinal_report(
         sources = []
     options = (request or LongitudinalReportRequest()).model_options
     snapshot = build_input_snapshot(case, case.visits, options)
-    report = AIReport(user_id=current_user.id, operator_case_id=case.id, disease_id=case.disease_id, query=case.patient_label, title=f"{case.patient_label}纵向进展预测报告", indicators=[], analysis_type="longitudinal_predictive", status="generating", input_snapshot=snapshot)
+    anonymous_code = getattr(case, "anonymous_case_code", None) or "旧病例未设置匿名编号"
+    report = AIReport(user_id=current_user.id, operator_case_id=case.id, disease_id=case.disease_id, query=anonymous_code, title=f"{anonymous_code}纵向进展预测报告", indicators=[], analysis_type="longitudinal_predictive", status="generating", input_snapshot=snapshot)
     db.add(report)
     db.commit()
     db.refresh(report)
@@ -488,10 +489,24 @@ def download_report_pdf(
             detail="报告内容为空，无法生成 PDF",
         )
 
-    title = report.title or "分析报告"
+    anonymous_code = (
+        getattr(report, "anonymous_case_code", None)
+        or getattr(getattr(report, "operator_case", None), "anonymous_case_code", None)
+        or (getattr(report, "input_snapshot", None) or {}).get("anonymous_case_code")
+    )
+    # 新报告使用匿名病例编号；历史报告没有编号时只使用固定报告编号，
+    # 避免把旧 title/query 中可能存在的身份信息带入下载文件名或 PDF 元数据。
+    safe_title = (
+        f"{anonymous_code}纵向进展预测报告"
+        if anonymous_code
+        else f"报告-{report_id}"
+    )
+    # 历史报告的正文与既有 PDF 内容保持只读兼容；文件名单独使用安全标题。
+    title = getattr(report, "title", None) or safe_title
+    pdf_title = safe_title if anonymous_code else title
 
     try:
-        pdf_bytes = generate_pdf(report.content, title, report.prediction_result)
+        pdf_bytes = generate_pdf(report.content, pdf_title, report.prediction_result)
     except RuntimeError:
         logger.warning("PDF generation failed for report_id=%s", report_id)
         raise HTTPException(
@@ -506,7 +521,7 @@ def download_report_pdf(
     # 构建安全 Content-Disposition（RFC 5987：ASCII fallback + UTF-8 编码文件名）
     safe_filename = f"report-{report_id}.pdf"
     clean_title = title.replace("\r", "").replace("\n", "").replace('"', "").strip()
-    encoded_title = urllib.parse.quote(f"{clean_title}.pdf", safe="")
+    encoded_title = urllib.parse.quote(f"{safe_title}.pdf", safe="")
     content_disposition = (
         f'attachment; filename="{safe_filename}"; '
         f"filename*=UTF-8''{encoded_title}"
@@ -561,9 +576,11 @@ def create_case(
 ):
     if not db.query(Disease).filter(Disease.id == payload.disease_id).first():
         raise HTTPException(status_code=422, detail="疾病不存在")
+    from app.services.anonymous_case_code import generate_anonymous_case_code
     c = CaseRecord(
         disease_id=payload.disease_id,
-        patient_label=payload.patient_label,
+        patient_label=None,
+        anonymous_case_code=generate_anonymous_case_code(),
         indicators=[i.model_dump() for i in payload.indicators],
         confirmed=payload.confirmed,
         case_metadata=payload.metadata,  # ORM 属性名是 case_metadata
@@ -609,7 +626,7 @@ def update_case(
     if not db.query(Disease).filter(Disease.id == payload.disease_id).first():
         raise HTTPException(status_code=422, detail="疾病不存在")
     c.disease_id = payload.disease_id
-    c.patient_label = payload.patient_label
+    # Legacy patient_label is retained for historical reads but never changed by new writes.
     c.indicators = [i.model_dump() for i in payload.indicators]
     c.confirmed = payload.confirmed
     c.case_metadata = payload.metadata  # ORM 属性名是 case_metadata

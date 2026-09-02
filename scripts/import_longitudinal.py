@@ -219,6 +219,7 @@ def import_dataset(
     加载真实 CSV 与 extracted_cases.json 溯源映射。
     """
     from app.db.models import CaseRecord, Disease
+    from app.services.anonymous_case_code import generate_anonymous_case_code
 
     cfg = DATASETS[dataset]
     dataset_dir = ROOT / cfg["dir"]
@@ -234,13 +235,21 @@ def import_dataset(
         raise ValueError(f"数据库中缺少疾病代码：{cfg['disease_code']}")
 
     existing = _existing_signatures(db, dataset)
+    existing_codes = {}
+    for row in db.query(CaseRecord).all():
+        metadata = row.case_metadata or {}
+        if metadata.get("source_dataset") == cfg["dir"].split("/")[-1] and row.patient_label:
+            if row.anonymous_case_code:
+                existing_codes[row.patient_label] = row.anonymous_case_code
     patient_map = {p["patient_id"]: p for p in patients}
     grouped = group_visits_by_patient(visits)
+    anonymous_codes: dict[str, str] = {}
 
     inserted = 0
     skipped = 0
     for patient_id, patient_rows in sorted(grouped.items()):
         patient = patient_map[patient_id]
+        anonymous_codes[patient_id] = existing_codes.get(patient_id) or generate_anonymous_case_code()
         ordered = sorted(patient_rows, key=lambda r: r["visit_date"])
         total = len(ordered)
         if total < 1:
@@ -260,6 +269,7 @@ def import_dataset(
             record = CaseRecord(
                 disease_id=disease.id,
                 patient_label=patient_id,
+                anonymous_case_code=anonymous_codes[patient_id],
                 indicators=build_indicators(visit, dataset),
                 confirmed=should_mark_confirmed(dataset, patient["final_stage"]),
                 case_metadata=build_case_metadata(

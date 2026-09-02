@@ -43,6 +43,7 @@ REQUIRED_COLUMNS = {
         "user_id",
         "disease_id",
         "patient_label",
+        "anonymous_case_code",
         "sex",
         "age",
         "baseline_stage",
@@ -166,6 +167,39 @@ def _collect_visit_integrity_checks(connection):
         return {"available": False}
 
 
+def _collect_anonymous_code_checks(connection):
+    """仅统计匿名编号格式、重复和空值，不修改任何数据。"""
+    def count(sql):
+        rows = connection.execute(text(sql)).mappings().all()
+        return int(next(iter(rows[0].values()))) if rows else 0
+
+    try:
+        return {
+            "available": True,
+            "operator_case_invalid_format_count": count(
+                "SELECT COUNT(*) AS count FROM operator_cases "
+                "WHERE anonymous_case_code IS NOT NULL "
+                "AND anonymous_case_code !~ '^CASE-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$'"
+            ),
+            "operator_case_duplicate_count": count(
+                "SELECT COUNT(*) AS count FROM (SELECT anonymous_case_code "
+                "FROM operator_cases WHERE anonymous_case_code IS NOT NULL "
+                "GROUP BY anonymous_case_code HAVING COUNT(*) > 1) duplicates"
+            ),
+            "operator_case_null_count": count(
+                "SELECT COUNT(*) AS count FROM operator_cases "
+                "WHERE anonymous_case_code IS NULL"
+            ),
+            "case_record_invalid_format_count": count(
+                "SELECT COUNT(*) AS count FROM case_records "
+                "WHERE anonymous_case_code IS NOT NULL "
+                "AND anonymous_case_code !~ '^CASE-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$'"
+            ),
+        }
+    except Exception:
+        return {"available": False}
+
+
 def collect_checks(connection, code_heads):
     connection.execute(text("SET TRANSACTION READ ONLY"))
     server_version = connection.execute(text("SHOW server_version")).scalar_one_or_none()
@@ -239,12 +273,21 @@ def collect_checks(connection, code_heads):
         and all(rule == "RESTRICT" for rule in disease_fk_rules.values())
     )
     visit_integrity = _collect_visit_integrity_checks(connection)
+    anonymous_code_integrity = _collect_anonymous_code_checks(connection)
     visit_integrity_match = (
         visit_integrity.get("available") is False
         or all(
             value == 0
             for key, value in visit_integrity.items()
             if key.endswith("_count")
+        )
+    )
+    anonymous_code_integrity_match = (
+        anonymous_code_integrity.get("available") is False
+        or all(
+            value == 0
+            for key, value in anonymous_code_integrity.items()
+            if key.endswith("_count") and not key.endswith("_null_count")
         )
     )
     # Keep the baseline checker backwards-compatible with lightweight test
@@ -282,6 +325,7 @@ def collect_checks(connection, code_heads):
         and base_diseases_match
         and disease_fk_rules_match
         and visit_integrity_match
+        and anonymous_code_integrity_match
         and status_constraint_present is not False
         and status_constraint_validated is not False
         and status_audit_table_present is not False
@@ -303,6 +347,8 @@ def collect_checks(connection, code_heads):
         "disease_fk_rules_match": disease_fk_rules_match,
         "visit_integrity": visit_integrity,
         "visit_integrity_match": visit_integrity_match,
+        "anonymous_code_integrity": anonymous_code_integrity,
+        "anonymous_code_integrity_match": anonymous_code_integrity_match,
         "status_constraint_present": status_constraint_present,
         "status_constraint_validated": status_constraint_validated,
         "status_audit_table_present": status_audit_table_present,

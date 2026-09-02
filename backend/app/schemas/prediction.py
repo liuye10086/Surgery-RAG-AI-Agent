@@ -97,6 +97,7 @@ class CaseRecordOut(BaseModel):
     id: int
     disease_id: int
     patient_label: Optional[str]
+    anonymous_case_code: Optional[str] = None
     indicators: list[dict]
     confirmed: bool
     # ORM 属性是 case_metadata（DB 列 metadata），用 validation_alias 桥接，

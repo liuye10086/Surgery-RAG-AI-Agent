@@ -11,7 +11,7 @@
     <div v-if="readOnly" class="read-only-notice" role="status">{{ readOnlyMessage }}</div>
 
     <div class="editor-grid">
-      <el-input v-model="draft.patient_label" :disabled="readOnly" placeholder="病例内部标签" aria-label="病例内部标签" />
+      <el-input :model-value="draft.anonymous_case_code || '创建后由系统生成'" disabled placeholder="系统自动生成的匿名病例编号" aria-label="系统自动生成的匿名病例编号" />
       <el-input-number v-model="draft.age" :disabled="readOnly" :min="0" :max="120" :precision="0" placeholder="年龄（岁）" aria-label="年龄（岁）" />
       <el-select v-if="!modelValue" v-model="draft.disease_id" placeholder="选择疾病" aria-label="选择疾病">
         <el-option v-for="disease in diseases" :key="disease.id" :label="disease.name" :value="disease.id" />
@@ -62,6 +62,7 @@ function toDraft(value: LongitudinalCase | null | undefined) {
   return {
     id: value?.id,
     patient_label: value?.patient_label || '',
+    anonymous_case_code: value?.anonymous_case_code || null,
     age: value?.age ?? null,
     disease_id: value?.disease_id || null,
     sex: value?.sex || null,

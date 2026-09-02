@@ -20,6 +20,7 @@ export interface CaseRecord {
   id: number
   disease_id: number
   patient_label: string | null
+  anonymous_case_code: string | null
   indicators: IndicatorInput[]
   confirmed: boolean
   metadata: Record<string, unknown>
@@ -49,6 +50,8 @@ export interface ReportListItem {
   download_count: number
   analysis_type: string
   disease_id: number | null
+  operator_case_id: number | null
+  anonymous_case_code: string | null
   indicators: Record<string, unknown>[]
   prediction_result: LongitudinalPrediction | null
   created_at: string
@@ -92,6 +95,7 @@ export interface LongitudinalCase {
   user_id: number
   disease_id: number
   patient_label: string
+  anonymous_case_code: string | null
   age: number | null
   sex?: 'male' | 'female' | null
   baseline_stage?: BaselineStage | string | null
@@ -105,7 +109,7 @@ export interface LongitudinalCase {
 
 export interface LongitudinalCaseCreatePayload {
   disease_id: number
-  patient_label: string
+  patient_label?: string
   age: number
   sex?: 'male' | 'female' | null
   baseline_stage?: BaselineStage | null
@@ -114,7 +118,6 @@ export interface LongitudinalCaseCreatePayload {
 }
 
 export interface LongitudinalCaseUpdatePayload {
-  patient_label?: string
   age?: number
   sex?: 'male' | 'female' | null
   baseline_stage?: BaselineStage | null

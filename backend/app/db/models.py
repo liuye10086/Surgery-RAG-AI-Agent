@@ -218,6 +218,9 @@ class CaseRecord(Base):
         nullable=False,
     )
     patient_label = Column(String(100))
+    # Imported snapshots may contain multiple visits for one patient; the same
+    # anonymous code is intentionally reused across that patient's records.
+    anonymous_case_code = Column(String(14), nullable=True)
     indicators = Column(JSONB, nullable=False, default=list)
     confirmed = Column(Boolean, nullable=False, default=True, server_default="true")
     # 注意：`metadata` 是 SQLAlchemy declarative 的保留类属性（MetaData），
@@ -262,6 +265,7 @@ class OperatorCase(Base):
         nullable=False,
     )
     patient_label = Column(String(100), nullable=False)
+    anonymous_case_code = Column(String(14), nullable=True, unique=True)
     sex = Column(String(10))
     age = Column(Integer, nullable=True)
     baseline_stage = Column(String(100))
@@ -655,6 +659,11 @@ class AIReport(Base):
 
     user = relationship("User", back_populates="reports")
     operator_case = relationship("OperatorCase", back_populates="reports")
+
+    @property
+    def anonymous_case_code(self):
+        case = getattr(self, "operator_case", None)
+        return getattr(case, "anonymous_case_code", None)
 
 
 class AuditLog(Base):

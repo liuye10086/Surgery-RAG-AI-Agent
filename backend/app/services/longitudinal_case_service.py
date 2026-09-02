@@ -20,6 +20,7 @@ from app.services.disease_catalog import (
     require_operator_disease,
 )
 from app.services.indicator_validation import validate_indicators, validate_visits
+from app.services.anonymous_case_code import generate_anonymous_case_code
 
 
 class LongitudinalCaseError(ValueError):
@@ -103,10 +104,21 @@ def create_operator_case(
         raise DuplicateVisitDateError("同一病例不能重复使用访视日期")
     _validate_visit_count(len(visits))
 
+    anonymous_case_code = None
+    for _ in range(5):
+        candidate = generate_anonymous_case_code()
+        existing = db.query(OperatorCase).filter(OperatorCase.anonymous_case_code == candidate).first()
+        if existing is None or not getattr(existing, "anonymous_case_code", None):
+            anonymous_case_code = candidate
+            break
+    if anonymous_case_code is None:
+        raise LongitudinalCaseError("anonymous_case_code_generation_failed")
+
     case = OperatorCase(
         user_id=user_id,
         disease_id=payload.disease_id,
-        patient_label=payload.patient_label,
+        patient_label=anonymous_case_code,
+        anonymous_case_code=anonymous_case_code,
         age=payload.age,
         sex=payload.sex,
         baseline_stage=payload.baseline_stage,
@@ -388,7 +400,7 @@ def build_input_snapshot(
         "disease_id": getattr(case, "disease_id", None),
         "disease": getattr(disease, "name", None),
         "disease_code": disease_code,
-        "patient_label": getattr(case, "patient_label", None),
+        "anonymous_case_code": getattr(case, "anonymous_case_code", None),
         "age": getattr(case, "age", None),
         "sex": getattr(case, "sex", None),
         "baseline_stage": getattr(case, "baseline_stage", None),

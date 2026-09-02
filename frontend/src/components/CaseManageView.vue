@@ -18,7 +18,7 @@
       </div>
       <el-table :data="operatorStore.cases" size="small">
         <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="patient_label" label="患者标签" width="120" />
+        <el-table-column prop="anonymous_case_code" label="匿名病例编号" width="150" />
         <el-table-column label="指标">
           <template #default="{ row }">
             {{ (row.indicators || []).map((i: any) => `${i.name}=${i.value}${i.unit}`).join('; ').slice(0, 60) }}
@@ -44,8 +44,8 @@
             <el-option v-for="d in operatorStore.diseases" :key="d.id" :label="d.name" :value="d.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="患者标签">
-          <el-input v-model="caseForm.patient_label" placeholder="如：病例 A / 门诊样本 7" maxlength="100" />
+        <el-form-item label="匿名病例编号">
+          <el-input :model-value="caseForm.anonymous_case_code || '创建后由系统生成'" disabled />
         </el-form-item>
         <el-form-item label="指标">
           <IndicatorRowsEditor v-model="caseIndicatorRows" />
@@ -85,8 +85,9 @@ const editingCaseId = ref<number | null>(null)
 const caseForm = reactive<{
   disease_id: number | null
   patient_label: string
+  anonymous_case_code: string | null
   confirmed: boolean
-}>({ disease_id: null, patient_label: '', confirmed: true })
+}>({ disease_id: null, patient_label: '', anonymous_case_code: null, confirmed: true })
 const caseIndicatorRows = ref<IndicatorInput[]>([])
 
 const canSaveCase = computed(() => {
@@ -105,6 +106,7 @@ function openCaseForm(row?: CaseRecord) {
     editingCaseId.value = row.id
     caseForm.disease_id = row.disease_id
     caseForm.patient_label = row.patient_label || ''
+    caseForm.anonymous_case_code = row.anonymous_case_code || null
     caseForm.confirmed = row.confirmed
     caseIndicatorRows.value = (row.indicators || []).map((i: any) => ({
       name: i.name || '',
@@ -118,6 +120,7 @@ function openCaseForm(row?: CaseRecord) {
     editingCaseId.value = null
     caseForm.disease_id = null
     caseForm.patient_label = ''
+    caseForm.anonymous_case_code = null
     caseForm.confirmed = true
     caseIndicatorRows.value = [{ name: '', value: null, unit: '' }]
   }
@@ -131,7 +134,7 @@ async function saveCase() {
   if (!caseForm.disease_id || !validRows.length) return
   const payload = {
     disease_id: caseForm.disease_id,
-    patient_label: caseForm.patient_label.trim() || null,
+    patient_label: undefined,
     indicators: validRows.map((r) => ({ name: r.name.trim(), value: r.value, unit: r.unit.trim() })),
     confirmed: caseForm.confirmed,
     metadata: {},

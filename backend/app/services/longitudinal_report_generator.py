@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from dataclasses import dataclass, field
 from typing import AsyncGenerator, Any
 
@@ -174,6 +175,14 @@ def _format_reference_range(source: dict[str, Any]) -> str:
 
 
 def _render_source(source: dict[str, Any]) -> str:
+    def source_code() -> str:
+        anonymous = str(source.get("anonymous_case_code") or "").strip()
+        if anonymous:
+            return anonymous
+        legacy = str(source.get("patient_label") or "").strip()
+        if re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,31}", legacy):
+            return legacy
+        return "旧来源未设置匿名编号"
     if source.get("source_type") == "reference_range":
         return _format_reference_range(source)
     if source.get("source_type") == "standard_evidence":
@@ -184,8 +193,10 @@ def _render_source(source: dict[str, Any]) -> str:
     if source.get("source_type") == "similar_case":
         features = "、".join(source.get("overlap_features") or []) or "未注明"
         warning = f"；{source['display_warning']}" if source.get("display_warning") else ""
-        return f"相似病例：{source.get('patient_label') or '未标记病例'}；关联指标：{features}（{source.get('provenance', 'reference')}）{warning}"
-    return f"参考病例：{source.get('patient_label', '未标记来源')}（{source.get('provenance', 'reference')}）"
+        code = source_code()
+        return f"相似病例：{code}；关联指标：{features}（{source.get('provenance', 'reference')}）{warning}"
+    code = source_code()
+    return f"参考病例：{code}（{source.get('provenance', 'reference')}）"
 
 
 def normalize_prediction_for_render(prediction: dict[str, Any]) -> dict[str, Any]:

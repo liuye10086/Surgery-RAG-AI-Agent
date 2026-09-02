@@ -81,16 +81,20 @@ def select_similar_longitudinal_cases(db, disease_id: int, visits: list[dict[str
         if not overlap:
             continue
         label = str(row.patient_label or "").strip()
-        key = label.casefold()
+        anonymous_code = str(getattr(row, "anonymous_case_code", "") or "").strip()
+        key = (anonymous_code or label).casefold()
         source = results_by_label.get(key)
         if source is None:
             source = {
                 "source_type": "similar_case",
-                "patient_label": label,
                 "source_dataset": (row.case_metadata or {}).get("source_dataset"),
                 "final_outcome": bool(row.confirmed),
                 "overlap_features": [],
             }
+            if not anonymous_code:
+                source["patient_label"] = label
+            else:
+                source["anonymous_case_code"] = anonymous_code
             results_by_label[key] = source
         source["overlap_features"] = sorted(
             set(source["overlap_features"]) | set(overlap)

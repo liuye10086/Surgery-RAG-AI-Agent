@@ -35,7 +35,7 @@ class IndicatorValue(BaseModel):
 
 class OperatorCaseCreate(BaseModel):
     disease_id: int = Field(..., gt=0)
-    patient_label: str = Field(..., min_length=1, max_length=100)
+    patient_label: str | None = Field(None, min_length=1, max_length=100)
     age: int = Field(..., ge=0, le=120, strict=True)
     sex: str | None = Field(None, pattern=r"^(male|female)$")
     baseline_stage: str | None = Field(None, max_length=100)
@@ -50,8 +50,6 @@ class OperatorCaseCreate(BaseModel):
         if not isinstance(value, str):
             return value
         value = value.strip()
-        if not value and cls.__name__ == "OperatorCaseCreate":
-            raise ValueError("文本字段不能为空")
         return value
 
 
@@ -150,6 +148,7 @@ class OperatorCaseOut(BaseModel):
     user_id: int
     disease_id: int
     patient_label: str
+    anonymous_case_code: str | None = None
     age: int | None = None
     sex: str | None = None
     baseline_stage: str | None = None

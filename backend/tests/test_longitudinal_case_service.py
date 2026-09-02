@@ -449,7 +449,7 @@ def test_disabled_disease_blocks_every_case_mutation(operation_name):
 def test_visit_schema_limits_timeline_to_ten_rows():
     from app.schemas.longitudinal_case import OperatorCaseCreate, VisitCreate
 
-    assert OperatorCaseCreate.model_fields["patient_label"].is_required()
+    assert not OperatorCaseCreate.model_fields["patient_label"].is_required()
     assert OperatorCaseCreate.model_fields["age"].is_required()
     with pytest.raises(ValidationError):
         VisitCreate(
