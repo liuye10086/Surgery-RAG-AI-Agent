@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import asyncio
+import time
 import json
 import pytest
 
@@ -33,7 +34,7 @@ def test_longitudinal_stream_has_explicit_client_cancel_state_handling():
     ).read_text(encoding="utf-8")
     assert "asyncio.CancelledError" in source
     assert '"cancelled"' in source
-    assert 'report.status == "generating"' in source
+    assert 'AIReport.status == "generating"' in source
 
 
 def test_report_formats_numbers_and_typed_evidence_without_duplicates():
@@ -105,6 +106,198 @@ def test_prediction_failure_does_not_leak_sensitive_details(secret, monkeypatch)
     serialized = "".join(events) + str(report.error_message)
     assert secret not in serialized
     assert "longitudinal_prediction_failed" in serialized
+    assert report.status == "failed"
+    assert report.error_stage == "prediction"
+
+
+def test_terminal_report_is_not_overwritten_by_late_prediction_failure(monkeypatch):
+    from app.services import longitudinal_report_generator as generator
+
+    monkeypatch.setattr(
+        generator,
+        "run_longitudinal_prediction",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("late failure")),
+    )
+    report = SimpleNamespace(
+        id=9,
+        status="completed",
+        error_message=None,
+        error_stage=None,
+        prediction_result={"saved": True},
+        sources=[],
+        content="saved",
+        analysis_type="longitudinal_predictive",
+    )
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = report
+
+    async def collect():
+        return [
+            event
+            async for event in generator.generate_longitudinal_report(
+                db, 9, {}, [], FATTY_LIVER_ADAPTER, model_registry={}
+            )
+        ]
+
+    asyncio.run(collect())
+
+    assert report.status == "completed"
+    assert report.error_message is None
+    assert report.content == "saved"
+
+
+def test_prediction_timeout_converges_report_to_failed_timeout(monkeypatch):
+    from app.services import longitudinal_report_generator as generator
+
+    monkeypatch.setattr(generator, "PREDICTION_TIMEOUT_SECONDS", 0.001)
+
+    def slow_prediction(*args, **kwargs):
+        time.sleep(0.02)
+        return {}
+
+    monkeypatch.setattr(generator, "run_longitudinal_prediction", slow_prediction)
+    report = SimpleNamespace(
+        id=9,
+        status="generating",
+        error_message=None,
+        error_stage=None,
+        prediction_result=None,
+        sources=None,
+        content=None,
+        analysis_type=None,
+    )
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = report
+
+    async def collect():
+        return [
+            event
+            async for event in generator.generate_longitudinal_report(
+                db, 9, {}, [], FATTY_LIVER_ADAPTER, model_registry={}
+            )
+        ]
+
+    events = asyncio.run(collect())
+
+    assert report.status == "failed"
+    assert report.error_stage == "timeout"
+    assert "timeout" in "".join(events)
+
+
+def test_terminal_transition_uses_atomic_generating_guard():
+    from app.services.longitudinal_report_generator import (
+        _transition_report_from_generating,
+    )
+
+    report = SimpleNamespace(status="completed", content="saved")
+
+    class Query:
+        def __init__(self):
+            self.criteria = ()
+
+        def filter(self, *criteria):
+            self.criteria = criteria
+            return self
+
+        def first(self):
+            return report
+
+        def update(self, values, synchronize_session=False):
+            assert len(self.criteria) == 2
+            assert synchronize_session is False
+            if report.status != "generating":
+                return 0
+            for key, value in values.items():
+                setattr(report, key, value)
+            return 1
+
+    query = Query()
+    db = MagicMock()
+    db.query.return_value = query
+
+    changed = _transition_report_from_generating(
+        db,
+        9,
+        status="failed",
+        error_stage="prediction",
+        error_message="longitudinal_prediction_failed",
+    )
+
+    assert changed is False
+    assert report.status == "completed"
+    assert report.content == "saved"
+    db.commit.assert_called_once_with()
+
+
+def test_persistence_failure_rolls_back_and_converges_to_failed_persistence():
+    from app.services import longitudinal_report_generator as generator
+
+    report = SimpleNamespace(
+        id=9,
+        status="generating",
+        error_message=None,
+        error_stage=None,
+        prediction_result=None,
+        sources=None,
+        content=None,
+        generation_fingerprint=None,
+        analysis_type=None,
+    )
+
+    class Query:
+        def __init__(self, db):
+            self.db = db
+
+        def filter(self, *criteria):
+            return self
+
+        def first(self):
+            return report
+
+        def update(self, values, synchronize_session=False):
+            if report.status != "generating":
+                return 0
+            self.db.pending = dict(values)
+            return 1
+
+    class DB:
+        def __init__(self):
+            self.pending = None
+            self.fail_next_commit = True
+            self.rollback_count = 0
+
+        def query(self, model):
+            return Query(self)
+
+        def commit(self):
+            if self.fail_next_commit:
+                self.fail_next_commit = False
+                raise RuntimeError("database path and secret")
+            for key, value in (self.pending or {}).items():
+                setattr(report, key, value)
+            self.pending = None
+
+        def rollback(self):
+            self.rollback_count += 1
+            self.pending = None
+
+    db = DB()
+
+    async def collect():
+        return [
+            event
+            async for event in generator.generate_longitudinal_report(
+                db, 9, {}, [], FATTY_LIVER_ADAPTER, model_registry={}
+            )
+        ]
+
+    events = asyncio.run(collect())
+
+    assert report.status == "failed"
+    assert report.error_stage == "persistence"
+    assert report.error_message == "longitudinal_prediction_failed"
+    assert db.rollback_count == 1
+    assert "database path and secret" not in "".join(events)
 
 
 def test_ad_mmse_moca_signals_survive_without_outcome_model():

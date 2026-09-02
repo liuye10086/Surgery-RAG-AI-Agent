@@ -10,11 +10,39 @@ from typing import AsyncGenerator, Any
 
 from app.services.longitudinal_prediction import prediction_result_to_dict, run_longitudinal_prediction
 from app.services.indicator_validation import validate_visits
+from app.services.report_integrity import create_generation_fingerprint
 
 
 SAFE_LONGITUDINAL_ERRORS = {
     "longitudinal_prediction_failed": "纵向预测暂时无法完成",
+    "longitudinal_prediction_timeout": "报告生成超时，请稍后重试",
 }
+
+PREDICTION_TIMEOUT_SECONDS = 120.0
+
+
+def _transition_report_from_generating(db, report_id: int, **values: Any) -> bool:
+    """Atomically transition one report only while it is still generating."""
+    from app.db.models import AIReport
+
+    query = db.query(AIReport).filter(
+        AIReport.id == report_id,
+        AIReport.status == "generating",
+    )
+    try:
+        changed = query.update(values, synchronize_session=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    # Keep lightweight test doubles and an already-loaded ORM instance coherent.
+    if changed and hasattr(db.query(AIReport).filter(AIReport.id == report_id), "first"):
+        current = db.query(AIReport).filter(AIReport.id == report_id).first()
+        if current is not None and getattr(current, "status", None) == "generating":
+            for key, value in values.items():
+                setattr(current, key, value)
+    return bool(changed)
 
 REASON_TEXT = {
     "directional_change": "总体变化方向符合该疾病的关注方向",
@@ -498,44 +526,78 @@ def render_longitudinal_markdown(
 
 
 async def generate_longitudinal_report(db, report_id: int, case: dict[str, Any], visits: list[dict[str, Any]], adapter, model_registry: dict[str, Any] | None = None, sources: list[dict[str, Any]] | None = None) -> AsyncGenerator[str, None]:
-    from app.db.models import AIReport
+    stage = "feature_extraction"
     try:
         validate_visits(adapter.dataset, visits)
         yield _sse("stage", {"stage": "feature_extraction"})
-        result = run_longitudinal_prediction(
-            case,
-            visits,
-            adapter,
-            model_registry,
-            standard_sources=sources,
+        stage = "prediction"
+        result = await asyncio.wait_for(
+            asyncio.to_thread(
+                run_longitudinal_prediction,
+                case,
+                visits,
+                adapter,
+                model_registry,
+                standard_sources=sources,
+            ),
+            timeout=PREDICTION_TIMEOUT_SECONDS,
         )
         payload = prediction_result_to_dict(result)
         payload["evidence"] = {"sources": sources or []}
         yield _sse("prediction", payload)
+        stage = "rendering"
         content = render_longitudinal_markdown(payload, sources, case)
-        report = db.query(AIReport).filter(AIReport.id == report_id).first()
-        if report is not None:
-            report.prediction_result = payload
-            report.sources = sources or []
-            report.content = content
-            report.status = "completed"
-            report.analysis_type = "longitudinal_predictive"
-            db.commit()
+        generation_fingerprint = create_generation_fingerprint(case, payload, content)
+        stage = "persistence"
+        _transition_report_from_generating(
+            db,
+            report_id,
+            prediction_result=payload,
+            sources=sources or [],
+            content=content,
+            generation_fingerprint=generation_fingerprint,
+            error_stage=None,
+            status="completed",
+            analysis_type="longitudinal_predictive",
+        )
         for chunk in (content[i : i + 600] for i in range(0, len(content), 600)):
             yield _sse("delta", {"content": chunk})
         yield _sse("done", {"report_id": report_id, "status": "completed"})
+    except TimeoutError:
+        code, message = safe_longitudinal_error("longitudinal_prediction_timeout")
+        _transition_report_from_generating(
+            db,
+            report_id,
+            status="failed",
+            error_stage="timeout",
+            error_message=code,
+        )
+        yield _sse("error", {"message": message, "code": "timeout"})
     except (asyncio.CancelledError, GeneratorExit):
-        report = db.query(AIReport).filter(AIReport.id == report_id).first()
-        if report is not None and report.status == "generating":
-            report.status = "cancelled"
-            report.error_message = "用户取消生成"
-            db.commit()
+        _transition_report_from_generating(
+            db,
+            report_id,
+            status="cancelled",
+            error_stage="cancelled",
+            error_message="用户取消生成",
+        )
         return
     except Exception:
         code, message = safe_longitudinal_error("longitudinal_prediction_failed")
-        report = db.query(AIReport).filter(AIReport.id == report_id).first()
-        if report is not None:
-            report.status = "failed"
-            report.error_message = code
-            db.commit()
+        error_stage = "persistence" if stage == "persistence" else stage
+        try:
+            _transition_report_from_generating(
+                db,
+                report_id,
+                status="failed",
+                error_stage=error_stage,
+                error_message=code,
+            )
+        except Exception:
+            # The original persistence failure has already been rolled back;
+            # do not expose its details or replace it with an unsafe traceback.
+            try:
+                db.rollback()
+            except Exception:
+                pass
         yield _sse("error", {"message": message, "code": code})

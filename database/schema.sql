@@ -189,6 +189,10 @@ CREATE TABLE IF NOT EXISTS ai_reports (
     indicators JSONB DEFAULT '[]',
     prediction_result JSONB DEFAULT '{}',
     input_snapshot JSONB,
+    input_snapshot_sha256 VARCHAR(64),
+    generation_batch_id VARCHAR(36),
+    generation_fingerprint VARCHAR(64),
+    error_stage VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -197,6 +201,7 @@ CREATE INDEX IF NOT EXISTS ix_ai_reports_user_id ON ai_reports(user_id);
 CREATE INDEX IF NOT EXISTS ix_ai_reports_created_at ON ai_reports(created_at);
 CREATE INDEX IF NOT EXISTS ix_ai_reports_status ON ai_reports(status);
 CREATE INDEX IF NOT EXISTS ix_ai_reports_operator_case_id ON ai_reports(operator_case_id);
+CREATE INDEX IF NOT EXISTS ix_ai_reports_generation_batch_id ON ai_reports(generation_batch_id);
 
 -- 9. 会话表
 CREATE TABLE IF NOT EXISTS sessions (

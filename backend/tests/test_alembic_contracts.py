@@ -416,6 +416,23 @@ class AlembicContractTests(unittest.TestCase):
         self.assertEqual(migration.revision, "0017")
         self.assertEqual(migration.down_revision, "0016")
 
+    def test_report_integrity_migration_follows_0018_and_adds_nullable_columns(self):
+        migration = _load_revision(
+            "0019_report_integrity_and_generation_state.py",
+            "migration_0019_report_integrity",
+        )
+        self.assertEqual(migration.revision, "0019")
+        self.assertEqual(migration.down_revision, "0018")
+        migration_op = MagicMock()
+        with patch.object(migration, "op", migration_op):
+            migration.upgrade()
+        columns = [call.args[1] for call in migration_op.add_column.call_args_list]
+        self.assertEqual(
+            [column.name for column in columns],
+            ["input_snapshot_sha256", "generation_batch_id", "generation_fingerprint", "error_stage"],
+        )
+        self.assertTrue(all(column.nullable for column in columns))
+
     def test_operator_case_visit_integrity_migration_adds_only_constraints(self):
         migration = _load_revision(
             "0017_operator_case_visit_integrity.py",

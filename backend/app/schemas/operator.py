@@ -28,6 +28,12 @@ class ReportOut(BaseModel):
     indicators: list[dict] = []
     prediction_result: dict = {}
     input_snapshot: dict | None = None
+    input_snapshot_sha256: Optional[str] = None
+    generation_batch_id: Optional[str] = None
+    generation_fingerprint: Optional[str] = None
+    error_stage: Optional[str] = None
+    integrity_status: Optional[str] = None
+    integrity_reason_code: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -56,6 +62,9 @@ class ReportListItem(BaseModel):
     visit_count: Optional[int] = None
     model_version_summary: Optional[str] = None
     error_stage: Optional[str] = None
+    input_snapshot_sha256: Optional[str] = None
+    generation_batch_id: Optional[str] = None
+    generation_fingerprint: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

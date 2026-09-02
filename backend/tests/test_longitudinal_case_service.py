@@ -161,6 +161,16 @@ def test_snapshot_contains_sorted_visits_without_user_identity():
     assert "user_id" not in snapshot
 
 
+def test_snapshot_contains_stable_integrity_metadata():
+    from app.services.longitudinal_case_service import build_input_snapshot
+
+    snapshot = build_input_snapshot(_case(age=60), [_visit("2024-01-01")])
+
+    assert snapshot["canonicalization_version"] == "v1"
+    assert snapshot["hash_algorithm"] == "sha256"
+    assert len(snapshot["input_snapshot_sha256"]) == 64
+
+
 def test_snapshot_contains_stable_disease_code():
     from app.services.longitudinal_case_service import build_input_snapshot
 

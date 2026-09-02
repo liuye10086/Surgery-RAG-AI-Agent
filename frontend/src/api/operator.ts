@@ -57,7 +57,10 @@ export interface ReportListItem {
   baseline_stage: string | null
   visit_count: number | null
   model_version_summary: string | null
-  error_stage: string | null
+    error_stage: string | null
+    input_snapshot_sha256: string | null
+    generation_batch_id: string | null
+    generation_fingerprint: string | null
   created_at: string
   updated_at: string
 }
@@ -67,7 +70,7 @@ export interface ReportDetail extends ReportListItem {
   sources: any[]
   retrieval_meta: any
   prediction_result: LongitudinalPrediction | null
-  input_snapshot: Record<string, unknown> | null
+    input_snapshot: Record<string, unknown> | null
 }
 
 export interface LongitudinalVisit {

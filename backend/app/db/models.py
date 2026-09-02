@@ -652,6 +652,10 @@ class AIReport(Base):
     indicators = Column(JSONB, default=list, server_default=text("'[]'::jsonb"))
     prediction_result = Column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
     input_snapshot = Column(JSONB, nullable=True)
+    input_snapshot_sha256 = Column(String(64), nullable=True)
+    generation_batch_id = Column(String(36), nullable=True)
+    generation_fingerprint = Column(String(64), nullable=True)
+    error_stage = Column(String(50), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()

@@ -83,3 +83,10 @@ test('history list supports saved snapshot summaries and load more', async () =>
   assert.match(view, /生成时输入快照/)
   assert.match(view, /不会自动按当前模型重新计算/)
 })
+
+test('report API carries integrity and generation state fields', async () => {
+  const api = await readFile(apiPath, 'utf8')
+  for (const field of ['input_snapshot_sha256', 'generation_batch_id', 'generation_fingerprint', 'error_stage']) {
+    assert.match(api, new RegExp(field))
+  }
+})

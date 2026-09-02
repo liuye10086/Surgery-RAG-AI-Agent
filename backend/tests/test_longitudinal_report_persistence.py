@@ -108,3 +108,41 @@ def test_pdf_download_uses_saved_content_verbatim():
     )
     assert response.media_type == "application/pdf"
     assert report.download_count == 1
+
+
+def test_report_integrity_fields_survive_case_detachment():
+    report = _saved_report()
+    report.operator_case_id = None
+    report.input_snapshot_sha256 = "a" * 64
+    report.generation_batch_id = "11111111-1111-4111-8111-111111111111"
+    report.generation_fingerprint = "b" * 64
+    report.error_stage = None
+    db = _db_returning(report)
+
+    result = get_report(17, db=db, current_user=SimpleNamespace(id=5))
+
+    assert result.operator_case_id is None
+    assert result.input_snapshot_sha256 == "a" * 64
+    assert result.generation_batch_id.startswith("11111111-")
+    assert result.generation_fingerprint == "b" * 64
+
+
+def test_report_detail_exposes_integrity_verification_status():
+    from app.services.report_integrity import (
+        compute_input_snapshot_sha256,
+        create_generation_fingerprint,
+    )
+
+    report = _saved_report()
+    report.input_snapshot_sha256 = compute_input_snapshot_sha256(report.input_snapshot)
+    report.generation_fingerprint = create_generation_fingerprint(
+        report.input_snapshot,
+        report.prediction_result,
+        report.content,
+    )
+    db = _db_returning(report)
+
+    result = get_report(17, db=db, current_user=SimpleNamespace(id=5))
+
+    assert result.integrity_status == "valid"
+    assert result.integrity_reason_code == "integrity_verified"

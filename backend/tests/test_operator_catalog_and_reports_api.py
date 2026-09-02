@@ -205,6 +205,61 @@ class TestReportStateMachine(unittest.TestCase):
         self.assertEqual(captured["snapshot"]["visits"], captured["visits"])
         db.add.assert_called_once()
 
+    def test_model_loading_failure_converges_report_to_failed(self):
+        from app.api.operator import create_longitudinal_report
+
+        case = SimpleNamespace(
+            id=3,
+            user_id=7,
+            disease_id=11,
+            patient_label="case-A",
+            age=65,
+            sex="female",
+            baseline_stage="S1",
+            notes=None,
+            anonymous_case_code="CASE-ABCD-1234",
+            disease=SimpleNamespace(
+                id=11,
+                code="fatty_liver",
+                name="鑴傝偑鑲?",
+                operator_enabled=True,
+            ),
+            visits=[
+                SimpleNamespace(
+                    id=1,
+                    visit_date=date(2024, 1, 1),
+                    indicators=[{"name": "ALT", "value": 42, "unit": "U/L"}],
+                    notes=None,
+                )
+            ],
+        )
+        db = MagicMock()
+        created_reports = []
+        db.add.side_effect = created_reports.append
+
+        with patch("app.api.operator.get_operator_case", return_value=case), patch(
+            "app.api.operator.build_reference_range_sources", return_value=[]
+        ), patch(
+            "app.api.operator.select_similar_longitudinal_cases", return_value=[]
+        ), patch(
+            "app.api.operator.load_active_model_registry", side_effect=RuntimeError("secret path")
+        ):
+            with self.assertRaises(HTTPException) as error:
+                asyncio.run(
+                    create_longitudinal_report(
+                        case_id=3,
+                        request=None,
+                        db=db,
+                        current_user=SimpleNamespace(id=7),
+                    )
+                )
+
+        self.assertEqual(error.exception.status_code, 503)
+        self.assertEqual(error.exception.detail, "模型暂时不可用，请稍后重试")
+        self.assertEqual(created_reports[0].status, "failed")
+        self.assertEqual(created_reports[0].error_stage, "model_loading")
+        self.assertNotIn("secret path", str(error.exception.detail))
+
     def test_disabled_disease_rejects_report_before_insert(self):
         from app.api.operator import create_longitudinal_report
 

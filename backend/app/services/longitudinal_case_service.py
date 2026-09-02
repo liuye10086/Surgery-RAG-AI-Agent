@@ -21,6 +21,7 @@ from app.services.disease_catalog import (
 )
 from app.services.indicator_validation import validate_indicators, validate_visits
 from app.services.anonymous_case_code import generate_anonymous_case_code
+from app.services.report_integrity import compute_input_snapshot_sha256
 
 
 class LongitudinalCaseError(ValueError):
@@ -394,7 +395,7 @@ def build_input_snapshot(
     disease_code = getattr(disease, "code", None)
     if disease_code:
         validate_visits(disease_code, snapshot_visits)
-    return {
+    snapshot = {
         "schema_version": "longitudinal_input.v1",
         "case_id": getattr(case, "id", None),
         "disease_id": getattr(case, "disease_id", None),
@@ -408,3 +409,7 @@ def build_input_snapshot(
         "visits": snapshot_visits,
         "model_options": dict(model_options or {}),
     }
+    snapshot["canonicalization_version"] = "v1"
+    snapshot["hash_algorithm"] = "sha256"
+    snapshot["input_snapshot_sha256"] = compute_input_snapshot_sha256(snapshot)
+    return snapshot

@@ -2,6 +2,7 @@
 
 import logging
 import urllib.parse
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -69,6 +70,10 @@ from app.services.operator_case_status_service import (
     change_operator_case_status,
 )
 from app.services.longitudinal_report_generator import generate_longitudinal_report
+from app.services.report_integrity import (
+    compute_input_snapshot_sha256,
+    verify_report_integrity,
+)
 from app.services.longitudinal_model_registry import load_active_model_registry
 from app.services.longitudinal_evidence import (
     build_reference_range_sources,
@@ -382,12 +387,24 @@ async def create_longitudinal_report(
         sources = []
     options = (request or LongitudinalReportRequest()).model_options
     snapshot = build_input_snapshot(case, case.visits, options)
+    snapshot_hash = compute_input_snapshot_sha256(snapshot)
+    snapshot["input_snapshot_sha256"] = snapshot_hash
+    batch_id = str(uuid.uuid4())
     anonymous_code = getattr(case, "anonymous_case_code", None) or "旧病例未设置匿名编号"
     report = AIReport(user_id=current_user.id, operator_case_id=case.id, disease_id=case.disease_id, query=anonymous_code, title=f"{anonymous_code}纵向进展预测报告", indicators=[], analysis_type="longitudinal_predictive", status="generating", input_snapshot=snapshot)
+    report.input_snapshot_sha256 = snapshot_hash
+    report.generation_batch_id = batch_id
     db.add(report)
     db.commit()
     db.refresh(report)
-    model_registry = load_active_model_registry(adapter.dataset)  # 使用当前疾病活动模型组
+    try:
+        model_registry = load_active_model_registry(adapter.dataset)
+    except Exception:
+        report.status = "failed"
+        report.error_message = "longitudinal_prediction_failed"
+        report.error_stage = "model_loading"
+        db.commit()
+        raise HTTPException(status_code=503, detail="模型暂时不可用，请稍后重试")
     return StreamingResponse(generate_longitudinal_report(db, report.id, snapshot, snapshot["visits"], adapter, model_registry=model_registry, sources=sources), media_type="text/event-stream")
 
 
@@ -423,13 +440,14 @@ def list_reports(
         visits = snapshot.get("visits") if isinstance(snapshot.get("visits"), list) else []
         release_set = prediction.get("release_set") if isinstance(prediction.get("release_set"), dict) else {}
         version = release_set.get("release_set_id") or release_set.get("data_release_id")
-        error_stage = None
-        if report.status == "generating":
-            error_stage = "generating"
-        elif report.status == "failed":
-            error_stage = "failed"
-        elif report.status == "cancelled":
-            error_stage = "cancelled"
+        error_stage = getattr(report, "error_stage", None)
+        if error_stage is None:
+            if report.status == "generating":
+                error_stage = "generating"
+            elif report.status == "failed":
+                error_stage = "failed"
+            elif report.status == "cancelled":
+                error_stage = "cancelled"
         return ReportListItem(
             id=report.id,
             user_id=report.user_id,
@@ -449,6 +467,9 @@ def list_reports(
             visit_count=len(visits) if visits else None,
             model_version_summary=str(version) if version else None,
             error_stage=error_stage,
+            input_snapshot_sha256=getattr(report, "input_snapshot_sha256", None),
+            generation_batch_id=getattr(report, "generation_batch_id", None),
+            generation_fingerprint=getattr(report, "generation_fingerprint", None),
             created_at=report.created_at,
             updated_at=report.updated_at,
         )
@@ -475,6 +496,15 @@ def get_report(
         )
     _verify_report_owner(report, current_user)
     result = ReportOut.model_validate(report)
+    verification = verify_report_integrity(
+        report.input_snapshot,
+        getattr(report, "input_snapshot_sha256", None),
+        getattr(report, "generation_fingerprint", None),
+        report.prediction_result,
+        report.content,
+    )
+    result.integrity_status = verification.status
+    result.integrity_reason_code = verification.reason_code
     result.title = _safe_report_title(report)
     result.query = _safe_report_title(report)
     return result
