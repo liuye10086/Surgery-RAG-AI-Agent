@@ -53,7 +53,11 @@ export interface ReportListItem {
   operator_case_id: number | null
   anonymous_case_code: string | null
   indicators: Record<string, unknown>[]
-  prediction_result: LongitudinalPrediction | null
+  disease_name: string | null
+  baseline_stage: string | null
+  visit_count: number | null
+  model_version_summary: string | null
+  error_stage: string | null
   created_at: string
   updated_at: string
 }
@@ -62,6 +66,8 @@ export interface ReportDetail extends ReportListItem {
   content: string
   sources: any[]
   retrieval_meta: any
+  prediction_result: LongitudinalPrediction | null
+  input_snapshot: Record<string, unknown> | null
 }
 
 export interface LongitudinalVisit {

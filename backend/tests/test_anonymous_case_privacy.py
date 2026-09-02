@@ -80,3 +80,22 @@ def test_pdf_filename_uses_anonymous_code_when_saved_title_is_sensitive():
     disposition = response.headers["Content-Disposition"]
     assert "张三" not in disposition
     assert "CASE-7F3K-92LM" in disposition
+
+
+def test_pdf_title_uses_safe_report_id_when_legacy_report_has_no_anonymous_code():
+    report = SimpleNamespace(
+        id=18,
+        user_id=5,
+        title="住院号123456-张三报告",
+        query="住院号123456",
+        content="已保存正文",
+        prediction_result={},
+        status="completed",
+        download_count=0,
+        operator_case=None,
+    )
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = report
+    with patch("app.api.operator.generate_pdf", return_value=b"%PDF") as generate:
+        download_report_pdf(18, db=db, current_user=SimpleNamespace(id=5))
+    assert generate.call_args.args[1] == "报告-18"

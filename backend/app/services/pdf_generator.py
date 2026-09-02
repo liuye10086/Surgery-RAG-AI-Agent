@@ -262,9 +262,17 @@ def generate_pdf(
 
     # 3. Jinja2 渲染完整 HTML 页面
     template = _jinja_env.get_template("report_pdf.html")
+    release_set = (prediction_result or {}).get("release_set") or {}
+    saved_model_version = release_set.get("release_set_id") or release_set.get("data_release_id")
+    model_version_notice = (
+        f"报告生成时保存的模型版本：{saved_model_version}。当前模型变化不会影响这份历史报告。"
+        if saved_model_version
+        else "报告生成时保存的模型版本：历史报告未记录。当前模型变化不会影响这份历史报告。"
+    )
     full_html = template.render(
         title=title,
         content=safe_html,
+        model_version_notice=model_version_notice,
     )
 
     # 4. Playwright HTML → PDF

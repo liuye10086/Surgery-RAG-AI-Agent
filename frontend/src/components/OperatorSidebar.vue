@@ -35,7 +35,7 @@
 
         <!-- 中间滚动：报告列表 -->
         <div class="sidebar-mid">
-          <div
+  <div
             v-for="report in reports"
             :key="report.id"
             :class="['report-item', { active: currentId === report.id }]"
@@ -43,7 +43,9 @@
           >
             <div class="report-info">
               <div class="report-time">{{ formatTime(report.created_at) }}</div>
-              <div class="report-title">{{ report.title || report.query }}</div>
+              <div class="report-title">{{ report.anonymous_case_code || `报告-${report.id}` }}</div>
+              <div class="report-summary-line">{{ report.disease_name || '疾病未记录' }} · {{ report.baseline_stage || '阶段未记录' }}</div>
+              <div class="report-summary-line">{{ report.visit_count ?? '—' }} 次访视 · {{ report.model_version_summary || '模型版本未记录' }}</div>
               <div class="report-meta">
                 <el-tag
                   :type="statusTagType(report.status)"
@@ -81,6 +83,8 @@
           </div>
           <div v-if="!reports.length && !loading" class="empty-tip">暂无分析报告</div>
           <div v-if="loading" class="empty-tip">加载中...</div>
+          <button v-if="reports.length < total && !loading" class="load-more" type="button" @click="$emit('load-more')">加载更多</button>
+          <div v-else-if="reports.length && reports.length >= total" class="empty-tip">已加载全部报告</div>
         </div>
 
         <!-- 底部固定：用户信息 -->
@@ -155,6 +159,7 @@ import type { ReportListItem } from '@/api/operator'
 
 defineProps<{
   reports: ReportListItem[]
+  total: number
   currentId?: number
   collapsed: boolean
   loading: boolean
@@ -167,6 +172,7 @@ defineEmits<{
   select: [id: number]
   'new-longitudinal-case': []
   delete: [id: number]
+  'load-more': []
   navigate: [view: 'progression' | 'cases']
 }>()
 
@@ -380,6 +386,15 @@ function handleLogout() {
   white-space: nowrap;
 }
 
+.report-summary-line {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .report-meta {
   margin-top: 2px;
 }
@@ -402,6 +417,18 @@ function handleLogout() {
   text-align: center;
   color: var(--text-disabled);
   font-size: var(--text-xs);
+}
+
+.load-more {
+  display: block;
+  width: calc(100% - 24px);
+  min-height: 36px;
+  margin: 8px 12px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-item);
+  background: var(--bg-surface);
+  color: var(--color-primary);
+  cursor: pointer;
 }
 
 /* 底部固定 */

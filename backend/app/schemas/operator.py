@@ -33,7 +33,7 @@ class ReportOut(BaseModel):
 
 
 class ReportListItem(BaseModel):
-    """报告列表项（不含完整 content，减少传输量）。"""
+    """报告列表项（仅返回安全摘要，不含完整正文和预测 JSON）。"""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -51,8 +51,11 @@ class ReportListItem(BaseModel):
     operator_case_id: Optional[int] = None
     anonymous_case_code: Optional[str] = None
     indicators: list[dict] = []
-    prediction_result: dict = {}
-    input_snapshot: dict | None = None
+    disease_name: Optional[str] = None
+    baseline_stage: Optional[str] = None
+    visit_count: Optional[int] = None
+    model_version_summary: Optional[str] = None
+    error_stage: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

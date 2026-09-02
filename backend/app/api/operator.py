@@ -98,6 +98,15 @@ def _verify_report_owner(report: AIReport, current_user: User) -> None:
         )
 
 
+def _safe_report_title(report: AIReport) -> str:
+    anonymous_code = (
+        getattr(report, "anonymous_case_code", None)
+        or getattr(getattr(report, "operator_case", None), "anonymous_case_code", None)
+        or (getattr(report, "input_snapshot", None) or {}).get("anonymous_case_code")
+    )
+    return f"{anonymous_code}纵向进展预测报告" if anonymous_code else f"报告-{report.id}"
+
+
 # ---------------------------------------------------------------------------
 # /operator/longitudinal-cases — 操作者自有纵向病例与访视
 # ---------------------------------------------------------------------------
@@ -346,6 +355,8 @@ async def create_longitudinal_report(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="请先补录患者年龄（0–120岁）",
         )
+
+
     visits = [
         {"visit_date": visit.visit_date.isoformat(), "indicators": visit.indicators or [], "notes": visit.notes}
         for visit in sorted(case.visits, key=lambda item: item.visit_date)
@@ -376,7 +387,7 @@ async def create_longitudinal_report(
     db.add(report)
     db.commit()
     db.refresh(report)
-    model_registry = load_active_model_registry(adapter.dataset)
+    model_registry = load_active_model_registry(adapter.dataset)  # 使用当前疾病活动模型组
     return StreamingResponse(generate_longitudinal_report(db, report.id, snapshot, snapshot["visits"], adapter, model_registry=model_registry, sources=sources), media_type="text/event-stream")
 
 
@@ -404,10 +415,45 @@ def list_reports(
         .limit(limit)
         .all()
     )
-    return ReportListOut(
-        reports=[ReportListItem.model_validate(r) for r in reports],
-        total=total,
-    )
+    def _summary(report: AIReport) -> ReportListItem:
+        snapshot = report.input_snapshot if isinstance(report.input_snapshot, dict) else {}
+        prediction = report.prediction_result if isinstance(report.prediction_result, dict) else {}
+        disease_name = snapshot.get("disease") if isinstance(snapshot.get("disease"), str) else None
+        baseline_stage = snapshot.get("baseline_stage") if isinstance(snapshot.get("baseline_stage"), str) else None
+        visits = snapshot.get("visits") if isinstance(snapshot.get("visits"), list) else []
+        release_set = prediction.get("release_set") if isinstance(prediction.get("release_set"), dict) else {}
+        version = release_set.get("release_set_id") or release_set.get("data_release_id")
+        error_stage = None
+        if report.status == "generating":
+            error_stage = "generating"
+        elif report.status == "failed":
+            error_stage = "failed"
+        elif report.status == "cancelled":
+            error_stage = "cancelled"
+        return ReportListItem(
+            id=report.id,
+            user_id=report.user_id,
+            title=_safe_report_title(report),
+            query=_safe_report_title(report),
+            department_ids=report.department_ids or [],
+            status=report.status,
+            error_message=report.error_message,
+            download_count=report.download_count or 0,
+            analysis_type=report.analysis_type,
+            disease_id=report.disease_id,
+            operator_case_id=report.operator_case_id,
+            anonymous_case_code=getattr(report, "anonymous_case_code", None),
+            indicators=report.indicators or [],
+            disease_name=disease_name,
+            baseline_stage=baseline_stage,
+            visit_count=len(visits) if visits else None,
+            model_version_summary=str(version) if version else None,
+            error_stage=error_stage,
+            created_at=report.created_at,
+            updated_at=report.updated_at,
+        )
+
+    return ReportListOut(reports=[_summary(r) for r in reports], total=total)
 
 
 # ---------------------------------------------------------------------------
@@ -428,7 +474,10 @@ def get_report(
             status_code=status.HTTP_404_NOT_FOUND, detail="报告不存在"
         )
     _verify_report_owner(report, current_user)
-    return report
+    result = ReportOut.model_validate(report)
+    result.title = _safe_report_title(report)
+    result.query = _safe_report_title(report)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -496,14 +545,9 @@ def download_report_pdf(
     )
     # 新报告使用匿名病例编号；历史报告没有编号时只使用固定报告编号，
     # 避免把旧 title/query 中可能存在的身份信息带入下载文件名或 PDF 元数据。
-    safe_title = (
-        f"{anonymous_code}纵向进展预测报告"
-        if anonymous_code
-        else f"报告-{report_id}"
-    )
+    safe_title = _safe_report_title(report)
     # 历史报告的正文与既有 PDF 内容保持只读兼容；文件名单独使用安全标题。
-    title = getattr(report, "title", None) or safe_title
-    pdf_title = safe_title if anonymous_code else title
+    pdf_title = safe_title
 
     try:
         pdf_bytes = generate_pdf(report.content, pdf_title, report.prediction_result)
@@ -520,7 +564,6 @@ def download_report_pdf(
 
     # 构建安全 Content-Disposition（RFC 5987：ASCII fallback + UTF-8 编码文件名）
     safe_filename = f"report-{report_id}.pdf"
-    clean_title = title.replace("\r", "").replace("\n", "").replace('"', "").strip()
     encoded_title = urllib.parse.quote(f"{safe_title}.pdf", safe="")
     content_disposition = (
         f'attachment; filename="{safe_filename}"; '

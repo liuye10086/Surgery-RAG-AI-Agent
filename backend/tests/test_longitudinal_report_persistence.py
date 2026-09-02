@@ -103,7 +103,7 @@ def test_pdf_download_uses_saved_content_verbatim():
 
     generate.assert_called_once_with(
         "网页、历史和 PDF 共用的正文",
-        "匿名纵向报告",
+        "报告-17",
         report.prediction_result,
     )
     assert response.media_type == "application/pdf"

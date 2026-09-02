@@ -19,6 +19,13 @@ def test_pdf_template_reserves_page_margins_for_fragmented_content():
     assert "margin: 0;" not in template
 
 
+def test_pdf_template_shows_saved_model_version_notice():
+    template_path = Path(__file__).resolve().parents[1] / "app" / "templates" / "report_pdf.html"
+    template = template_path.read_text(encoding="utf-8")
+    assert "报告生成时保存的模型版本" in template
+    assert "当前模型" in template
+
+
 def test_longitudinal_markdown_keeps_required_sections_and_warning():
     content = """## 疾病阶段与进展结局预测
 

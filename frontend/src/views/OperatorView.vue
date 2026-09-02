@@ -2,6 +2,7 @@
   <div class="operator-view">
     <OperatorSidebar
       :reports="operatorStore.reports"
+      :total="operatorStore.total"
       :current-id="operatorStore.currentReport?.id"
       :collapsed="sidebarCollapsed"
       :loading="operatorStore.loading"
@@ -11,6 +12,7 @@
       @select="handleSelect"
       @new-longitudinal-case="startNewLongitudinalCase"
       @delete="handleDelete"
+      @load-more="loadMoreReports"
       @navigate="activeView = $event"
     />
 
@@ -157,6 +159,10 @@ function renderMarkdown(md: string): string {
     if (heading) heading.id = section.id
   })
   return document.body.innerHTML
+}
+
+function loadMoreReports() {
+  return operatorStore.fetchReports(operatorStore.reports.length, 20, true)
 }
 
 function isValidIndicator(row: IndicatorInput) {

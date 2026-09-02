@@ -42,6 +42,18 @@
         </div>
       </section>
 
+      <section class="snapshot-block" aria-label="生成时输入快照">
+        <h4>生成时输入快照</h4>
+        <p class="snapshot-note">历史报告只展示生成时保存的资料，不会自动按当前模型重新计算。</p>
+        <div v-if="snapshotAvailable" class="summary-grid">
+          <div><span>病例编号</span><strong>{{ snapshot.anonymous_case_code || '旧病例未设置匿名编号' }}</strong></div>
+          <div><span>疾病</span><strong>{{ snapshot.disease || '未记录' }}</strong></div>
+          <div><span>基线阶段</span><strong>{{ snapshot.baseline_stage || '未记录' }}</strong></div>
+          <div><span>访视次数</span><strong>{{ Array.isArray(snapshot.visits) ? snapshot.visits.length : '未记录' }}</strong></div>
+        </div>
+        <p v-else class="snapshot-missing">历史资料未完整保存。</p>
+      </section>
+
       <div class="markdown-body" v-html="renderedContent" />
     </div>
   </section>
@@ -63,6 +75,8 @@ const signalCount = computed(() => {
   return Number(signals?.summary?.signal_count || signals?.signals?.length || 0)
 })
 const outcomeAvailable = computed(() => prediction.value && 'model_status' in prediction.value && prediction.value.model_status.outcome.status === 'available')
+const snapshot = computed(() => props.report?.input_snapshot || {})
+const snapshotAvailable = computed(() => Object.keys(snapshot.value).length > 0)
 const releaseSetId = computed(() => prediction.value?.schema_version === 'longitudinal_prediction.v3' ? prediction.value.release_set.release_set_id : '')
 const dataReleaseId = computed(() => prediction.value?.schema_version === 'longitudinal_prediction.v3' ? prediction.value.release_set.data_release_id : '')
 const chartSeries = computed(() => Object.entries(observation.value.indicators || {}).flatMap(([name, item]: [string, any]) => {
@@ -99,6 +113,10 @@ function formatTime(value?: string) { return value ? new Date(value).toLocaleStr
 .summary-grid span { color:var(--text-secondary); font-size:var(--text-xs); }
 .summary-grid strong { color:var(--text-primary); font-size:var(--text-md); }
 .summary-grid small { color:var(--text-secondary); font-size:var(--text-xs); }
+.snapshot-block { margin:var(--space-4) 0; padding:var(--space-4); border:1px solid var(--border-light); border-radius:var(--radius-item); background:var(--bg-surface); }
+.snapshot-block h4 { margin:0 0 var(--space-2); color:var(--text-primary); font-size:var(--text-md); }
+.snapshot-note, .snapshot-missing { margin:0 0 var(--space-3); color:var(--text-secondary); font-size:var(--text-xs); }
+.snapshot-missing { color:var(--color-warning); }
 .technical-release { margin:var(--space-3) 0 0; color:var(--text-secondary); font-family:var(--font-mono); font-size:var(--text-xs); }
 .ok { color:var(--color-success) !important; } .warn { color:var(--color-warning) !important; }
 .report-toc { display:flex; flex-wrap:wrap; gap:var(--space-2) var(--space-4); margin:var(--space-4) 0; padding-bottom:var(--space-3); border-bottom:1px solid var(--border-light); }

@@ -232,6 +232,8 @@
 </head>
 <body>
 <div class="content">
+<!-- 报告生成时保存的模型版本；当前模型不会自动重算历史报告 -->
+<div class="model-status">{{ model_version_notice }}</div>
 {{ content | safe }}
 </div>
 </body>

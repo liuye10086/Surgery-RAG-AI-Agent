@@ -44,11 +44,13 @@ export const useOperatorStore = defineStore('operator', () => {
 
   let cancelFn: (() => void) | null = null
 
-  async function fetchReports(skip = 0, limit = 20) {
+  async function fetchReports(skip = 0, limit = 20, append = false) {
     loading.value = true
     try {
       const res = await listReports(skip, limit, 'longitudinal_predictive')
-      reports.value = res.reports
+      reports.value = append
+        ? [...reports.value, ...res.reports.filter((item) => !reports.value.some((existing) => existing.id === item.id))]
+        : res.reports
       total.value = res.total
     } finally {
       loading.value = false

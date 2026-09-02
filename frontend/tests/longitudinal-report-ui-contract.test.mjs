@@ -70,3 +70,16 @@ test('report reading view shows saved release identity only as technical detail'
   assert.match(view, /release_set_id/)
   assert.match(view, /technical-release/)
 })
+
+test('history list supports saved snapshot summaries and load more', async () => {
+  const [api, store, sidebar, view] = await Promise.all([
+    readFile(apiPath, 'utf8'), readFile(storePath, 'utf8'),
+    readFile(new URL('../src/components/OperatorSidebar.vue', import.meta.url), 'utf8'),
+    readFile(viewPath, 'utf8'),
+  ])
+  assert.match(api, /input_snapshot/)
+  assert.match(store, /append/)
+  assert.match(sidebar, /加载更多/)
+  assert.match(view, /生成时输入快照/)
+  assert.match(view, /不会自动按当前模型重新计算/)
+})

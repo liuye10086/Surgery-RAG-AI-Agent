@@ -104,8 +104,9 @@ class ReportSchemaContractTests(unittest.TestCase):
         from app.schemas.operator import ReportListItem
         fields = ReportListItem.model_fields
         self.assertTrue(
-            {"analysis_type", "disease_id", "indicators", "prediction_result"}.issubset(fields)
+            {"analysis_type", "disease_id", "indicators", "disease_name", "baseline_stage", "visit_count", "model_version_summary", "error_stage"}.issubset(fields)
         )
+        self.assertNotIn("prediction_result", fields)
 
 
 class TestReportStateMachine(unittest.TestCase):
