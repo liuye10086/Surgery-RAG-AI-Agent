@@ -285,6 +285,84 @@ def test_report_generation_rejects_archived_case_before_insert():
     db.commit.assert_not_called()
 
 
+def test_report_generation_rejects_invalid_historical_indicator_without_rewriting_it():
+    from app.api.operator import create_longitudinal_report
+
+    db = MagicMock()
+    raw_indicators = [{"name": "MMSE", "value": 20, "unit": "分"}]
+    legacy_case = SimpleNamespace(
+        id=3,
+        disease_id=11,
+        patient_label="legacy-case",
+        status="active",
+        age=65,
+        sex="female",
+        disease=SimpleNamespace(
+            id=11,
+            code="fatty_liver",
+            name="脂肪肝",
+            operator_enabled=True,
+        ),
+        visits=[
+            SimpleNamespace(
+                visit_date=date(2024, 1, 1),
+                indicators=raw_indicators,
+                notes=None,
+            )
+        ],
+    )
+    with patch("app.api.operator.get_operator_case", return_value=legacy_case):
+        with pytest.raises(HTTPException) as error:
+            asyncio.run(create_longitudinal_report(3, None, db, SimpleNamespace(id=7)))
+
+    assert error.value.status_code == 422
+    assert "属于疾病 ad" in error.value.detail
+    assert raw_indicators == [{"name": "MMSE", "value": 20, "unit": "分"}]
+    db.add.assert_not_called()
+    db.commit.assert_not_called()
+
+
+@pytest.mark.parametrize("operation", ["create", "add", "update", "replace"])
+def test_all_visit_write_paths_reject_cross_disease_indicator(operation):
+    from app.schemas.longitudinal_case import OperatorCaseCreate, VisitCreate, VisitUpdate
+    from app.services.indicator_validation import IndicatorValidationError
+    from app.services import longitudinal_case_service as service
+
+    payload = VisitCreate(
+        visit_date="2024-01-01",
+        indicators=[{"name": "MMSE", "value": 20, "unit": "分"}],
+    )
+    db = MagicMock()
+    case = _case()
+    if operation == "create":
+        db.query.return_value.filter.return_value.first.return_value = case.disease
+        call = lambda: service.create_operator_case(
+            db,
+            7,
+            OperatorCaseCreate(
+                disease_id=11,
+                patient_label="case-cross",
+                age=65,
+                visits=[payload],
+            ),
+        )
+    elif operation == "add":
+        call = lambda: service.add_visit(db, 7, 3, payload)
+    elif operation == "update":
+        call = lambda: service.update_visit(
+            db, 7, 3, 9, VisitUpdate(indicators=payload.indicators)
+        )
+    else:
+        call = lambda: service.replace_visits(db, 7, 3, [payload])
+
+    with patch.object(service, "get_operator_case_for_write", return_value=case):
+        with patch.object(service, "_owned_visit_query", return_value=(case, _visit("2024-01-01", visit_id=9))):
+            with pytest.raises(IndicatorValidationError, match="属于疾病 ad"):
+                call()
+
+    db.commit.assert_not_called()
+
+
 def test_add_visit_rejects_case_owned_by_another_user():
     from app.services.longitudinal_case_service import CaseNotFoundError, add_visit
     from app.schemas.longitudinal_case import VisitCreate

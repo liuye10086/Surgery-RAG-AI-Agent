@@ -129,6 +129,13 @@ class ImportLongitudinalTests(unittest.TestCase):
                 "ad",
             )
 
+    def test_build_indicators_rejects_non_finite_csv_values(self):
+        with self.assertRaisesRegex(ValueError, "有限数字"):
+            self.importer.build_indicators(
+                {"patient_id": "P001", "visit_date": "2024-01-01", "alt": "NaN"},
+                "fatty_liver",
+            )
+
     def test_build_case_metadata_carries_longitudinal_semantics(self):
         patient = {
             "age": "60",

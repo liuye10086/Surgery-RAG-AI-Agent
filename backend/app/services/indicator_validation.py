@@ -106,12 +106,25 @@ def allowed_indicator_codes(disease_code: str) -> tuple[str, ...]:
 
 
 def default_unit(disease_code: str, indicator_code: str) -> str:
+    normalized = str(indicator_code).strip().lower()
     try:
-        return INDICATOR_CONTRACTS[disease_code][indicator_code.lower()].units[0]
+        definitions = INDICATOR_CONTRACTS[disease_code]
     except KeyError as exc:
+        raise IndicatorValidationError(f"不支持的疾病代码：{disease_code}") from exc
+    definition = definitions.get(normalized)
+    if definition is None:
+        owner = next(
+            (code for code, entries in INDICATOR_CONTRACTS.items() if normalized in entries),
+            None,
+        )
+        if owner:
+            raise IndicatorValidationError(
+                f"指标 {normalized} 属于疾病 {owner}，不属于当前疾病 {disease_code}"
+            )
         raise IndicatorValidationError(
-            f"疾病 {disease_code} 不支持指标 {indicator_code}"
-        ) from exc
+            f"未知指标 {normalized}；当前疾病 {disease_code} 不支持该指标"
+        )
+    return definition.units[0]
 
 
 def _field(item: Any, name: str) -> Any:

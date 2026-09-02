@@ -304,8 +304,8 @@ def replace_visits(
     """
     case = get_operator_case_for_write(db, user_id, case_id)
     payloads = list(payloads)
-    validate_visits(case.disease.code, payloads)
     _validate_visit_count(len(payloads))
+    validate_visits(case.disease.code, payloads)
     dates = [payload.visit_date for payload in payloads]
     if len(dates) != len(set(dates)):
         raise DuplicateVisitDateError("同一病例不能重复使用访视日期")

@@ -83,6 +83,7 @@ from app.services.disease_catalog import (
     DiseaseNotFoundError,
     require_enabled_case_disease,
 )
+from app.services.indicator_validation import IndicatorValidationError
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/operator", tags=["operator"])
@@ -142,6 +143,7 @@ def create_longitudinal_case(
         CaseNotFoundError,
         DuplicateVisitDateError,
         VisitLimitError,
+        IndicatorValidationError,
     ) as exc:
         raise _longitudinal_error(exc) from exc
 
@@ -241,6 +243,7 @@ def create_longitudinal_visit(
         DuplicateVisitDateError,
         VisitLimitError,
         ArchivedCaseError,
+        IndicatorValidationError,
     ) as exc:
         raise _longitudinal_error(exc) from exc
 
@@ -263,6 +266,7 @@ def replace_longitudinal_visits(
         DuplicateVisitDateError,
         VisitLimitError,
         ArchivedCaseError,
+        IndicatorValidationError,
     ) as exc:
         raise _longitudinal_error(exc) from exc
 
@@ -286,6 +290,7 @@ def update_longitudinal_visit(
         VisitNotFoundError,
         DuplicateVisitDateError,
         ArchivedCaseError,
+        IndicatorValidationError,
     ) as exc:
         raise _longitudinal_error(exc) from exc
 
@@ -308,6 +313,7 @@ def delete_longitudinal_visit(
         VisitNotFoundError,
         VisitLimitError,
         ArchivedCaseError,
+        IndicatorValidationError,
     ) as exc:
         raise _longitudinal_error(exc) from exc
     return None
@@ -344,6 +350,12 @@ async def create_longitudinal_report(
         {"visit_date": visit.visit_date.isoformat(), "indicators": visit.indicators or [], "notes": visit.notes}
         for visit in sorted(case.visits, key=lambda item: item.visit_date)
     ]
+    try:
+        from app.services.indicator_validation import validate_visits
+
+        validate_visits(disease.code, visits)
+    except IndicatorValidationError as exc:
+        raise _longitudinal_error(exc) from exc
     indicator_names = sorted({
         str(indicator.get("name", "")).strip().lower()
         for visit in visits
@@ -364,7 +376,7 @@ async def create_longitudinal_report(
     db.commit()
     db.refresh(report)
     model_registry = load_active_model_registry(adapter.dataset)
-    return StreamingResponse(generate_longitudinal_report(db, report.id, snapshot, visits, adapter, model_registry=model_registry, sources=sources), media_type="text/event-stream")
+    return StreamingResponse(generate_longitudinal_report(db, report.id, snapshot, snapshot["visits"], adapter, model_registry=model_registry, sources=sources), media_type="text/event-stream")
 
 
 # ---------------------------------------------------------------------------

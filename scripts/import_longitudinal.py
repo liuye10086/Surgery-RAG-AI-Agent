@@ -81,7 +81,10 @@ def build_indicators(visit_row: dict, dataset: str) -> list[dict]:
 
     visit_row 中的 patient_id/visit_date 被排除；其余列名作为指标名。
     """
-    from app.services.indicator_validation import default_unit, validate_indicators
+    from app.services.indicator_validation import (
+        default_unit,
+        validate_indicators,
+    )
 
     indicators = []
     for name, value in visit_row.items():

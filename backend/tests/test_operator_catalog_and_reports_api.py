@@ -175,6 +175,8 @@ class TestReportStateMachine(unittest.TestCase):
 
         def fake_generate(*args, **kwargs):
             captured["adapter"] = args[4]
+            captured["snapshot"] = args[2]
+            captured["visits"] = args[3]
             return iter([b""])
 
         with patch("app.api.operator.get_operator_case", return_value=case), patch(
@@ -199,6 +201,7 @@ class TestReportStateMachine(unittest.TestCase):
             captured["adapter"],
             DISEASE_CAPABILITIES["fatty_liver"].adapter,
         )
+        self.assertEqual(captured["snapshot"]["visits"], captured["visits"])
         db.add.assert_called_once()
 
     def test_disabled_disease_rejects_report_before_insert(self):
