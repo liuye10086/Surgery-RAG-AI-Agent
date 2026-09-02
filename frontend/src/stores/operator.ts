@@ -7,6 +7,7 @@ import {
   listLongitudinalCases,
   createLongitudinalCase,
   updateLongitudinalCase,
+  deleteLongitudinalCase,
   updateLongitudinalCaseStatus,
   addLongitudinalVisit,
   replaceLongitudinalVisits,
@@ -139,6 +140,21 @@ export const useOperatorStore = defineStore('operator', () => {
     return saved
   }
 
+  async function removeLongitudinalCase() {
+    const current = currentLongitudinalCase.value
+    if (!current) throw new Error('请先选择病例')
+    await deleteLongitudinalCase(current.id)
+    try {
+      await fetchLongitudinalCases(undefined, longitudinalCaseStatusFilter.value)
+    } catch {
+      throw new Error('病例已删除，但病例列表刷新失败，请重新加载页面')
+    } finally {
+      currentLongitudinalCase.value = null
+      longitudinalPrediction.value = null
+      longitudinalReportContent.value = ''
+    }
+  }
+
   async function saveLongitudinalVisit(data: { visit_date: string; indicators: IndicatorInput[]; notes?: string }) {
     if (!currentLongitudinalCase.value) throw new Error('请先选择病例')
     const visit = await addLongitudinalVisit(currentLongitudinalCase.value.id, data)
@@ -197,6 +213,7 @@ export const useOperatorStore = defineStore('operator', () => {
     fetchLongitudinalCases,
     saveLongitudinalCase,
     changeLongitudinalCaseStatus,
+    removeLongitudinalCase,
     saveLongitudinalVisit,
     generateLongitudinalReport,
   }

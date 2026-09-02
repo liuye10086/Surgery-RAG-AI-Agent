@@ -79,6 +79,15 @@
                 </el-tag>
                 <el-button v-if="operatorStore.currentLongitudinalCase.status === 'active'" type="warning" plain @click="archiveCurrentCase">归档</el-button>
                 <el-button v-else type="primary" plain :disabled="operatorStore.currentLongitudinalCase.disease.operator_enabled === false" @click="restoreCurrentCase">恢复</el-button>
+                <el-button
+                  type="danger"
+                  plain
+                  :disabled="!canDeleteCurrentCase"
+                  :title="deleteCurrentCaseDisabledReason"
+                  @click="handleDeleteLongitudinalCase"
+                >
+                  删除病例
+                </el-button>
               </div>
             </div>
             <LongitudinalCaseEditor
@@ -115,6 +124,17 @@ const operatorStore = useOperatorStore()
 const sidebarCollapsed = ref(localStorage.getItem('operator_sidebar_collapsed') === 'true')
 const activeView = ref<'progression' | 'cases'>('progression')
 const progressionDiseases = computed(() => operatorStore.diseases)
+const canDeleteCurrentCase = computed(() => {
+  const current = operatorStore.currentLongitudinalCase
+  return Boolean(current?.status === 'active' && current.disease.operator_enabled !== false)
+})
+const deleteCurrentCaseDisabledReason = computed(() => {
+  const current = operatorStore.currentLongitudinalCase
+  if (!current) return ''
+  if (current.disease.operator_enabled === false) return '疾病已停用，当前不能删除病例'
+  if (current.status !== 'active') return '请先恢复病例后再删除'
+  return ''
+})
 
 const reportReadingMode = computed(() =>
   activeView.value === 'progression'
@@ -236,6 +256,29 @@ async function changeCurrentCaseStatus(target: 'active' | 'archived') {
 
 function archiveCurrentCase() { return changeCurrentCaseStatus('archived') }
 function restoreCurrentCase() { return changeCurrentCaseStatus('active') }
+
+async function handleDeleteLongitudinalCase() {
+  const current = operatorStore.currentLongitudinalCase
+  if (!current) return
+  const anonymousCode = current.anonymous_case_code || '旧病例未设置匿名编号'
+  try {
+    await ElMessageBox.confirm(
+      `确定删除病例 ${anonymousCode}？病例及全部访视将永久删除；历史报告仍会保留并解除病例关联，只能通过生成时输入快照追溯。`,
+      '确认删除病例',
+      {
+        confirmButtonText: '删除病例',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      },
+    )
+    await operatorStore.removeLongitudinalCase()
+    ElMessage.success('病例已删除，历史报告仍保留')
+  } catch (error: any) {
+    if (error === 'cancel' || error?.message === 'cancel') return
+    ElMessage.error(error?.response?.data?.detail || error?.message || '病例删除失败')
+  }
+}
 
 function caseStatusLabel(value: string): string {
   if (value === 'active') return '使用中'
