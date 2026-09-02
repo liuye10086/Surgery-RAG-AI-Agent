@@ -110,6 +110,7 @@ export interface LongitudinalCaseCreatePayload {
   sex?: 'male' | 'female' | null
   baseline_stage?: BaselineStage | null
   notes?: string | null
+  visits: Array<{ visit_date: string; indicators: IndicatorInput[]; notes?: string | null }>
 }
 
 export interface LongitudinalCaseUpdatePayload {

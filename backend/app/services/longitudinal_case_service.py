@@ -19,6 +19,7 @@ from app.services.disease_catalog import (
     require_enabled_case_disease,
     require_operator_disease,
 )
+from app.services.indicator_validation import validate_indicators, validate_visits
 
 
 class LongitudinalCaseError(ValueError):
@@ -43,6 +44,13 @@ class VisitLimitError(LongitudinalCaseError):
 
 class ArchivedCaseError(LongitudinalCaseError):
     pass
+
+
+def _validate_visit_count(count: int) -> None:
+    if count < 1:
+        raise VisitLimitError("病例至少需要 1 次访视")
+    if count > 10:
+        raise VisitLimitError("每个病例最多保存 10 次访视")
 
 
 def _owned_case_query(db, user_id: int, case_id: int):
@@ -87,7 +95,13 @@ def get_operator_case_for_write(db, user_id: int, case_id: int) -> OperatorCase:
 def create_operator_case(
     db, user_id: int, payload: OperatorCaseCreate
 ) -> OperatorCase:
-    require_operator_disease(db, payload.disease_id)
+    disease = require_operator_disease(db, payload.disease_id)
+    validate_visits(disease.code, payload.visits)
+
+    visits = sorted(payload.visits, key=lambda item: item.visit_date)
+    if len({item.visit_date for item in visits}) != len(visits):
+        raise DuplicateVisitDateError("同一病例不能重复使用访视日期")
+    _validate_visit_count(len(visits))
 
     case = OperatorCase(
         user_id=user_id,
@@ -100,7 +114,22 @@ def create_operator_case(
         status="active",
     )
     db.add(case)
-    db.commit()
+    db.flush()
+    for index, visit_payload in enumerate(visits, start=1):
+        db.add(
+            OperatorCaseVisit(
+                case=case,
+                visit_date=visit_payload.visit_date,
+                visit_index=index,
+                indicators=[item.model_dump() for item in visit_payload.indicators],
+                notes=visit_payload.notes,
+            )
+        )
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise DuplicateVisitDateError("同一病例不能重复使用访视日期") from exc
     db.refresh(case)
     return case
 
@@ -159,13 +188,27 @@ def _ordered_visits(db, case_id: int, case: OperatorCase | None = None) -> list[
 
 def _reindex_visits(db, case_id: int, case: OperatorCase | None = None) -> list[Any]:
     visits = _ordered_visits(db, case_id, case)
+    # The unique (case_id, visit_index) constraint makes a direct swap unsafe:
+    # assigning 1->2 before 2->1 can transiently collide. Move rows to a
+    # temporary, valid positive range first, then assign their final indexes.
+    for offset, visit in enumerate(visits, start=1):
+        visit.visit_index = 1000 + offset
+    try:
+        db.flush()
+    except AttributeError:
+        pass
     for index, visit in enumerate(visits, start=1):
         visit.visit_index = index
+    try:
+        db.flush()
+    except AttributeError:
+        pass
     return visits
 
 
 def add_visit(db, user_id: int, case_id: int, payload: VisitCreate) -> OperatorCaseVisit:
     case = get_operator_case_for_write(db, user_id, case_id)
+    validate_indicators(case.disease.code, payload.indicators)
     visits = _ordered_visits(db, case_id, case)
     duplicate = (
         db.query(OperatorCaseVisit)
@@ -177,8 +220,7 @@ def add_visit(db, user_id: int, case_id: int, payload: VisitCreate) -> OperatorC
     )
     if duplicate is not None:
         raise DuplicateVisitDateError("同一病例不能重复添加同一访视日期")
-    if len(visits) >= 10:
-        raise VisitLimitError("每个病例最多保存 10 次访视")
+    _validate_visit_count(len(visits) + 1)
 
     visit = OperatorCaseVisit(
         case_id=case_id,
@@ -221,6 +263,8 @@ def update_visit(
 ) -> OperatorCaseVisit:
     case, visit = _owned_visit_query(db, user_id, case_id, visit_id)
     values = payload.model_dump(exclude_unset=True)
+    if payload.indicators is not None:
+        validate_indicators(case.disease.code, payload.indicators)
     if "visit_date" in values:
         duplicate = (
             db.query(OperatorCaseVisit)
@@ -260,8 +304,8 @@ def replace_visits(
     """
     case = get_operator_case_for_write(db, user_id, case_id)
     payloads = list(payloads)
-    if len(payloads) > 10:
-        raise VisitLimitError("每个病例最多保存 10 次访视")
+    validate_visits(case.disease.code, payloads)
+    _validate_visit_count(len(payloads))
     dates = [payload.visit_date for payload in payloads]
     if len(dates) != len(set(dates)):
         raise DuplicateVisitDateError("同一病例不能重复使用访视日期")
@@ -291,6 +335,8 @@ def replace_visits(
 
 def delete_visit(db, user_id: int, case_id: int, visit_id: int) -> None:
     case, visit = _owned_visit_query(db, user_id, case_id, visit_id)
+    visits = _ordered_visits(db, case_id, case)
+    _validate_visit_count(len(visits) - 1)
     db.delete(visit)
     db.commit()
     _reindex_visits(db, case_id, case)
@@ -333,12 +379,15 @@ def build_input_snapshot(
         )
 
     disease = getattr(case, "disease", None)
+    disease_code = getattr(disease, "code", None)
+    if disease_code:
+        validate_visits(disease_code, snapshot_visits)
     return {
         "schema_version": "longitudinal_input.v1",
         "case_id": getattr(case, "id", None),
         "disease_id": getattr(case, "disease_id", None),
         "disease": getattr(disease, "name", None),
-        "disease_code": getattr(disease, "code", None),
+        "disease_code": disease_code,
         "patient_label": getattr(case, "patient_label", None),
         "age": getattr(case, "age", None),
         "sex": getattr(case, "sex", None),

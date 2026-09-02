@@ -182,6 +182,14 @@ async function handleLongitudinalCaseSaved(draft: any) {
       ElMessage.error('请完整填写每次访视的日期、指标、数值和单位')
       return
     }
+    if (!draft.visits?.length) {
+      ElMessage.error('病例至少保留 1 次访视')
+      return
+    }
+    if (draft.visits.length > 10) {
+      ElMessage.error('病例最多保留 10 次访视')
+      return
+    }
     const visits = (draft.visits || [])
       .map((visit: any) => ({
         visit_date: visit.visit_date,

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import AsyncGenerator, Any
 
 from app.services.longitudinal_prediction import prediction_result_to_dict, run_longitudinal_prediction
+from app.services.indicator_validation import validate_visits
 
 
 SAFE_LONGITUDINAL_ERRORS = {
@@ -488,6 +489,7 @@ def render_longitudinal_markdown(
 async def generate_longitudinal_report(db, report_id: int, case: dict[str, Any], visits: list[dict[str, Any]], adapter, model_registry: dict[str, Any] | None = None, sources: list[dict[str, Any]] | None = None) -> AsyncGenerator[str, None]:
     from app.db.models import AIReport
     try:
+        validate_visits(adapter.dataset, visits)
         yield _sse("stage", {"stage": "feature_extraction"})
         result = run_longitudinal_prediction(
             case,

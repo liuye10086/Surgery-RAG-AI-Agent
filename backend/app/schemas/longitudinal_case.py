@@ -40,6 +40,7 @@ class OperatorCaseCreate(BaseModel):
     sex: str | None = Field(None, pattern=r"^(male|female)$")
     baseline_stage: str | None = Field(None, max_length=100)
     notes: str | None = Field(None, max_length=5000)
+    visits: list["VisitCreate"] = Field(..., min_length=1, max_length=10)
 
     @field_validator("patient_label", "baseline_stage", mode="before")
     @classmethod
@@ -97,6 +98,9 @@ class VisitCreate(BaseModel):
         return value.strip() or None
 
 
+OperatorCaseCreate.model_rebuild()
+
+
 class VisitUpdate(BaseModel):
     visit_date: date | None = None
     indicators: list[IndicatorValue] | None = Field(None, min_length=1, max_length=30)
@@ -115,7 +119,7 @@ class VisitUpdate(BaseModel):
 class VisitReplaceRequest(BaseModel):
     """Complete timeline submitted by the editor in one atomic operation."""
 
-    visits: list[VisitCreate] = Field(default_factory=list, max_length=10)
+    visits: list[VisitCreate] = Field(default_factory=list, min_length=1, max_length=10)
 
 
 class VisitOut(BaseModel):

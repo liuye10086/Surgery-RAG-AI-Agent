@@ -76,18 +76,27 @@ def group_visits_by_patient(visits: list[dict]) -> dict[str, list[dict]]:
     return dict(grouped)
 
 
-def build_indicators(visit_row: dict) -> list[dict]:
+def build_indicators(visit_row: dict, dataset: str) -> list[dict]:
     """从单次访视行构造 indicators，只保留非空字段。
 
     visit_row 中的 patient_id/visit_date 被排除；其余列名作为指标名。
     """
+    from app.services.indicator_validation import default_unit, validate_indicators
+
     indicators = []
     for name, value in visit_row.items():
         if name in ("patient_id", "visit_date"):
             continue
         if value is None or value == "":
             continue
-        indicators.append({"name": name, "value": float(value), "unit": ""})
+        indicators.append(
+            {
+                "name": name,
+                "value": float(value),
+                "unit": default_unit(dataset, name),
+            }
+        )
+    validate_indicators(dataset, indicators)
     return indicators
 
 
@@ -231,6 +240,10 @@ def import_dataset(
         patient = patient_map[patient_id]
         ordered = sorted(patient_rows, key=lambda r: r["visit_date"])
         total = len(ordered)
+        if total < 1:
+            raise ValueError(f"患者 {patient_id} 至少需要 1 次访视")
+        if total > 10:
+            raise ValueError(f"患者 {patient_id} 最多只能导入 10 次访视")
         for index, visit in enumerate(ordered, start=1):
             signature = (
                 cfg["dir"].split("/")[-1],
@@ -244,7 +257,7 @@ def import_dataset(
             record = CaseRecord(
                 disease_id=disease.id,
                 patient_label=patient_id,
-                indicators=build_indicators(visit),
+                indicators=build_indicators(visit, dataset),
                 confirmed=should_mark_confirmed(dataset, patient["final_stage"]),
                 case_metadata=build_case_metadata(
                     dataset=dataset,

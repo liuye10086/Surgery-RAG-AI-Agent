@@ -17,18 +17,22 @@ from app.services.disease_progression import (
     FATTY_LIVER_ADAPTER,
     DiseaseProgressionAdapter,
 )
+from app.services.indicator_validation import IndicatorDefinition, INDICATOR_CONTRACTS
 
 
 @dataclass(frozen=True)
 class DiseaseCapability:
     code: str
     adapter: DiseaseProgressionAdapter
+    indicators: MappingProxyType[str, IndicatorDefinition]
 
 
 DISEASE_CAPABILITIES = MappingProxyType(
     {
-        "fatty_liver": DiseaseCapability("fatty_liver", FATTY_LIVER_ADAPTER),
-        "ad": DiseaseCapability("ad", AD_ADAPTER),
+        "fatty_liver": DiseaseCapability(
+            "fatty_liver", FATTY_LIVER_ADAPTER, INDICATOR_CONTRACTS["fatty_liver"]
+        ),
+        "ad": DiseaseCapability("ad", AD_ADAPTER, INDICATOR_CONTRACTS["ad"]),
     }
 )
 

@@ -96,16 +96,38 @@ class ImportLongitudinalTests(unittest.TestCase):
         self.assertEqual(sorted(grouped), ["P001", "P002"])
         self.assertEqual(len(grouped["P001"]), 2)
 
+    def test_import_rejects_more_than_ten_visits_for_one_patient(self):
+        patients = [{"patient_id": "P001", "final_stage": "stable"}]
+        visits = [
+            {"patient_id": "P001", "visit_date": f"2020-01-{day:02d}", "alt": "60"}
+            for day in range(1, 12)
+        ]
+        db = make_sqlite_db()
+        with self.assertRaisesRegex(ValueError, "10 次访视"):
+            self.importer.import_dataset(db, "fatty_liver", patients=patients, visits=visits, source_documents={})
+
     def test_build_indicators_skips_empty_values(self):
         row = {"alt": "60.0", "ast": "", "ggt": "54.0", "bmi": ""}
-        inds = self.importer.build_indicators(row)
+        inds = self.importer.build_indicators(row, "fatty_liver")
         self.assertEqual(
             inds,
             [
-                {"name": "alt", "value": 60.0, "unit": ""},
-                {"name": "ggt", "value": 54.0, "unit": ""},
+                {"name": "alt", "value": 60.0, "unit": "U/L"},
+                {"name": "ggt", "value": 54.0, "unit": "U/L"},
             ],
         )
+
+    def test_build_indicators_rejects_unknown_or_cross_disease_columns(self):
+        with self.assertRaisesRegex(ValueError, "属于疾病 ad"):
+            self.importer.build_indicators(
+                {"patient_id": "P001", "visit_date": "2024-01-01", "mmse": "20"},
+                "fatty_liver",
+            )
+        with self.assertRaisesRegex(ValueError, "未知指标 mystery_marker"):
+            self.importer.build_indicators(
+                {"patient_id": "P001", "visit_date": "2024-01-01", "mystery_marker": "1"},
+                "ad",
+            )
 
     def test_build_case_metadata_carries_longitudinal_semantics(self):
         patient = {

@@ -42,6 +42,13 @@ def _visit(day, visit_index=1, visit_id=None):
     )
 
 
+def _create_visit_payload():
+    return {
+        "visit_date": "2024-01-01",
+        "indicators": [{"name": "ALT", "value": 42, "unit": "U/L"}],
+    }
+
+
 def test_visit_rejects_empty_indicators_and_non_finite_values():
     from app.schemas.longitudinal_case import VisitCreate
 
@@ -62,6 +69,7 @@ def test_case_schema_normalizes_label_and_validates_sex():
         patient_label="  case-A  ",
         age=65,
         sex="female",
+        visits=[_create_visit_payload()],
     )
     assert payload.patient_label == "case-A"
     with pytest.raises(ValidationError):
@@ -70,17 +78,18 @@ def test_case_schema_normalizes_label_and_validates_sex():
             patient_label="case-A",
             age=65,
             sex="unknown",
+            visits=[_create_visit_payload()],
         )
 
 
 def test_case_age_is_required_strict_integer_and_bounded():
     from app.schemas.longitudinal_case import OperatorCaseCreate
 
-    assert OperatorCaseCreate(disease_id=11, patient_label="case-0", age=0).age == 0
-    assert OperatorCaseCreate(disease_id=11, patient_label="case-120", age=120).age == 120
+    assert OperatorCaseCreate(disease_id=11, patient_label="case-0", age=0, visits=[_create_visit_payload()]).age == 0
+    assert OperatorCaseCreate(disease_id=11, patient_label="case-120", age=120, visits=[_create_visit_payload()]).age == 120
     for age in (-1, 121, 1.5, 65.0, "65", None):
         with pytest.raises(ValidationError):
-            OperatorCaseCreate(disease_id=11, patient_label="case-invalid", age=age)
+            OperatorCaseCreate(disease_id=11, patient_label="case-invalid", age=age, visits=[_create_visit_payload()])
 
 
 def test_case_update_age_may_be_omitted_but_not_cleared():
@@ -122,12 +131,14 @@ def test_case_schema_trims_canonical_or_legacy_baseline_stage():
         patient_label="case-A",
         age=65,
         baseline_stage="  pre_cirrhosis  ",
+        visits=[_create_visit_payload()],
     )
     legacy = OperatorCaseCreate(
         disease_id=11,
         patient_label="case-B",
         age=65,
         baseline_stage="  S1  ",
+        visits=[_create_visit_payload()],
     )
     assert canonical.baseline_stage == "pre_cirrhosis"
     assert legacy.baseline_stage == "S1"
@@ -185,10 +196,11 @@ def test_create_operator_case_persists_age():
             disease_id=11,
             patient_label="case-age",
             age=67,
+            visits=[_create_visit_payload()],
         ),
     )
 
-    persisted = db.add.call_args.args[0]
+    persisted = db.add.call_args_list[0].args[0]
     assert result is persisted
     assert persisted.age == 67
 
@@ -213,6 +225,7 @@ def test_create_operator_case_rejects_disabled_disease():
                 disease_id=11,
                 patient_label="case-disabled",
                 age=67,
+                visits=[_create_visit_payload()],
             ),
         )
 

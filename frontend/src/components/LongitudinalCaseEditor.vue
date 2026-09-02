@@ -34,7 +34,7 @@
     <div class="visit-timeline">
       <article v-for="(visit, index) in draft.visits" :key="visit.id || index" class="visit-item">
         <div class="visit-title">
-          <strong>访视 {{ index + 1 }}</strong>
+          <strong>访视 {{ visit.visit_index ?? '待保存' }}</strong>
           <el-button text type="danger" :disabled="readOnly" @click="removeVisit(index)">删除</el-button>
         </div>
         <el-date-picker v-model="visit.visit_date" :disabled="readOnly" type="date" value-format="YYYY-MM-DD" aria-label="访视日期" />

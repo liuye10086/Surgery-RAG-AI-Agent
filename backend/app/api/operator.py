@@ -137,7 +137,12 @@ def create_longitudinal_case(
 ):
     try:
         return create_operator_case(db, current_user.id, payload)
-    except (DiseaseCatalogError, CaseNotFoundError) as exc:
+    except (
+        DiseaseCatalogError,
+        CaseNotFoundError,
+        DuplicateVisitDateError,
+        VisitLimitError,
+    ) as exc:
         raise _longitudinal_error(exc) from exc
 
 
@@ -297,7 +302,13 @@ def delete_longitudinal_visit(
 ):
     try:
         delete_visit(db, current_user.id, case_id, visit_id)
-    except (CaseNotFoundError, DiseaseCatalogError, VisitNotFoundError, ArchivedCaseError) as exc:
+    except (
+        CaseNotFoundError,
+        DiseaseCatalogError,
+        VisitNotFoundError,
+        VisitLimitError,
+        ArchivedCaseError,
+    ) as exc:
         raise _longitudinal_error(exc) from exc
     return None
 

@@ -408,6 +408,37 @@ class AlembicContractTests(unittest.TestCase):
             "age IS NULL OR age BETWEEN 0 AND 120",
         )
 
+    def test_operator_case_visit_integrity_migration_follows_0016(self):
+        migration = _load_revision(
+            "0017_operator_case_visit_integrity.py",
+            "migration_0017_visit_integrity",
+        )
+        self.assertEqual(migration.revision, "0017")
+        self.assertEqual(migration.down_revision, "0016")
+
+    def test_operator_case_visit_integrity_migration_adds_only_constraints(self):
+        migration = _load_revision(
+            "0017_operator_case_visit_integrity.py",
+            "migration_0017_visit_integrity_ops",
+        )
+        migration_op = MagicMock()
+
+        with patch.object(migration, "op", migration_op):
+            migration.upgrade()
+
+        migration_op.create_check_constraint.assert_called_once_with(
+            "ck_operator_case_visits_visit_index_positive",
+            "operator_case_visits",
+            "visit_index >= 1",
+        )
+        migration_op.create_unique_constraint.assert_called_once_with(
+            "uq_operator_case_visits_case_id_visit_index",
+            "operator_case_visits",
+            ["case_id", "visit_index"],
+        )
+        migration_op.add_column.assert_not_called()
+        migration_op.drop_table.assert_not_called()
+
     def test_disease_permission_migration_follows_0013(self):
         migration = _load_revision(
             "0014_disease_codes_and_operator_permission.py",

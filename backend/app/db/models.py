@@ -293,6 +293,15 @@ class OperatorCaseVisit(Base):
             "visit_date",
             name="uq_operator_case_visits_case_date",
         ),
+        UniqueConstraint(
+            "case_id",
+            "visit_index",
+            name="uq_operator_case_visits_case_id_visit_index",
+        ),
+        CheckConstraint(
+            "visit_index >= 1",
+            name="ck_operator_case_visits_visit_index_positive",
+        ),
         Index("ix_operator_case_visits_case_id", "case_id"),
         Index("ix_operator_case_visits_visit_date", "visit_date"),
     )

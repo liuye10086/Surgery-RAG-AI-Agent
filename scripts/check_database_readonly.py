@@ -116,6 +116,56 @@ def get_code_heads():
     return set(ScriptDirectory.from_config(config).get_heads())
 
 
+def _collect_visit_integrity_checks(connection):
+    """Return read-only visit integrity counts; catalog/query gaps stay unavailable."""
+
+    def count(sql):
+        rows = connection.execute(text(sql)).mappings().all()
+        if not rows:
+            return 0
+        return int(next(iter(rows[0].values())))
+
+    try:
+        return {
+            "available": True,
+            "invalid_visit_index_count": count(
+                "SELECT COUNT(*) AS count FROM operator_case_visits "
+                "WHERE visit_index IS NULL OR visit_index <= 0"
+            ),
+            "duplicate_visit_index_case_count": count(
+                "SELECT COUNT(*) AS count FROM ("
+                "SELECT case_id, visit_index FROM operator_case_visits "
+                "GROUP BY case_id, visit_index HAVING COUNT(*) > 1"
+                ") duplicates"
+            ),
+            "visit_index_gap_case_count": count(
+                "SELECT COUNT(*) AS count FROM ("
+                "SELECT case_id FROM operator_case_visits "
+                "GROUP BY case_id HAVING MIN(visit_index) <> 1 "
+                "OR COUNT(*) <> MAX(visit_index)"
+                ") gaps"
+            ),
+            "zero_visit_case_count": count(
+                "SELECT COUNT(*) AS count FROM operator_cases c "
+                "LEFT JOIN operator_case_visits v ON v.case_id = c.id "
+                "WHERE v.id IS NULL"
+            ),
+            "over_limit_case_count": count(
+                "SELECT COUNT(*) AS count FROM ("
+                "SELECT case_id FROM operator_case_visits "
+                "GROUP BY case_id HAVING COUNT(*) > 10"
+                ") over_limit"
+            ),
+            "orphan_visit_count": count(
+                "SELECT COUNT(*) AS count FROM operator_case_visits v "
+                "LEFT JOIN operator_cases c ON c.id = v.case_id "
+                "WHERE c.id IS NULL"
+            ),
+        }
+    except Exception:
+        return {"available": False}
+
+
 def collect_checks(connection, code_heads):
     connection.execute(text("SET TRANSACTION READ ONLY"))
     server_version = connection.execute(text("SHOW server_version")).scalar_one_or_none()
@@ -188,6 +238,15 @@ def collect_checks(connection, code_heads):
         set(disease_fk_rules) == EXPECTED_DISEASE_FKS
         and all(rule == "RESTRICT" for rule in disease_fk_rules.values())
     )
+    visit_integrity = _collect_visit_integrity_checks(connection)
+    visit_integrity_match = (
+        visit_integrity.get("available") is False
+        or all(
+            value == 0
+            for key, value in visit_integrity.items()
+            if key.endswith("_count")
+        )
+    )
     # Keep the baseline checker backwards-compatible with lightweight test
     # doubles while checking the new status guard on real PostgreSQL systems.
     status_constraint_present = None
@@ -222,6 +281,7 @@ def collect_checks(connection, code_heads):
         and revision_matches
         and base_diseases_match
         and disease_fk_rules_match
+        and visit_integrity_match
         and status_constraint_present is not False
         and status_constraint_validated is not False
         and status_audit_table_present is not False
@@ -241,6 +301,8 @@ def collect_checks(connection, code_heads):
         "base_diseases_match": base_diseases_match,
         "disease_fk_rules": disease_fk_rules,
         "disease_fk_rules_match": disease_fk_rules_match,
+        "visit_integrity": visit_integrity,
+        "visit_integrity_match": visit_integrity_match,
         "status_constraint_present": status_constraint_present,
         "status_constraint_validated": status_constraint_validated,
         "status_audit_table_present": status_audit_table_present,

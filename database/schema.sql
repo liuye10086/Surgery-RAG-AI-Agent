@@ -160,7 +160,9 @@ CREATE TABLE IF NOT EXISTS operator_case_visits (
     indicators JSONB NOT NULL DEFAULT '[]',
     notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT uq_operator_case_visits_case_date UNIQUE (case_id, visit_date)
+    CONSTRAINT uq_operator_case_visits_case_date UNIQUE (case_id, visit_date),
+    CONSTRAINT uq_operator_case_visits_case_id_visit_index UNIQUE (case_id, visit_index),
+    CONSTRAINT ck_operator_case_visits_visit_index_positive CHECK (visit_index >= 1)
 );
 
 CREATE INDEX IF NOT EXISTS ix_operator_case_visits_case_id ON operator_case_visits(case_id);

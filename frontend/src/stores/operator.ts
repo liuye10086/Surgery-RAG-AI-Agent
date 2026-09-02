@@ -115,10 +115,10 @@ export const useOperatorStore = defineStore('operator', () => {
       const updatePayload: LongitudinalCaseUpdatePayload = caseFields
       saved = await updateLongitudinalCase(currentLongitudinalCase.value.id, updatePayload)
     } else {
-      const createPayload: LongitudinalCaseCreatePayload = { disease_id, ...caseFields }
+      const createPayload: LongitudinalCaseCreatePayload = { disease_id, ...caseFields, visits: visits || [] }
       saved = await createLongitudinalCase(createPayload)
     }
-    if (visits) saved.visits = await replaceLongitudinalVisits(saved.id, visits)
+    if (currentLongitudinalCase.value?.id && visits) saved.visits = await replaceLongitudinalVisits(saved.id, visits)
     currentLongitudinalCase.value = saved
     longitudinalCases.value = [currentLongitudinalCase.value, ...longitudinalCases.value.filter((item) => item.id !== currentLongitudinalCase.value?.id)]
     return currentLongitudinalCase.value
