@@ -7,6 +7,7 @@ import {
   listLongitudinalCases,
   createLongitudinalCase,
   updateLongitudinalCase,
+  updateLongitudinalCaseStatus,
   addLongitudinalVisit,
   replaceLongitudinalVisits,
   generateLongitudinalReportStream,
@@ -20,6 +21,7 @@ import {
   type LongitudinalCase,
   type LongitudinalCaseCreatePayload,
   type LongitudinalCaseUpdatePayload,
+  type LongitudinalCaseStatus,
   type LongitudinalPrediction,
 } from '@/api/operator'
 
@@ -36,6 +38,7 @@ export const useOperatorStore = defineStore('operator', () => {
   const cases = ref<CaseRecord[]>([])
   const longitudinalCases = ref<LongitudinalCase[]>([])
   const currentLongitudinalCase = ref<LongitudinalCase | null>(null)
+  const longitudinalCaseStatusFilter = ref<LongitudinalCaseStatus | undefined>(undefined)
   const longitudinalPrediction = ref<LongitudinalPrediction | null>(null)
   const longitudinalReportContent = ref('')
 
@@ -97,13 +100,15 @@ export const useOperatorStore = defineStore('operator', () => {
     currentStage.value = 'cancelled'
   }
 
-  async function fetchLongitudinalCases(diseaseId?: number) {
-    const result = await listLongitudinalCases(diseaseId)
+  async function fetchLongitudinalCases(diseaseId?: number, status?: LongitudinalCaseStatus) {
+    longitudinalCaseStatusFilter.value = status
+    const result = await listLongitudinalCases(diseaseId, status)
     longitudinalCases.value = result.cases
     if (!currentLongitudinalCase.value && result.cases.length) currentLongitudinalCase.value = result.cases[0]
   }
 
   async function saveLongitudinalCase(data: LongitudinalCaseCreatePayload & { visits?: Array<{ visit_date: string; indicators: IndicatorInput[]; notes?: string | null }> }) {
+    if (currentLongitudinalCase.value && currentLongitudinalCase.value.status !== 'active') throw new Error(currentLongitudinalCase.value.status === 'archived' ? '病例已归档，请先恢复病例' : '病例状态未知，已停止写入操作')
     const { visits, disease_id, ...caseFields } = data
     let saved: LongitudinalCase
     if (currentLongitudinalCase.value?.id) {
@@ -117,6 +122,19 @@ export const useOperatorStore = defineStore('operator', () => {
     currentLongitudinalCase.value = saved
     longitudinalCases.value = [currentLongitudinalCase.value, ...longitudinalCases.value.filter((item) => item.id !== currentLongitudinalCase.value?.id)]
     return currentLongitudinalCase.value
+  }
+
+  async function changeLongitudinalCaseStatus(status: LongitudinalCaseStatus, reason?: string) {
+    const current = currentLongitudinalCase.value
+    if (!current) throw new Error('请先选择病例')
+    const saved = await updateLongitudinalCaseStatus(current.id, {
+      expected_status: current.status,
+      status,
+      reason: reason || null,
+    })
+    currentLongitudinalCase.value = saved
+    longitudinalCases.value = longitudinalCases.value.map((item) => item.id === saved.id ? saved : item)
+    return saved
   }
 
   async function saveLongitudinalVisit(data: { visit_date: string; indicators: IndicatorInput[]; notes?: string }) {
@@ -162,6 +180,7 @@ export const useOperatorStore = defineStore('operator', () => {
     cases,
     longitudinalCases,
     currentLongitudinalCase,
+    longitudinalCaseStatusFilter,
     longitudinalPrediction,
     longitudinalReportContent,
 
@@ -175,6 +194,7 @@ export const useOperatorStore = defineStore('operator', () => {
     clearCurrent,
     fetchLongitudinalCases,
     saveLongitudinalCase,
+    changeLongitudinalCaseStatus,
     saveLongitudinalVisit,
     generateLongitudinalReport,
   }

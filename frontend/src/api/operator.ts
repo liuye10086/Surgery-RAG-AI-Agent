@@ -118,7 +118,14 @@ export interface LongitudinalCaseUpdatePayload {
   sex?: 'male' | 'female' | null
   baseline_stage?: BaselineStage | null
   notes?: string | null
-  status?: 'active' | 'archived'
+}
+
+export type LongitudinalCaseStatus = 'active' | 'archived'
+
+export interface LongitudinalCaseStatusChangePayload {
+  expected_status: LongitudinalCaseStatus
+  status: LongitudinalCaseStatus
+  reason?: string | null
 }
 
 export interface LongitudinalRuntimeStatus {
@@ -234,8 +241,8 @@ export interface LongitudinalPredictionV3 extends LongitudinalPredictionBase {
 export type LongitudinalPrediction =
   LongitudinalPredictionV1 | LongitudinalPredictionV2 | LongitudinalPredictionV3
 
-export function listLongitudinalCases(diseaseId?: number): Promise<{ cases: LongitudinalCase[]; total: number }> {
-  return request.get('/v1/operator/longitudinal-cases', { params: diseaseId ? { disease_id: diseaseId } : {} })
+export function listLongitudinalCases(diseaseId?: number, status?: LongitudinalCaseStatus): Promise<{ cases: LongitudinalCase[]; total: number }> {
+  return request.get('/v1/operator/longitudinal-cases', { params: { ...(diseaseId ? { disease_id: diseaseId } : {}), ...(status ? { status } : {}) } })
 }
 
 export function createLongitudinalCase(data: LongitudinalCaseCreatePayload): Promise<LongitudinalCase> {
@@ -302,6 +309,10 @@ export interface PredictionStreamCallbacks extends ReportStreamCallbacks {
 // ===== 疾病 / 病例 / 参考范围 API =====
 export function listDiseases(): Promise<Disease[]> {
   return request.get('/v1/operator/diseases')
+}
+
+export function updateLongitudinalCaseStatus(id: number, data: LongitudinalCaseStatusChangePayload): Promise<LongitudinalCase> {
+  return request.put(`/v1/operator/longitudinal-cases/${id}/status`, data)
 }
 
 export function listCases(diseaseId?: number): Promise<{ total: number; items: CaseRecord[] }> {

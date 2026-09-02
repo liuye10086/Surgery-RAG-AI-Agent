@@ -8,7 +8,7 @@
       <el-button type="primary" :loading="saving" :disabled="readOnly" @click="saveCase">保存病例</el-button>
     </div>
 
-    <div v-if="readOnly" class="read-only-notice" role="status">该疾病当前已停用，病例暂时只读</div>
+    <div v-if="readOnly" class="read-only-notice" role="status">{{ readOnlyMessage }}</div>
 
     <div class="editor-grid">
       <el-input v-model="draft.patient_label" :disabled="readOnly" placeholder="病例内部标签" aria-label="病例内部标签" />
@@ -99,7 +99,12 @@ const selectedDisease = computed(() => {
   if (props.modelValue?.disease) return props.modelValue.disease
   return props.diseases.find(item => item.id === draft.disease_id) || null
 })
-const readOnly = computed(() => Boolean(props.modelValue && !props.modelValue.disease.operator_enabled))
+const readOnly = computed(() => Boolean(props.modelValue && (props.modelValue.status !== 'active' || !props.modelValue.disease.operator_enabled)))
+const readOnlyMessage = computed(() => {
+  if (props.modelValue?.status === 'archived') return '病例已归档，当前只读；恢复后可继续编辑。'
+  if (props.modelValue && props.modelValue.status !== 'active') return '病例状态未知，已停止写入操作。'
+  return '该疾病当前已停用，病例暂时只读'
+})
 const stageOptions = computed(() => stageOptionsByCode[selectedDisease.value?.code || ''] || [])
 
 watch(() => draft.disease_id, () => {

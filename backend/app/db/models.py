@@ -242,6 +242,10 @@ class OperatorCase(Base):
             "age IS NULL OR age BETWEEN 0 AND 120",
             name="ck_operator_cases_age_range",
         ),
+        CheckConstraint(
+            "status IN ('active', 'archived')",
+            name="ck_operator_cases_status",
+        ),
         Index("ix_operator_cases_user_id", "user_id"),
         Index("ix_operator_cases_disease_id", "disease_id"),
     )
@@ -306,6 +310,30 @@ class OperatorCaseVisit(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     case = relationship("OperatorCase", back_populates="visits")
+
+
+class OperatorCaseStatusLog(Base):
+    __tablename__ = "operator_case_status_logs"
+    __table_args__ = (
+        CheckConstraint(
+            "from_status IN ('active', 'archived') AND to_status IN ('active', 'archived')",
+            name="ck_operator_case_status_logs_values",
+        ),
+        CheckConstraint("from_status <> to_status", name="ck_operator_case_status_logs_changed"),
+        CheckConstraint("length(btrim(reason)) BETWEEN 1 AND 500", name="ck_operator_case_status_logs_reason"),
+        Index("ix_operator_case_status_logs_case_time", "case_id_snapshot", "created_at"),
+        Index("ix_operator_case_status_logs_actor_time", "actor_id_snapshot", "created_at"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    case_id = Column(Integer, ForeignKey("operator_cases.id", ondelete="SET NULL"), nullable=True)
+    case_id_snapshot = Column(Integer, nullable=False)
+    actor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    actor_id_snapshot = Column(Integer, nullable=False)
+    from_status = Column(String(50), nullable=False)
+    to_status = Column(String(50), nullable=False)
+    reason = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class ReferenceRange(Base):

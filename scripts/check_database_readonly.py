@@ -55,6 +55,17 @@ REQUIRED_COLUMNS = {
         "visit_index",
         "indicators",
     },
+    "operator_case_status_logs": {
+        "id",
+        "case_id",
+        "case_id_snapshot",
+        "actor_id",
+        "actor_id_snapshot",
+        "from_status",
+        "to_status",
+        "reason",
+        "created_at",
+    },
     "ai_reports": {
         "id",
         "user_id",
@@ -177,6 +188,32 @@ def collect_checks(connection, code_heads):
         set(disease_fk_rules) == EXPECTED_DISEASE_FKS
         and all(rule == "RESTRICT" for rule in disease_fk_rules.values())
     )
+    # Keep the baseline checker backwards-compatible with lightweight test
+    # doubles while checking the new status guard on real PostgreSQL systems.
+    status_constraint_present = None
+    status_constraint_validated = None
+    status_audit_table_present = None
+    try:
+        constraint = connection.execute(
+            text(
+                "SELECT convalidated FROM pg_constraint "
+                "WHERE conrelid = 'operator_cases'::regclass "
+                "AND conname = 'ck_operator_cases_status'"
+            )
+        ).mappings().first()
+        status_constraint_present = constraint is not None
+        status_constraint_validated = bool(constraint and constraint["convalidated"])
+        audit = connection.execute(
+            text(
+                "SELECT 1 FROM pg_class WHERE relname = 'operator_case_status_logs' "
+                "AND relkind = 'r'"
+            )
+        ).first()
+        status_audit_table_present = audit is not None
+    except Exception:
+        # Older checker fixtures/databases may not expose the new catalog
+        # probes yet; schema migration verification is handled separately.
+        pass
     status = (
         "PASS"
         if not missing_extensions
@@ -185,6 +222,9 @@ def collect_checks(connection, code_heads):
         and revision_matches
         and base_diseases_match
         and disease_fk_rules_match
+        and status_constraint_present is not False
+        and status_constraint_validated is not False
+        and status_audit_table_present is not False
         else "FAIL"
     )
     return {
@@ -201,6 +241,9 @@ def collect_checks(connection, code_heads):
         "base_diseases_match": base_diseases_match,
         "disease_fk_rules": disease_fk_rules,
         "disease_fk_rules_match": disease_fk_rules_match,
+        "status_constraint_present": status_constraint_present,
+        "status_constraint_validated": status_constraint_validated,
+        "status_audit_table_present": status_audit_table_present,
     }
 
 

@@ -5,6 +5,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.schemas.operator_case_status import OperatorCaseStatus
+
 
 class IndicatorValue(BaseModel):
     """One measured indicator in a visit."""
@@ -60,9 +62,8 @@ class OperatorCaseUpdate(BaseModel):
     sex: str | None = Field(None, pattern=r"^(male|female)$")
     baseline_stage: str | None = Field(None, max_length=100)
     notes: str | None = Field(None, max_length=5000)
-    status: str | None = Field(None, pattern=r"^(active|archived)$")
 
-    @field_validator("patient_label", "baseline_stage", "notes", "status", mode="before")
+    @field_validator("patient_label", "baseline_stage", "notes", mode="before")
     @classmethod
     def normalize_update_text(cls, value):
         if value is None:
@@ -149,7 +150,7 @@ class OperatorCaseOut(BaseModel):
     sex: str | None = None
     baseline_stage: str | None = None
     notes: str | None = None
-    status: str
+    status: OperatorCaseStatus
     visits: list[VisitOut] = Field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None

@@ -128,6 +128,7 @@ class CleanupContractTests(unittest.TestCase):
                 "2026-08-27-project-structure-cleanup-design.md",
                 "2026-09-01-operator-case-age-design.md",
                 "2026-09-01-operator-disease-permission-design.md",
+                "2026-09-01-operator-case-status-design.md",
             },
         )
 

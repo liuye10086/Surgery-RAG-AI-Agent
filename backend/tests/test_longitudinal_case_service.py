@@ -253,6 +253,25 @@ def test_report_generation_rejects_legacy_case_without_age_before_insert():
     db.commit.assert_not_called()
 
 
+def test_report_generation_rejects_archived_case_before_insert():
+    from app.api.operator import create_longitudinal_report
+
+    db = MagicMock()
+    archived = SimpleNamespace(
+        id=3,
+        status="archived",
+        age=65,
+        disease=SimpleNamespace(code="fatty_liver", operator_enabled=True),
+        visits=[],
+    )
+    with patch("app.api.operator.get_operator_case", return_value=archived):
+        with pytest.raises(HTTPException) as error:
+            asyncio.run(create_longitudinal_report(3, None, db, SimpleNamespace(id=7)))
+    assert error.value.status_code == 409
+    db.add.assert_not_called()
+    db.commit.assert_not_called()
+
+
 def test_add_visit_rejects_case_owned_by_another_user():
     from app.services.longitudinal_case_service import CaseNotFoundError, add_visit
     from app.schemas.longitudinal_case import VisitCreate
@@ -355,6 +374,7 @@ def test_longitudinal_crud_routes_are_registered_and_protected():
     paths = {(route.path, tuple(sorted(route.methods or ()))) for route in router.routes}
     assert ("/operator/longitudinal-cases", ("POST",)) in paths
     assert ("/operator/longitudinal-cases", ("GET",)) in paths
+    assert ("/operator/longitudinal-cases/{case_id}/status", ("PUT",)) in paths
     assert ("/operator/longitudinal-cases/{case_id}", ("GET",)) in paths
     assert ("/operator/longitudinal-cases/{case_id}/visits", ("POST",)) in paths
     assert ("/operator/longitudinal-cases/{case_id}/visits", ("PUT",)) in paths

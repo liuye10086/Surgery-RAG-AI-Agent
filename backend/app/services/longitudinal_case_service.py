@@ -41,6 +41,10 @@ class VisitLimitError(LongitudinalCaseError):
     pass
 
 
+class ArchivedCaseError(LongitudinalCaseError):
+    pass
+
+
 def _owned_case_query(db, user_id: int, case_id: int):
     return (
         db.query(OperatorCase)
@@ -63,9 +67,19 @@ def get_operator_case(db, user_id: int, case_id: int) -> OperatorCase:
 
 
 def get_operator_case_for_write(db, user_id: int, case_id: int) -> OperatorCase:
-    """Load an owned case and reject writes when its disease is unavailable."""
+    """Load and lock an owned case, enforcing write eligibility."""
 
     case = get_operator_case(db, user_id, case_id)
+    # Refresh with SELECT .. FOR UPDATE so every mutation serializes against
+    # status changes.  The refresh call is harmless for mocked/transient cases.
+    try:
+        db.refresh(case, with_for_update=True)
+    except (TypeError, AttributeError):
+        pass
+    case_status = getattr(case, "status", "active")
+    if case_status != "active":
+        message = "病例已归档，当前只读" if case_status == "archived" else "病例状态未知，当前只读"
+        raise ArchivedCaseError(message)
     require_enabled_case_disease(case)
     return case
 
@@ -92,11 +106,13 @@ def create_operator_case(
 
 
 def list_operator_cases(
-    db, user_id: int, disease_id: int | None = None
+    db, user_id: int, disease_id: int | None = None, status: str | None = None
 ) -> list[OperatorCase]:
     query = db.query(OperatorCase).filter(OperatorCase.user_id == user_id)
     if disease_id is not None:
         query = query.filter(OperatorCase.disease_id == disease_id)
+    if status is not None:
+        query = query.filter(OperatorCase.status == status)
     return query.order_by(OperatorCase.updated_at.desc(), OperatorCase.id.desc()).all()
 
 

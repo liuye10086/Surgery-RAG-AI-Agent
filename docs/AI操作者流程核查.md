@@ -687,7 +687,7 @@ PDF 下载端点已连通
 
 ### 本次生产环境对齐说明
 
-本项目当前以 `backend/alembic/` 的最新 head（当前为 `0014`）作为数据库结构的唯一正式来源。
+本项目当前以 `backend/alembic/` 的最新 head（当前为 `0016`）作为数据库结构的唯一正式来源。
 `backend/app/db/models.py` 用于声明应用运行时模型；`database/schema.sql` 仅保留为与 Alembic
 head 对齐的人工参考快照；`scripts/check_database_readonly.py` 用于只读核查服务器是否具备
 关键表、字段、扩展和 Alembic 版本。三者职责不同，但目标结构必须一致。
@@ -697,6 +697,7 @@ head 对齐的人工参考快照；`scripts/check_database_readonly.py` 用于�
 - `database/schema.sql` 已补齐标准版本化迁移后 `reference_ranges` 的 5 个字段及其外键、当前投影唯一索引。
 - `operator_cases.age` 已在 Alembic `0013`、ORM、`schema.sql` 和只读检查器中统一为可空整数，并统一使用 `0–120` 范围约束。
 - `diseases.code`、`diseases.operator_enabled` 和疾病引用保护已在 Alembic `0014`、ORM、`schema.sql` 与只读检查器中对齐；数据库 CHECK 只限制稳定代码格式，不枚举中文疾病名称。
+- `operator_cases.status` 已在 Alembic `0015`/`0016`、ORM 和 `schema.sql` 中统一为非空 `VARCHAR(50)`，默认值为稳定英文 key `active`，数据库 CHECK 只允许 `active` 或 `archived`；状态变更通过后端集中服务、行锁、期望状态和必填原因完成，并写入不可变状态审计日志。生产数据库尚未执行这两步迁移。
 - 只读数据库检查已覆盖 AI 操作者病例、访视、报告和标准版本化相关核心表，不再只检查用户端基础表。
 - `database/README.md` 已明确 AI 操作者和标准版本化表属于 Alembic 管理范围，并明确 `schema.sql` 不是生产建库入口。
 - 已增加 ORM 与 `schema.sql` 的字段一致性契约测试。
@@ -742,7 +743,7 @@ head 对齐的人工参考快照；`scripts/check_database_readonly.py` 用于�
    `0014` 采用保守迁移：全新空库只有在疾病及四类关联业务数据均为空时才初始化两种基础疾病；既有数据库必须恰好存在“阿尔茨海默病”和“脂肪肝”，缺失、改名或出现第三种疾病都会整体停止并回滚。旧报告快照没有 `disease_code` 时仍可读取，新快照同时保存疾病 ID、生成时名称和稳定代码。
 
    2026-09-01 仓库侧完整验收结果：后端 `691 passed`、`2 subtests passed`；脚本 `194 passed`、`30 skipped`、`19 subtests passed`；前端契约 `35 passed`；生产构建成功。禁止的中文名称路由和疾病外键 `CASCADE/SET NULL` 均未发现；管理员接口按名称检查重复和前端显示名称不属于路由。专用只读预检对本机开发库返回 `FAIL`，因为本机 revision 为 `0012`、不满足预期前置版本 `0013`，同时确认疾病恰为两种且四类孤儿计数均为 0；未为通过检查而升级本机数据库。本轮没有连接或修改生产服务器，生产备份、只读预检、`alembic upgrade head`、升级后检查和双疾病冒烟仍须在单独部署窗口执行，因此不得表述为已上线。
-3. 病例状态没有数据库级合法值限制，可能出现任意字符串。
+3. **仓库实施已完成，生产迁移尚未执行：病例状态合法值和状态变更保护。** 病例状态现在只使用稳定英文 key：`active`（使用中）和 `archived`（已归档）；中文显示文字只由前端映射，不写入数据库约束。普通病例资料更新接口已移除 `status` 字段，直接提交会得到 422；唯一状态入口是 `PUT /operator/longitudinal-cases/{case_id}/status`，请求携带 `expected_status`、目标 `status` 和 1–500 字符原因。`active → archived` 允许归档；`archived → active` 允许恢复，但疾病停用时拒绝恢复；同状态请求幂等且不重复写审计。所有病例资料、访视新增/修改/删除/整体替换、病例删除和新报告创建都会锁定病例行并要求状态为 `active`，归档病例返回 409；已经开始的报告继续使用已保存快照。数据库迁移分为 `0015`（只读检查未知值后创建审计表并添加 `NOT VALID` CHECK）和 `0016`（单独验证 CHECK），未知值或 `NULL` 默认阻断，不自动改写历史数据。仓库已通过状态专项、病例服务、迁移契约、后端全量测试和前端生产构建；本轮未连接、读取或修改生产数据库，因此不能写成生产已上线。
 4. 访视序号没有数据库级唯一性和范围限制。
 5. “最多 10 次访视”主要由应用层控制，数据库本身不会阻止超出。
 6. 指标使用 JSONB 保存，数据库不会检查指标代码、单位、数值范围或疾病是否匹配。

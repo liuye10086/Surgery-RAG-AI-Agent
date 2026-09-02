@@ -121,11 +121,36 @@ CREATE TABLE IF NOT EXISTS operator_cases (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     CONSTRAINT ck_operator_cases_age_range
-        CHECK (age IS NULL OR age BETWEEN 0 AND 120)
+        CHECK (age IS NULL OR age BETWEEN 0 AND 120),
+    CONSTRAINT ck_operator_cases_status
+        CHECK (status IN ('active', 'archived'))
 );
 
 CREATE INDEX IF NOT EXISTS ix_operator_cases_user_id ON operator_cases(user_id);
 CREATE INDEX IF NOT EXISTS ix_operator_cases_disease_id ON operator_cases(disease_id);
+
+CREATE TABLE IF NOT EXISTS operator_case_status_logs (
+    id SERIAL PRIMARY KEY,
+    case_id INTEGER REFERENCES operator_cases(id) ON DELETE SET NULL,
+    case_id_snapshot INTEGER NOT NULL,
+    actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    actor_id_snapshot INTEGER NOT NULL,
+    from_status VARCHAR(50) NOT NULL,
+    to_status VARCHAR(50) NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT ck_operator_case_status_logs_values
+        CHECK (from_status IN ('active', 'archived') AND to_status IN ('active', 'archived')),
+    CONSTRAINT ck_operator_case_status_logs_changed
+        CHECK (from_status <> to_status),
+    CONSTRAINT ck_operator_case_status_logs_reason
+        CHECK (length(btrim(reason)) BETWEEN 1 AND 500)
+);
+
+CREATE INDEX IF NOT EXISTS ix_operator_case_status_logs_case_time
+ON operator_case_status_logs(case_id_snapshot, created_at);
+CREATE INDEX IF NOT EXISTS ix_operator_case_status_logs_actor_time
+ON operator_case_status_logs(actor_id_snapshot, created_at);
 
 CREATE TABLE IF NOT EXISTS operator_case_visits (
     id SERIAL PRIMARY KEY,

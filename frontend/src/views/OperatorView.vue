@@ -46,6 +46,17 @@
         <div v-else class="progression-view">
           <div class="progression-inner">
             <div class="longitudinal-case-actions">
+              <el-select
+                :model-value="operatorStore.longitudinalCaseStatusFilter"
+                clearable
+                placeholder="病例状态"
+                style="width: 140px"
+                @update:model-value="(value: any) => operatorStore.fetchLongitudinalCases(undefined, value || undefined)"
+              >
+                <el-option label="全部" value="" />
+                <el-option label="使用中" value="active" />
+                <el-option label="已归档" value="archived" />
+              </el-select>
               <el-button @click="startNewLongitudinalCase">新建纵向病例</el-button>
               <el-select
                 v-if="operatorStore.longitudinalCases.length"
@@ -56,10 +67,17 @@
                 <el-option
                   v-for="item in operatorStore.longitudinalCases"
                   :key="item.id"
-                  :label="item.patient_label"
+                  :label="`${item.patient_label}（${caseStatusLabel(item.status)}）`"
                   :value="item.id"
                 />
               </el-select>
+              <div v-if="operatorStore.currentLongitudinalCase" class="case-status-actions">
+                <el-tag :type="operatorStore.currentLongitudinalCase.status === 'archived' ? 'info' : operatorStore.currentLongitudinalCase.status === 'active' ? 'success' : 'danger'">
+                  {{ caseStatusLabel(operatorStore.currentLongitudinalCase.status) }}
+                </el-tag>
+                <el-button v-if="operatorStore.currentLongitudinalCase.status === 'active'" type="warning" plain @click="archiveCurrentCase">归档</el-button>
+                <el-button v-else type="primary" plain :disabled="operatorStore.currentLongitudinalCase.disease.operator_enabled === false" @click="restoreCurrentCase">恢复</el-button>
+              </div>
             </div>
             <LongitudinalCaseEditor
               :diseases="progressionDiseases"
@@ -184,6 +202,31 @@ async function handleLongitudinalCaseSaved(draft: any) {
   } catch (error: any) {
     ElMessage.error(error?.message || '病例保存失败')
   }
+}
+
+async function changeCurrentCaseStatus(target: 'active' | 'archived') {
+  try {
+    const result = await ElMessageBox.prompt(
+      target === 'archived' ? '请输入归档原因（必填）' : '请输入恢复原因（必填）',
+      target === 'archived' ? '归档病例' : '恢复病例',
+      { inputPattern: /\S+/, inputErrorMessage: '请输入原因' },
+    )
+    await operatorStore.changeLongitudinalCaseStatus(target, result.value)
+    ElMessage.success(target === 'archived' ? '病例已归档' : '病例已恢复')
+  } catch (error: any) {
+    if (error === 'cancel' || error?.message === 'cancel') return
+    ElMessage.error(error?.response?.data?.detail || error?.message || '状态更新失败')
+    await operatorStore.fetchLongitudinalCases()
+  }
+}
+
+function archiveCurrentCase() { return changeCurrentCaseStatus('archived') }
+function restoreCurrentCase() { return changeCurrentCaseStatus('active') }
+
+function caseStatusLabel(value: string): string {
+  if (value === 'active') return '使用中'
+  if (value === 'archived') return '已归档'
+  return '未知状态'
 }
 
 function startNewLongitudinalCase() {
