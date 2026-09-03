@@ -1,5 +1,8 @@
 import importlib.util
 from pathlib import Path
+from unittest.mock import Mock
+
+import pytest
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "check_database_readonly.py"
@@ -52,6 +55,7 @@ def test_checker_reports_visit_integrity_counts_and_keeps_queries_read_only():
             "v.id IS NULL": 0,
             "c.id IS NULL": 0,
             "COUNT(*) > 10": 0,
+            "visit_context IS NULL": 0,
         }
     )
 
@@ -64,6 +68,7 @@ def test_checker_reports_visit_integrity_counts_and_keeps_queries_read_only():
     assert report["zero_visit_case_count"] == 0
     assert report["over_limit_case_count"] == 0
     assert report["orphan_visit_count"] == 0
+    assert report["invalid_visit_context_count"] == 0
     assert all("UPDATE" not in sql.upper() and "DELETE" not in sql.upper() for sql in connection.statements)
 
 
@@ -77,6 +82,7 @@ def test_checker_marks_anomalies_as_failed_integrity():
             "v.id IS NULL": 1,
             "c.id IS NULL": 1,
             "COUNT(*) > 10": 1,
+            "visit_context IS NULL": 1,
         }
     )
 
@@ -89,3 +95,16 @@ def test_checker_marks_anomalies_as_failed_integrity():
     assert report["zero_visit_case_count"] == 1
     assert report["over_limit_case_count"] == 1
     assert report["orphan_visit_count"] == 1
+    assert report["invalid_visit_context_count"] == 1
+
+
+def test_help_exits_without_opening_a_database_connection(capsys):
+    checker = _load_checker()
+    checker.create_engine = Mock(side_effect=AssertionError("database must not be opened"))
+
+    with pytest.raises(SystemExit) as caught:
+        checker.main(["--help"])
+
+    assert caught.value.code == 0
+    assert "read-only" in capsys.readouterr().out.lower()
+    checker.create_engine.assert_not_called()

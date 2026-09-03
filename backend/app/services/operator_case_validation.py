@@ -140,6 +140,8 @@ def _as_date(value: Any, *, index: int) -> date:
 def normalize_operator_timeline(
     disease_code: str,
     visits: Iterable[Any],
+    *,
+    catalog: Any | None = None,
 ) -> list[NormalizedVisit]:
     raw_visits = list(visits)
     if not 1 <= len(raw_visits) <= 10:
@@ -148,6 +150,13 @@ def normalize_operator_timeline(
             "病例必须包含 1–10 次访视",
             field="visits",
         )
+
+    if catalog is None:
+        from app.services.operator_indicator_catalog import (
+            load_operator_indicator_catalog,
+        )
+
+        catalog = load_operator_indicator_catalog(disease_code)
 
     prepared: list[
         tuple[date, tuple[dict[str, Any], ...], str | None, dict[str, Any]]
@@ -178,7 +187,7 @@ def normalize_operator_timeline(
                     field=f"visits.{index}.indicators.{indicator_index}.value",
                 )
         try:
-            result = validate_indicators(disease_code, indicators)
+            result = validate_indicators(disease_code, indicators, catalog=catalog)
         except IndicatorValidationError as exc:
             raise OperatorCaseValidationError(
                 "invalid_indicators",

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from uuid import uuid4
+import json
 
+import pytest
 from sqlalchemy import text
 
 
@@ -19,6 +21,18 @@ def _payload(disease_id=1):
             }
         ],
     }
+
+
+def _editable_visits(visits):
+    return [
+        {
+            "visit_date": visit["visit_date"],
+            "indicators": visit["indicators"],
+            "notes": visit.get("notes"),
+            "visit_context": visit.get("visit_context", {}),
+        }
+        for visit in visits
+    ]
 
 
 def test_create_is_idempotent_and_scoped_to_owner(client, db):
@@ -49,7 +63,8 @@ def test_same_key_with_different_body_is_rejected_without_extra_case(client, db)
 def test_aggregate_save_rolls_back_and_audit_is_immutable(client, db):
     operator_a = client(1)
     created = operator_a.post("/api/v1/operator/longitudinal-cases", json=_payload(), headers={"Idempotency-Key": str(uuid4())}).json()
-    save_payload = {k: created[k] for k in ("age", "sex", "baseline_stage", "notes", "visits")}
+    save_payload = {k: created[k] for k in ("age", "sex", "baseline_stage", "notes")}
+    save_payload["visits"] = _editable_visits(created["visits"])
     save_payload["age"] = 57
     save_payload["change_reason"] = "integration correction"
     response = operator_a.put(f"/api/v1/operator/longitudinal-cases/{created['id']}", json=save_payload)
@@ -63,3 +78,133 @@ def test_missing_idempotency_key_is_stable_error(client):
     response = client(1).post("/api/v1/operator/longitudinal-cases", json=_payload())
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == "idempotency_key_missing"
+
+
+@pytest.mark.parametrize(
+    ("disease_id", "disease_code", "stage", "indicator", "value", "unit"),
+    [
+        (1, "fatty_liver", "pre_cirrhosis", "ALT", 42, "u/l"),
+        (2, "ad", "mci", "MMSE", 28, "分"),
+    ],
+)
+def test_dual_disease_append_to_three_visits_with_canonical_context(
+    client,
+    db,
+    disease_id,
+    disease_code,
+    stage,
+    indicator,
+    value,
+    unit,
+):
+    operator = client(1)
+    catalog = operator.get(f"/api/v1/operator/diseases/{disease_code}/indicators")
+    assert catalog.status_code == 200
+    assert catalog.json()["catalog_version"]
+
+    payload = {
+        "disease_id": disease_id,
+        "age": 56,
+        "sex": "male",
+        "baseline_stage": stage,
+        "notes": None,
+        "visits": [
+            {
+                "visit_date": "2026-01-01",
+                "indicators": [{"name": indicator, "value": value, "unit": unit}],
+                "visit_context": {"source_type": "lab", "facility_name": "中心实验室"},
+            }
+        ],
+    }
+    created_response = operator.post(
+        "/api/v1/operator/longitudinal-cases",
+        json=payload,
+        headers={"Idempotency-Key": str(uuid4())},
+    )
+    assert created_response.status_code == 201
+    created = created_response.json()
+    assert len(created["visits"]) == 1
+    canonical = created["visits"][0]["indicators"][0]
+    assert canonical["name"] == ("alt" if disease_code == "fatty_liver" else "mmse")
+    assert canonical["unit"] == ("U/L" if disease_code == "fatty_liver" else "分")
+    assert created["visits"][0]["visit_context"]["source_type"] == "lab"
+
+    visits = []
+    for day in ("2026-03-01", "2026-01-01", "2026-02-01"):
+        visits.append(
+            {
+                "visit_date": day,
+                "indicators": [{"name": indicator, "value": value, "unit": unit}],
+                "visit_context": {"source_type": "lab", "facility_name": f"实验室-{day}"},
+            }
+        )
+    saved_response = operator.put(
+        f"/api/v1/operator/longitudinal-cases/{created['id']}",
+        json={
+            "age": created["age"],
+            "sex": created["sex"],
+            "baseline_stage": created["baseline_stage"],
+            "notes": created["notes"],
+            "visits": visits,
+            "change_reason": "补录纵向访视",
+        },
+    )
+    assert saved_response.status_code == 200
+    saved = saved_response.json()
+    assert [visit["visit_date"] for visit in saved["visits"]] == [
+        "2026-01-01",
+        "2026-02-01",
+        "2026-03-01",
+    ]
+    assert [visit["visit_index"] for visit in saved["visits"]] == [1, 2, 3]
+    assert saved["visits"][2]["visit_context"]["facility_name"] == "实验室-2026-03-01"
+
+    readiness = operator.get(
+        f"/api/v1/operator/longitudinal-cases/{created['id']}/report-readiness"
+    ).json()
+    assert readiness["visit_count"] == 3
+    assert readiness["minimum_visits"] == 3
+
+    change_json = db.execute(
+        text(
+            "SELECT changes FROM operator_case_change_logs "
+            "WHERE case_id = :case_id AND action = 'timeline_updated'"
+        ),
+        {"case_id": created["id"]},
+    ).scalar_one()
+    encoded = json.dumps(change_json, ensure_ascii=False)
+    assert "timeline_sha256" in encoded
+    assert "2026-01-01" not in encoded
+    assert "42" not in encoded
+
+
+@pytest.mark.parametrize(
+    ("disease_id", "stage", "foreign_indicator", "unit"),
+    [
+        (1, "pre_cirrhosis", "MMSE", "分"),
+        (2, "mci", "ALT", "U/L"),
+    ],
+)
+def test_cross_disease_indicator_is_rejected_at_aggregate_boundary(
+    client, disease_id, stage, foreign_indicator, unit
+):
+    payload = {
+        "disease_id": disease_id,
+        "age": 56,
+        "sex": "male",
+        "baseline_stage": stage,
+        "visits": [
+            {
+                "visit_date": "2026-01-01",
+                "indicators": [{"name": foreign_indicator, "value": 20, "unit": unit}],
+            }
+        ],
+    }
+    response = client(1).post(
+        "/api/v1/operator/longitudinal-cases",
+        json=payload,
+        headers={"Idempotency-Key": str(uuid4())},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["field"] == "visits.0.indicators"

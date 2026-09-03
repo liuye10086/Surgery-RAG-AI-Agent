@@ -170,7 +170,7 @@ async function selectLongitudinalCase(item: any) {
   validationIssues.value = {}
   await Promise.all([
     operatorStore.refreshLongitudinalCaseReadiness(item.id),
-    operatorStore.fetchOperatorIndicatorCatalog(item.disease.code),
+    handleDiseaseChange(item.disease.code),
   ])
 }
 
@@ -232,7 +232,12 @@ onMounted(async () => {
     operatorStore.fetchLongitudinalCases(),
   ])
   const selected = operatorStore.currentLongitudinalCase
-  if (selected) await handleDiseaseChange(selected.disease.code)
+  if (selected) {
+    await Promise.all([
+      handleDiseaseChange(selected.disease.code),
+      operatorStore.refreshLongitudinalCaseReadiness(selected.id),
+    ])
+  }
 })
 </script>
 

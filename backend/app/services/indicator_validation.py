@@ -152,6 +152,7 @@ def validate_indicators(
     indicators: Iterable[Any],
     *,
     reference_ranges: dict[str, dict[str, Any]] | None = None,
+    catalog: Any | None = None,
 ) -> IndicatorValidationResult:
     try:
         definitions = INDICATOR_CONTRACTS[disease_code]
@@ -162,15 +163,12 @@ def validate_indicators(
     seen: set[str] = set()
     from app.services.operator_indicator_catalog import (
         IndicatorCatalogError,
-        IndicatorCatalogUnavailableError,
         IndicatorNotFoundError,
         load_operator_indicator_catalog,
     )
 
-    try:
+    if catalog is None:
         catalog = load_operator_indicator_catalog(disease_code)
-    except IndicatorCatalogUnavailableError as exc:
-        raise IndicatorValidationError("指标目录暂时不可用") from exc
     for index, item in enumerate(indicators, start=1):
         raw_name = _field(item, "name")
         raw_token = raw_name.strip().lower() if isinstance(raw_name, str) else ""
@@ -260,9 +258,13 @@ def validate_indicators(
 
 
 def validate_visits(disease_code: str, visits: Iterable[Any]) -> None:
+    allowed_indicator_codes(disease_code)
+    from app.services.operator_indicator_catalog import load_operator_indicator_catalog
+
+    catalog = load_operator_indicator_catalog(disease_code)
     for index, visit in enumerate(visits, start=1):
         indicators = _field(visit, "indicators") or []
         try:
-            validate_indicators(disease_code, indicators)
+            validate_indicators(disease_code, indicators, catalog=catalog)
         except IndicatorValidationError as exc:
             raise IndicatorValidationError(f"第 {index} 次访视：{exc}") from exc

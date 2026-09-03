@@ -3,6 +3,7 @@
 from datetime import date
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+from unittest.mock import patch
 
 import pytest
 
@@ -107,6 +108,22 @@ def test_timeline_keeps_each_context_attached_when_sorting():
     normalized = normalize_operator_timeline("fatty_liver", [later, earlier])
 
     assert [item.visit_context["facility_name"] for item in normalized] == ["A", "B"]
+
+
+def test_timeline_loads_one_catalog_version_for_all_visits():
+    from app.services.operator_case_validation import normalize_operator_timeline
+    from app.services.operator_indicator_catalog import load_operator_indicator_catalog
+
+    with patch(
+        "app.services.operator_indicator_catalog.load_operator_indicator_catalog",
+        wraps=load_operator_indicator_catalog,
+    ) as load_catalog:
+        normalize_operator_timeline(
+            "fatty_liver",
+            [_visit("2026-01-01"), _visit("2026-02-01")],
+        )
+
+    assert load_catalog.call_count == 1
 
 
 @pytest.mark.parametrize(

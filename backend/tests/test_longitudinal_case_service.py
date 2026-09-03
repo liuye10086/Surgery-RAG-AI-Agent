@@ -183,6 +183,19 @@ def test_snapshot_preserves_visit_context_and_catalog_version():
     assert len(snapshot["indicator_catalog_version"]) == 64
 
 
+def test_new_snapshot_canonicalizes_legacy_aliases_through_the_write_contract():
+    from app.services.longitudinal_case_service import build_input_snapshot
+
+    visit = _visit("2024-01-01")
+    visit.indicators = [{"name": "谷丙转氨酶", "value": 42, "unit": "u/l"}]
+
+    snapshot = build_input_snapshot(_case(age=60), [visit])
+
+    assert snapshot["visits"][0]["indicators"] == [
+        {"name": "alt", "value": 42.0, "unit": "U/L"}
+    ]
+
+
 def test_snapshot_contains_stable_disease_code():
     from app.services.longitudinal_case_service import build_input_snapshot
 

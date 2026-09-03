@@ -67,6 +67,29 @@ AI 操作者链路还包括 `diseases`、`case_records`、`reference_ranges`、
 - 只有 `operator_cases`、`case_records`、`ai_reports`、`reference_standards` 四类使用计数全部为零时，管理员才可物理删除疾病；数据库限制型外键提供最终保护。
 - 回退前必须再次备份并停止写入。`0014` downgrade 只恢复旧结构，不删除疾病、病例、报告或标准数据；回退后也不得主动删除已被引用的疾病。
 
+## 访视检测上下文迁移（0021）
+
+当前 Alembic head 为 `0021_operator_case_visit_context`。该迁移向
+`operator_case_visits` 增加非空 JSONB `visit_context`，旧行使用空对象兼容，
+并增加“值必须为 JSON object”的数据库约束。疾病语义和字段长度仍由应用层
+Pydantic/目录服务校验，不在数据库中复制易漂移的疾病枚举。
+
+生产执行顺序：
+
+```text
+备份数据库并停止 AI 操作者写入
+→ 只读确认当前 Alembic revision 为 0020，并记录 operator_case_visits 行数
+→ cd backend && alembic upgrade 0021_operator_case_visit_context
+→ python ../scripts/check_database_readonly.py
+→ 确认 visit_context 缺失列数和非法 JSON 类型行数均为 0
+→ 重启后端
+→ 分别对脂肪肝和 AD 执行目录读取、1 次访视保存、补录至 3 次和报告 readiness 冒烟
+```
+
+不得在开发或核查过程中连接生产数据库。回退 `0021` 会删除
+`visit_context` 列及其中已经录入的上下文，必须先备份并确认业务影响；正常回退
+优先回退应用版本并保留数据库加法字段，不应仅为代码回退而丢弃上下文数据。
+
 ## 旧数据库首次接入
 
 既有数据库接入 Alembic 前，必须先核对真实表结构、数据约束与已有版本。只有确认数据库结构与某一 revision 完全一致时，才能 stamp 到该 revision，然后继续升级：

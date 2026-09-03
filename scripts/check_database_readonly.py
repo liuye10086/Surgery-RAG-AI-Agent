@@ -1,3 +1,4 @@
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -446,7 +447,17 @@ def collect_checks(connection, code_heads):
     }
 
 
-def main():
+def _argument_parser() -> argparse.ArgumentParser:
+    return argparse.ArgumentParser(
+        description=(
+            "Run read-only schema and integrity checks against the configured "
+            "database. The checker always rolls back its transaction."
+        )
+    )
+
+
+def main(argv=None):
+    _argument_parser().parse_args(argv)
     engine = None
     try:
         engine = create_engine(settings.DATABASE_URL, future=True)

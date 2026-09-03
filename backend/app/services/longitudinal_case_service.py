@@ -22,7 +22,7 @@ from app.services.disease_catalog import (
 from app.services.indicator_validation import validate_indicators, validate_visits
 from app.services.anonymous_case_code import generate_anonymous_case_code
 from app.services.report_integrity import compute_input_snapshot_sha256
-from app.services.operator_case_validation import NormalizedVisit
+from app.services.operator_case_validation import NormalizedVisit, normalize_operator_timeline
 from app.services.operator_indicator_catalog import load_operator_indicator_catalog
 
 
@@ -420,8 +420,16 @@ def build_input_snapshot(
         list(visits),
         key=lambda item: (_as_date(item.visit_date), getattr(item, "id", 0) or 0),
     )
+    disease = getattr(case, "disease", None)
+    disease_code = getattr(disease, "code", None)
+    catalog = load_operator_indicator_catalog(disease_code) if disease_code else None
+    normalized_visits = (
+        normalize_operator_timeline(disease_code, ordered, catalog=catalog)
+        if disease_code and ordered
+        else None
+    )
     snapshot_visits = []
-    for index, visit in enumerate(ordered, start=1):
+    for index, visit in enumerate(normalized_visits or ordered, start=1):
         indicators = getattr(visit, "indicators", []) or []
         snapshot_visits.append(
             {
@@ -435,14 +443,7 @@ def build_input_snapshot(
             }
         )
 
-    disease = getattr(case, "disease", None)
-    disease_code = getattr(disease, "code", None)
-    indicator_catalog_version = None
-    if disease_code:
-        validate_visits(disease_code, snapshot_visits)
-        indicator_catalog_version = load_operator_indicator_catalog(
-            disease_code
-        ).catalog_version
+    indicator_catalog_version = catalog.catalog_version if catalog is not None else None
     snapshot = {
         "schema_version": "longitudinal_input.v1",
         "case_id": getattr(case, "id", None),

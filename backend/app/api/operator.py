@@ -369,16 +369,16 @@ async def create_longitudinal_report(
         adapter = DISEASE_CAPABILITIES[disease.code].adapter
     except DiseaseCatalogError as exc:
         raise _disease_http_error(exc) from exc
-    visits = [
-        {"visit_date": visit.visit_date.isoformat(), "indicators": visit.indicators or [], "notes": visit.notes}
-        for visit in sorted(case.visits, key=lambda item: item.visit_date)
-    ]
+    options = (request or LongitudinalReportRequest()).model_options
     try:
-        from app.services.indicator_validation import validate_visits
-
-        validate_visits(disease.code, visits)
-    except (IndicatorValidationError, IndicatorCatalogUnavailableError) as exc:
+        snapshot = build_input_snapshot(case, case.visits, options)
+    except (
+        OperatorCaseValidationError,
+        IndicatorValidationError,
+        IndicatorCatalogUnavailableError,
+    ) as exc:
         raise _longitudinal_error(exc) from exc
+    visits = snapshot["visits"]
     indicator_names = sorted({
         str(indicator.get("name", "")).strip().lower()
         for visit in visits
@@ -392,11 +392,6 @@ async def create_longitudinal_report(
     except Exception:
         logger.exception("Longitudinal evidence selection failed for case_id=%s", case.id)
         sources = []
-    options = (request or LongitudinalReportRequest()).model_options
-    try:
-        snapshot = build_input_snapshot(case, case.visits, options)
-    except (IndicatorValidationError, IndicatorCatalogUnavailableError) as exc:
-        raise _longitudinal_error(exc) from exc
     snapshot_hash = compute_input_snapshot_sha256(snapshot)
     snapshot["input_snapshot_sha256"] = snapshot_hash
     batch_id = str(uuid.uuid4())

@@ -45,7 +45,7 @@ class CaseRecordSchemaTests(unittest.TestCase):
 
 
 class OperatorRouterEndpointTests(unittest.TestCase):
-    def test_operator_router_exposes_only_get_diseases(self):
+    def test_operator_router_exposes_only_read_only_disease_catalog_routes(self):
         from app.api.operator import router
 
         disease_routes = [
@@ -55,7 +55,10 @@ class OperatorRouterEndpointTests(unittest.TestCase):
         ]
         self.assertEqual(
             [(route.path, set(route.methods)) for route in disease_routes],
-            [("/operator/diseases", {"GET"})],
+            [
+                ("/operator/diseases", {"GET"}),
+                ("/operator/diseases/{disease_code}/indicators", {"GET"}),
+            ],
         )
 
     def test_operator_catalog_filters_enabled_registered_codes(self):

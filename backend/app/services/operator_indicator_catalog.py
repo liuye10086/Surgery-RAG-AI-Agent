@@ -65,6 +65,20 @@ UNIT_ALIASES = {
     "10^9/l": "10⁹/L",
 }
 
+CONTEXT_FIELD_MAP = {
+    "education": "education_years",
+    "education_years": "education_years",
+    "language": "assessment_language",
+    "assessment_language": "assessment_language",
+    "scale_version": "scale_version",
+    "sample": "specimen",
+    "specimen": "specimen",
+    "platform": "device_name",
+    "device_name": "device_name",
+    "method": "method",
+    "imaging_type": "imaging_type",
+}
+
 
 # Standard manifests use their reviewed names; model features retain the
 # historical keys below. Every cross-name mapping is explicit and auditable.
@@ -195,7 +209,9 @@ def load_operator_indicator_catalog(
         )
         if entry.rule is not None:
             item["context_requirements"].update(
-                str(key) for key in (entry.rule.applicability or {})
+                CONTEXT_FIELD_MAP[str(key)]
+                for key in (entry.rule.applicability or {})
+                if str(key) in CONTEXT_FIELD_MAP
             )
     items: list[CatalogIndicator] = []
     for code, raw in sorted(grouped.items()):
