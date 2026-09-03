@@ -49,11 +49,13 @@
               :model="operatorStore.currentLongitudinalCase"
               :diseases="progressionDiseases"
               :indicator-catalog="activeIndicatorCatalog"
+              :validation-issues="validationIssues"
               :readiness="operatorStore.readiness"
               :saving="operatorStore.saving"
               :report-generating="operatorStore.generating"
               @save="handleWorkspaceSave"
               @disease-change="handleDiseaseChange"
+              @edit="validationIssues = {}"
               @generate-report="generateCurrentReport"
             />
             <LongitudinalPredictionSummary :prediction="operatorStore.longitudinalPrediction" />
@@ -78,6 +80,7 @@ import LongitudinalReportView from '@/components/LongitudinalReportView.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useOperatorStore } from '@/stores/operator'
 import { downloadReport, type LongitudinalCaseCreatePayload, type LongitudinalCaseSavePayload } from '@/api/operator'
+import { validationIssueMap } from '@/api/request'
 
 const authStore = useAuthStore()
 const operatorStore = useOperatorStore()
@@ -88,6 +91,7 @@ const progressionDiseases = computed(() => operatorStore.diseases)
 const draftDiseaseCode = ref('')
 const activeDiseaseCode = computed(() => operatorStore.currentLongitudinalCase?.disease.code || draftDiseaseCode.value)
 const activeIndicatorCatalog = computed(() => activeDiseaseCode.value ? operatorStore.indicatorCatalogs[activeDiseaseCode.value] || null : null)
+const validationIssues = ref<Record<string, string>>({})
 
 const reportReadingMode = computed(() =>
   activeView.value === 'progression'
@@ -139,12 +143,14 @@ function loadMoreReports() {
 }
 
 async function handleWorkspaceSave(payload: LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload) {
+  validationIssues.value = {}
   try {
     const saved = operatorStore.currentLongitudinalCase?.id
       ? await operatorStore.saveLongitudinalCase(operatorStore.currentLongitudinalCase.id, payload as LongitudinalCaseSavePayload)
       : await operatorStore.saveLongitudinalCase(payload as LongitudinalCaseCreatePayload)
     ElMessage.success(`病例已保存：${saved.anonymous_case_code || '匿名编号待生成'}`)
   } catch (error: any) {
+    validationIssues.value = validationIssueMap(error)
     ElMessage.error(error?.message || '病例保存失败')
   }
 }
@@ -155,11 +161,13 @@ function startNewLongitudinalCase() {
   operatorStore.longitudinalPrediction = null
   operatorStore.longitudinalReportContent = ''
   draftDiseaseCode.value = ''
+  validationIssues.value = {}
 }
 
 async function selectLongitudinalCase(item: any) {
   operatorStore.currentLongitudinalCase = item
   draftDiseaseCode.value = ''
+  validationIssues.value = {}
   await Promise.all([
     operatorStore.refreshLongitudinalCaseReadiness(item.id),
     operatorStore.fetchOperatorIndicatorCatalog(item.disease.code),

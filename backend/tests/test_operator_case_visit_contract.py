@@ -60,3 +60,24 @@ def test_duplicate_aliases_are_rejected_after_canonicalization():
                 }
             ],
         )
+
+
+def test_invalid_visit_context_uses_the_nested_public_field_path():
+    from app.services.operator_case_validation import (
+        OperatorCaseValidationError,
+        normalize_operator_timeline,
+    )
+
+    with pytest.raises(OperatorCaseValidationError) as caught:
+        normalize_operator_timeline(
+            "fatty_liver",
+            [
+                {
+                    "visit_date": "2026-01-01",
+                    "indicators": [{"name": "ALT", "value": 42, "unit": "U/L"}],
+                    "visit_context": {"education_years": 31},
+                }
+            ],
+        )
+
+    assert caught.value.field == "visits.0.visit_context.education_years"

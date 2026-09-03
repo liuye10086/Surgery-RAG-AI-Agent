@@ -1,9 +1,9 @@
 <template>
   <main class="workspace" aria-labelledby="workspace-title">
     <header class="workspace__header"><div><h1 id="workspace-title">{{ model?.id ? '病例详情' : '建立病例' }}</h1><p v-if="model?.anonymous_case_code">匿名编号：{{ model.anonymous_case_code }}</p></div><span v-if="legacyIncomplete" class="workspace__warning" role="alert">历史病例资料不完整，请补全后再保存或生成报告。</span></header>
-    <OperatorCaseProfileForm :model="draftProfile" :diseases="props.diseases" :disease-code="diseaseCode" :disease-locked="Boolean(model?.id)" :readonly="readonly" @update="updateProfile" />
+    <OperatorCaseProfileForm :model="draftProfile" :diseases="props.diseases" :disease-code="diseaseCode" :disease-locked="Boolean(model?.id)" :validation-issues="validationIssues" :readonly="readonly" @update="updateProfile" />
     <OperatorVisitTimelineEditor :visits="draft.visits" :indicator-catalog="indicatorCatalog" :validation-issues="validationIssues" :readonly="readonly" @update="updateVisits" />
-    <OperatorCaseActionBar :dirty="dirty" :saving="saving" :readiness="readiness" @save="requestSave" @generate-report="$emit('generate-report')" />
+    <OperatorCaseActionBar :dirty="dirty" :saving="saving" :report-generating="reportGenerating" :readiness="readiness" @save="requestSave" @generate-report="$emit('generate-report')" />
     <CaseChangeReasonDialog :open="reasonOpen" @cancel="reasonOpen = false" @confirm="saveWithReason" />
   </main>
 </template>
@@ -26,7 +26,7 @@ const props = withDefaults(defineProps<{ model?: LongitudinalCase | null; diseas
   legacyIncomplete: false,
   reportGenerating: false,
 })
-const emit = defineEmits<{ save: [payload: LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload]; 'generate-report': []; 'disease-change': [code: string] }>()
+const emit = defineEmits<{ save: [payload: LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload]; 'generate-report': []; 'disease-change': [code: string]; edit: [] }>()
 const reasonOpen = ref(false)
 const draft = ref<LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload>(makeDraft(props.model))
 const baseline = ref(JSON.stringify(draft.value))
@@ -39,6 +39,7 @@ function makeDraft(model?: LongitudinalCase | null): LongitudinalCaseCreatePaylo
   return model ? { disease_id: model.disease_id, age: model.age ?? 0, sex: model.sex || 'male', baseline_stage: (model.baseline_stage || '') as any, notes: model.notes || null, visits: model.visits.map((visit) => ({ visit_date: visit.visit_date, indicators: visit.indicators.map((item) => ({ ...item })), notes: visit.notes || null, visit_context: { ...(visit.visit_context || {}) } })) } : { disease_id: 0, age: 0, sex: 'male', baseline_stage: '' as any, notes: null, visits: [{ visit_date: '', indicators: [{ name: '', value: null, unit: '' }], notes: null, visit_context: {} }] }
 }
 function updateProfile(field: 'age' | 'sex' | 'baseline_stage' | 'notes' | 'disease_id', value: unknown) {
+  emit('edit')
   if (field === 'disease_id' && !props.model?.id) {
     const diseaseId = Number(value)
     const code = props.diseases.find((disease) => disease.id === diseaseId)?.code || ''
@@ -48,7 +49,7 @@ function updateProfile(field: 'age' | 'sex' | 'baseline_stage' | 'notes' | 'dise
   }
   draft.value = { ...draft.value, [field]: value } as any
 }
-function updateVisits(visits: LongitudinalCaseCreatePayload['visits']) { draft.value = { ...draft.value, visits } as any }
+function updateVisits(visits: LongitudinalCaseCreatePayload['visits']) { emit('edit'); draft.value = { ...draft.value, visits } as any }
 function requestSave() { if (props.model?.id) reasonOpen.value = true; else emit('save', draft.value) }
 function saveWithReason(reason: string) { const { disease_id: _diseaseId, ...editable } = draft.value as LongitudinalCaseCreatePayload; reasonOpen.value = false; emit('save', { ...editable, change_reason: reason } as LongitudinalCaseSavePayload) }
 </script>

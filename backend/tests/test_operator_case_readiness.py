@@ -121,6 +121,24 @@ def test_model_failure_has_no_hard_coded_minimum_fallback():
     assert "model_unavailable" in {item.code for item in result.blockers}
 
 
+def test_catalog_failure_blocks_report_readiness_without_crashing_case_read():
+    from app.services.operator_case_readiness import evaluate_operator_case_readiness
+    from app.services.operator_indicator_catalog import IndicatorCatalogUnavailableError
+
+    with patch(
+        "app.services.operator_case_readiness.normalize_operator_timeline",
+        side_effect=IndicatorCatalogUnavailableError("private path"),
+    ), patch(
+        "app.services.operator_case_readiness.load_active_minimum_visits",
+        return_value=3,
+    ):
+        result = evaluate_operator_case_readiness(_case())
+
+    assert result.ready is False
+    assert result.timeline_ready is False
+    assert "indicator_catalog_unavailable" in {item.code for item in result.blockers}
+
+
 def test_manifest_hash_mismatch_is_rejected(tmp_path: Path):
     from app.services.operator_case_readiness import (
         OperatorCaseReadinessError,

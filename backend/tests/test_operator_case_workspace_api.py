@@ -290,3 +290,24 @@ def test_validation_error_includes_only_safe_structured_issue_fields():
             "field": "visits.0.indicators.0.value",
         }
     ]
+
+
+def test_case_write_maps_catalog_failure_to_safe_503():
+    from app.api.operator import create_longitudinal_case
+    from app.services.operator_indicator_catalog import IndicatorCatalogUnavailableError
+
+    with patch(
+        "app.api.operator.create_operator_case_command",
+        side_effect=IndicatorCatalogUnavailableError("private manifest path"),
+    ):
+        with pytest.raises(HTTPException) as caught:
+            create_longitudinal_case(
+                _create_payload(),
+                idempotency_key="5f0a6f11-7a08-47dc-9ac8-f7961962bd9d",
+                db=MagicMock(),
+                current_user=SimpleNamespace(id=7),
+            )
+
+    assert caught.value.status_code == 503
+    assert caught.value.detail["code"] == "indicator_catalog_unavailable"
+    assert "private manifest path" not in str(caught.value.detail)

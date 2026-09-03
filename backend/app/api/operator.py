@@ -119,6 +119,12 @@ def _safe_report_title(report: AIReport) -> str:
 
 
 def _longitudinal_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, IndicatorCatalogUnavailableError):
+        return _operator_http_error(
+            503,
+            "indicator_catalog_unavailable",
+            "指标目录暂时不可用，请稍后重试",
+        )
     if isinstance(exc, (CaseNotFoundError, CaseStatusNotFoundError)):
         # Do not reveal whether another operator owns the resource.
         return _operator_http_error(404, "case_not_found", "病例不存在")
@@ -218,6 +224,7 @@ def create_longitudinal_case(
         OperatorCaseCommandError,
         OperatorCaseValidationError,
         IndicatorValidationError,
+        IndicatorCatalogUnavailableError,
     ) as exc:
         raise _longitudinal_error(exc) from exc
 
@@ -272,6 +279,7 @@ def update_longitudinal_case(
         OperatorCaseCommandError,
         OperatorCaseValidationError,
         IndicatorValidationError,
+        IndicatorCatalogUnavailableError,
     ) as exc:
         raise _longitudinal_error(exc) from exc
 
@@ -347,11 +355,12 @@ async def create_longitudinal_report(
         blocker = readiness.blockers[0] if readiness.blockers else None
         code = blocker.code if blocker else "report_not_ready"
         message = blocker.message if blocker else "病例尚未满足报告生成条件"
-        model_blocked = any(
-            item.code == "model_unavailable" for item in readiness.blockers
+        service_blocked = any(
+            item.code in {"model_unavailable", "indicator_catalog_unavailable"}
+            for item in readiness.blockers
         )
         raise _operator_http_error(
-            503 if model_blocked else 409,
+            503 if service_blocked else 409,
             code,
             message,
         )
@@ -368,7 +377,7 @@ async def create_longitudinal_report(
         from app.services.indicator_validation import validate_visits
 
         validate_visits(disease.code, visits)
-    except IndicatorValidationError as exc:
+    except (IndicatorValidationError, IndicatorCatalogUnavailableError) as exc:
         raise _longitudinal_error(exc) from exc
     indicator_names = sorted({
         str(indicator.get("name", "")).strip().lower()
@@ -384,7 +393,10 @@ async def create_longitudinal_report(
         logger.exception("Longitudinal evidence selection failed for case_id=%s", case.id)
         sources = []
     options = (request or LongitudinalReportRequest()).model_options
-    snapshot = build_input_snapshot(case, case.visits, options)
+    try:
+        snapshot = build_input_snapshot(case, case.visits, options)
+    except (IndicatorValidationError, IndicatorCatalogUnavailableError) as exc:
+        raise _longitudinal_error(exc) from exc
     snapshot_hash = compute_input_snapshot_sha256(snapshot)
     snapshot["input_snapshot_sha256"] = snapshot_hash
     batch_id = str(uuid.uuid4())

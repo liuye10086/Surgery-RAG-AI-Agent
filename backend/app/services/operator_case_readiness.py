@@ -21,6 +21,7 @@ from app.services.operator_case_validation import (
     normalize_operator_timeline,
     validate_operator_case_profile,
 )
+from app.services.operator_indicator_catalog import IndicatorCatalogUnavailableError
 
 
 class OperatorCaseReadinessError(ValueError):
@@ -118,6 +119,9 @@ def evaluate_operator_case_readiness(
     except OperatorCaseValidationError as exc:
         timeline_valid = False
         blockers.append(_blocker("invalid_timeline", exc.message))
+    except IndicatorCatalogUnavailableError:
+        timeline_valid = False
+        blockers.append(_blocker("indicator_catalog_unavailable", "指标目录暂时不可用"))
 
     minimum_visits: int | None = None
     model_metadata_ready = True

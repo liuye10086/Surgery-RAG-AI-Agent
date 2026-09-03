@@ -35,6 +35,6 @@ describe('OperatorCaseWorkspace', () => {
     await wrapper.find('.profile-grid select').setValue('11')
 
     expect(wrapper.emitted('disease-change')?.[0]).toEqual(['fatty_liver'])
-    expect(wrapper.find('select[aria-label="指标名称"]').element.value).toBe('')
+    expect((wrapper.find('select[aria-label="指标名称"]').element as HTMLSelectElement).value).toBe('')
   })
 })

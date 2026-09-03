@@ -3,14 +3,14 @@
     <span v-if="readiness && !readiness.ready" class="action-bar__hint">{{ readiness.blockers[0]?.message || `还需 ${readiness.minimum_visits ?? '更多'} 次访视` }}</span>
     <span v-else-if="readiness?.ready" class="action-bar__ready">病例已满足报告条件</span>
     <span v-else class="action-bar__hint">请完整填写病例资料</span>
-    <button type="button" :disabled="saving || !dirty" @click="$emit('save')">{{ saving ? '保存中…' : '保存病例' }}</button>
-    <button type="button" class="action-bar__report" :disabled="saving || !readiness?.ready" @click="$emit('generate-report')">生成报告</button>
+    <button type="button" :disabled="saving || reportGenerating || !dirty" @click="$emit('save')">{{ saving ? '保存中…' : '保存病例' }}</button>
+    <button type="button" class="action-bar__report" :disabled="saving || reportGenerating || !readiness?.ready" @click="$emit('generate-report')">{{ reportGenerating ? '生成中…' : '生成报告' }}</button>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { OperatorCaseReportReadiness } from '@/api/operator'
-defineProps<{ dirty: boolean; saving: boolean; readiness: OperatorCaseReportReadiness | null }>()
+withDefaults(defineProps<{ dirty: boolean; saving: boolean; reportGenerating?: boolean; readiness: OperatorCaseReportReadiness | null }>(), { reportGenerating: false })
 defineEmits<{ save: []; 'generate-report': [] }>()
 </script>
 

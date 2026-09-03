@@ -200,7 +200,9 @@ def normalize_operator_timeline(
         except Exception as exc:
             errors = getattr(exc, "errors", lambda: [])()
             suffix = errors[0].get("loc", ("visit_context",)) if errors else ("visit_context",)
-            field = ".".join([f"visits.{index}", *(str(item) for item in suffix)])
+            field = ".".join(
+                [f"visits.{index}.visit_context", *(str(item) for item in suffix)]
+            )
             raise OperatorCaseValidationError(
                 "visit_context_invalid",
                 "访视检测上下文无效",

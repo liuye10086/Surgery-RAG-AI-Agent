@@ -31,15 +31,97 @@ function formatErrorDetail(detail: any): string {
       .filter(Boolean)
       .join('；')
   }
+  if (detail?.message) return detail.message
   if (detail?.msg) return detail.msg
   return '请求失败'
+}
+
+export interface ApiValidationIssue {
+  code: string
+  message: string
+  field?: string
+}
+
+export class ApiRequestError extends Error {
+  readonly code: string
+  readonly field?: string
+  readonly issues: ApiValidationIssue[]
+  readonly status?: number
+  readonly response?: { status?: number; data: { detail: string } }
+
+  constructor(options: { code: string; message: string; field?: string; issues?: ApiValidationIssue[]; status?: number }) {
+    super(options.message)
+    this.name = 'ApiRequestError'
+    this.code = options.code
+    this.field = options.field
+    this.issues = options.issues || []
+    this.status = options.status
+    this.response = { status: options.status, data: { detail: options.message } }
+  }
+}
+
+function pydanticField(location: unknown): string | undefined {
+  if (!Array.isArray(location)) return undefined
+  const parts = location.filter((part) => part !== 'body').map(String)
+  return parts.length ? parts.join('.') : undefined
+}
+
+function normalizeIssue(value: any): ApiValidationIssue | null {
+  if (!value || typeof value !== 'object') return null
+  const message = typeof value.message === 'string' ? value.message : typeof value.msg === 'string' ? value.msg : ''
+  if (!message) return null
+  const field = typeof value.field === 'string' ? value.field : pydanticField(value.loc)
+  return {
+    code: typeof value.code === 'string' ? value.code : typeof value.type === 'string' ? value.type : 'validation_error',
+    message,
+    ...(field ? { field } : {}),
+  }
+}
+
+function normalizeApiError(error: any): ApiRequestError {
+  const status = typeof error?.response?.status === 'number' ? error.response.status : undefined
+  const detail = error?.response?.data?.detail
+  if (detail && !Array.isArray(detail) && typeof detail === 'object') {
+    const issues = Array.isArray(detail.issues) ? detail.issues.map(normalizeIssue).filter(Boolean) as ApiValidationIssue[] : []
+    return new ApiRequestError({
+      code: typeof detail.code === 'string' ? detail.code : 'request_failed',
+      message: typeof detail.message === 'string' ? detail.message : formatErrorDetail(detail),
+      field: typeof detail.field === 'string' ? detail.field : undefined,
+      issues,
+      status,
+    })
+  }
+  if (Array.isArray(detail)) {
+    const issues = detail.map(normalizeIssue).filter(Boolean) as ApiValidationIssue[]
+    return new ApiRequestError({
+      code: 'validation_error',
+      message: issues.map((issue) => issue.message).join('；') || '输入数据无效',
+      field: issues[0]?.field,
+      issues,
+      status,
+    })
+  }
+  return new ApiRequestError({
+    code: status ? `http_${status}` : 'network_error',
+    message: formatErrorDetail(detail) || (status ? '请求失败' : '网络连接失败'),
+    status,
+  })
+}
+
+export function validationIssueMap(error: unknown): Record<string, string> {
+  if (!(error instanceof ApiRequestError)) return {}
+  const mapped: Record<string, string> = {}
+  if (error.field) mapped[error.field] = error.message
+  for (const issue of error.issues) if (issue.field) mapped[issue.field] = issue.message
+  return mapped
 }
 
 request.interceptors.response.use(
   (response) => response.data,
   (error) => {
     const status = error.response?.status
-    const detail = formatErrorDetail(error.response?.data?.detail)
+    const normalized = normalizeApiError(error)
+    const detail = normalized.message
     const url = error.config?.url || ''
 
     // 登录/注册相关错误由页面自行提示，避免重复弹窗
@@ -64,7 +146,7 @@ request.interceptors.response.use(
       ElMessage.error(detail)
     }
 
-    return Promise.reject(error)
+    return Promise.reject(normalized)
   }
 )
 

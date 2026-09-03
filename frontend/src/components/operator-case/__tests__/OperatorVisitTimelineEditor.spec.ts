@@ -101,4 +101,21 @@ describe('OperatorVisitTimelineEditor', () => {
     expect(latest[0].visit_context?.source_type).toBe('lab')
     expect(latest[0].notes).toBeNull()
   })
+
+  it('associates stable backend field errors with the exact input', () => {
+    const wrapper = mount(OperatorVisitTimelineEditor, {
+      props: {
+        visits: [visit()],
+        indicatorCatalog: fattyCatalog,
+        validationIssues: {
+          'visits.0.indicators.0.value': '指标数值不能为空',
+        },
+      },
+    })
+
+    const input = wrapper.find('input[aria-label="指标值"]')
+    expect(input.attributes('aria-invalid')).toBe('true')
+    expect(input.attributes('aria-describedby')).toBe('visits-0-indicators-0-value-error')
+    expect(wrapper.text()).toContain('指标数值不能为空')
+  })
 })
