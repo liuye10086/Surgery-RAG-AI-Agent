@@ -610,7 +610,7 @@ pytest tests/integration/test_operator_case_workspace_api.py -q
 
 Before downgrade assert the new tables are empty; downgrade correctly refuses evidence loss otherwise.
 
-- [ ] **Step 5: Commit the integration harness**
+- [x] **Step 5: Commit the integration harness**
 
 ```text
 git add docker-compose.test.yml backend/requirements.txt backend/tests/integration/conftest.py backend/tests/integration/test_operator_case_workspace_api.py
@@ -860,7 +860,7 @@ powershell -ExecutionPolicy Bypass -File scripts/run_operator_case_e2e.ps1
 
 Expected: both disease flows, draft preservation and two-operator isolation PASS; DB assertions find one creation audit, one aggregate update audit, expected visits, one report and unchanged snapshot.
 
-- [ ] **Step 5: Commit E2E acceptance**
+- [x] **Step 5: Commit E2E acceptance**
 
 ```text
 git add backend/tests/e2e/conftest.py backend/tests/e2e/test_operator_case_workspace.py scripts/run_operator_case_e2e.ps1
@@ -922,7 +922,7 @@ In `docs/AI操作者流程核查.md`, mark item 1 repository-complete, cite exac
 
 Use the `requesting-code-review` skill on the complete diff from `ea8811c` through HEAD. Fix valid findings with focused tests, then rerun affected suites and final build.
 
-- [ ] **Step 7: Commit documentation closure**
+- [x] **Step 7: Commit documentation closure**
 
 ```text
 git add docs/AI操作者流程核查.md docs/superpowers/specs/2026-09-03-ai-operator-case-workspace-design.md docs/superpowers/plans/2026-09-03-ai-operator-case-workspace-implementation.md
