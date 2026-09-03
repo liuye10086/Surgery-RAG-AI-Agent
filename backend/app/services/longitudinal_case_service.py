@@ -19,10 +19,14 @@ from app.services.disease_catalog import (
     require_enabled_case_disease,
     require_operator_disease,
 )
-from app.services.indicator_validation import validate_indicators, validate_visits
 from app.services.anonymous_case_code import generate_anonymous_case_code
 from app.services.report_integrity import compute_input_snapshot_sha256
-from app.services.operator_case_validation import NormalizedVisit, normalize_operator_timeline
+from app.services.operator_case_validation import (
+    NormalizedVisit,
+    OperatorCaseValidationError,
+    normalize_operator_timeline,
+    validate_operator_case_profile,
+)
 from app.services.operator_indicator_catalog import load_operator_indicator_catalog
 
 
@@ -55,6 +59,21 @@ def _validate_visit_count(count: int) -> None:
         raise VisitLimitError("病例至少需要 1 次访视")
     if count > 10:
         raise VisitLimitError("每个病例最多保存 10 次访视")
+
+
+def _normalize_timeline_or_legacy_error(
+    disease_code: str, visits: Iterable[Any]
+) -> list[NormalizedVisit]:
+    """Use the canonical timeline contract while preserving legacy service errors."""
+
+    try:
+        return normalize_operator_timeline(disease_code, visits)
+    except OperatorCaseValidationError as exc:
+        if exc.code == "duplicate_visit_date":
+            raise DuplicateVisitDateError(str(exc)) from exc
+        if exc.code == "visit_count_invalid":
+            raise VisitLimitError(str(exc)) from exc
+        raise
 
 
 def _owned_case_query(db, user_id: int, case_id: int):
@@ -100,12 +119,10 @@ def create_operator_case(
     db, user_id: int, payload: OperatorCaseCreate
 ) -> OperatorCase:
     disease = require_operator_disease(db, payload.disease_id)
-    validate_visits(disease.code, payload.visits)
-
-    visits = sorted(payload.visits, key=lambda item: item.visit_date)
-    if len({item.visit_date for item in visits}) != len(visits):
-        raise DuplicateVisitDateError("同一病例不能重复使用访视日期")
-    _validate_visit_count(len(visits))
+    baseline_stage = validate_operator_case_profile(
+        disease.code, payload.age, payload.sex, payload.baseline_stage
+    )
+    normalized_visits = _normalize_timeline_or_legacy_error(disease.code, payload.visits)
 
     anonymous_case_code = None
     for _ in range(5):
@@ -124,20 +141,17 @@ def create_operator_case(
         anonymous_case_code=anonymous_case_code,
         age=payload.age,
         sex=payload.sex,
-        baseline_stage=payload.baseline_stage,
+        baseline_stage=baseline_stage,
         notes=payload.notes,
         status="active",
     )
     db.add(case)
     db.flush()
-    for index, visit_payload in enumerate(visits, start=1):
+    for normalized in normalized_visits:
         db.add(
             OperatorCaseVisit(
                 case=case,
-                visit_date=visit_payload.visit_date,
-                visit_index=index,
-                indicators=[item.model_dump() for item in visit_payload.indicators],
-                notes=visit_payload.notes,
+                **normalized.as_orm_kwargs(),
             )
         )
     try:
@@ -247,8 +261,10 @@ def _reindex_visits(db, case_id: int, case: OperatorCase | None = None) -> list[
 
 def add_visit(db, user_id: int, case_id: int, payload: VisitCreate) -> OperatorCaseVisit:
     case = get_operator_case_for_write(db, user_id, case_id)
-    validate_indicators(case.disease.code, payload.indicators)
     visits = _ordered_visits(db, case_id, case)
+    normalized_visits = _normalize_timeline_or_legacy_error(
+        case.disease.code, [*visits, payload]
+    )
     duplicate = (
         db.query(OperatorCaseVisit)
         .filter(
@@ -259,15 +275,13 @@ def add_visit(db, user_id: int, case_id: int, payload: VisitCreate) -> OperatorC
     )
     if duplicate is not None:
         raise DuplicateVisitDateError("同一病例不能重复添加同一访视日期")
-    _validate_visit_count(len(visits) + 1)
-
-    visit = OperatorCaseVisit(
-        case_id=case_id,
-        visit_date=payload.visit_date,
-        visit_index=len(visits) + 1,
-        indicators=[indicator.model_dump() for indicator in payload.indicators],
-        notes=payload.notes,
-    )
+    by_date = {item.visit_date: item for item in normalized_visits}
+    visit = None
+    for existing in visits:
+        canonical = by_date[existing.visit_date]
+        for field, value in canonical.as_orm_kwargs().items():
+            setattr(existing, field, value)
+    visit = OperatorCaseVisit(case_id=case_id, **by_date[payload.visit_date].as_orm_kwargs())
     db.add(visit)
     try:
         db.commit()
@@ -275,9 +289,6 @@ def add_visit(db, user_id: int, case_id: int, payload: VisitCreate) -> OperatorC
         db.rollback()
         raise DuplicateVisitDateError("同一病例不能重复添加同一访视日期") from exc
 
-    # Date order, rather than insertion order, is the canonical timeline.
-    _reindex_visits(db, case_id, case)
-    db.commit()
     db.refresh(visit)
     return visit
 
@@ -302,31 +313,31 @@ def update_visit(
 ) -> OperatorCaseVisit:
     case, visit = _owned_visit_query(db, user_id, case_id, visit_id)
     values = payload.model_dump(exclude_unset=True)
-    if payload.indicators is not None:
-        validate_indicators(case.disease.code, payload.indicators)
-    if "visit_date" in values:
-        duplicate = (
-            db.query(OperatorCaseVisit)
-            .filter(
-                OperatorCaseVisit.case_id == case_id,
-                OperatorCaseVisit.visit_date == values["visit_date"],
-                OperatorCaseVisit.id != visit_id,
-            )
-            .first()
-        )
-        if duplicate is not None:
-            raise DuplicateVisitDateError("同一病例不能重复使用访视日期")
-    if "indicators" in values:
-        values["indicators"] = [item.model_dump() for item in values["indicators"]]
-    for field, value in values.items():
-        setattr(visit, field, value)
+    existing_visits = _ordered_visits(db, case_id, case)
+    if not any(existing.id == visit.id for existing in existing_visits):
+        existing_visits.append(visit)
+    merged = []
+    for existing in existing_visits:
+        item = {
+            "visit_date": existing.visit_date,
+            "indicators": existing.indicators,
+            "notes": existing.notes,
+            "visit_context": existing.visit_context,
+        }
+        if existing.id == visit_id:
+            item.update(values)
+        merged.append(item)
+    normalized_visits = _normalize_timeline_or_legacy_error(case.disease.code, merged)
+    by_date = {item.visit_date: item for item in normalized_visits}
+    for existing in existing_visits:
+        canonical = by_date[existing.visit_date]
+        for field, value in canonical.as_orm_kwargs().items():
+            setattr(existing, field, value)
     try:
         db.commit()
     except IntegrityError as exc:
         db.rollback()
         raise DuplicateVisitDateError("同一病例不能重复使用访视日期") from exc
-    _reindex_visits(db, case_id, case)
-    db.commit()
     db.refresh(visit)
     return visit
 
@@ -344,24 +355,16 @@ def replace_visits(
     case = get_operator_case_for_write(db, user_id, case_id)
     payloads = list(payloads)
     _validate_visit_count(len(payloads))
-    validate_visits(case.disease.code, payloads)
-    dates = [payload.visit_date for payload in payloads]
-    if len(dates) != len(set(dates)):
-        raise DuplicateVisitDateError("同一病例不能重复使用访视日期")
-
-    ordered = sorted(payloads, key=lambda payload: payload.visit_date)
+    normalized_visits = _normalize_timeline_or_legacy_error(case.disease.code, payloads)
     try:
         db.query(OperatorCaseVisit).filter(
             OperatorCaseVisit.case_id == case_id
         ).delete(synchronize_session=False)
-        for index, payload in enumerate(ordered, start=1):
+        for normalized in normalized_visits:
             db.add(
                 OperatorCaseVisit(
                     case_id=case_id,
-                    visit_date=payload.visit_date,
-                    visit_index=index,
-                    indicators=[item.model_dump() for item in payload.indicators],
-                    notes=payload.notes,
+                    **normalized.as_orm_kwargs(),
                 )
             )
         db.commit()

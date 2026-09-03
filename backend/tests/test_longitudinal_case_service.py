@@ -241,6 +241,41 @@ def test_create_operator_case_persists_age():
     assert persisted.age == 67
 
 
+def test_create_operator_case_persists_canonical_visit_context_and_stage():
+    from app.schemas.longitudinal_case import OperatorCaseCreate
+    from app.services.longitudinal_case_service import create_operator_case
+
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
+        id=11,
+        code="fatty_liver",
+        operator_enabled=True,
+    )
+    payload = OperatorCaseCreate(
+        disease_id=11,
+        age=67,
+        sex="female",
+        baseline_stage="pre_cirrhosis",
+        visits=[
+            {
+                "visit_date": "2024-01-01",
+                "indicators": [{"name": "谷丙转氨酶", "value": 42, "unit": "u/l"}],
+                "visit_context": {"source_type": "lab", "facility_name": "中心实验室"},
+            }
+        ],
+    )
+
+    create_operator_case(db, user_id=7, payload=payload)
+
+    persisted_visit = db.add.call_args_list[1].args[0]
+    assert persisted_visit.visit_index == 1
+    assert persisted_visit.indicators == [{"name": "alt", "value": 42.0, "unit": "U/L"}]
+    assert persisted_visit.visit_context == {
+        "source_type": "lab",
+        "facility_name": "中心实验室",
+    }
+
+
 def test_create_operator_case_rejects_disabled_disease():
     from app.schemas.longitudinal_case import OperatorCaseCreate
     from app.services.disease_catalog import DiseaseDisabledError

@@ -90,9 +90,10 @@ def test_profile_diff_contains_only_changed_fields():
     assert changes == {
         "profile": {
             "age": {"before": 56, "after": 57},
-            "notes": {"before": None, "after": "复查"},
+            "notes": {"changed": True},
         }
     }
+    assert "复查" not in str(changes)
     assert classify_case_action(changes) == "profile_updated"
 
 

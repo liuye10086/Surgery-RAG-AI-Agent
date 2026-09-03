@@ -22,7 +22,7 @@ STABLE_STAGES = {
 }
 
 
-class OperatorCaseValidationError(ValueError):
+class OperatorCaseValidationError(IndicatorValidationError):
     def __init__(
         self,
         code: str,

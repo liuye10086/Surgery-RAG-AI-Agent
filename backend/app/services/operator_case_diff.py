@@ -80,7 +80,9 @@ def build_case_diff(
         if field == "notes":
             before, after = _notes(before), _notes(after)
         if before != after:
-            profile[field] = {"before": before, "after": after}
+            # Notes are free text and may contain PHI. Keep only the fact that
+            # the field changed; never persist before/after note contents.
+            profile[field] = {"changed": True} if field == "notes" else {"before": before, "after": after}
     if profile:
         changes["profile"] = profile
 
