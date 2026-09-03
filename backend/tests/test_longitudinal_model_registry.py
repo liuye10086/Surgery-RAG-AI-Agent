@@ -638,6 +638,15 @@ def test_active_release_set_loads_one_immutable_suite(monkeypatch, tmp_path):
         ),
     )
     monkeypatch.setattr(registry.joblib, "load", lambda path: {"loaded": path.name})
+    monkeypatch.setitem(
+        registry.REQUIRED_TASKS,
+        "ad",
+        {
+            "ad.pre_dementia_to_dementia",
+            "ad.next_stage",
+            "ad.next_visit_trend.mmse",
+        },
+    )
 
     suite = registry.load_disease_model_suite("ad", root)
 
@@ -645,6 +654,60 @@ def test_active_release_set_loads_one_immutable_suite(monkeypatch, tmp_path):
     assert set(suite.outcomes) == {"ad.pre_dementia_to_dementia"}
     assert suite.stage.metadata.task == "ad.next_stage"
     assert set(suite.trends) == {"mmse"}
+
+
+def test_active_suite_rejects_missing_required_bundle(monkeypatch, tmp_path):
+    from app.services import longitudinal_model_registry as registry
+
+    bundles = [
+        {"task": "ad.pre_dementia_to_dementia", "artifact_type": "outcome"},
+        {"task": "ad.next_stage", "artifact_type": "stage"},
+    ]
+    release = SimpleNamespace(
+        dataset="ad",
+        release_set_id="ad-set-v1",
+        record_sha256="a" * 64,
+        data_release_id="ad-data-v1",
+        split_sha256="b" * 64,
+        bundles=tuple(bundles),
+        status="reviewed",
+    )
+    monkeypatch.setattr(registry, "load_disease_release_set", lambda dataset, root: release)
+    monkeypatch.setattr(
+        registry,
+        "_suite_entry_from_bundle",
+        lambda bundle, root: SimpleNamespace(
+            status=SimpleNamespace(status="available"),
+            metadata=None,
+            model=None,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="required_bundle_missing"):
+        registry.load_disease_model_suite("ad", tmp_path)
+
+
+def test_active_suite_rejects_duplicate_task(monkeypatch, tmp_path):
+    from app.services import longitudinal_model_registry as registry
+
+    bundles = [
+        {"task": "ad.pre_dementia_to_dementia", "artifact_type": "outcome"},
+        {"task": "ad.pre_dementia_to_dementia", "artifact_type": "outcome"},
+        {"task": "ad.next_stage", "artifact_type": "stage"},
+    ]
+    release = SimpleNamespace(
+        dataset="ad",
+        release_set_id="ad-set-v1",
+        record_sha256="a" * 64,
+        data_release_id="ad-data-v1",
+        split_sha256="b" * 64,
+        bundles=tuple(bundles),
+        status="reviewed",
+    )
+    monkeypatch.setattr(registry, "load_disease_release_set", lambda dataset, root: release)
+
+    with pytest.raises(ValueError, match="duplicate_bundle_task"):
+        registry.load_disease_model_suite("ad", tmp_path)
 
 
 def test_active_release_set_prevents_fallback_to_legacy_task_releases(monkeypatch, tmp_path):

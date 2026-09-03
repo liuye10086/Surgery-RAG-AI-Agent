@@ -35,7 +35,7 @@ from app.schemas.longitudinal_model_suite import (
     EvaluationArtifact,
 )
 from app.services.model_paths import MODEL_DIR
-from app.services.longitudinal_release_set import load_disease_release_set
+from app.services.longitudinal_release_set import REQUIRED_TASKS, load_disease_release_set
 
 
 HEX64 = set("0123456789abcdef")
@@ -898,6 +898,18 @@ def load_disease_model_suite(
 ) -> LoadedDiseaseModelSuite:
     root = Path(registry_root).resolve()
     release_set = load_disease_release_set(dataset, root)
+    if release_set.dataset != dataset:
+        raise ValueError("release_set_dataset_mismatch")
+    if release_set.status not in {"reviewed", "enabled"}:
+        raise ValueError("release_set_lifecycle_invalid")
+    expected_tasks = REQUIRED_TASKS[dataset]
+    actual_tasks = [str(bundle.get("task", "")) for bundle in release_set.bundles]
+    if any(not task for task in actual_tasks):
+        raise ValueError("required_bundle_missing")
+    if len(actual_tasks) != len(set(actual_tasks)):
+        raise ValueError("duplicate_bundle_task")
+    if set(actual_tasks) != expected_tasks:
+        raise ValueError("required_bundle_missing")
     outcomes: dict[str, SuiteModelEntry] = {}
     stage: SuiteModelEntry | None = None
     trends: dict[str, SuiteModelEntry] = {}
