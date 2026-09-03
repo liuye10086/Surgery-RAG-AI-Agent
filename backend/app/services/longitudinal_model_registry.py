@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+from threading import RLock
 from pathlib import Path
 from typing import Any, Literal
 
@@ -35,10 +36,17 @@ from app.schemas.longitudinal_model_suite import (
     EvaluationArtifact,
 )
 from app.services.model_paths import MODEL_DIR
-from app.services.longitudinal_release_set import REQUIRED_TASKS, load_disease_release_set
+from app.services.longitudinal_release_set import (
+    REQUIRED_TASKS,
+    load_disease_release_set,
+    read_active_pointer,
+)
 
 
 HEX64 = set("0123456789abcdef")
+
+_SUITE_CACHE: dict[tuple[str, str, str], LoadedDiseaseModelSuite] = {}
+_SUITE_CACHE_LOCK = RLock()
 
 
 def sha256_file(path: Path) -> str:
@@ -954,5 +962,25 @@ def load_active_model_registry(
             pointer_payload = None
         if isinstance(pointer_payload, dict) and pointer_payload.get("status") == "inactive":
             return load_model_registry(dataset, registry_root=root)
-        return load_disease_model_suite(dataset, root)
+        try:
+            pointer = read_active_pointer(root, dataset)
+        except Exception:
+            # Preserve the loader's stable validation error for malformed
+            # pointers; malformed state must never fall back to legacy models.
+            return load_disease_model_suite(dataset, root)
+        key = (dataset, pointer.release_set_id, pointer.release_set_sha256)
+        with _SUITE_CACHE_LOCK:
+            cached = _SUITE_CACHE.get(key)
+            if cached is not None:
+                return cached
+            suite = load_disease_model_suite(dataset, root)
+            _SUITE_CACHE[key] = suite
+            stale = [
+                item
+                for item in _SUITE_CACHE
+                if item[0] == dataset and item != key
+            ]
+            for item in stale:
+                _SUITE_CACHE.pop(item, None)
+            return suite
     return load_model_registry(dataset, registry_root=root)

@@ -3,6 +3,8 @@ import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from concurrent.futures import ThreadPoolExecutor
+import threading
 
 import pytest
 from pydantic import ValidationError
@@ -762,3 +764,98 @@ def test_inactive_release_pointer_restores_legacy_registry_fallback(
     )
 
     assert registry.load_active_model_registry("ad", tmp_path) == "legacy"
+
+
+def _write_active_pointer(root: Path, release_set_id: str, release_set_sha256: str):
+    pointer_path = root / "active" / "ad.json"
+    pointer_path.parent.mkdir(parents=True, exist_ok=True)
+    pointer_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "longitudinal_disease_release_pointer.v1",
+                "dataset": "ad",
+                "release_set_id": release_set_id,
+                "release_set_sha256": release_set_sha256,
+                "changed_by": "owner",
+                "changed_at": "2026-08-27T00:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_active_suite_cache_loads_same_pointer_once(monkeypatch, tmp_path):
+    from app.services import longitudinal_model_registry as registry
+
+    registry._SUITE_CACHE.clear()
+    root = tmp_path / "registry"
+    _write_active_pointer(root, "ad-cache-set-1", "1" * 64)
+    calls = 0
+    suite = object()
+
+    def counted(dataset, registry_root):
+        nonlocal calls
+        calls += 1
+        return suite
+
+    monkeypatch.setattr(registry, "load_disease_model_suite", counted)
+
+    first = registry.load_active_model_registry("ad", root)
+    second = registry.load_active_model_registry("ad", root)
+
+    assert first is suite
+    assert second is suite
+    assert calls == 1
+
+
+def test_active_suite_cache_misses_when_pointer_hash_changes(monkeypatch, tmp_path):
+    from app.services import longitudinal_model_registry as registry
+
+    registry._SUITE_CACHE.clear()
+    root = tmp_path / "registry"
+    _write_active_pointer(root, "ad-cache-set-2", "2" * 64)
+    suites = [object(), object()]
+    calls = 0
+
+    def counted(dataset, registry_root):
+        nonlocal calls
+        value = suites[calls]
+        calls += 1
+        return value
+
+    monkeypatch.setattr(registry, "load_disease_model_suite", counted)
+    first = registry.load_active_model_registry("ad", root)
+    _write_active_pointer(root, "ad-cache-set-2", "3" * 64)
+    second = registry.load_active_model_registry("ad", root)
+
+    assert first is not second
+    assert calls == 2
+
+
+def test_active_suite_cache_single_flight_under_concurrency(monkeypatch, tmp_path):
+    from app.services import longitudinal_model_registry as registry
+
+    registry._SUITE_CACHE.clear()
+    root = tmp_path / "registry"
+    _write_active_pointer(root, "ad-cache-set-3", "4" * 64)
+    calls = 0
+    calls_lock = threading.Lock()
+    suite = object()
+
+    def counted(dataset, registry_root):
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+        return suite
+
+    monkeypatch.setattr(registry, "load_disease_model_suite", counted)
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        results = list(
+            executor.map(
+                lambda _: registry.load_active_model_registry("ad", root),
+                range(8),
+            )
+        )
+
+    assert all(item is suite for item in results)
+    assert calls == 1
