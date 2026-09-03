@@ -44,4 +44,18 @@ describe('operator case workspace store', () => {
     expect(store.draft).toEqual(draft)
     expect(store.saving).toBe(false)
   })
+
+  it('reuses a create idempotency key after a failed retry and rotates it after success', async () => {
+    const { useOperatorStore } = await import('../operator')
+    const payload = { disease_id: 11, age: 56, sex: 'male' as const, baseline_stage: 'pre_cirrhosis' as const, notes: null, visits: [] }
+    api.createLongitudinalCase.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({ id: 4 })
+    api.getLongitudinalCaseReportReadiness.mockResolvedValue({ ready: false, blockers: [], minimum_visits: 3, visit_count: 1 })
+    const store = useOperatorStore()
+    await expect(store.saveLongitudinalCase(payload)).rejects.toThrow('network')
+    await store.saveLongitudinalCase(payload)
+    expect(api.createLongitudinalCase.mock.calls[0][1]).toBe(api.createLongitudinalCase.mock.calls[1][1])
+    api.createLongitudinalCase.mockResolvedValueOnce({ id: 5 })
+    await store.saveLongitudinalCase(payload)
+    expect(api.createLongitudinalCase.mock.calls[2][1]).not.toBe(api.createLongitudinalCase.mock.calls[1][1])
+  })
 })

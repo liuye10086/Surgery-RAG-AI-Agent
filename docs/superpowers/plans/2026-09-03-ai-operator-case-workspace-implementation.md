@@ -874,7 +874,7 @@ git commit -m "test: cover operator case workspace end to end"
 - Modify: `docs/superpowers/specs/2026-09-03-ai-operator-case-workspace-design.md`
 - Modify: `docs/superpowers/plans/2026-09-03-ai-operator-case-workspace-implementation.md`
 
-- [ ] **Step 1: Run backend and frontend full regression**
+- [x] **Step 1: Run backend and frontend full regression**
 
 ```text
 cd backend
@@ -901,7 +901,7 @@ powershell -ExecutionPolicy Bypass -File scripts/run_operator_case_e2e.ps1
 
 Before deleting the volume verify the compose project name is exactly `surgery-rag-agent-test`; only disposable test data is in scope.
 
-- [ ] **Step 3: Run privacy, ownership, and dead-path searches**
+- [x] **Step 3: Run privacy, ownership, and dead-path searches**
 
 ```text
 rg -n "patient_label|CaseRecord|/operator/cases|addLongitudinalVisit|replaceLongitudinalVisits" frontend/src backend/app/api/operator.py backend/app/schemas/longitudinal_case.py
@@ -910,11 +910,11 @@ rg -n "request\.body|anonymous_case_code|indicators" backend/app -g "*.py"
 
 Inspect every match. Confirm no legacy UI/API exposure, no restricted-value logging, owner predicates on every case/report path, and no report insertion before readiness.
 
-- [ ] **Step 4: Review every confirmed acceptance point**
+- [x] **Step 4: Review every confirmed acceptance point**
 
 Manually verify: first visit and definite stage; save stays on detail and does not auto-generate; `operator_cases` only; one-request/one-transaction update; last-write-wins plus audit; legacy incomplete blocking; manifest threshold; stable errors/input preservation; accessibility/loading/navigation protection; old reports unchanged.
 
-- [ ] **Step 5: Update documents only after evidence exists**
+- [x] **Step 5: Update documents only after evidence exists**
 
 In `docs/AI操作者流程核查.md`, mark item 1 repository-complete, cite exact implementation/test files and observed commands, and state “尚未在生产环境执行迁移/部署”. Mark the design implemented and append verification totals to this plan. Do not claim production deployment.
 

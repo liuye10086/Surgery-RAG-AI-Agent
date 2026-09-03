@@ -46,6 +46,7 @@ export const useOperatorStore = defineStore('operator', () => {
   const longitudinalReportContent = ref('')
 
   let cancelFn: (() => void) | null = null
+  let createIdempotencyKey: string | null = null
 
   async function fetchReports(skip = 0, limit = 20, append = false) {
     loading.value = true
@@ -124,8 +125,9 @@ export const useOperatorStore = defineStore('operator', () => {
     try {
       let saved: LongitudinalCase
       if (isCreate) {
-        const idempotencyKey = crypto.randomUUID()
-        saved = await createLongitudinalCase(data as LongitudinalCaseCreatePayload, idempotencyKey)
+        createIdempotencyKey ||= crypto.randomUUID()
+        saved = await createLongitudinalCase(data as LongitudinalCaseCreatePayload, createIdempotencyKey)
+        createIdempotencyKey = null
       } else {
         saved = await saveLongitudinalCaseRequest(id as number, data as LongitudinalCaseSavePayload)
       }
