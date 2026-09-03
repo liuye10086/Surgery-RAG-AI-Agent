@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+import hashlib
+import json
 from typing import Any, Iterable, Literal
 
 from app.services.operator_case_validation import NormalizedVisit
@@ -45,12 +47,24 @@ def _visit_snapshot(value: Any) -> dict[str, Any]:
         "visit_date": _iso_date(_field(value, "visit_date")),
         "indicators": indicators,
         "notes": _notes(_field(value, "notes")),
+        "visit_context": dict(_field(value, "visit_context") or {}),
     }
 
 
 def _timeline_by_date(values: Iterable[Any]) -> dict[str, dict[str, Any]]:
     snapshots = (_visit_snapshot(value) for value in values)
     return {item["visit_date"]: item for item in snapshots}
+
+
+def _timeline_sha256(values_by_date: dict[str, dict[str, Any]]) -> str:
+    canonical = [values_by_date[key] for key in sorted(values_by_date)]
+    encoded = json.dumps(
+        canonical,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def build_case_diff(
@@ -72,30 +86,23 @@ def build_case_diff(
 
     before_by_date = _timeline_by_date(getattr(case, "visits", ()) or ())
     after_by_date = _timeline_by_date(normalized_visits)
-    added = [
-        after_by_date[key]
-        for key in sorted(after_by_date.keys() - before_by_date.keys())
-    ]
-    removed = [
-        before_by_date[key]
-        for key in sorted(before_by_date.keys() - after_by_date.keys())
-    ]
-    updated = []
+    added_count = len(after_by_date.keys() - before_by_date.keys())
+    removed_count = len(before_by_date.keys() - after_by_date.keys())
+    updated_fields: set[str] = set()
     for key in sorted(before_by_date.keys() & after_by_date.keys()):
         before = before_by_date[key]
         after = after_by_date[key]
-        fields = {
-            field: {"before": before[field], "after": after[field]}
-            for field in ("indicators", "notes")
+        updated_fields.update(
+            field
+            for field in ("indicators", "notes", "visit_context")
             if before[field] != after[field]
-        }
-        if fields:
-            updated.append({"visit_date": key, "fields": fields})
-    if added or removed or updated:
+        )
+    if added_count or removed_count or updated_fields:
         changes["timeline"] = {
-            "added": added,
-            "removed": removed,
-            "updated": updated,
+            "added_count": added_count,
+            "removed_count": removed_count,
+            "updated_fields": sorted(updated_fields),
+            "timeline_sha256": _timeline_sha256(after_by_date),
         }
     return changes
 

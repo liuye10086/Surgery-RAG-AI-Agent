@@ -96,6 +96,19 @@ def test_timeline_sorts_dates_normalizes_indicators_and_assigns_indexes():
     )
 
 
+def test_timeline_keeps_each_context_attached_when_sorting():
+    from app.services.operator_case_validation import normalize_operator_timeline
+
+    later = _visit("2026-02-01")
+    later["visit_context"] = {"facility_name": "B"}
+    earlier = _visit("2026-01-01")
+    earlier["visit_context"] = {"facility_name": "A"}
+
+    normalized = normalize_operator_timeline("fatty_liver", [later, earlier])
+
+    assert [item.visit_context["facility_name"] for item in normalized] == ["A", "B"]
+
+
 @pytest.mark.parametrize(
     ("visits", "code"),
     [
@@ -149,6 +162,7 @@ def test_replace_case_visits_in_session_never_commits():
     assert persisted.case_id == 3
     assert persisted.visit_index == 1
     assert persisted.indicators == [{"name": "alt", "value": 42.0, "unit": "U/L"}]
+    assert persisted.visit_context == {}
     db.flush.assert_called_once()
     db.commit.assert_not_called()
     db.rollback.assert_not_called()

@@ -44,6 +44,7 @@ class NormalizedVisit:
             "visit_index": self.visit_index,
             "indicators": [dict(item) for item in self.indicators],
             "notes": self.notes,
+            "visit_context": dict(self.visit_context),
         }
 
 
@@ -140,7 +141,9 @@ def normalize_operator_timeline(
             field="visits",
         )
 
-    prepared: list[tuple[date, tuple[dict[str, Any], ...], str | None]] = []
+    prepared: list[
+        tuple[date, tuple[dict[str, Any], ...], str | None, dict[str, Any]]
+    ] = []
     seen_dates: set[date] = set()
     for index, visit in enumerate(raw_visits):
         visit_date = _as_date(_field(visit, "visit_date"), index=index)
@@ -197,7 +200,14 @@ def normalize_operator_timeline(
             ) from exc
         raw_notes = _field(visit, "notes")
         notes = raw_notes.strip() or None if isinstance(raw_notes, str) else None
-        prepared.append((visit_date, normalized_indicators, notes))
+        prepared.append(
+            (
+                visit_date,
+                normalized_indicators,
+                notes,
+                context.model_dump(exclude_none=True),
+            )
+        )
 
     prepared.sort(key=lambda item: item[0])
     return [
@@ -206,7 +216,9 @@ def normalize_operator_timeline(
             visit_index=index,
             indicators=indicators,
             notes=notes,
-            visit_context=context.model_dump(exclude_none=True),
+            visit_context=visit_context,
         )
-        for index, (visit_date, indicators, notes) in enumerate(prepared, start=1)
+        for index, (visit_date, indicators, notes, visit_context) in enumerate(
+            prepared, start=1
+        )
     ]

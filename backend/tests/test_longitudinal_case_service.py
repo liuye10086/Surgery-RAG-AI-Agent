@@ -39,6 +39,7 @@ def _visit(day, visit_index=1, visit_id=None):
         visit_index=visit_index,
         indicators=[{"name": "ALT", "value": 42, "unit": "U/L"}],
         notes=None,
+        visit_context={},
     )
 
 
@@ -164,6 +165,22 @@ def test_snapshot_contains_stable_integrity_metadata():
     assert snapshot["canonicalization_version"] == "v1"
     assert snapshot["hash_algorithm"] == "sha256"
     assert len(snapshot["input_snapshot_sha256"]) == 64
+
+
+def test_snapshot_preserves_visit_context_and_catalog_version():
+    from app.services.longitudinal_case_service import build_input_snapshot
+
+    visit = _visit("2024-01-01")
+    visit.visit_context = {
+        "source_type": "lab",
+        "facility_name": "中心实验室",
+        "is_baseline": True,
+    }
+
+    snapshot = build_input_snapshot(_case(age=60), [visit])
+
+    assert snapshot["visits"][0]["visit_context"] == visit.visit_context
+    assert len(snapshot["indicator_catalog_version"]) == 64
 
 
 def test_snapshot_contains_stable_disease_code():

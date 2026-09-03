@@ -8,13 +8,22 @@ def _indicator(name="ALT", value=42, unit="U/L"):
     return {"name": name, "value": value, "unit": unit}
 
 
-def _visit(day="2026-01-01", *, indicators=None, notes=None, row_id=1, index=1):
+def _visit(
+    day="2026-01-01",
+    *,
+    indicators=None,
+    notes=None,
+    visit_context=None,
+    row_id=1,
+    index=1,
+):
     return SimpleNamespace(
         id=row_id,
         visit_date=date.fromisoformat(day),
         visit_index=index,
         indicators=indicators or [_indicator()],
         notes=notes,
+        visit_context=visit_context or {},
     )
 
 
@@ -87,7 +96,7 @@ def test_profile_diff_contains_only_changed_fields():
     assert classify_case_action(changes) == "profile_updated"
 
 
-def test_timeline_diff_has_stable_added_removed_and_updated_sections():
+def test_timeline_diff_is_redacted_to_counts_fields_and_hash():
     from app.services.operator_case_diff import build_case_diff, classify_case_action
 
     case = _case(
@@ -101,7 +110,8 @@ def test_timeline_diff_has_stable_added_removed_and_updated_sections():
             {
                 "visit_date": "2026-01-01",
                 "indicators": [_indicator()],
-                "notes": "复查",
+                "notes": "敏感复查内容 9876",
+                "visit_context": {"facility_name": "敏感医院"},
             },
             {
                 "visit_date": "2026-03-01",
@@ -113,26 +123,23 @@ def test_timeline_diff_has_stable_added_removed_and_updated_sections():
 
     changes = build_case_diff(case, _profile(), submitted)
 
-    assert changes["timeline"]["added"] == [
-        {
-            "visit_date": "2026-03-01",
-            "indicators": [{"name": "ast", "value": 31.0, "unit": "U/L"}],
-            "notes": None,
-        }
-    ]
-    assert changes["timeline"]["removed"] == [
-        {
-            "visit_date": "2026-02-01",
-            "indicators": [{"name": "alt", "value": 42.0, "unit": "U/L"}],
-            "notes": None,
-        }
-    ]
-    assert changes["timeline"]["updated"] == [
-        {
-            "visit_date": "2026-01-01",
-            "fields": {"notes": {"before": None, "after": "复查"}},
-        }
-    ]
+    timeline = changes["timeline"]
+    assert timeline["added_count"] == 1
+    assert timeline["removed_count"] == 1
+    assert timeline["updated_fields"] == ["notes", "visit_context"]
+    assert len(timeline["timeline_sha256"]) == 64
+    assert set(timeline) == {
+        "added_count",
+        "removed_count",
+        "updated_fields",
+        "timeline_sha256",
+    }
+
+    import json
+
+    serialized = json.dumps(timeline, ensure_ascii=False)
+    for forbidden in ("9876", "敏感医院", "2026-01-01", "2026-02-01", "2026-03-01", "42"):
+        assert forbidden not in serialized
     assert classify_case_action(changes) == "timeline_updated"
 
 

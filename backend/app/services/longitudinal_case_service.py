@@ -23,6 +23,7 @@ from app.services.indicator_validation import validate_indicators, validate_visi
 from app.services.anonymous_case_code import generate_anonymous_case_code
 from app.services.report_integrity import compute_input_snapshot_sha256
 from app.services.operator_case_validation import NormalizedVisit
+from app.services.operator_indicator_catalog import load_operator_indicator_catalog
 
 
 class LongitudinalCaseError(ValueError):
@@ -428,19 +429,27 @@ def build_input_snapshot(
                 "visit_index": index,
                 "indicators": [_dump(indicator) for indicator in indicators],
                 "notes": getattr(visit, "notes", None),
+                "visit_context": dict(
+                    getattr(visit, "visit_context", {}) or {}
+                ),
             }
         )
 
     disease = getattr(case, "disease", None)
     disease_code = getattr(disease, "code", None)
+    indicator_catalog_version = None
     if disease_code:
         validate_visits(disease_code, snapshot_visits)
+        indicator_catalog_version = load_operator_indicator_catalog(
+            disease_code
+        ).catalog_version
     snapshot = {
         "schema_version": "longitudinal_input.v1",
         "case_id": getattr(case, "id", None),
         "disease_id": getattr(case, "disease_id", None),
         "disease": getattr(disease, "name", None),
         "disease_code": disease_code,
+        "indicator_catalog_version": indicator_catalog_version,
         "anonymous_case_code": getattr(case, "anonymous_case_code", None),
         "age": getattr(case, "age", None),
         "sex": getattr(case, "sex", None),
