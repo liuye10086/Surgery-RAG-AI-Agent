@@ -37,6 +37,7 @@ from app.schemas.operator_case_workspace import (
     OperatorCaseSave,
 )
 from app.schemas.operator_case_status import OperatorCaseStatus, OperatorCaseStatusChangeRequest
+from app.schemas.operator_indicator_catalog import OperatorIndicatorCatalogOut
 from app.services.pdf_generator import generate_pdf
 from app.services.longitudinal_case_service import (
     ArchivedCaseError,
@@ -81,8 +82,13 @@ from app.services.disease_catalog import (
     DiseaseDisabledError,
     DiseaseNotFoundError,
     require_enabled_case_disease,
+    require_disease_capability,
 )
 from app.services.indicator_validation import IndicatorValidationError
+from app.services.operator_indicator_catalog import (
+    IndicatorCatalogUnavailableError,
+    load_operator_indicator_catalog,
+)
 from app.services.operator_case_readiness import evaluate_operator_case_readiness
 
 logger = logging.getLogger(__name__)
@@ -142,6 +148,7 @@ def _longitudinal_error(exc: Exception) -> HTTPException:
             exc.code,
             exc.message,
             field=exc.field,
+            issues=exc.issues,
         )
     if isinstance(exc, IndicatorValidationError):
         return _operator_http_error(422, "indicators_invalid", str(exc))
@@ -154,10 +161,20 @@ def _operator_http_error(
     message: str,
     *,
     field: str | None = None,
+    issues: list[dict[str, str]] | None = None,
 ) -> HTTPException:
     detail = {"code": code, "message": message}
     if field:
         detail["field"] = field
+    if issues:
+        detail["issues"] = [
+            {
+                key: value
+                for key, value in issue.items()
+                if key in {"code", "message", "field"} and isinstance(value, str)
+            }
+            for issue in issues
+        ]
     return HTTPException(status_code=status_code, detail=detail)
 
 
@@ -612,6 +629,34 @@ def list_diseases(
         .order_by(Disease.id)
         .all()
     )
+
+
+@router.get(
+    "/diseases/{disease_code}/indicators",
+    response_model=OperatorIndicatorCatalogOut,
+)
+def get_operator_indicator_catalog(
+    disease_code: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    try:
+        disease = db.query(Disease).filter(Disease.code == disease_code).first()
+        if disease is None:
+            raise DiseaseNotFoundError("疾病不存在")
+        if not disease.operator_enabled:
+            raise DiseaseDisabledError("该疾病已停用")
+        require_disease_capability(disease.code)
+    except DiseaseCatalogError as exc:
+        raise _disease_http_error(exc) from exc
+    try:
+        return load_operator_indicator_catalog(disease.code).to_schema()
+    except IndicatorCatalogUnavailableError as exc:
+        raise _operator_http_error(
+            503,
+            "indicator_catalog_unavailable",
+            "指标目录暂时不可用，请稍后重试",
+        ) from exc
 
 
 # ---------------------------------------------------------------------------

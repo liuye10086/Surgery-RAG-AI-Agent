@@ -23,11 +23,19 @@ STABLE_STAGES = {
 
 
 class OperatorCaseValidationError(ValueError):
-    def __init__(self, code: str, message: str, *, field: str | None = None):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        field: str | None = None,
+        issues: list[dict[str, str]] | None = None,
+    ):
         super().__init__(message)
         self.code = code
         self.message = message
         self.field = field
+        self.issues = issues
 
 
 @dataclass(frozen=True)

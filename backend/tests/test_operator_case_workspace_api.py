@@ -246,3 +246,47 @@ def test_domain_errors_map_to_stable_safe_details():
         assert response.detail["code"] == error.code
         assert response.detail["message"] == error.message
         assert "secret" not in str(response.detail)
+
+
+def test_invalid_visit_error_keeps_stable_nested_field_path():
+    from app.api.operator import _longitudinal_error
+    from app.services.operator_case_validation import OperatorCaseValidationError
+
+    response = _longitudinal_error(
+        OperatorCaseValidationError(
+            "indicator_value_missing",
+            "指标数值不能为空",
+            field="visits.0.indicators.0.value",
+        )
+    )
+
+    assert response.status_code == 422
+    assert response.detail["field"] == "visits.0.indicators.0.value"
+
+
+def test_validation_error_includes_only_safe_structured_issue_fields():
+    from app.api.operator import _longitudinal_error
+    from app.services.operator_case_validation import OperatorCaseValidationError
+
+    response = _longitudinal_error(
+        OperatorCaseValidationError(
+            "visits_invalid",
+            "访视输入无效",
+            issues=[
+                {
+                    "code": "indicator_value_missing",
+                    "message": "指标数值不能为空",
+                    "field": "visits.0.indicators.0.value",
+                    "internal": "must-not-leak",
+                }
+            ],
+        )
+    )
+
+    assert response.detail["issues"] == [
+        {
+            "code": "indicator_value_missing",
+            "message": "指标数值不能为空",
+            "field": "visits.0.indicators.0.value",
+        }
+    ]
