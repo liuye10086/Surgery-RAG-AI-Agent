@@ -302,24 +302,24 @@ git commit -m "feat: add readonly operator case workspace preflight"
 - `normalize_operator_timeline(disease_code, visits) -> list[NormalizedVisit]` validates, sorts and numbers a complete `1–10` timeline without committing.
 - `get_operator_case_for_write` retains owner predicate, row lock, active status and enabled disease checks.
 
-- [ ] **Step 1: Write failing validation tests**
+- [x] **Step 1: Write failing validation tests**
 
 Cover all four fatty-liver stages and four AD stages, cross-disease rejection, missing legacy fields on write, sorted/contiguous visit indexes, zero/eleven/duplicate dates and invalid indicators/units.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 ```text
 cd backend
 pytest tests/test_operator_case_validation.py tests/test_longitudinal_case_service.py -q
 ```
 
-- [ ] **Step 3: Implement validators and transaction-neutral persistence**
+- [x] **Step 3: Implement validators and transaction-neutral persistence**
 
 Reuse `normalize_baseline_stage()`, accepting only a non-null normalized stage in the disease allow-list. Do not use `route_outcome_task()` as the save gate: definite stages `hcc`, `dementia` and `suspected_cirrhosis` remain valid cases even if a prediction task is not applicable. Reuse existing indicator/unit validation.
 
 Add `replace_case_visits_in_session(db, case, normalized_visits)` which deletes/reinserts the timeline, assigns indexes `1..N`, flushes, and never commits or rolls back. No helper below the command layer may own a transaction.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 ```text
 cd backend

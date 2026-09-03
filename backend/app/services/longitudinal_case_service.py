@@ -22,6 +22,7 @@ from app.services.disease_catalog import (
 from app.services.indicator_validation import validate_indicators, validate_visits
 from app.services.anonymous_case_code import generate_anonymous_case_code
 from app.services.report_integrity import compute_input_snapshot_sha256
+from app.services.operator_case_validation import NormalizedVisit
 
 
 class LongitudinalCaseError(ValueError):
@@ -344,6 +345,21 @@ def replace_visits(
         raise DuplicateVisitDateError("同一病例不能重复使用访视日期") from exc
 
     return _ordered_visits(db, case_id, case)
+
+
+def replace_case_visits_in_session(
+    db,
+    case: OperatorCase,
+    normalized_visits: Iterable[NormalizedVisit],
+) -> None:
+    """Replace a complete timeline without owning the surrounding transaction."""
+
+    db.query(OperatorCaseVisit).filter(
+        OperatorCaseVisit.case_id == case.id
+    ).delete(synchronize_session=False)
+    for visit in normalized_visits:
+        db.add(OperatorCaseVisit(case_id=case.id, **visit.as_orm_kwargs()))
+    db.flush()
 
 
 def delete_visit(db, user_id: int, case_id: int, visit_id: int) -> None:
