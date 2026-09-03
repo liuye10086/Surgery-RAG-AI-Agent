@@ -43,6 +43,7 @@ from app.schemas.longitudinal_case import (
     VisitUpdate,
 )
 from app.schemas.longitudinal_report import LongitudinalReportRequest
+from app.schemas.operator_case_workspace import OperatorCaseReportReadiness
 from app.schemas.operator_case_status import OperatorCaseStatus, OperatorCaseStatusChangeRequest
 from app.services.pdf_generator import generate_pdf
 from app.services.longitudinal_case_service import (
@@ -89,6 +90,7 @@ from app.services.disease_catalog import (
     require_enabled_case_disease,
 )
 from app.services.indicator_validation import IndicatorValidationError
+from app.services.operator_case_readiness import evaluate_operator_case_readiness
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/operator", tags=["operator"])
@@ -333,6 +335,22 @@ def delete_longitudinal_visit(
     return None
 
 
+@router.get(
+    "/longitudinal-cases/{case_id}/report-readiness",
+    response_model=OperatorCaseReportReadiness,
+)
+def get_longitudinal_report_readiness(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_operator),
+):
+    try:
+        case = get_operator_case(db, current_user.id, case_id)
+    except (CaseNotFoundError, DiseaseCatalogError) as exc:
+        raise _longitudinal_error(exc) from exc
+    return evaluate_operator_case_readiness(case)
+
+
 @router.post("/longitudinal-cases/{case_id}/reports")
 async def create_longitudinal_report(
     case_id: int,
@@ -348,20 +366,22 @@ async def create_longitudinal_report(
         db.refresh(case, with_for_update=True)
     except (TypeError, AttributeError):
         pass
-    if getattr(case, "status", "active") == OperatorCaseStatus.ARCHIVED.value:
-        raise HTTPException(status_code=409, detail="病例已归档，不能创建新报告")
+    readiness = evaluate_operator_case_readiness(case)
+    if not readiness.ready:
+        model_blocked = any(
+            blocker.code == "model_unavailable" for blocker in readiness.blockers
+        )
+        message = (
+            readiness.blockers[0].message
+            if readiness.blockers
+            else "病例尚未满足报告生成条件"
+        )
+        raise HTTPException(status_code=503 if model_blocked else 409, detail=message)
     try:
         disease = require_enabled_case_disease(case)
         adapter = DISEASE_CAPABILITIES[disease.code].adapter
     except DiseaseCatalogError as exc:
         raise _disease_http_error(exc) from exc
-    if case.age is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="请先补录患者年龄（0–120岁）",
-        )
-
-
     visits = [
         {"visit_date": visit.visit_date.isoformat(), "indicators": visit.indicators or [], "notes": visit.notes}
         for visit in sorted(case.visits, key=lambda item: item.visit_date)

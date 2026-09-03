@@ -475,28 +475,28 @@ git commit -m "feat: add atomic operator case commands"
 - `evaluate_operator_case_readiness(case, registry_root=MODEL_DIR) -> OperatorCaseReportReadiness` returns stable blockers.
 - Report creation reuses this evaluator before inserting `AIReport`.
 
-- [ ] **Step 1: Write failing readiness tests**
+- [x] **Step 1: Write failing readiness tests**
 
 Cover valid 1/2/3-visit cases, missing age/sex/stage, cross-disease stage, archived case, disabled disease, missing/invalid active pointer, manifest hash mismatch, non-applicable prediction stage and active model load failure. Assert the checked-in release yields `minimum_visits == 3` without a hard-coded fallback.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 ```text
 cd backend
 pytest tests/test_operator_case_readiness.py tests/test_operator_case_workspace_api.py -q
 ```
 
-- [ ] **Step 3: Implement verified manifest loading and blocker evaluation**
+- [x] **Step 3: Implement verified manifest loading and blocker evaluation**
 
 Use `load_disease_release_set(dataset, MODEL_DIR)`, resolve `datasets/<data_release_id>/manifest.json` inside `MODEL_DIR`, compare its SHA-256 with `dataset_manifest_sha256`, parse a strict positive integer `minimum_visits`, and use `load_active_model_registry()` for model availability. Never fall back to 2 or 3 when metadata is unavailable.
 
 Blocker codes include `case_incomplete`, `case_archived`, `disease_disabled`, `invalid_baseline_stage`, `insufficient_visits`, `invalid_timeline`, `prediction_not_applicable`, and `model_unavailable`.
 
-- [ ] **Step 4: Gate report creation before persistence**
+- [x] **Step 4: Gate report creation before persistence**
 
 The report route locks the owned case, evaluates readiness, returns `409` for case/timeline blockers or `503` for model blockers, and inserts the generating report/input snapshot only when ready. It never saves browser draft content and never alters old reports.
 
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
 
 ```text
 cd backend
