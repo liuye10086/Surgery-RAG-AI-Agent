@@ -341,7 +341,7 @@ git commit -m "refactor: centralize operator case validation"
 - `classify_case_action(changes)` selects `profile_updated`, `timeline_updated`, or `case_updated`.
 - `append_case_change_log(...)` adds exactly one immutable row and never commits.
 
-- [ ] **Step 1: Write failing deterministic diff tests**
+- [x] **Step 1: Write failing deterministic diff tests**
 
 Fix the JSON shape as:
 
@@ -360,18 +360,18 @@ Fix the JSON shape as:
 
 Assert unchanged sections are omitted; indicator order is canonical; date changes are one removal plus one addition; actions are stable; `patient_label`, user ID and ORM row IDs never enter the diff.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 ```text
 cd backend
 pytest tests/test_operator_case_diff.py -q
 ```
 
-- [ ] **Step 3: Implement pure diffs and audit insertion**
+- [x] **Step 3: Implement pure diffs and audit insertion**
 
 `append_case_change_log` accepts explicit action/reason/changes, copies case/actor snapshots, calls only `db.add()`/`db.flush()`, and propagates failures. Creation uses fixed reason `系统：建立病例` plus a privacy-bounded summary (`disease_id`, normalized stage, visit count and field names), not a request-body copy. Deletion uses fixed reason `用户确认删除病例` and `{"deleted":{"before":true,"after":false}}`. Actual corrections store approved before/after diffs.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 ```text
 cd backend
