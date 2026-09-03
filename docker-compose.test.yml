@@ -1,0 +1,19 @@
+services:
+  postgres-test:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: surgery_rag_operator_test
+      POSTGRES_USER: surgery_test
+      POSTGRES_PASSWORD: surgery_test
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - surgery-rag-agent-test-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U surgery_test -d surgery_rag_operator_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  surgery-rag-agent-test-data:

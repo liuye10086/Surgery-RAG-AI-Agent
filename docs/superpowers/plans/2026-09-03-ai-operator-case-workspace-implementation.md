@@ -577,11 +577,11 @@ git commit -m "refactor: expose one operator case workspace API"
 - The suite refuses database names not ending in `_test`.
 - Tests use real FastAPI HTTP requests and PostgreSQL transactions, never SQLite or a mocked Session.
 
-- [ ] **Step 1: Add the isolated database definition**
+- [x] **Step 1: Add the isolated database definition**
 
 Use project-scoped test credentials and a named volume, publish only loopback, add `pg_isready`, and never load repository `.env` or production secrets.
 
-- [ ] **Step 2: Write the guarded fixture and failing integration matrix**
+- [x] **Step 2: Write the guarded fixture and failing integration matrix**
 
 The fixture requires `TEST_DATABASE_URL`, validates the `_test` suffix, runs `alembic upgrade head`, creates two operators and the two enabled diseases, overrides `get_db` only in process, and truncates only explicit test-database tables between tests.
 
