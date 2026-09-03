@@ -471,6 +471,46 @@ def test_add_visit_rejects_duplicate_date():
         ))
 
 
+def test_add_visit_reindexes_when_new_visit_is_earliest():
+    from app.schemas.longitudinal_case import VisitCreate
+    from app.services.longitudinal_case_service import add_visit
+
+    case = _case()
+    existing = [_visit("2024-01-01", visit_index=1, visit_id=9), _visit("2024-03-01", visit_index=2, visit_id=10)]
+    case.visits = existing
+    db = MagicMock()
+    db.query.return_value.filter.return_value.order_by.return_value.all.return_value = existing
+    db.query.return_value.filter.return_value.first.return_value = None
+
+    with patch.object(__import__("app.services.longitudinal_case_service", fromlist=["get_operator_case_for_write"]), "get_operator_case_for_write", return_value=case):
+        created = add_visit(db, user_id=7, case_id=3, payload=VisitCreate(
+            visit_date="2023-12-01",
+            indicators=[{"name": "ALT", "value": 42, "unit": "U/L"}],
+        ))
+
+    assert [item.visit_index for item in existing] == [2, 3]
+    assert created.visit_index == 1
+
+
+def test_update_visit_reindexes_after_date_change():
+    from app.schemas.longitudinal_case import VisitUpdate
+    from app.services import longitudinal_case_service as service
+
+    case = _case()
+    existing = [_visit("2024-01-01", visit_index=1, visit_id=9), _visit("2024-03-01", visit_index=2, visit_id=10)]
+    case.visits = existing
+    db = MagicMock()
+    db.query.return_value.filter.return_value.order_by.return_value.all.return_value = existing
+
+    with patch.object(service, "_owned_visit_query", return_value=(case, existing[0])):
+        updated = service.update_visit(
+            db, 7, 3, 9, VisitUpdate(visit_date="2023-12-01")
+        )
+
+    assert updated.visit_date.isoformat() == "2023-12-01"
+    assert [item.visit_index for item in existing] == [1, 2]
+
+
 @pytest.mark.parametrize(
     "operation_name",
     [

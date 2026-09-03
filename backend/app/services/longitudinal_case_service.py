@@ -276,13 +276,33 @@ def add_visit(db, user_id: int, case_id: int, payload: VisitCreate) -> OperatorC
     if duplicate is not None:
         raise DuplicateVisitDateError("同一病例不能重复添加同一访视日期")
     by_date = {item.visit_date: item for item in normalized_visits}
-    visit = None
+    # Reserve a non-colliding index range before assigning canonical indexes.
+    for offset, existing in enumerate(visits, start=1):
+        existing.visit_index = 1000 + offset
+    try:
+        db.flush()
+    except AttributeError:
+        pass
     for existing in visits:
         canonical = by_date[existing.visit_date]
         for field, value in canonical.as_orm_kwargs().items():
+            if field == "visit_index":
+                continue
             setattr(existing, field, value)
     visit = OperatorCaseVisit(case_id=case_id, **by_date[payload.visit_date].as_orm_kwargs())
+    visit.visit_index = 2000
     db.add(visit)
+    try:
+        db.flush()
+    except AttributeError:
+        pass
+    for existing in visits:
+        existing.visit_index = by_date[existing.visit_date].visit_index
+    visit.visit_index = by_date[payload.visit_date].visit_index
+    try:
+        db.flush()
+    except AttributeError:
+        pass
     try:
         db.commit()
     except IntegrityError as exc:
@@ -328,11 +348,34 @@ def update_visit(
             item.update(values)
         merged.append(item)
     normalized_visits = _normalize_timeline_or_legacy_error(case.disease.code, merged)
+    target_date = values.get("visit_date", visit.visit_date)
     by_date = {item.visit_date: item for item in normalized_visits}
+    canonical_by_id = {
+        existing.id: (by_date[target_date] if existing.id == visit_id else by_date[existing.visit_date])
+        for existing in existing_visits
+    }
+    for offset, existing in enumerate(existing_visits, start=1):
+        existing.visit_index = 1000 + offset
+    try:
+        db.flush()
+    except AttributeError:
+        pass
     for existing in existing_visits:
-        canonical = by_date[existing.visit_date]
+        canonical = canonical_by_id[existing.id]
         for field, value in canonical.as_orm_kwargs().items():
+            if field == "visit_index":
+                continue
             setattr(existing, field, value)
+    try:
+        db.flush()
+    except AttributeError:
+        pass
+    for existing in existing_visits:
+        existing.visit_index = canonical_by_id[existing.id].visit_index
+    try:
+        db.flush()
+    except AttributeError:
+        pass
     try:
         db.commit()
     except IntegrityError as exc:
