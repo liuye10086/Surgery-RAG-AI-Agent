@@ -110,7 +110,7 @@
 - `OperatorCaseListOut` returns `cases`, `total`, `skip`, and `limit`.
 - `OperatorCaseReportReadiness` returns stable blocker codes and a nullable `minimum_visits` only when model metadata cannot be loaded.
 
-- [ ] **Step 1: Write the failing schema tests**
+- [x] **Step 1: Write the failing schema tests**
 
 Add exact cases equivalent to:
 
@@ -130,7 +130,7 @@ def test_response_contract_does_not_expose_patient_label():
     assert "patient_label" not in OperatorCaseOut.model_fields
 ```
 
-- [ ] **Step 2: Run the focused tests and verify failure**
+- [x] **Step 2: Run the focused tests and verify failure**
 
 ```text
 cd backend
@@ -139,7 +139,7 @@ pytest tests/test_operator_case_workspace_schema.py -q
 
 Expected: FAIL because the strict aggregate contracts do not yet exist.
 
-- [ ] **Step 3: Implement the schema types without service logic**
+- [x] **Step 3: Implement the schema types without service logic**
 
 ```python
 class OperatorCaseSave(BaseModel):
@@ -163,11 +163,11 @@ class OperatorCaseReportReadiness(BaseModel):
 
 `OperatorCaseCreate`, `VisitCreate`, `OperatorCaseSave` and list-filter models all use `extra="forbid"`. Trim optional notes to `None`; trim stage and reason; reject blank required stage. Retain nullable output fields for legacy reads.
 
-- [ ] **Step 4: Re-run focused tests**
+- [x] **Step 4: Re-run focused tests**
 
 Use the same pytest command. Expected: all schema tests PASS.
 
-- [ ] **Step 5: Commit the contract slice**
+- [x] **Step 5: Commit the contract slice**
 
 ```text
 git add backend/app/schemas/longitudinal_case.py backend/app/schemas/operator_case_workspace.py backend/tests/test_operator_case_workspace_schema.py

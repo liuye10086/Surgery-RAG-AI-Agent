@@ -2,6 +2,7 @@
 
 import math
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -34,23 +35,28 @@ class IndicatorValue(BaseModel):
 
 
 class OperatorCaseCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     disease_id: int = Field(..., gt=0)
-    patient_label: str | None = Field(None, min_length=1, max_length=100)
     age: int = Field(..., ge=0, le=120, strict=True)
-    sex: str | None = Field(None, pattern=r"^(male|female)$")
-    baseline_stage: str | None = Field(None, max_length=100)
+    sex: Literal["male", "female"]
+    baseline_stage: str = Field(..., min_length=1, max_length=100)
     notes: str | None = Field(None, max_length=5000)
     visits: list["VisitCreate"] = Field(..., min_length=1, max_length=10)
 
-    @field_validator("patient_label", "baseline_stage", mode="before")
+    @field_validator("baseline_stage", mode="before")
     @classmethod
-    def normalize_optional_text(cls, value):
-        if value is None:
-            return value
+    def normalize_required_text(cls, value):
         if not isinstance(value, str):
             return value
-        value = value.strip()
-        return value
+        return value.strip()
+
+    @field_validator("notes", mode="before")
+    @classmethod
+    def normalize_notes(cls, value):
+        if value is None or not isinstance(value, str):
+            return value
+        return value.strip() or None
 
 
 class OperatorCaseUpdate(BaseModel):
@@ -82,6 +88,8 @@ class OperatorCaseUpdate(BaseModel):
 
 
 class VisitCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     visit_date: date
     indicators: list[IndicatorValue] = Field(..., min_length=1, max_length=30)
     notes: str | None = Field(None, max_length=5000)
@@ -147,7 +155,6 @@ class OperatorCaseOut(BaseModel):
     id: int
     user_id: int
     disease_id: int
-    patient_label: str
     anonymous_case_code: str | None = None
     age: int | None = None
     sex: str | None = None
@@ -163,3 +170,5 @@ class OperatorCaseOut(BaseModel):
 class OperatorCaseListOut(BaseModel):
     cases: list[OperatorCaseOut]
     total: int
+    skip: int
+    limit: int
