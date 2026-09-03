@@ -473,6 +473,70 @@ def test_one_broken_trend_model_does_not_remove_other_predictions():
     assert result.outcome_prediction.stage_projection.likely_next_stage is not None
 
 
+def test_stage_required_feature_missing_does_not_call_model():
+    from app.services.disease_progression import AD_ADAPTER
+
+    suite = _complete_ad_suite()
+    metadata = suite.stage.metadata
+    contract = metadata.feature_contract.model_copy(
+        update={
+            "required_features": ["age", "visit_count"],
+            "allowed_missing_features": [
+                name
+                for name in metadata.feature_contract.feature_names
+                if name not in {"age", "visit_count"}
+            ],
+        }
+    )
+    stage_entry = _suite_entry(metadata.model_copy(update={"feature_contract": contract}), _MulticlassModel("dementia"), "stage")
+    suite = suite.__class__(**{**suite.__dict__, "stage": stage_entry})
+
+    result = run_longitudinal_prediction(
+        {"baseline_stage": "mci", "sex": "female"},
+        _ad_visits(),
+        AD_ADAPTER,
+        suite,
+    )
+
+    assert result.model_status.stage.reason_code == "required_feature_missing"
+    assert result.outcome_prediction.stage_projection.status == "not_estimated"
+
+
+def test_trend_required_feature_missing_does_not_call_model():
+    from app.services.disease_progression import AD_ADAPTER
+
+    suite = _complete_ad_suite()
+    metadata = suite.trends["mmse"].metadata
+    contract = metadata.feature_contract.model_copy(
+        update={
+            "required_features": ["age", "visit_count"],
+            "allowed_missing_features": [
+                name
+                for name in metadata.feature_contract.feature_names
+                if name not in {"age", "visit_count"}
+            ],
+        }
+    )
+    trend_entry = _suite_entry(metadata.model_copy(update={"feature_contract": contract}), _MulticlassModel("falling"), "trend")
+    suite = suite.__class__(
+        **{
+            **suite.__dict__,
+            "trends": {**suite.trends, "mmse": trend_entry},
+        }
+    )
+
+    result = run_longitudinal_prediction(
+        {"baseline_stage": "mci", "sex": "female"},
+        _ad_visits(),
+        AD_ADAPTER,
+        suite,
+    )
+
+    mmse = {item.indicator: item for item in result.trend_predictions}["mmse"]
+    assert mmse.model_status.reason_code == "required_feature_missing"
+    assert mmse.forecast.direction is None
+
+
 def test_incompatible_stage_emits_no_guess_but_keeps_outcome_and_trends():
     from app.services.disease_progression import AD_ADAPTER
 

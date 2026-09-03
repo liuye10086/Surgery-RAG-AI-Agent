@@ -213,31 +213,17 @@ def _suite_status(entry, status: str, reason_code: str) -> ModelRuntimeStatus:
 def _suite_frame(
     case: dict[str, Any], visits: list[dict[str, Any]], metadata
 ):
-    import pandas as pd
+    contract = getattr(metadata, "feature_contract", None)
+    if not hasattr(contract, "input_container"):
+        # Keep the tiny legacy test-double contract usable while all real
+        # suite metadata goes through the strict v1 feature builder below.
+        import pandas as pd
 
-    summary = summarize_observation(visits)
-    age = case.get("age")
-    fixed = {
-        "age": case.get("patient_age") if age is None else age,
-        "sex": case.get("sex"),
-        "current_stage": case.get("baseline_stage"),
-        "visit_count": summary.get("visit_count", len(visits)),
-        "observation_span_days": summary.get("observation_span_days", 0),
-        "days_since_previous_visit": summary.get("days_since_previous_visit", 0),
-    }
-    indicators = summary.get("indicators") or {}
-    values = {}
-    for name in metadata.feature_contract.feature_names:
-        if name in fixed:
-            values[name] = fixed[name]
-            continue
-        try:
-            indicator, statistic = name.rsplit(".", 1)
-        except ValueError:
-            values[name] = None
-            continue
-        values[name] = (indicators.get(indicator) or {}).get(statistic)
-    return pd.DataFrame([values], columns=metadata.feature_contract.feature_names)
+        return pd.DataFrame(
+            [{"age": case.get("age")}],
+            columns=getattr(contract, "feature_names", ["age"]),
+        )
+    return build_fixed_window_inference_features(case, visits, metadata)
 
 
 def _run_suite_outcome(route, entry, case, visits) -> OutcomeInferenceResult:
@@ -362,6 +348,11 @@ def _run_suite_stage(entry, case, visits, adapter: DiseaseProgressionAdapter):
             ),
             entry.status,
         )
+    except InferenceContractError as error:
+        return (
+            StageProjection(status="not_estimated"),
+            _suite_status(entry, "incompatible", error.code),
+        )
     except Exception:
         return (
             StageProjection(status="not_estimated"),
@@ -400,6 +391,11 @@ def _run_suite_trend(indicator, entry, case, visits, observation):
         status = entry.status
         forecast_status = "direction_only"
         basis = "next_visit_trend_model"
+    except InferenceContractError as error:
+        direction = None
+        status = _suite_status(entry, "incompatible", error.code)
+        forecast_status = "not_available"
+        basis = None
     except Exception:
         direction = None
         status = _suite_status(entry, "incompatible", "prediction_failed")
