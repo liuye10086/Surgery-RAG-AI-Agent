@@ -395,7 +395,7 @@ git commit -m "feat: audit operator case changes"
 - `save_operator_case_command(db, user_id, case_id, payload) -> OperatorCase` writes profile, complete timeline and one audit atomically.
 - `delete_operator_case_command(db, user_id, case_id) -> None` preserves deletion audit.
 
-- [ ] **Step 1: Extend failing command tests**
+- [x] **Step 1: Extend failing command tests**
 
 Cover all of the following:
 
@@ -411,14 +411,14 @@ Cover all of the following:
 - failed visit replacement leaves original profile/timeline unchanged;
 - disease ID, owner, anonymous code and status are never taken from request data.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 ```text
 cd backend
 pytest tests/test_operator_case_commands.py -q
 ```
 
-- [ ] **Step 3: Implement canonical hashing and replay checks**
+- [x] **Step 3: Implement canonical hashing and replay checks**
 
 ```python
 normalized = payload.model_dump(mode="json")
@@ -429,7 +429,7 @@ request_sha256 = hashlib.sha256(body.encode("utf-8")).hexdigest()
 
 First query `(user_id, scope, key)`. On first create validate and insert case/audit, then insert the completed idempotency row with `resource_id` in the same transaction. If unique-key flush loses a concurrent race, roll back the entire losing transaction, reload the winner, compare hashes and return its owned case. Never retain a provisional orphan case.
 
-- [ ] **Step 4: Implement the aggregate save transaction**
+- [x] **Step 4: Implement the aggregate save transaction**
 
 ```python
 case = get_operator_case_for_write(db, user_id, case_id)
@@ -449,11 +449,11 @@ return case
 
 Catch only known uniqueness/integrity cases. Unexpected exceptions rollback then re-raise; do not mislabel every integrity error as a duplicate visit date.
 
-- [ ] **Step 5: Implement audited deletion**
+- [x] **Step 5: Implement audited deletion**
 
 Lock and validate the owned active case, append deletion audit, flush it, delete the case and commit once. The FK sets `case_id` null while snapshot columns remain.
 
-- [ ] **Step 6: Run command/service tests and commit**
+- [x] **Step 6: Run command/service tests and commit**
 
 ```text
 cd backend
