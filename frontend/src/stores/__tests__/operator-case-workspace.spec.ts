@@ -6,6 +6,7 @@ const api = vi.hoisted(() => ({
   createLongitudinalCase: vi.fn(),
   saveLongitudinalCase: vi.fn(),
   getLongitudinalCaseReportReadiness: vi.fn(),
+  listOperatorIndicatorCatalog: vi.fn(),
 }))
 
 vi.mock('@/api/operator', async () => {
@@ -57,5 +58,18 @@ describe('operator case workspace store', () => {
     api.createLongitudinalCase.mockResolvedValueOnce({ id: 5 })
     await store.saveLongitudinalCase(payload)
     expect(api.createLongitudinalCase.mock.calls[2][1]).not.toBe(api.createLongitudinalCase.mock.calls[1][1])
+  })
+
+  it('loads and caches each disease indicator catalog', async () => {
+    const { useOperatorStore } = await import('../operator')
+    const catalog = { disease_code: 'fatty_liver', catalog_version: 'a'.repeat(64), items: [] }
+    api.listOperatorIndicatorCatalog.mockResolvedValue(catalog)
+    const store = useOperatorStore()
+
+    await store.fetchOperatorIndicatorCatalog('fatty_liver')
+    await store.fetchOperatorIndicatorCatalog('fatty_liver')
+
+    expect(store.indicatorCatalogs.fatty_liver).toEqual(catalog)
+    expect(api.listOperatorIndicatorCatalog).toHaveBeenCalledTimes(1)
   })
 })

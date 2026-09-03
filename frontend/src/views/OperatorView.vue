@@ -48,10 +48,12 @@
             <OperatorCaseWorkspace
               :model="operatorStore.currentLongitudinalCase"
               :diseases="progressionDiseases"
+              :indicator-catalog="activeIndicatorCatalog"
               :readiness="operatorStore.readiness"
               :saving="operatorStore.saving"
               :report-generating="operatorStore.generating"
               @save="handleWorkspaceSave"
+              @disease-change="handleDiseaseChange"
               @generate-report="generateCurrentReport"
             />
             <LongitudinalPredictionSummary :prediction="operatorStore.longitudinalPrediction" />
@@ -83,6 +85,9 @@ const operatorStore = useOperatorStore()
 const sidebarCollapsed = ref(localStorage.getItem('operator_sidebar_collapsed') === 'true')
 const activeView = ref<'progression' | 'cases'>('progression')
 const progressionDiseases = computed(() => operatorStore.diseases)
+const draftDiseaseCode = ref('')
+const activeDiseaseCode = computed(() => operatorStore.currentLongitudinalCase?.disease.code || draftDiseaseCode.value)
+const activeIndicatorCatalog = computed(() => activeDiseaseCode.value ? operatorStore.indicatorCatalogs[activeDiseaseCode.value] || null : null)
 
 const reportReadingMode = computed(() =>
   activeView.value === 'progression'
@@ -149,11 +154,26 @@ function startNewLongitudinalCase() {
   operatorStore.currentLongitudinalCase = null
   operatorStore.longitudinalPrediction = null
   operatorStore.longitudinalReportContent = ''
+  draftDiseaseCode.value = ''
 }
 
-function selectLongitudinalCase(item: any) {
+async function selectLongitudinalCase(item: any) {
   operatorStore.currentLongitudinalCase = item
-  operatorStore.refreshLongitudinalCaseReadiness(item.id)
+  draftDiseaseCode.value = ''
+  await Promise.all([
+    operatorStore.refreshLongitudinalCaseReadiness(item.id),
+    operatorStore.fetchOperatorIndicatorCatalog(item.disease.code),
+  ])
+}
+
+async function handleDiseaseChange(code: string) {
+  draftDiseaseCode.value = code
+  if (!code) return
+  try {
+    await operatorStore.fetchOperatorIndicatorCatalog(code)
+  } catch (error: any) {
+    ElMessage.error(error?.message || '指标目录加载失败')
+  }
 }
 
 function generateCurrentReport() {
@@ -199,8 +219,12 @@ async function handleDelete(id: number) {
 
 onMounted(async () => {
   operatorStore.fetchReports()
-  operatorStore.fetchDiseases()
-  operatorStore.fetchLongitudinalCases()
+  await Promise.all([
+    operatorStore.fetchDiseases(),
+    operatorStore.fetchLongitudinalCases(),
+  ])
+  const selected = operatorStore.currentLongitudinalCase
+  if (selected) await handleDiseaseChange(selected.disease.code)
 })
 </script>
 

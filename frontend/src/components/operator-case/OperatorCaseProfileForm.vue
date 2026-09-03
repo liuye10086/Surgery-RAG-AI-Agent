@@ -2,7 +2,7 @@
   <section class="profile-form" aria-labelledby="profile-title">
     <h3 id="profile-title">病例资料</h3>
     <div class="profile-grid">
-      <label>疾病<select :value="(model as any).disease_id ?? ''" :disabled="readonly" @change="update('disease_id' as any, Number(($event.target as HTMLSelectElement).value))"><option value="">请选择疾病</option><option v-for="disease in diseases" :key="disease.id" :value="disease.id">{{ disease.name }}</option></select></label>
+      <label>疾病<select :value="(model as any).disease_id ?? ''" :disabled="readonly || diseaseLocked" @change="update('disease_id' as any, Number(($event.target as HTMLSelectElement).value))"><option value="">请选择疾病</option><option v-for="disease in diseases" :key="disease.id" :value="disease.id">{{ disease.name }}</option></select></label>
       <label>年龄<input :value="model.age ?? ''" type="number" min="0" max="120" :disabled="readonly" @input="update('age', Number(($event.target as HTMLInputElement).value))" /></label>
       <label>性别<select :value="model.sex ?? ''" :disabled="readonly" @change="update('sex', ($event.target as HTMLSelectElement).value)"><option value="">请选择</option><option value="male">男</option><option value="female">女</option></select></label>
       <label>基线阶段<select :value="model.baseline_stage ?? ''" :disabled="readonly" @change="update('baseline_stage', ($event.target as HTMLSelectElement).value)"><option value="">请选择确定阶段</option><option v-for="option in stageOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
@@ -12,12 +12,14 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { BaselineStage, LongitudinalCaseCreatePayload } from '@/api/operator'
 
 const props = defineProps<{
   model: Pick<LongitudinalCaseCreatePayload, 'age' | 'sex' | 'baseline_stage' | 'notes'>
   diseases?: Array<{ id: number; code: string; name: string }>
   diseaseCode?: string
+  diseaseLocked?: boolean
   readonly?: boolean
 }>()
 const emit = defineEmits<{ update: [field: 'age' | 'sex' | 'baseline_stage' | 'notes' | 'disease_id', value: unknown] }>()
@@ -30,7 +32,7 @@ const stagesByDisease: Record<string, BaselineStage[]> = {
   fatty_liver: ['pre_cirrhosis', 'suspected_cirrhosis', 'cirrhosis', 'hcc'],
   ad: ['normal', 'mci', 'pre_dementia', 'dementia'],
 }
-const stageOptions = (stagesByDisease[props.diseaseCode || ''] || Object.keys(labels) as BaselineStage[]).map((value) => ({ value, label: labels[value] }))
+const stageOptions = computed(() => (stagesByDisease[props.diseaseCode || ''] || []).map((value) => ({ value, label: labels[value] })))
 function update(field: 'age' | 'sex' | 'baseline_stage' | 'notes' | 'disease_id', value: unknown) { emit('update', field, value) }
 </script>
 

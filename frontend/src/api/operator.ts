@@ -7,6 +7,41 @@ export interface IndicatorInput {
   unit: string
 }
 
+export type VisitSourceType = 'lab' | 'imaging' | 'assessment' | 'clinical' | 'other'
+
+export interface VisitContext {
+  source_type?: VisitSourceType | null
+  facility_name?: string | null
+  device_name?: string | null
+  method?: string | null
+  specimen?: string | null
+  is_baseline?: boolean | null
+  treatment_change?: string | null
+  diagnosis_change?: string | null
+  scale_version?: string | null
+  assessment_language?: string | null
+  education_years?: number | null
+  education_adjusted?: boolean | null
+  imaging_type?: string | null
+}
+
+export interface OperatorIndicatorCatalogItem {
+  code: string
+  name_cn: string | null
+  name_en: string
+  aliases: string[]
+  allowed_units: string[]
+  default_unit: string | null
+  data_type: string
+  context_requirements: string[]
+}
+
+export interface OperatorIndicatorCatalog {
+  disease_code: string
+  catalog_version: string
+  items: OperatorIndicatorCatalogItem[]
+}
+
 export interface Disease {
   id: number
   code: string
@@ -69,6 +104,7 @@ export interface LongitudinalVisit {
   visit_index: number
   indicators: IndicatorInput[]
   notes?: string | null
+  visit_context?: VisitContext
 }
 
 export type BaselineStage =
@@ -126,6 +162,7 @@ export interface LongitudinalVisitInput {
   visit_date: string
   indicators: IndicatorInput[]
   notes?: string | null
+  visit_context?: VisitContext
 }
 
 export interface OperatorCaseListParams {
@@ -337,6 +374,10 @@ export interface PredictionStreamCallbacks extends ReportStreamCallbacks {
 // ===== 疾病 / 病例 / 参考范围 API =====
 export function listDiseases(): Promise<Disease[]> {
   return request.get('/v1/operator/diseases')
+}
+
+export function listOperatorIndicatorCatalog(code: string): Promise<OperatorIndicatorCatalog> {
+  return request.get(`/v1/operator/diseases/${encodeURIComponent(code)}/indicators`)
 }
 
 export function updateLongitudinalCaseStatus(id: number, data: LongitudinalCaseStatusChangePayload): Promise<LongitudinalCase> {

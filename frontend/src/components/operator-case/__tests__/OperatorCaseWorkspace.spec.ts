@@ -22,6 +22,19 @@ describe('OperatorCaseWorkspace', () => {
     expect(wrapper.find('.reason-dialog').exists()).toBe(true)
     await wrapper.find('.reason-dialog textarea').setValue('更正年龄')
     await wrapper.findAll('.reason-dialog button')[1].trigger('click')
-    expect(wrapper.emitted('save')?.[0][0]).toMatchObject({ age: 57, change_reason: '更正年龄' })
+    const saved = wrapper.emitted('save')?.[0][0] as Record<string, unknown>
+    expect(saved).toMatchObject({ age: 57, change_reason: '更正年龄' })
+    expect(saved).not.toHaveProperty('disease_id')
+  })
+
+  it('resets disease-specific fields and requests a new catalog when disease changes', async () => {
+    const wrapper = mount(OperatorCaseWorkspace, {
+      props: { diseases: [{ id: 11, code: 'fatty_liver', name: '脂肪肝' }] },
+    })
+
+    await wrapper.find('.profile-grid select').setValue('11')
+
+    expect(wrapper.emitted('disease-change')?.[0]).toEqual(['fatty_liver'])
+    expect(wrapper.find('select[aria-label="指标名称"]').element.value).toBe('')
   })
 })

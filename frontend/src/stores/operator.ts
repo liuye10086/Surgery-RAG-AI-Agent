@@ -12,6 +12,7 @@ import {
   getLongitudinalCaseReportReadiness,
   generateLongitudinalReportStream,
   listDiseases,
+  listOperatorIndicatorCatalog,
   type ReportListItem,
   type ReportDetail,
   type Disease,
@@ -22,6 +23,7 @@ import {
   type OperatorCaseListParams,
   type OperatorCaseReportReadiness,
   type LongitudinalPrediction,
+  type OperatorIndicatorCatalog,
 } from '@/api/operator'
 
 export const useOperatorStore = defineStore('operator', () => {
@@ -37,6 +39,8 @@ export const useOperatorStore = defineStore('operator', () => {
   const stageMessage = ref('')
   const currentSources = ref<any[]>([])
   const diseases = ref<Disease[]>([])
+  const indicatorCatalogs = ref<Record<string, OperatorIndicatorCatalog>>({})
+  const indicatorCatalogLoading = ref<Record<string, boolean>>({})
   const longitudinalCases = ref<LongitudinalCase[]>([])
   const currentLongitudinalCase = ref<LongitudinalCase | null>(null)
   const draft = ref<LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload | null>(null)
@@ -90,6 +94,18 @@ export const useOperatorStore = defineStore('operator', () => {
 
   async function fetchDiseases() {
     diseases.value = await listDiseases()
+  }
+
+  async function fetchOperatorIndicatorCatalog(code: string, force = false) {
+    if (!force && indicatorCatalogs.value[code]) return indicatorCatalogs.value[code]
+    indicatorCatalogLoading.value = { ...indicatorCatalogLoading.value, [code]: true }
+    try {
+      const catalog = await listOperatorIndicatorCatalog(code)
+      indicatorCatalogs.value = { ...indicatorCatalogs.value, [code]: catalog }
+      return catalog
+    } finally {
+      indicatorCatalogLoading.value = { ...indicatorCatalogLoading.value, [code]: false }
+    }
   }
 
   function cancelGeneration() {
@@ -214,6 +230,8 @@ export const useOperatorStore = defineStore('operator', () => {
     stageMessage,
     currentSources,
     diseases,
+    indicatorCatalogs,
+    indicatorCatalogLoading,
     caseListLoading,
     saving,
     readinessLoading,
@@ -230,6 +248,7 @@ export const useOperatorStore = defineStore('operator', () => {
     loadSavedReport,
     removeReport,
     fetchDiseases,
+    fetchOperatorIndicatorCatalog,
     cancelGeneration,
     clearCurrent,
     fetchLongitudinalCases,

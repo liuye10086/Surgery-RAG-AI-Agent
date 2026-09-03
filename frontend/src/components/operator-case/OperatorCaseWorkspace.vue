@@ -1,8 +1,8 @@
 <template>
   <main class="workspace" aria-labelledby="workspace-title">
     <header class="workspace__header"><div><h1 id="workspace-title">{{ model?.id ? '病例详情' : '建立病例' }}</h1><p v-if="model?.anonymous_case_code">匿名编号：{{ model.anonymous_case_code }}</p></div><span v-if="legacyIncomplete" class="workspace__warning" role="alert">历史病例资料不完整，请补全后再保存或生成报告。</span></header>
-    <OperatorCaseProfileForm :model="draftProfile" :diseases="props.diseases" :disease-code="diseaseCode" :readonly="readonly" @update="updateProfile" />
-    <OperatorVisitTimelineEditor :visits="draft.visits" :readonly="readonly" @update="updateVisits" />
+    <OperatorCaseProfileForm :model="draftProfile" :diseases="props.diseases" :disease-code="diseaseCode" :disease-locked="Boolean(model?.id)" :readonly="readonly" @update="updateProfile" />
+    <OperatorVisitTimelineEditor :visits="draft.visits" :indicator-catalog="indicatorCatalog" :validation-issues="validationIssues" :readonly="readonly" @update="updateVisits" />
     <OperatorCaseActionBar :dirty="dirty" :saving="saving" :readiness="readiness" @save="requestSave" @generate-report="$emit('generate-report')" />
     <CaseChangeReasonDialog :open="reasonOpen" @cancel="reasonOpen = false" @confirm="saveWithReason" />
   </main>
@@ -10,21 +10,23 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { LongitudinalCase, LongitudinalCaseCreatePayload, LongitudinalCaseSavePayload, OperatorCaseReportReadiness } from '@/api/operator'
+import type { LongitudinalCase, LongitudinalCaseCreatePayload, LongitudinalCaseSavePayload, OperatorCaseReportReadiness, OperatorIndicatorCatalog } from '@/api/operator'
 import OperatorCaseProfileForm from './OperatorCaseProfileForm.vue'
 import OperatorVisitTimelineEditor from './OperatorVisitTimelineEditor.vue'
 import OperatorCaseActionBar from './OperatorCaseActionBar.vue'
 import CaseChangeReasonDialog from './CaseChangeReasonDialog.vue'
 
-const props = withDefaults(defineProps<{ model?: LongitudinalCase | null; diseases?: Array<{ id: number; code: string; name: string }>; readiness?: OperatorCaseReportReadiness | null; saving?: boolean; legacyIncomplete?: boolean; reportGenerating?: boolean }>(), {
+const props = withDefaults(defineProps<{ model?: LongitudinalCase | null; diseases?: Array<{ id: number; code: string; name: string }>; indicatorCatalog?: OperatorIndicatorCatalog | null; validationIssues?: Record<string, string>; readiness?: OperatorCaseReportReadiness | null; saving?: boolean; legacyIncomplete?: boolean; reportGenerating?: boolean }>(), {
   model: null,
   diseases: () => [],
+  indicatorCatalog: null,
+  validationIssues: () => ({}),
   readiness: null,
   saving: false,
   legacyIncomplete: false,
   reportGenerating: false,
 })
-const emit = defineEmits<{ save: [payload: LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload]; 'generate-report': [] }>()
+const emit = defineEmits<{ save: [payload: LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload]; 'generate-report': []; 'disease-change': [code: string] }>()
 const reasonOpen = ref(false)
 const draft = ref<LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload>(makeDraft(props.model))
 const baseline = ref(JSON.stringify(draft.value))
@@ -34,12 +36,21 @@ const readonly = computed(() => props.model?.status !== undefined && props.model
 const diseaseCode = computed(() => props.model?.disease.code || props.diseases?.find((d) => d.id === (draft.value as LongitudinalCaseCreatePayload).disease_id)?.code)
 const draftProfile = computed(() => draft.value)
 function makeDraft(model?: LongitudinalCase | null): LongitudinalCaseCreatePayload {
-  return model ? { disease_id: model.disease_id, age: model.age ?? 0, sex: model.sex || 'male', baseline_stage: (model.baseline_stage || '') as any, notes: model.notes || null, visits: model.visits.map((visit) => ({ visit_date: visit.visit_date, indicators: visit.indicators.map((item) => ({ ...item })), notes: visit.notes || null })) } : { disease_id: 0, age: 0, sex: 'male', baseline_stage: '' as any, notes: null, visits: [{ visit_date: '', indicators: [{ name: '', value: null, unit: '' }], notes: null }] }
+  return model ? { disease_id: model.disease_id, age: model.age ?? 0, sex: model.sex || 'male', baseline_stage: (model.baseline_stage || '') as any, notes: model.notes || null, visits: model.visits.map((visit) => ({ visit_date: visit.visit_date, indicators: visit.indicators.map((item) => ({ ...item })), notes: visit.notes || null, visit_context: { ...(visit.visit_context || {}) } })) } : { disease_id: 0, age: 0, sex: 'male', baseline_stage: '' as any, notes: null, visits: [{ visit_date: '', indicators: [{ name: '', value: null, unit: '' }], notes: null, visit_context: {} }] }
 }
-function updateProfile(field: 'age' | 'sex' | 'baseline_stage' | 'notes' | 'disease_id', value: unknown) { draft.value = { ...draft.value, [field]: value } as any }
+function updateProfile(field: 'age' | 'sex' | 'baseline_stage' | 'notes' | 'disease_id', value: unknown) {
+  if (field === 'disease_id' && !props.model?.id) {
+    const diseaseId = Number(value)
+    const code = props.diseases.find((disease) => disease.id === diseaseId)?.code || ''
+    draft.value = { ...draft.value, disease_id: diseaseId, baseline_stage: '' as any, visits: draft.value.visits.map((visit) => ({ ...visit, indicators: [{ name: '', value: null, unit: '' }] })) } as any
+    emit('disease-change', code)
+    return
+  }
+  draft.value = { ...draft.value, [field]: value } as any
+}
 function updateVisits(visits: LongitudinalCaseCreatePayload['visits']) { draft.value = { ...draft.value, visits } as any }
 function requestSave() { if (props.model?.id) reasonOpen.value = true; else emit('save', draft.value) }
-function saveWithReason(reason: string) { reasonOpen.value = false; emit('save', { ...draft.value, change_reason: reason } as LongitudinalCaseSavePayload) }
+function saveWithReason(reason: string) { const { disease_id: _diseaseId, ...editable } = draft.value as LongitudinalCaseCreatePayload; reasonOpen.value = false; emit('save', { ...editable, change_reason: reason } as LongitudinalCaseSavePayload) }
 </script>
 
 <style scoped>
