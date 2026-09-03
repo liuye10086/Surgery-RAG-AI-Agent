@@ -20,15 +20,15 @@
               :disabled="generating"
               style="width: 100%; border-radius: 10px"
             >
-              新建纵向病例
+              新建病例
             </el-button>
           </div>
           <div class="nav-row">
-            <div :class="['nav-item', { active: activeView === 'progression' }]" @click="$emit('navigate', 'progression')">
-              <el-icon :size="15"><DataLine /></el-icon><span>进展预测</span>
+              <div :class="['nav-item', { active: activeView === 'progression' }]" @click="$emit('navigate', 'progression')">
+              <el-icon :size="15"><DataLine /></el-icon><span>我的病例</span>
             </div>
             <div :class="['nav-item', { active: activeView === 'cases' }]" @click="$emit('navigate', 'cases')">
-              <el-icon :size="15"><FolderOpened /></el-icon><span>病例库</span>
+              <el-icon :size="15"><FolderOpened /></el-icon><span>历史报告</span>
             </div>
           </div>
         </div>

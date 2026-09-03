@@ -636,7 +636,7 @@ git commit -m "test: verify operator case transactions in postgres"
 - `getLongitudinalCaseReportReadiness(id)` supplies all blockers and the threshold.
 - Store separates case-list/loading/saving/readiness/report-generation states.
 
-- [ ] **Step 1: Install the test stack**
+- [x] **Step 1: Install the test stack**
 
 ```text
 cd frontend
@@ -645,7 +645,7 @@ npm install --save-dev vitest @vue/test-utils jsdom
 
 Use `defineConfig` from `vitest/config`, `environment: 'jsdom'`, a setup file and existing Vue alias. Setup supplies deterministic `ResizeObserver`, `matchMedia` and Element Plus transition stubs only.
 
-- [ ] **Step 2: Write failing API/store tests**
+- [x] **Step 2: Write failing API/store tests**
 
 Mock only the HTTP adapter. Assert:
 
@@ -658,14 +658,14 @@ Mock only the HTTP adapter. Assert:
 - readiness refreshes after successful save/status change;
 - ordinary errors preserve the draft and a 409 surfaces before any explicit reload.
 
-- [ ] **Step 3: Run and verify failure**
+- [x] **Step 3: Run and verify failure**
 
 ```text
 cd frontend
 npm run test:unit -- src/api/__tests__/operator-case-workspace.spec.ts src/stores/__tests__/operator-case-workspace.spec.ts
 ```
 
-- [ ] **Step 4: Implement strict TypeScript contracts**
+- [x] **Step 4: Implement strict TypeScript contracts**
 
 ```ts
 export interface LongitudinalCaseCreatePayload {
@@ -689,11 +689,11 @@ export interface LongitudinalCaseSavePayload {
 
 `LongitudinalCase` keeps nullable legacy output fields but removes `patient_label`. Add a typed normalizer for `{detail:{code,message,field_errors?}}` that never clears draft state.
 
-- [ ] **Step 5: Implement request lifecycles**
+- [x] **Step 5: Implement request lifecycles**
 
 Generate a draft UUID with `crypto.randomUUID()` and never persist clinical draft data in localStorage. Use `try/finally` per loading flag, mutate selected/list state only after success, then fetch readiness. Report generation requires server readiness and never saves implicitly.
 
-- [ ] **Step 6: Run tests/build and commit**
+- [x] **Step 6: Run tests/build and commit**
 
 ```text
 cd frontend
@@ -719,7 +719,7 @@ git commit -m "refactor: use aggregate operator case frontend API"
 - Child components use typed props/events and never call APIs directly.
 - Existing-case disease is read-only; incomplete legacy fields are visibly enumerated.
 
-- [ ] **Step 1: Write failing component behavior tests**
+- [x] **Step 1: Write failing component behavior tests**
 
 Mount with testing Pinia and cover:
 
@@ -735,28 +735,28 @@ Mount with testing Pinia and cover:
 - dirty selection/new/report navigation asks for confirmation;
 - keyboard focus and reduced-motion behavior remain available.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 ```text
 cd frontend
 npm run test:unit -- src/components/operator-case/__tests__/OperatorCaseWorkspace.spec.ts
 ```
 
-- [ ] **Step 3: Implement list and profile components**
+- [x] **Step 3: Implement list and profile components**
 
 List: debounced anonymous-code search, disease/status filters, server pagination, skeleton/empty/error states, semantic labels and selection. Profile: disease-specific stage options with Chinese labels and stable English values; disease becomes read-only after creation.
 
-- [ ] **Step 4: Implement timeline, action bar and reason dialog**
+- [x] **Step 4: Implement timeline, action bar and reason dialog**
 
 Timeline renders `1–10` dated cards, never deletes the last visit, prevents duplicate dates and uses the existing disease indicator/unit definitions. Sort only the submitted snapshot so focus does not jump while typing. Action bar shows dirty/saving/readiness states and a separate report button. Reason dialog trims and validates `1–500` characters without clearing draft on cancel.
 
-- [ ] **Step 5: Implement workspace orchestration and design CSS**
+- [x] **Step 5: Implement workspace orchestration and design CSS**
 
 Keep a deep-cloned server baseline and canonical draft for dirty comparison. Create uses the current idempotency key; edit submits one aggregate payload and reason. Register route-leave and `beforeunload` guards, remove them on unmount, and freeze editing during report generation.
 
 Use `docs/DESIGN_SPEC.md` variables: 260/64px sidebar, 56px top bar, max 880px content, 12px cards, 10px controls, 44px targets, warm surfaces, visible focus, non-color status text and `prefers-reduced-motion`.
 
-- [ ] **Step 6: Run tests/build and commit**
+- [x] **Step 6: Run tests/build and commit**
 
 ```text
 cd frontend
@@ -781,19 +781,19 @@ git commit -m "feat: build operator case workspace"
 - Sidebar defaults to owned cases; reports remain reachable without mixing data models.
 - Report viewer is separate and can return to the selected case.
 
-- [ ] **Step 1: Add failing shell integration tests**
+- [x] **Step 1: Add failing shell integration tests**
 
 Assert the new workspace mounts, old editors are absent, selecting a report does not discard a dirty case without confirmation, and create success remains on case detail.
 
-- [ ] **Step 2: Replace the view composition**
+- [x] **Step 2: Replace the view composition**
 
 Use explicit shell modes `workspace` and `report`. Sidebar tabs switch between owned cases and historical reports; “新建病例” creates a fresh draft only after dirty confirmation. Retain report streaming/viewer components but start generation only from the workspace action bar.
 
-- [ ] **Step 3: Delete dead UI and imports**
+- [x] **Step 3: Delete dead UI and imports**
 
 Remove the three obsolete components and all `CaseRecord`/single-visit imports. Confirm `IndicatorRowsEditor` has no other consumer.
 
-- [ ] **Step 4: Run searches, tests and build**
+- [x] **Step 4: Run searches, tests and build**
 
 ```text
 cd frontend
@@ -804,7 +804,7 @@ npm run build
 
 Expected: no obsolete-symbol matches; tests and build PASS.
 
-- [ ] **Step 5: Commit shell integration**
+- [x] **Step 5: Commit shell integration**
 
 ```text
 git add frontend/src/components/OperatorSidebar.vue frontend/src/views/OperatorView.vue frontend/src/components/operator-case/__tests__/OperatorCaseWorkspace.spec.ts frontend/src/components/CaseManageView.vue frontend/src/components/IndicatorRowsEditor.vue frontend/src/components/LongitudinalCaseEditor.vue

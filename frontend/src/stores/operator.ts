@@ -6,23 +6,21 @@ import {
   deleteReport,
   listLongitudinalCases,
   createLongitudinalCase,
-  updateLongitudinalCase,
+  saveLongitudinalCase as saveLongitudinalCaseRequest,
   deleteLongitudinalCase,
   updateLongitudinalCaseStatus,
-  addLongitudinalVisit,
-  replaceLongitudinalVisits,
+  getLongitudinalCaseReportReadiness,
   generateLongitudinalReportStream,
   listDiseases,
-  listCases,
   type ReportListItem,
   type ReportDetail,
   type Disease,
-  type CaseRecord,
-  type IndicatorInput,
   type LongitudinalCase,
   type LongitudinalCaseCreatePayload,
-  type LongitudinalCaseUpdatePayload,
+  type LongitudinalCaseSavePayload,
   type LongitudinalCaseStatus,
+  type OperatorCaseListParams,
+  type OperatorCaseReportReadiness,
   type LongitudinalPrediction,
 } from '@/api/operator'
 
@@ -31,14 +29,18 @@ export const useOperatorStore = defineStore('operator', () => {
   const total = ref(0)
   const currentReport = ref<ReportDetail | null>(null)
   const loading = ref(false)
+  const caseListLoading = ref(false)
+  const saving = ref(false)
+  const readinessLoading = ref(false)
   const generating = ref(false)
   const currentStage = ref('')
   const stageMessage = ref('')
   const currentSources = ref<any[]>([])
   const diseases = ref<Disease[]>([])
-  const cases = ref<CaseRecord[]>([])
   const longitudinalCases = ref<LongitudinalCase[]>([])
   const currentLongitudinalCase = ref<LongitudinalCase | null>(null)
+  const draft = ref<LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload | null>(null)
+  const readiness = ref<OperatorCaseReportReadiness | null>(null)
   const longitudinalCaseStatusFilter = ref<LongitudinalCaseStatus | undefined>(undefined)
   const longitudinalPrediction = ref<LongitudinalPrediction | null>(null)
   const longitudinalReportContent = ref('')
@@ -89,11 +91,6 @@ export const useOperatorStore = defineStore('operator', () => {
     diseases.value = await listDiseases()
   }
 
-  async function fetchCases(diseaseId?: number) {
-    const res = await listCases(diseaseId)
-    cases.value = res.items
-  }
-
   function cancelGeneration() {
     if (cancelFn) {
       cancelFn()
@@ -103,28 +100,53 @@ export const useOperatorStore = defineStore('operator', () => {
     currentStage.value = 'cancelled'
   }
 
-  async function fetchLongitudinalCases(diseaseId?: number, status?: LongitudinalCaseStatus) {
-    longitudinalCaseStatusFilter.value = status
-    const result = await listLongitudinalCases(diseaseId, status)
-    longitudinalCases.value = result.cases
-    if (!currentLongitudinalCase.value && result.cases.length) currentLongitudinalCase.value = result.cases[0]
+  async function fetchLongitudinalCases(params: OperatorCaseListParams = {}) {
+    longitudinalCaseStatusFilter.value = params.status
+    caseListLoading.value = true
+    try {
+      const result = await listLongitudinalCases(params)
+      longitudinalCases.value = result.cases
+      if (!currentLongitudinalCase.value && result.cases.length) currentLongitudinalCase.value = result.cases[0]
+      return result
+    } finally {
+      caseListLoading.value = false
+    }
   }
 
-  async function saveLongitudinalCase(data: LongitudinalCaseCreatePayload & { visits?: Array<{ visit_date: string; indicators: IndicatorInput[]; notes?: string | null }> }) {
-    if (currentLongitudinalCase.value && currentLongitudinalCase.value.status !== 'active') throw new Error(currentLongitudinalCase.value.status === 'archived' ? '病例已归档，请先恢复病例' : '病例状态未知，已停止写入操作')
-    const { visits, disease_id, ...caseFields } = data
-    let saved: LongitudinalCase
-    if (currentLongitudinalCase.value?.id) {
-      const updatePayload: LongitudinalCaseUpdatePayload = caseFields
-      saved = await updateLongitudinalCase(currentLongitudinalCase.value.id, updatePayload)
-    } else {
-      const createPayload: LongitudinalCaseCreatePayload = { disease_id, ...caseFields, visits: visits || [] }
-      saved = await createLongitudinalCase(createPayload)
+  async function saveLongitudinalCase(id: number, data: LongitudinalCaseSavePayload): Promise<LongitudinalCase>
+  async function saveLongitudinalCase(data: LongitudinalCaseCreatePayload): Promise<LongitudinalCase>
+  async function saveLongitudinalCase(idOrData: number | LongitudinalCaseCreatePayload, maybeData?: LongitudinalCaseSavePayload) {
+    const isCreate = typeof idOrData !== 'number'
+    const id = isCreate ? undefined : idOrData
+    const data = (isCreate ? idOrData : maybeData) as LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload
+    draft.value = data
+    saving.value = true
+    try {
+      let saved: LongitudinalCase
+      if (isCreate) {
+        const idempotencyKey = crypto.randomUUID()
+        saved = await createLongitudinalCase(data as LongitudinalCaseCreatePayload, idempotencyKey)
+      } else {
+        saved = await saveLongitudinalCaseRequest(id as number, data as LongitudinalCaseSavePayload)
+      }
+      currentLongitudinalCase.value = saved
+      draft.value = null
+      longitudinalCases.value = [saved, ...longitudinalCases.value.filter((item) => item.id !== saved.id)]
+      await refreshLongitudinalCaseReadiness(saved.id)
+      return saved
+    } finally {
+      saving.value = false
     }
-    if (currentLongitudinalCase.value?.id && visits) saved.visits = await replaceLongitudinalVisits(saved.id, visits)
-    currentLongitudinalCase.value = saved
-    longitudinalCases.value = [currentLongitudinalCase.value, ...longitudinalCases.value.filter((item) => item.id !== currentLongitudinalCase.value?.id)]
-    return currentLongitudinalCase.value
+  }
+
+  async function refreshLongitudinalCaseReadiness(caseId: number) {
+    readinessLoading.value = true
+    try {
+      readiness.value = await getLongitudinalCaseReportReadiness(caseId)
+      return readiness.value
+    } finally {
+      readinessLoading.value = false
+    }
   }
 
   async function changeLongitudinalCaseStatus(status: LongitudinalCaseStatus, reason?: string) {
@@ -137,15 +159,17 @@ export const useOperatorStore = defineStore('operator', () => {
     })
     currentLongitudinalCase.value = saved
     longitudinalCases.value = longitudinalCases.value.map((item) => item.id === saved.id ? saved : item)
+    await refreshLongitudinalCaseReadiness(saved.id)
     return saved
   }
 
   async function removeLongitudinalCase() {
+    if (currentLongitudinalCase.value && currentLongitudinalCase.value.status !== 'active') throw new Error(currentLongitudinalCase.value.status === 'archived' ? '病例已归档，请先恢复病例' : '病例状态未知，已停止写入操作')
     const current = currentLongitudinalCase.value
     if (!current) throw new Error('请先选择病例')
     await deleteLongitudinalCase(current.id)
     try {
-      await fetchLongitudinalCases(undefined, longitudinalCaseStatusFilter.value)
+      await fetchLongitudinalCases({ status: longitudinalCaseStatusFilter.value })
     } catch {
       throw new Error('病例已删除，但病例列表刷新失败，请重新加载页面')
     } finally {
@@ -153,13 +177,6 @@ export const useOperatorStore = defineStore('operator', () => {
       longitudinalPrediction.value = null
       longitudinalReportContent.value = ''
     }
-  }
-
-  async function saveLongitudinalVisit(data: { visit_date: string; indicators: IndicatorInput[]; notes?: string }) {
-    if (!currentLongitudinalCase.value) throw new Error('请先选择病例')
-    const visit = await addLongitudinalVisit(currentLongitudinalCase.value.id, data)
-    currentLongitudinalCase.value.visits = [...currentLongitudinalCase.value.visits, visit].sort((a, b) => a.visit_date.localeCompare(b.visit_date))
-    return visit
   }
 
   function generateLongitudinalReport(caseId: number) {
@@ -195,9 +212,13 @@ export const useOperatorStore = defineStore('operator', () => {
     stageMessage,
     currentSources,
     diseases,
-    cases,
+    caseListLoading,
+    saving,
+    readinessLoading,
     longitudinalCases,
     currentLongitudinalCase,
+    draft,
+    readiness,
     longitudinalCaseStatusFilter,
     longitudinalPrediction,
     longitudinalReportContent,
@@ -207,14 +228,13 @@ export const useOperatorStore = defineStore('operator', () => {
     loadSavedReport,
     removeReport,
     fetchDiseases,
-    fetchCases,
     cancelGeneration,
     clearCurrent,
     fetchLongitudinalCases,
     saveLongitudinalCase,
+    refreshLongitudinalCaseReadiness,
     changeLongitudinalCaseStatus,
     removeLongitudinalCase,
-    saveLongitudinalVisit,
     generateLongitudinalReport,
   }
 })

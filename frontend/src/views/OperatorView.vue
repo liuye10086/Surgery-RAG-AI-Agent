@@ -31,11 +31,8 @@
       </div>
 
       <div class="operator-body">
-        <!-- 病例库视图 -->
-        <CaseManageView v-if="activeView === 'cases'" />
-
         <LongitudinalReportView
-          v-else-if="reportReadingMode"
+          v-if="reportReadingMode"
           :report="operatorStore.currentReport"
           :prediction-result="operatorStore.longitudinalPrediction"
           :rendered-content="renderMarkdown(operatorStore.generating ? operatorStore.longitudinalReportContent : operatorStore.currentReport?.content || '')"
@@ -44,56 +41,18 @@
           @download="handleDownload"
         />
 
-        <!-- 纵向进展预测视图 -->
+        <!-- 统一病例工作区：病例库和进展预测共用同一份聚合草稿 -->
         <div v-else class="progression-view">
           <div class="progression-inner">
-            <div class="longitudinal-case-actions">
-              <el-select
-                :model-value="operatorStore.longitudinalCaseStatusFilter"
-                clearable
-                placeholder="病例状态"
-                style="width: 140px"
-                @update:model-value="(value: any) => operatorStore.fetchLongitudinalCases(undefined, value || undefined)"
-              >
-                <el-option label="全部" value="" />
-                <el-option label="使用中" value="active" />
-                <el-option label="已归档" value="archived" />
-              </el-select>
-              <el-button @click="startNewLongitudinalCase">新建纵向病例</el-button>
-              <el-select
-                v-if="operatorStore.longitudinalCases.length"
-                :model-value="operatorStore.currentLongitudinalCase?.id"
-                placeholder="选择已保存病例"
-                @update:model-value="selectLongitudinalCase"
-              >
-                <el-option
-                  v-for="item in operatorStore.longitudinalCases"
-                  :key="item.id"
-                  :label="`${item.anonymous_case_code || '旧病例未设置匿名编号'}（${caseStatusLabel(item.status)}）`"
-                  :value="item.id"
-                />
-              </el-select>
-              <div v-if="operatorStore.currentLongitudinalCase" class="case-status-actions">
-                <el-tag :type="operatorStore.currentLongitudinalCase.status === 'archived' ? 'info' : operatorStore.currentLongitudinalCase.status === 'active' ? 'success' : 'danger'">
-                  {{ caseStatusLabel(operatorStore.currentLongitudinalCase.status) }}
-                </el-tag>
-                <el-button v-if="operatorStore.currentLongitudinalCase.status === 'active'" type="warning" plain @click="archiveCurrentCase">归档</el-button>
-                <el-button v-else type="primary" plain :disabled="operatorStore.currentLongitudinalCase.disease.operator_enabled === false" @click="restoreCurrentCase">恢复</el-button>
-                <el-button
-                  type="danger"
-                  plain
-                  :disabled="!canDeleteCurrentCase"
-                  :title="deleteCurrentCaseDisabledReason"
-                  @click="handleDeleteLongitudinalCase"
-                >
-                  删除病例
-                </el-button>
-              </div>
-            </div>
-            <LongitudinalCaseEditor
+            <OperatorCaseList v-if="activeView === 'cases'" :cases="operatorStore.longitudinalCases" :selected-id="operatorStore.currentLongitudinalCase?.id" :loading="operatorStore.caseListLoading" @select="selectLongitudinalCase" @new="startNewLongitudinalCase" />
+            <OperatorCaseWorkspace
+              :model="operatorStore.currentLongitudinalCase"
               :diseases="progressionDiseases"
-              :model-value="operatorStore.currentLongitudinalCase"
-              @saved="handleLongitudinalCaseSaved"
+              :readiness="operatorStore.readiness"
+              :saving="operatorStore.saving"
+              :report-generating="operatorStore.generating"
+              @save="handleWorkspaceSave"
+              @generate-report="generateCurrentReport"
             />
             <LongitudinalPredictionSummary :prediction="operatorStore.longitudinalPrediction" />
           </div>
@@ -110,13 +69,13 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import OperatorSidebar from '@/components/OperatorSidebar.vue'
-import CaseManageView from '@/components/CaseManageView.vue'
-import LongitudinalCaseEditor from '@/components/LongitudinalCaseEditor.vue'
+import OperatorCaseList from '@/components/operator-case/OperatorCaseList.vue'
+import OperatorCaseWorkspace from '@/components/operator-case/OperatorCaseWorkspace.vue'
 import LongitudinalPredictionSummary from '@/components/LongitudinalPredictionSummary.vue'
 import LongitudinalReportView from '@/components/LongitudinalReportView.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useOperatorStore } from '@/stores/operator'
-import { downloadReport, type IndicatorInput } from '@/api/operator'
+import { downloadReport, type LongitudinalCaseCreatePayload, type LongitudinalCaseSavePayload } from '@/api/operator'
 
 const authStore = useAuthStore()
 const operatorStore = useOperatorStore()
@@ -124,17 +83,6 @@ const operatorStore = useOperatorStore()
 const sidebarCollapsed = ref(localStorage.getItem('operator_sidebar_collapsed') === 'true')
 const activeView = ref<'progression' | 'cases'>('progression')
 const progressionDiseases = computed(() => operatorStore.diseases)
-const canDeleteCurrentCase = computed(() => {
-  const current = operatorStore.currentLongitudinalCase
-  return Boolean(current?.status === 'active' && current.disease.operator_enabled !== false)
-})
-const deleteCurrentCaseDisabledReason = computed(() => {
-  const current = operatorStore.currentLongitudinalCase
-  if (!current) return ''
-  if (current.disease.operator_enabled === false) return '疾病已停用，当前不能删除病例'
-  if (current.status !== 'active') return '请先恢复病例后再删除'
-  return ''
-})
 
 const reportReadingMode = computed(() =>
   activeView.value === 'progression'
@@ -185,105 +133,15 @@ function loadMoreReports() {
   return operatorStore.fetchReports(operatorStore.reports.length, 20, true)
 }
 
-function isValidIndicator(row: IndicatorInput) {
-  return Boolean(
-    row.name.trim() && row.value !== null && row.value !== undefined && row.unit.trim()
-  )
-}
-
-async function handleLongitudinalCaseSaved(draft: any) {
+async function handleWorkspaceSave(payload: LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload) {
   try {
-    if (operatorStore.currentLongitudinalCase?.disease.operator_enabled === false) {
-      ElMessage.error('该疾病已停用，病例当前只读')
-      return
-    }
-    if (!Number.isInteger(draft.age) || draft.age < 0 || draft.age > 120) {
-      ElMessage.error('请填写0–120岁的整数年龄')
-      return
-    }
-    const invalidVisit = (draft.visits || []).find((visit: any) =>
-      !visit.visit_date || !visit.indicators?.length || !visit.indicators.every(isValidIndicator),
-    )
-    if (invalidVisit) {
-      ElMessage.error('请完整填写每次访视的日期、指标、数值和单位')
-      return
-    }
-    if (!draft.visits?.length) {
-      ElMessage.error('病例至少保留 1 次访视')
-      return
-    }
-    if (draft.visits.length > 10) {
-      ElMessage.error('病例最多保留 10 次访视')
-      return
-    }
-    const visits = (draft.visits || [])
-      .map((visit: any) => ({
-        visit_date: visit.visit_date,
-        indicators: visit.indicators.map((indicator: IndicatorInput) => ({
-          name: indicator.name.trim(),
-          value: Number(indicator.value),
-          unit: indicator.unit.trim(),
-        })),
-        notes: visit.notes || null,
-      }))
-    const saved = await operatorStore.saveLongitudinalCase({ disease_id: draft.disease_id, age: draft.age, sex: draft.sex, baseline_stage: draft.baseline_stage || null, visits })
-    if (saved.disease.operator_enabled === false) {
-      ElMessage.error('该疾病已停用，病例当前只读')
-      return
-    }
-    operatorStore.generateLongitudinalReport(saved.id)
-    ElMessage.success('已开始生成纵向预测报告')
+    const saved = operatorStore.currentLongitudinalCase?.id
+      ? await operatorStore.saveLongitudinalCase(operatorStore.currentLongitudinalCase.id, payload as LongitudinalCaseSavePayload)
+      : await operatorStore.saveLongitudinalCase(payload as LongitudinalCaseCreatePayload)
+    ElMessage.success(`病例已保存：${saved.anonymous_case_code || '匿名编号待生成'}`)
   } catch (error: any) {
     ElMessage.error(error?.message || '病例保存失败')
   }
-}
-
-async function changeCurrentCaseStatus(target: 'active' | 'archived') {
-  try {
-    const result = await ElMessageBox.prompt(
-      target === 'archived' ? '请输入归档原因（必填）' : '请输入恢复原因（必填）',
-      target === 'archived' ? '归档病例' : '恢复病例',
-      { inputPattern: /\S+/, inputErrorMessage: '请输入原因' },
-    )
-    await operatorStore.changeLongitudinalCaseStatus(target, result.value)
-    ElMessage.success(target === 'archived' ? '病例已归档' : '病例已恢复')
-  } catch (error: any) {
-    if (error === 'cancel' || error?.message === 'cancel') return
-    ElMessage.error(error?.response?.data?.detail || error?.message || '状态更新失败')
-    await operatorStore.fetchLongitudinalCases()
-  }
-}
-
-function archiveCurrentCase() { return changeCurrentCaseStatus('archived') }
-function restoreCurrentCase() { return changeCurrentCaseStatus('active') }
-
-async function handleDeleteLongitudinalCase() {
-  const current = operatorStore.currentLongitudinalCase
-  if (!current) return
-  const anonymousCode = current.anonymous_case_code || '旧病例未设置匿名编号'
-  try {
-    await ElMessageBox.confirm(
-      `确定删除病例 ${anonymousCode}？病例及全部访视将永久删除；历史报告仍会保留并解除病例关联，只能通过生成时输入快照追溯。`,
-      '确认删除病例',
-      {
-        confirmButtonText: '删除病例',
-        cancelButtonText: '取消',
-        type: 'warning',
-        confirmButtonClass: 'el-button--danger',
-      },
-    )
-    await operatorStore.removeLongitudinalCase()
-    ElMessage.success('病例已删除，历史报告仍保留')
-  } catch (error: any) {
-    if (error === 'cancel' || error?.message === 'cancel') return
-    ElMessage.error(error?.response?.data?.detail || error?.message || '病例删除失败')
-  }
-}
-
-function caseStatusLabel(value: string): string {
-  if (value === 'active') return '使用中'
-  if (value === 'archived') return '已归档'
-  return '未知状态'
 }
 
 function startNewLongitudinalCase() {
@@ -293,8 +151,14 @@ function startNewLongitudinalCase() {
   operatorStore.longitudinalReportContent = ''
 }
 
-function selectLongitudinalCase(caseId: number) {
-  operatorStore.currentLongitudinalCase = operatorStore.longitudinalCases.find((item) => item.id === caseId) || null
+function selectLongitudinalCase(item: any) {
+  operatorStore.currentLongitudinalCase = item
+  operatorStore.refreshLongitudinalCaseReadiness(item.id)
+}
+
+function generateCurrentReport() {
+  const id = operatorStore.currentLongitudinalCase?.id
+  if (id) operatorStore.generateLongitudinalReport(id)
 }
 
 async function handleDownload() {
