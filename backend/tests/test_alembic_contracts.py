@@ -73,6 +73,13 @@ def _load_revision(filename: str, module_name: str):
 
 
 class AlembicContractTests(unittest.TestCase):
+    def test_operator_case_workspace_revision_follows_0019(self):
+        migration = _load_revision(
+            "0020_operator_case_workspace.py", "migration_0020_workspace_chain"
+        )
+        self.assertEqual(migration.revision, "0020")
+        self.assertEqual(migration.down_revision, "0019")
+
     def test_alembic_files_exist(self):
         for relative_path in [
             "alembic.ini",

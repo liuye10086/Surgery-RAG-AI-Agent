@@ -125,7 +125,9 @@ CREATE TABLE IF NOT EXISTS operator_cases (
     CONSTRAINT ck_operator_cases_age_range
         CHECK (age IS NULL OR age BETWEEN 0 AND 120),
     CONSTRAINT ck_operator_cases_status
-        CHECK (status IN ('active', 'archived'))
+        CHECK (status IN ('active', 'archived')),
+    CONSTRAINT ck_operator_cases_sex
+        CHECK (sex IS NULL OR sex IN ('male', 'female'))
 );
 
 CREATE INDEX IF NOT EXISTS ix_operator_cases_user_id ON operator_cases(user_id);
@@ -153,6 +155,52 @@ CREATE INDEX IF NOT EXISTS ix_operator_case_status_logs_case_time
 ON operator_case_status_logs(case_id_snapshot, created_at);
 CREATE INDEX IF NOT EXISTS ix_operator_case_status_logs_actor_time
 ON operator_case_status_logs(actor_id_snapshot, created_at);
+
+CREATE TABLE IF NOT EXISTS operator_case_change_logs (
+    id SERIAL PRIMARY KEY,
+    case_id INTEGER REFERENCES operator_cases(id) ON DELETE SET NULL,
+    case_id_snapshot INTEGER NOT NULL,
+    anonymous_case_code_snapshot VARCHAR(14),
+    actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    actor_id_snapshot INTEGER NOT NULL,
+    action VARCHAR(32) NOT NULL,
+    reason TEXT NOT NULL,
+    changes JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT ck_operator_case_change_logs_action
+        CHECK (action IN ('created', 'profile_updated', 'timeline_updated', 'case_updated', 'deleted')),
+    CONSTRAINT ck_operator_case_change_logs_reason
+        CHECK (length(btrim(reason)) BETWEEN 1 AND 500),
+    CONSTRAINT ck_operator_case_change_logs_changes_object
+        CHECK (jsonb_typeof(changes) = 'object')
+);
+
+CREATE INDEX IF NOT EXISTS ix_operator_case_change_logs_case_time
+ON operator_case_change_logs(case_id_snapshot, created_at);
+CREATE INDEX IF NOT EXISTS ix_operator_case_change_logs_actor_time
+ON operator_case_change_logs(actor_id_snapshot, created_at);
+
+CREATE TABLE IF NOT EXISTS operator_idempotency_keys (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    scope VARCHAR(64) NOT NULL,
+    idempotency_key UUID NOT NULL,
+    request_sha256 VARCHAR(64) NOT NULL,
+    resource_type VARCHAR(32) NOT NULL,
+    resource_id INTEGER NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_operator_idempotency_user_scope_key
+        UNIQUE (user_id, scope, idempotency_key),
+    CONSTRAINT ck_operator_idempotency_keys_scope
+        CHECK (scope = 'create_longitudinal_case'),
+    CONSTRAINT ck_operator_idempotency_keys_resource_type
+        CHECK (resource_type = 'operator_case'),
+    CONSTRAINT ck_operator_idempotency_keys_request_sha256
+        CHECK (length(request_sha256) = 64)
+);
+
+CREATE INDEX IF NOT EXISTS ix_operator_idempotency_keys_user_time
+ON operator_idempotency_keys(user_id, created_at);
 
 CREATE TABLE IF NOT EXISTS operator_case_visits (
     id SERIAL PRIMARY KEY,

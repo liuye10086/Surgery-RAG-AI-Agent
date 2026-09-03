@@ -38,3 +38,11 @@ def test_operator_case_status_and_audit_contracts():
         {column.name for column in OperatorCaseStatusLog.__table__.columns}
     )
     assert any(c.name == "ck_operator_case_status_logs_changed" for c in OperatorCaseStatusLog.__table__.constraints)
+
+
+def test_operator_case_workspace_storage_contracts():
+    from app.db.models import OperatorCase, OperatorCaseChangeLog, OperatorIdempotencyKey
+
+    assert any(c.name == "ck_operator_cases_sex" for c in OperatorCase.__table__.constraints)
+    assert OperatorCaseChangeLog.__tablename__ == "operator_case_change_logs"
+    assert OperatorIdempotencyKey.__tablename__ == "operator_idempotency_keys"

@@ -67,6 +67,28 @@ REQUIRED_COLUMNS = {
         "reason",
         "created_at",
     },
+    "operator_case_change_logs": {
+        "id",
+        "case_id",
+        "case_id_snapshot",
+        "anonymous_case_code_snapshot",
+        "actor_id",
+        "actor_id_snapshot",
+        "action",
+        "reason",
+        "changes",
+        "created_at",
+    },
+    "operator_idempotency_keys": {
+        "id",
+        "user_id",
+        "scope",
+        "idempotency_key",
+        "request_sha256",
+        "resource_type",
+        "resource_id",
+        "created_at",
+    },
     "ai_reports": {
         "id",
         "user_id",
@@ -108,6 +130,21 @@ EXPECTED_DISEASE_FKS = {
     "fk_case_records_disease",
     "fk_ai_reports_disease",
     "reference_standards_disease_id_fkey",
+}
+EXPECTED_WORKSPACE_CONSTRAINTS = {
+    "ck_operator_cases_sex",
+    "ck_operator_case_change_logs_action",
+    "ck_operator_case_change_logs_reason",
+    "ck_operator_case_change_logs_changes_object",
+    "uq_operator_idempotency_user_scope_key",
+    "ck_operator_idempotency_keys_scope",
+    "ck_operator_idempotency_keys_resource_type",
+    "ck_operator_idempotency_keys_request_sha256",
+}
+EXPECTED_WORKSPACE_INDEXES = {
+    "ix_operator_case_change_logs_case_time",
+    "ix_operator_case_change_logs_actor_time",
+    "ix_operator_idempotency_keys_user_time",
 }
 
 
@@ -200,6 +237,43 @@ def _collect_anonymous_code_checks(connection):
         return {"available": False}
 
 
+def _collect_workspace_catalog_checks(connection):
+    """Inspect workspace constraints/indexes without mutating the catalog."""
+
+    try:
+        constraint_rows = connection.execute(
+            text(
+                "SELECT conname, convalidated FROM pg_constraint "
+                "WHERE conname = ANY(:constraint_names) ORDER BY conname"
+            ),
+            {"constraint_names": sorted(EXPECTED_WORKSPACE_CONSTRAINTS)},
+        ).mappings().all()
+        index_rows = connection.execute(
+            text(
+                "SELECT indexname FROM pg_indexes "
+                "WHERE schemaname = 'public' "
+                "AND indexname = ANY(:index_names) ORDER BY indexname"
+            ),
+            {"index_names": sorted(EXPECTED_WORKSPACE_INDEXES)},
+        ).mappings().all()
+    except Exception:
+        return {"available": False}
+
+    actual_constraints = {row["conname"] for row in constraint_rows}
+    unvalidated = sorted(
+        row["conname"] for row in constraint_rows if not row["convalidated"]
+    )
+    actual_indexes = {row["indexname"] for row in index_rows}
+    return {
+        "available": True,
+        "missing_constraints": sorted(
+            EXPECTED_WORKSPACE_CONSTRAINTS - actual_constraints
+        ),
+        "unvalidated_constraints": unvalidated,
+        "missing_indexes": sorted(EXPECTED_WORKSPACE_INDEXES - actual_indexes),
+    }
+
+
 def collect_checks(connection, code_heads):
     connection.execute(text("SET TRANSACTION READ ONLY"))
     server_version = connection.execute(text("SHOW server_version")).scalar_one_or_none()
@@ -274,6 +348,7 @@ def collect_checks(connection, code_heads):
     )
     visit_integrity = _collect_visit_integrity_checks(connection)
     anonymous_code_integrity = _collect_anonymous_code_checks(connection)
+    workspace_catalog = _collect_workspace_catalog_checks(connection)
     visit_integrity_match = (
         visit_integrity.get("available") is False
         or all(
@@ -289,6 +364,12 @@ def collect_checks(connection, code_heads):
             for key, value in anonymous_code_integrity.items()
             if key.endswith("_count") and not key.endswith("_null_count")
         )
+    )
+    workspace_catalog_match = (
+        workspace_catalog.get("available") is False
+        or not workspace_catalog["missing_constraints"]
+        and not workspace_catalog["unvalidated_constraints"]
+        and not workspace_catalog["missing_indexes"]
     )
     # Keep the baseline checker backwards-compatible with lightweight test
     # doubles while checking the new status guard on real PostgreSQL systems.
@@ -326,6 +407,7 @@ def collect_checks(connection, code_heads):
         and disease_fk_rules_match
         and visit_integrity_match
         and anonymous_code_integrity_match
+        and workspace_catalog_match
         and status_constraint_present is not False
         and status_constraint_validated is not False
         and status_audit_table_present is not False
@@ -349,6 +431,8 @@ def collect_checks(connection, code_heads):
         "visit_integrity_match": visit_integrity_match,
         "anonymous_code_integrity": anonymous_code_integrity,
         "anonymous_code_integrity_match": anonymous_code_integrity_match,
+        "workspace_catalog": workspace_catalog,
+        "workspace_catalog_match": workspace_catalog_match,
         "status_constraint_present": status_constraint_present,
         "status_constraint_validated": status_constraint_validated,
         "status_audit_table_present": status_audit_table_present,

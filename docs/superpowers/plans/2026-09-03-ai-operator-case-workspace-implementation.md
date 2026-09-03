@@ -192,7 +192,7 @@ git commit -m "feat: define operator case workspace contract"
 - `operator_cases.sex` allows historical `NULL` and only `male`/`female` otherwise.
 - Alembic remains one head: `0020.down_revision == "0019"`.
 
-- [ ] **Step 1: Write failing ORM, migration, and clean-install contract tests**
+- [x] **Step 1: Write failing ORM, migration, and clean-install contract tests**
 
 Assert exact table names, columns, constraints, indexes and delete behavior. Include these invariants:
 
@@ -206,14 +206,14 @@ assert "operator_cases" not in foreign_keys_for("operator_idempotency_keys.resou
 
 Also add a regression assertion correcting the currently swapped ORM foreign-key names: `CaseRecord.disease_id` uses `fk_case_records_disease`, and `OperatorCase.disease_id` uses `fk_operator_cases_disease`, matching migrations and clean-install SQL.
 
-- [ ] **Step 2: Run focused contract tests and verify failure**
+- [x] **Step 2: Run focused contract tests and verify failure**
 
 ```text
 cd backend
 pytest tests/test_operator_case_workspace_migration.py tests/test_alembic_contracts.py tests/test_longitudinal_schema_contracts.py tests/test_schema_contracts.py -q
 ```
 
-- [ ] **Step 3: Implement ORM models and constraints**
+- [x] **Step 3: Implement ORM models and constraints**
 
 Use PostgreSQL UUID/JSONB and named constraints. Material fields:
 
@@ -245,11 +245,11 @@ class OperatorIdempotencyKey(Base):
 
 Add CHECKs for action values, trimmed reason length `1–500`, JSON object `changes`, SHA-256 length, fixed first-version scope/resource type, and indexes on `(case_id_snapshot, created_at)`, `(actor_id_snapshot, created_at)` and `(user_id, created_at)`.
 
-- [ ] **Step 4: Implement revision `0020` and clean-install SQL**
+- [x] **Step 4: Implement revision `0020` and clean-install SQL**
 
 The migration must preflight illegal historical sex without rewriting, add and validate `ck_operator_cases_sex`, create both tables and indexes, and never mutate cases/visits/reports. Downgrade refuses to drop non-empty audit/idempotency tables. Mirror the validated structure in `database/schema.sql` and the read-only baseline checker.
 
-- [ ] **Step 5: Run migration tests and commit**
+- [x] **Step 5: Run migration tests and commit**
 
 ```text
 cd backend

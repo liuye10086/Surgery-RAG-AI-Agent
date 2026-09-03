@@ -14,7 +14,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -212,7 +212,7 @@ class CaseRecord(Base):
         Integer,
         ForeignKey(
             "diseases.id",
-            name="fk_operator_cases_disease",
+            name="fk_case_records_disease",
             ondelete="RESTRICT",
         ),
         nullable=False,
@@ -249,6 +249,10 @@ class OperatorCase(Base):
             "status IN ('active', 'archived')",
             name="ck_operator_cases_status",
         ),
+        CheckConstraint(
+            "sex IS NULL OR sex IN ('male', 'female')",
+            name="ck_operator_cases_sex",
+        ),
         Index("ix_operator_cases_user_id", "user_id"),
         Index("ix_operator_cases_disease_id", "disease_id"),
     )
@@ -259,7 +263,7 @@ class OperatorCase(Base):
         Integer,
         ForeignKey(
             "diseases.id",
-            name="fk_case_records_disease",
+            name="fk_operator_cases_disease",
             ondelete="RESTRICT",
         ),
         nullable=False,
@@ -346,6 +350,91 @@ class OperatorCaseStatusLog(Base):
     from_status = Column(String(50), nullable=False)
     to_status = Column(String(50), nullable=False)
     reason = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class OperatorCaseChangeLog(Base):
+    """Immutable, privacy-bounded audit for case/profile/timeline changes."""
+
+    __tablename__ = "operator_case_change_logs"
+    __table_args__ = (
+        CheckConstraint(
+            "action IN ('created', 'profile_updated', 'timeline_updated', 'case_updated', 'deleted')",
+            name="ck_operator_case_change_logs_action",
+        ),
+        CheckConstraint(
+            "length(btrim(reason)) BETWEEN 1 AND 500",
+            name="ck_operator_case_change_logs_reason",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(changes) = 'object'",
+            name="ck_operator_case_change_logs_changes_object",
+        ),
+        Index(
+            "ix_operator_case_change_logs_case_time",
+            "case_id_snapshot",
+            "created_at",
+        ),
+        Index(
+            "ix_operator_case_change_logs_actor_time",
+            "actor_id_snapshot",
+            "created_at",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    case_id = Column(
+        Integer,
+        ForeignKey("operator_cases.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    case_id_snapshot = Column(Integer, nullable=False)
+    anonymous_case_code_snapshot = Column(String(14), nullable=True)
+    actor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    actor_id_snapshot = Column(Integer, nullable=False)
+    action = Column(String(32), nullable=False)
+    reason = Column(Text, nullable=False)
+    changes = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class OperatorIdempotencyKey(Base):
+    """Completed idempotency result without storing a clinical request body."""
+
+    __tablename__ = "operator_idempotency_keys"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "scope",
+            "idempotency_key",
+            name="uq_operator_idempotency_user_scope_key",
+        ),
+        CheckConstraint(
+            "scope = 'create_longitudinal_case'",
+            name="ck_operator_idempotency_keys_scope",
+        ),
+        CheckConstraint(
+            "resource_type = 'operator_case'",
+            name="ck_operator_idempotency_keys_resource_type",
+        ),
+        CheckConstraint(
+            "length(request_sha256) = 64",
+            name="ck_operator_idempotency_keys_request_sha256",
+        ),
+        Index(
+            "ix_operator_idempotency_keys_user_time",
+            "user_id",
+            "created_at",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    scope = Column(String(64), nullable=False)
+    idempotency_key = Column(UUID(as_uuid=True), nullable=False)
+    request_sha256 = Column(String(64), nullable=False)
+    resource_type = Column(String(32), nullable=False)
+    resource_id = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
