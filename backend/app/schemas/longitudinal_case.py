@@ -62,13 +62,12 @@ class OperatorCaseCreate(BaseModel):
 class OperatorCaseUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    patient_label: str | None = Field(None, min_length=1, max_length=100)
     age: int | None = Field(None, ge=0, le=120, strict=True)
     sex: str | None = Field(None, pattern=r"^(male|female)$")
     baseline_stage: str | None = Field(None, max_length=100)
     notes: str | None = Field(None, max_length=5000)
 
-    @field_validator("patient_label", "baseline_stage", "notes", mode="before")
+    @field_validator("baseline_stage", "notes", mode="before")
     @classmethod
     def normalize_update_text(cls, value):
         if value is None:

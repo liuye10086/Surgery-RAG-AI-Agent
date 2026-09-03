@@ -96,8 +96,8 @@ def test_case_age_is_required_strict_integer_and_bounded():
 def test_case_update_age_may_be_omitted_but_not_cleared():
     from app.schemas.longitudinal_case import OperatorCaseUpdate
 
-    assert OperatorCaseUpdate(patient_label="renamed").model_dump(exclude_unset=True) == {
-        "patient_label": "renamed"
+    assert OperatorCaseUpdate(notes="renamed").model_dump(exclude_unset=True) == {
+        "notes": "renamed"
     }
     assert OperatorCaseUpdate(age=0).age == 0
     with pytest.raises(ValidationError):
@@ -434,7 +434,7 @@ def test_disabled_disease_blocks_every_case_mutation(operation_name):
             db,
             7,
             3,
-            OperatorCaseUpdate(patient_label="renamed"),
+            OperatorCaseUpdate(notes="renamed"),
         ),
         "delete_operator_case": (db, 7, 3),
         "add_visit": (
