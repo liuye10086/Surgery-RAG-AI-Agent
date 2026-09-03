@@ -537,6 +537,22 @@ def test_trend_required_feature_missing_does_not_call_model():
     assert mmse.forecast.direction is None
 
 
+def test_synthetic_suite_emits_audit_warnings_without_blocking_prediction():
+    from app.services.disease_progression import AD_ADAPTER
+
+    result = run_longitudinal_prediction(
+        {"baseline_stage": "mci", "age": 65, "sex": "female"},
+        _ad_visits(),
+        AD_ADAPTER,
+        _complete_ad_suite(),
+    )
+
+    assert result.outcome_prediction.risk_score is not None
+    assert any("合成" in warning for warning in result.warnings)
+    assert any("临床有效性" in warning for warning in result.warnings)
+    assert any("未校准" in warning for warning in result.warnings)
+
+
 def test_incompatible_stage_emits_no_guess_but_keeps_outcome_and_trends():
     from app.services.disease_progression import AD_ADAPTER
 

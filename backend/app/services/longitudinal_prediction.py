@@ -418,6 +418,21 @@ def _run_suite_trend(indicator, entry, case, visits, observation):
     }
 
 
+def _audit_warnings(suite: LoadedDiseaseModelSuite) -> list[str]:
+    entries = [*suite.outcomes.values(), suite.stage, *suite.trends.values()]
+    metadata_items = [
+        entry.metadata
+        for entry in entries
+        if entry is not None and entry.metadata is not None
+    ]
+    warnings: list[str] = []
+    if any(item.audit.clinical_validity_claim is False for item in metadata_items):
+        warnings.append("当前模型没有临床有效性声明，不构成医学诊断依据")
+    if any(item.calibration.status == "not_calibrated" for item in metadata_items):
+        warnings.append("模型分数未校准，不代表临床概率")
+    return warnings
+
+
 def _run_suite_prediction(
     case,
     visits,
@@ -478,12 +493,8 @@ def _run_suite_prediction(
         outcome_status=outcome_status,
         feature_names=outcome_feature_names,
     )
-    warnings = [adapter.synthetic_data_warning]
-    if (
-        outcome_result.risk_score is not None
-        and outcome_status.calibration_status == "not_calibrated"
-    ):
-        warnings.append("模型分数未校准，不代表临床概率")
+    warnings = [adapter.synthetic_data_warning, *_audit_warnings(suite)]
+    warnings = list(dict.fromkeys(warnings))
     return LongitudinalPredictionResultV3(
         disease={"dataset": adapter.dataset, "name": adapter.disease_name},
         release_set={
