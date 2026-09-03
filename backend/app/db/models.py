@@ -310,6 +310,10 @@ class OperatorCaseVisit(Base):
             "visit_index >= 1",
             name="ck_operator_case_visits_visit_index_positive",
         ),
+        CheckConstraint(
+            "jsonb_typeof(visit_context) = 'object'",
+            name="ck_operator_case_visits_visit_context_object",
+        ),
         Index("ix_operator_case_visits_case_id", "case_id"),
         Index("ix_operator_case_visits_visit_date", "visit_date"),
     )
@@ -323,6 +327,7 @@ class OperatorCaseVisit(Base):
     visit_date = Column(Date, nullable=False)
     visit_index = Column(Integer, nullable=False)
     indicators = Column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
+    visit_context = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
     notes = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

@@ -76,6 +76,9 @@ class _FakeConnection:
                         if (table_name, column_name) == ("diseases", "code")
                         else "boolean"
                         if (table_name, column_name) == ("diseases", "operator_enabled")
+                        else "jsonb"
+                        if (table_name, column_name)
+                        == ("operator_case_visits", "visit_context")
                         else "text"
                     ),
                 }
@@ -153,6 +156,19 @@ class DatabaseBaselineTests(unittest.TestCase):
         self.assertEqual(
             checker.REQUIRED_COLUMN_TYPES[("diseases", "operator_enabled")],
             "boolean",
+        )
+
+    def test_checker_requires_operator_visit_context_jsonb(self):
+        checker = _load_checker()
+        self.assertIn(
+            "visit_context",
+            checker.REQUIRED_COLUMNS["operator_case_visits"],
+        )
+        self.assertEqual(
+            checker.REQUIRED_COLUMN_TYPES[
+                ("operator_case_visits", "visit_context")
+            ],
+            "jsonb",
         )
 
     def test_checker_validates_base_diseases_and_restrictive_foreign_keys(self):

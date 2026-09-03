@@ -55,6 +55,7 @@ REQUIRED_COLUMNS = {
         "visit_date",
         "visit_index",
         "indicators",
+        "visit_context",
     },
     "operator_case_status_logs": {
         "id",
@@ -120,6 +121,7 @@ REQUIRED_COLUMN_TYPES = {
     ("operator_cases", "age"): "integer",
     ("diseases", "code"): "character varying",
     ("diseases", "operator_enabled"): "boolean",
+    ("operator_case_visits", "visit_context"): "jsonb",
 }
 EXPECTED_BASE_DISEASES = [
     {"code": "ad", "name": "阿尔茨海默病", "operator_enabled": True},
@@ -198,6 +200,11 @@ def _collect_visit_integrity_checks(connection):
                 "SELECT COUNT(*) AS count FROM operator_case_visits v "
                 "LEFT JOIN operator_cases c ON c.id = v.case_id "
                 "WHERE c.id IS NULL"
+            ),
+            "invalid_visit_context_count": count(
+                "SELECT COUNT(*) AS count FROM operator_case_visits "
+                "WHERE visit_context IS NULL "
+                "OR jsonb_typeof(visit_context) <> 'object'"
             ),
         }
     except Exception:

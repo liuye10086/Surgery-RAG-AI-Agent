@@ -463,6 +463,40 @@ class AlembicContractTests(unittest.TestCase):
         migration_op.add_column.assert_not_called()
         migration_op.drop_table.assert_not_called()
 
+    def test_operator_visit_context_migration_follows_workspace_head(self):
+        migration = _load_revision(
+            "0021_operator_case_visit_context.py",
+            "migration_0021_operator_visit_context",
+        )
+        self.assertEqual(migration.revision, "0021")
+        self.assertEqual(migration.down_revision, "0020")
+
+        migration_op = MagicMock()
+        with patch.object(migration, "op", migration_op):
+            migration.upgrade()
+
+        column = migration_op.add_column.call_args.args[1]
+        self.assertEqual(column.name, "visit_context")
+        self.assertFalse(column.nullable)
+        self.assertIsNotNone(column.server_default)
+        migration_op.create_check_constraint.assert_called_once_with(
+            "ck_operator_case_visits_visit_context_object",
+            "operator_case_visits",
+            "jsonb_typeof(visit_context) = 'object'",
+        )
+
+    def test_operator_visit_context_orm_matches_migration(self):
+        from app.db.models import OperatorCaseVisit
+
+        column = OperatorCaseVisit.__table__.columns["visit_context"]
+        self.assertFalse(column.nullable)
+        self.assertIsNotNone(column.server_default)
+        constraints = {item.name for item in OperatorCaseVisit.__table__.constraints}
+        self.assertIn(
+            "ck_operator_case_visits_visit_context_object",
+            constraints,
+        )
+
     def test_disease_permission_migration_follows_0013(self):
         migration = _load_revision(
             "0014_disease_codes_and_operator_permission.py",
