@@ -823,7 +823,7 @@ git commit -m "refactor: make longitudinal cases the operator workspace"
 - Runner starts/stops only explicitly named test services and never uses production config.
 - E2E checks UI results and selected database invariants.
 
-- [ ] **Step 1: Write failing browser scenarios**
+- [x] **Step 1: Write failing browser scenarios**
 
 For both diseases:
 
@@ -841,11 +841,11 @@ login operator A
 
 Add operator B isolation and failed-save/draft-preservation scenarios. Verify B never lists or accesses A's case/readiness/report and never receives A-attributed audit/report rows.
 
-- [ ] **Step 2: Implement deterministic E2E fixtures**
+- [x] **Step 2: Implement deterministic E2E fixtures**
 
 Seed two `ai_operator` users and enabled fatty-liver/AD rows through the test SQLAlchemy session. Use semantic selectors and only add `data-testid` when role/name is insufficient. Stub only external LLM streaming at the service boundary; do not mock case APIs, database, readiness, manifest loading or authentication.
 
-- [ ] **Step 3: Implement the guarded PowerShell runner**
+- [x] **Step 3: Implement the guarded PowerShell runner**
 
 It sets compose project `surgery-rag-agent-test`, starts the test database, sets test-only DB/JWT values, disables unnecessary embedding warmup through an explicit test setting, starts backend/frontend child processes, waits for health, runs E2E, stops only recorded child PIDs in `finally`, and preserves redacted logs on failure.
 
