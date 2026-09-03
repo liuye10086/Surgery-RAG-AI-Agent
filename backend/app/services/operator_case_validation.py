@@ -10,6 +10,7 @@ from app.services.indicator_validation import (
     IndicatorValidationError,
     validate_indicators,
 )
+from app.schemas.operator_visit_context import VisitContext
 from app.services.longitudinal_task_routing import normalize_baseline_stage
 
 
@@ -35,6 +36,7 @@ class NormalizedVisit:
     visit_index: int
     indicators: tuple[dict[str, Any], ...]
     notes: str | None
+    visit_context: dict[str, Any]
 
     def as_orm_kwargs(self) -> dict[str, Any]:
         return {
@@ -157,6 +159,13 @@ def normalize_operator_timeline(
                 "每次访视必须包含 1–30 个指标",
                 field=f"visits.{index}.indicators",
             )
+        for indicator_index, indicator in enumerate(indicators):
+            if _field(indicator, "value") is None:
+                raise OperatorCaseValidationError(
+                    "indicator_value_missing",
+                    "指标数值不能为空",
+                    field=f"visits.{index}.indicators.{indicator_index}.value",
+                )
         try:
             result = validate_indicators(disease_code, indicators)
         except IndicatorValidationError as exc:
@@ -174,6 +183,18 @@ def normalize_operator_timeline(
                 key=lambda item: item["name"],
             )
         )
+        raw_context = _field(visit, "visit_context")
+        try:
+            context = VisitContext.model_validate(raw_context or {})
+        except Exception as exc:
+            errors = getattr(exc, "errors", lambda: [])()
+            suffix = errors[0].get("loc", ("visit_context",)) if errors else ("visit_context",)
+            field = ".".join([f"visits.{index}", *(str(item) for item in suffix)])
+            raise OperatorCaseValidationError(
+                "visit_context_invalid",
+                "访视检测上下文无效",
+                field=field,
+            ) from exc
         raw_notes = _field(visit, "notes")
         notes = raw_notes.strip() or None if isinstance(raw_notes, str) else None
         prepared.append((visit_date, normalized_indicators, notes))
@@ -185,6 +206,7 @@ def normalize_operator_timeline(
             visit_index=index,
             indicators=indicators,
             notes=notes,
+            visit_context=context.model_dump(exclude_none=True),
         )
         for index, (visit_date, indicators, notes) in enumerate(prepared, start=1)
     ]

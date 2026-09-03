@@ -7,13 +7,16 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.operator_case_status import OperatorCaseStatus
+from app.schemas.operator_visit_context import VisitContext
 
 
 class IndicatorValue(BaseModel):
     """One measured indicator in a visit."""
 
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(..., min_length=1, max_length=100)
-    value: float
+    value: float | None = None
     unit: str = Field(..., min_length=1, max_length=50)
 
     @field_validator("name", "unit", mode="before")
@@ -28,7 +31,9 @@ class IndicatorValue(BaseModel):
 
     @field_validator("value")
     @classmethod
-    def require_finite_value(cls, value: float) -> float:
+    def require_finite_value(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
         if not math.isfinite(value):
             raise ValueError("指标值必须是有限数字")
         return value
@@ -92,6 +97,7 @@ class VisitCreate(BaseModel):
     visit_date: date
     indicators: list[IndicatorValue] = Field(..., min_length=1, max_length=30)
     notes: str | None = Field(None, max_length=5000)
+    visit_context: VisitContext = Field(default_factory=VisitContext)
 
     @field_validator("notes", mode="before")
     @classmethod
@@ -110,6 +116,7 @@ class VisitUpdate(BaseModel):
     visit_date: date | None = None
     indicators: list[IndicatorValue] | None = Field(None, min_length=1, max_length=30)
     notes: str | None = Field(None, max_length=5000)
+    visit_context: VisitContext | None = None
 
     @field_validator("notes", mode="before")
     @classmethod
@@ -136,6 +143,7 @@ class VisitOut(BaseModel):
     visit_index: int
     indicators: list[IndicatorValue]
     notes: str | None = None
+    visit_context: VisitContext = Field(default_factory=VisitContext)
     created_at: datetime | None = None
 
 

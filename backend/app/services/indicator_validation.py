@@ -160,13 +160,32 @@ def validate_indicators(
 
     validated: list[ValidatedIndicator] = []
     seen: set[str] = set()
+    from app.services.operator_indicator_catalog import (
+        IndicatorCatalogError,
+        IndicatorCatalogUnavailableError,
+        IndicatorNotFoundError,
+        load_operator_indicator_catalog,
+    )
+
+    try:
+        catalog = load_operator_indicator_catalog(disease_code)
+    except IndicatorCatalogUnavailableError as exc:
+        raise IndicatorValidationError("指标目录暂时不可用") from exc
     for index, item in enumerate(indicators, start=1):
         raw_name = _field(item, "name")
-        name = raw_name.strip().lower() if isinstance(raw_name, str) else ""
-        if not name:
+        raw_token = raw_name.strip().lower() if isinstance(raw_name, str) else ""
+        if not raw_token:
             raise IndicatorValidationError(f"第 {index} 个指标名称不能为空")
-        if not _NAME_RE.fullmatch(name):
-            raise IndicatorValidationError(f"指标名称格式无效：{raw_name}")
+        catalog_item = None
+        try:
+            catalog_item = catalog.resolve_indicator(raw_name)
+            name = catalog_item.code
+        except IndicatorNotFoundError:
+            name = raw_token
+            if not _NAME_RE.fullmatch(name):
+                # Chinese and reviewed aliases are resolved by the catalog;
+                # other punctuation remains invalid rather than guessed.
+                raise IndicatorValidationError(f"指标名称格式无效：{raw_name}")
         if name in seen:
             raise IndicatorValidationError(f"同一次访视不能重复指标：{name}")
         seen.add(name)
@@ -189,11 +208,21 @@ def validate_indicators(
         unit = raw_unit.strip() if isinstance(raw_unit, str) else ""
         if not unit:
             raise IndicatorValidationError(f"指标 {name} 的单位不能为空")
-        if unit not in definition.units:
+        try:
+            if catalog_item is not None:
+                unit = catalog.normalize_unit(name, unit)
+            else:
+                allowed = {str(value).casefold(): value for value in definition.units}
+                unit = allowed.get(unit.casefold(), "")
+                if not unit:
+                    raise IndicatorCatalogError(
+                        f"指标 {name} 的单位 {raw_unit} 不合法，应使用：{'、'.join(definition.units)}"
+                    )
+        except IndicatorCatalogError as exc:
             expected = "、".join(definition.units)
             raise IndicatorValidationError(
-                f"指标 {name} 的单位 {unit} 不合法，应使用：{expected}"
-            )
+                str(exc) if str(exc) else f"指标 {name} 的单位不合法，应使用：{expected}"
+            ) from exc
 
         raw_value = _field(item, "value")
         if isinstance(raw_value, bool):
