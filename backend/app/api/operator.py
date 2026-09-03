@@ -4,14 +4,13 @@ import logging
 import urllib.parse
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_ai_operator
 from app.db.models import (
     AIReport,
-    CaseRecord,
     Chunk,
     Department,
     Disease,
@@ -26,43 +25,37 @@ from app.schemas.operator import (
     ReportListItem,
     ReportOut,
 )
-from app.schemas.prediction import (
-    CaseRecordIn,
-    CaseRecordOut,
-    DiseaseOut,
-    ReferenceRangeOut,
-)
+from app.schemas.prediction import DiseaseOut, ReferenceRangeOut
 from app.schemas.longitudinal_case import (
     OperatorCaseCreate,
     OperatorCaseListOut,
     OperatorCaseOut,
-    OperatorCaseUpdate,
-    VisitCreate,
-    VisitReplaceRequest,
-    VisitOut,
-    VisitUpdate,
 )
 from app.schemas.longitudinal_report import LongitudinalReportRequest
-from app.schemas.operator_case_workspace import OperatorCaseReportReadiness
+from app.schemas.operator_case_workspace import (
+    OperatorCaseReportReadiness,
+    OperatorCaseSave,
+)
 from app.schemas.operator_case_status import OperatorCaseStatus, OperatorCaseStatusChangeRequest
 from app.services.pdf_generator import generate_pdf
 from app.services.longitudinal_case_service import (
     ArchivedCaseError,
     CaseNotFoundError,
-    DuplicateVisitDateError,
-    VisitLimitError,
-    VisitNotFoundError,
-    add_visit,
-    create_operator_case,
-    delete_operator_case,
-    delete_visit,
     get_operator_case,
     list_operator_cases,
-    update_operator_case,
-    update_visit,
-    replace_visits,
     build_input_snapshot,
 )
+from app.services.operator_case_commands import (
+    OperatorCaseCommandError,
+    create_operator_case_command,
+    delete_operator_case_command,
+    save_operator_case_command,
+)
+from app.services.operator_case_idempotency import (
+    IdempotencyConflictError,
+    IdempotencyKeyError,
+)
+from app.services.operator_case_validation import OperatorCaseValidationError
 from app.services.operator_case_status_service import (
     CaseStatusConflictError,
     CaseStatusNotFoundError,
@@ -120,45 +113,93 @@ def _safe_report_title(report: AIReport) -> str:
 
 
 def _longitudinal_error(exc: Exception) -> HTTPException:
-    if isinstance(exc, (CaseNotFoundError, VisitNotFoundError, CaseStatusNotFoundError)):
+    if isinstance(exc, (CaseNotFoundError, CaseStatusNotFoundError)):
         # Do not reveal whether another operator owns the resource.
-        return HTTPException(status_code=404, detail="病例或访视不存在")
+        return _operator_http_error(404, "case_not_found", "病例不存在")
+    if isinstance(exc, IdempotencyKeyError):
+        return _operator_http_error(400, exc.code, exc.message)
+    if isinstance(exc, IdempotencyConflictError):
+        return _operator_http_error(409, exc.code, exc.message)
     if isinstance(exc, DiseaseCatalogError):
         return _disease_http_error(exc)
-    if isinstance(exc, (DuplicateVisitDateError, VisitLimitError)):
-        return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, (ArchivedCaseError, CaseStatusConflictError)):
-        return HTTPException(status_code=409, detail=str(exc))
+        return _operator_http_error(409, "case_read_only", str(exc))
     if isinstance(exc, CaseStatusReasonError):
-        return HTTPException(status_code=422, detail=str(exc))
+        return _operator_http_error(422, "status_reason_invalid", str(exc))
     if isinstance(exc, OperatorCaseStatusError):
-        return HTTPException(status_code=422, detail=str(exc))
-    return HTTPException(status_code=422, detail=str(exc))
+        return _operator_http_error(422, "case_status_invalid", str(exc))
+    if isinstance(exc, OperatorCaseCommandError):
+        status_code = 409 if exc.code == "case_write_conflict" else 422
+        return _operator_http_error(
+            status_code,
+            exc.code,
+            exc.message,
+            field=exc.field,
+        )
+    if isinstance(exc, OperatorCaseValidationError):
+        return _operator_http_error(
+            422,
+            exc.code,
+            exc.message,
+            field=exc.field,
+        )
+    if isinstance(exc, IndicatorValidationError):
+        return _operator_http_error(422, "indicators_invalid", str(exc))
+    return _operator_http_error(422, "operator_case_invalid", "病例数据无效")
+
+
+def _operator_http_error(
+    status_code: int,
+    code: str,
+    message: str,
+    *,
+    field: str | None = None,
+) -> HTTPException:
+    detail = {"code": code, "message": message}
+    if field:
+        detail["field"] = field
+    return HTTPException(status_code=status_code, detail=detail)
 
 
 def _disease_http_error(exc: DiseaseCatalogError) -> HTTPException:
     if isinstance(exc, DiseaseDisabledError):
-        return HTTPException(status_code=409, detail="该疾病已停用，病例当前只读")
+        return _operator_http_error(
+            409,
+            "disease_disabled",
+            "该疾病已停用，病例当前只读",
+        )
     if isinstance(exc, DiseaseCapabilityMissingError):
-        return HTTPException(status_code=422, detail="该疾病未开放 AI 操作者使用")
+        return _operator_http_error(
+            422,
+            "disease_capability_missing",
+            "该疾病未开放 AI 操作者使用",
+        )
     if isinstance(exc, DiseaseNotFoundError):
-        return HTTPException(status_code=422, detail="疾病不存在")
-    return HTTPException(status_code=422, detail=str(exc))
+        return _operator_http_error(422, "disease_not_found", "疾病不存在")
+    return _operator_http_error(422, "disease_invalid", "疾病配置无效")
 
 
 @router.post("/longitudinal-cases", response_model=OperatorCaseOut, status_code=201)
 def create_longitudinal_case(
     payload: OperatorCaseCreate,
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_operator),
 ):
     try:
-        return create_operator_case(db, current_user.id, payload)
+        return create_operator_case_command(
+            db,
+            current_user.id,
+            payload,
+            idempotency_key,
+        )
     except (
         DiseaseCatalogError,
         CaseNotFoundError,
-        DuplicateVisitDateError,
-        VisitLimitError,
+        IdempotencyKeyError,
+        IdempotencyConflictError,
+        OperatorCaseCommandError,
+        OperatorCaseValidationError,
         IndicatorValidationError,
     ) as exc:
         raise _longitudinal_error(exc) from exc
@@ -166,18 +207,24 @@ def create_longitudinal_case(
 
 @router.get("/longitudinal-cases", response_model=OperatorCaseListOut)
 def list_longitudinal_cases(
+    q: str | None = Query(None, min_length=1, max_length=50),
     disease_id: int | None = Query(None),
     status_filter: OperatorCaseStatus | None = Query(None, alias="status"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_operator),
 ):
-    cases = list_operator_cases(
+    cases, total = list_operator_cases(
         db,
         current_user.id,
+        q=q,
         disease_id=disease_id,
         status=status_filter.value if status_filter else None,
+        skip=skip,
+        limit=limit,
     )
-    return OperatorCaseListOut(cases=cases, total=len(cases))
+    return OperatorCaseListOut(cases=cases, total=total, skip=skip, limit=limit)
 
 
 @router.get("/longitudinal-cases/{case_id}", response_model=OperatorCaseOut)
@@ -195,13 +242,20 @@ def get_longitudinal_case(
 @router.put("/longitudinal-cases/{case_id}", response_model=OperatorCaseOut)
 def update_longitudinal_case(
     case_id: int,
-    payload: OperatorCaseUpdate,
+    payload: OperatorCaseSave,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_operator),
 ):
     try:
-        return update_operator_case(db, current_user.id, case_id, payload)
-    except (CaseNotFoundError, DiseaseCatalogError, ArchivedCaseError) as exc:
+        return save_operator_case_command(db, current_user.id, case_id, payload)
+    except (
+        CaseNotFoundError,
+        DiseaseCatalogError,
+        ArchivedCaseError,
+        OperatorCaseCommandError,
+        OperatorCaseValidationError,
+        IndicatorValidationError,
+    ) as exc:
         raise _longitudinal_error(exc) from exc
 
 
@@ -212,7 +266,7 @@ def delete_longitudinal_case(
     current_user: User = Depends(require_ai_operator),
 ):
     try:
-        delete_operator_case(db, current_user.id, case_id)
+        delete_operator_case_command(db, current_user.id, case_id)
     except (CaseNotFoundError, DiseaseCatalogError, ArchivedCaseError) as exc:
         raise _longitudinal_error(exc) from exc
 
@@ -235,101 +289,6 @@ def update_longitudinal_case_status(
         CaseStatusReasonError,
         OperatorCaseStatusError,
         DiseaseCatalogError,
-    ) as exc:
-        raise _longitudinal_error(exc) from exc
-    return None
-
-
-@router.post(
-    "/longitudinal-cases/{case_id}/visits",
-    response_model=VisitOut,
-    status_code=201,
-)
-def create_longitudinal_visit(
-    case_id: int,
-    payload: VisitCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_ai_operator),
-):
-    try:
-        return add_visit(db, current_user.id, case_id, payload)
-    except (
-        CaseNotFoundError,
-        DiseaseCatalogError,
-        DuplicateVisitDateError,
-        VisitLimitError,
-        ArchivedCaseError,
-        IndicatorValidationError,
-    ) as exc:
-        raise _longitudinal_error(exc) from exc
-
-
-@router.put(
-    "/longitudinal-cases/{case_id}/visits",
-    response_model=list[VisitOut],
-)
-def replace_longitudinal_visits(
-    case_id: int,
-    payload: VisitReplaceRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_ai_operator),
-):
-    try:
-        return replace_visits(db, current_user.id, case_id, payload.visits)
-    except (
-        CaseNotFoundError,
-        DiseaseCatalogError,
-        DuplicateVisitDateError,
-        VisitLimitError,
-        ArchivedCaseError,
-        IndicatorValidationError,
-    ) as exc:
-        raise _longitudinal_error(exc) from exc
-
-
-@router.put(
-    "/longitudinal-cases/{case_id}/visits/{visit_id}",
-    response_model=VisitOut,
-)
-def update_longitudinal_visit(
-    case_id: int,
-    visit_id: int,
-    payload: VisitUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_ai_operator),
-):
-    try:
-        return update_visit(db, current_user.id, case_id, visit_id, payload)
-    except (
-        CaseNotFoundError,
-        DiseaseCatalogError,
-        VisitNotFoundError,
-        DuplicateVisitDateError,
-        ArchivedCaseError,
-        IndicatorValidationError,
-    ) as exc:
-        raise _longitudinal_error(exc) from exc
-
-
-@router.delete(
-    "/longitudinal-cases/{case_id}/visits/{visit_id}",
-    status_code=204,
-)
-def delete_longitudinal_visit(
-    case_id: int,
-    visit_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_ai_operator),
-):
-    try:
-        delete_visit(db, current_user.id, case_id, visit_id)
-    except (
-        CaseNotFoundError,
-        DiseaseCatalogError,
-        VisitNotFoundError,
-        VisitLimitError,
-        ArchivedCaseError,
-        IndicatorValidationError,
     ) as exc:
         raise _longitudinal_error(exc) from exc
     return None
@@ -368,15 +327,17 @@ async def create_longitudinal_report(
         pass
     readiness = evaluate_operator_case_readiness(case)
     if not readiness.ready:
+        blocker = readiness.blockers[0] if readiness.blockers else None
+        code = blocker.code if blocker else "report_not_ready"
+        message = blocker.message if blocker else "病例尚未满足报告生成条件"
         model_blocked = any(
-            blocker.code == "model_unavailable" for blocker in readiness.blockers
+            item.code == "model_unavailable" for item in readiness.blockers
         )
-        message = (
-            readiness.blockers[0].message
-            if readiness.blockers
-            else "病例尚未满足报告生成条件"
+        raise _operator_http_error(
+            503 if model_blocked else 409,
+            code,
+            message,
         )
-        raise HTTPException(status_code=503 if model_blocked else 409, detail=message)
     try:
         disease = require_enabled_case_disease(case)
         adapter = DISEASE_CAPABILITIES[disease.code].adapter
@@ -424,7 +385,11 @@ async def create_longitudinal_report(
         report.error_message = "longitudinal_prediction_failed"
         report.error_stage = "model_loading"
         db.commit()
-        raise HTTPException(status_code=503, detail="模型暂时不可用，请稍后重试")
+        raise _operator_http_error(
+            503,
+            "model_unavailable",
+            "模型暂时不可用，请稍后重试",
+        )
     return StreamingResponse(generate_longitudinal_report(db, report.id, snapshot, snapshot["visits"], adapter, model_registry=model_registry, sources=sources), media_type="text/event-stream")
 
 
@@ -647,97 +612,6 @@ def list_diseases(
         .order_by(Disease.id)
         .all()
     )
-
-
-# ---------------------------------------------------------------------------
-# 病例 CRUD（纵向预测数据层）
-# ---------------------------------------------------------------------------
-
-
-def _get_case_or_404(db: Session, case_id: int) -> CaseRecord:
-    c = db.query(CaseRecord).filter(CaseRecord.id == case_id).first()
-    if not c:
-        raise HTTPException(status_code=404, detail="病例不存在")
-    return c
-
-
-@router.post("/cases", response_model=CaseRecordOut)
-def create_case(
-    payload: CaseRecordIn,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_ai_operator),
-):
-    if not db.query(Disease).filter(Disease.id == payload.disease_id).first():
-        raise HTTPException(status_code=422, detail="疾病不存在")
-    from app.services.anonymous_case_code import generate_anonymous_case_code
-    c = CaseRecord(
-        disease_id=payload.disease_id,
-        patient_label=None,
-        anonymous_case_code=generate_anonymous_case_code(),
-        indicators=[i.model_dump() for i in payload.indicators],
-        confirmed=payload.confirmed,
-        case_metadata=payload.metadata,  # ORM 属性名是 case_metadata
-    )
-    db.add(c)
-    db.commit()
-    db.refresh(c)
-    return c
-
-
-@router.get("/cases")
-def list_cases(
-    disease_id: int | None = Query(None),
-    confirmed: bool | None = Query(None),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_ai_operator),
-):
-    q = db.query(CaseRecord)
-    if disease_id is not None:
-        q = q.filter(CaseRecord.disease_id == disease_id)
-    if confirmed is not None:
-        q = q.filter(CaseRecord.confirmed.is_(confirmed))
-    total = q.count()
-    items = (
-        q.order_by(CaseRecord.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
-    return {"total": total, "items": [CaseRecordOut.model_validate(c) for c in items]}
-
-
-@router.put("/cases/{case_id}", response_model=CaseRecordOut)
-def update_case(
-    case_id: int,
-    payload: CaseRecordIn,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_ai_operator),
-):
-    c = _get_case_or_404(db, case_id)
-    if not db.query(Disease).filter(Disease.id == payload.disease_id).first():
-        raise HTTPException(status_code=422, detail="疾病不存在")
-    c.disease_id = payload.disease_id
-    # Legacy patient_label is retained for historical reads but never changed by new writes.
-    c.indicators = [i.model_dump() for i in payload.indicators]
-    c.confirmed = payload.confirmed
-    c.case_metadata = payload.metadata  # ORM 属性名是 case_metadata
-    db.commit()
-    db.refresh(c)
-    return c
-
-
-@router.delete("/cases/{case_id}", status_code=204)
-def delete_case(
-    case_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_ai_operator),
-):
-    c = _get_case_or_404(db, case_id)
-    db.delete(c)
-    db.commit()
-    return None
 
 
 # ---------------------------------------------------------------------------

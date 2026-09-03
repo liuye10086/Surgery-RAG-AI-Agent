@@ -21,6 +21,17 @@ def _operator_query(*, first=None, count=0):
     return query
 
 
+def _ready_readiness():
+    return SimpleNamespace(ready=True, blockers=[])
+
+
+def _blocked_readiness(code, message):
+    return SimpleNamespace(
+        ready=False,
+        blockers=[SimpleNamespace(code=code, message=message)],
+    )
+
+
 class CaseRecordSchemaTests(unittest.TestCase):
     def test_case_record_requires_indicators(self):
         from pydantic import ValidationError
@@ -75,20 +86,18 @@ class OperatorRouterEndpointTests(unittest.TestCase):
         self.assertEqual(set(DISEASE_CAPABILITIES), {"fatty_liver", "ad"})
 
     def test_catalog_and_report_endpoints_registered(self):
-        """操作者路由保留目录、纵向病例与报告能力。"""
+        """操作者路由保留目录、自有纵向病例与报告能力。"""
         from app.api.operator import router
 
         paths = {r.path for r in router.routes}
-        self.assertTrue(
-            {
-                "/operator/cases",
-                "/operator/diseases",
-                "/operator/reference-ranges",
-                "/operator/documents",
-                "/operator/longitudinal-cases",
-                "/operator/reports",
-            }.issubset(paths)
-        )
+        self.assertTrue({
+            "/operator/diseases",
+            "/operator/reference-ranges",
+            "/operator/documents",
+            "/operator/longitudinal-cases",
+            "/operator/reports",
+        }.issubset(paths))
+        self.assertNotIn("/operator/cases", paths)
         self.assertNotIn("/operator/progression-predictions", paths)
         self.assertNotIn("/operator/reference-ranges/sync", paths)
 
@@ -181,6 +190,9 @@ class TestReportStateMachine(unittest.TestCase):
             return iter([b""])
 
         with patch("app.api.operator.get_operator_case", return_value=case), patch(
+            "app.api.operator.evaluate_operator_case_readiness",
+            return_value=_ready_readiness(),
+        ), patch(
             "app.api.operator.build_reference_range_sources", return_value=[]
         ), patch(
             "app.api.operator.select_similar_longitudinal_cases", return_value=[]
@@ -238,6 +250,9 @@ class TestReportStateMachine(unittest.TestCase):
         db.add.side_effect = created_reports.append
 
         with patch("app.api.operator.get_operator_case", return_value=case), patch(
+            "app.api.operator.evaluate_operator_case_readiness",
+            return_value=_ready_readiness(),
+        ), patch(
             "app.api.operator.build_reference_range_sources", return_value=[]
         ), patch(
             "app.api.operator.select_similar_longitudinal_cases", return_value=[]
@@ -255,7 +270,13 @@ class TestReportStateMachine(unittest.TestCase):
                 )
 
         self.assertEqual(error.exception.status_code, 503)
-        self.assertEqual(error.exception.detail, "模型暂时不可用，请稍后重试")
+        self.assertEqual(
+            error.exception.detail,
+            {
+                "code": "model_unavailable",
+                "message": "模型暂时不可用，请稍后重试",
+            },
+        )
         self.assertEqual(created_reports[0].status, "failed")
         self.assertEqual(created_reports[0].error_stage, "model_loading")
         self.assertNotIn("secret path", str(error.exception.detail))
@@ -279,7 +300,13 @@ class TestReportStateMachine(unittest.TestCase):
         )
         db = MagicMock()
 
-        with patch("app.api.operator.get_operator_case", return_value=case):
+        with patch("app.api.operator.get_operator_case", return_value=case), patch(
+            "app.api.operator.evaluate_operator_case_readiness",
+            return_value=_blocked_readiness(
+                "disease_disabled",
+                "疾病已停用或未开放，病例当前只读",
+            ),
+        ):
             with self.assertRaises(HTTPException) as error:
                 asyncio.run(
                     create_longitudinal_report(
@@ -291,7 +318,13 @@ class TestReportStateMachine(unittest.TestCase):
                 )
 
         self.assertEqual(error.exception.status_code, 409)
-        self.assertEqual(error.exception.detail, "该疾病已停用，病例当前只读")
+        self.assertEqual(
+            error.exception.detail,
+            {
+                "code": "disease_disabled",
+                "message": "疾病已停用或未开放，病例当前只读",
+            },
+        )
         db.add.assert_not_called()
         db.commit.assert_not_called()
 
@@ -309,7 +342,13 @@ class TestReportStateMachine(unittest.TestCase):
             visits=[],
         )
 
-        with patch("app.api.operator.get_operator_case", return_value=case):
+        with patch("app.api.operator.get_operator_case", return_value=case), patch(
+            "app.api.operator.evaluate_operator_case_readiness",
+            return_value=_blocked_readiness(
+                "disease_disabled",
+                "疾病已停用或未开放，病例当前只读",
+            ),
+        ):
             with self.assertRaises(HTTPException) as error:
                 asyncio.run(
                     create_longitudinal_report(
@@ -321,7 +360,13 @@ class TestReportStateMachine(unittest.TestCase):
                 )
 
         self.assertEqual(error.exception.status_code, 409)
-        self.assertEqual(error.exception.detail, "该疾病已停用，病例当前只读")
+        self.assertEqual(
+            error.exception.detail,
+            {
+                "code": "disease_disabled",
+                "message": "疾病已停用或未开放，病例当前只读",
+            },
+        )
 
     def test_download_count_increments(self):
         """PDF 下载后 download_count 自增（operator.py download 端点）。"""

@@ -521,7 +521,7 @@ git commit -m "feat: add model-driven report readiness"
 - List supports `q`, `disease_id`, `status`, `skip`, `limit` and owner-first filtering.
 - `/api/v1/operator/cases*` and `/longitudinal-cases/{id}/visits*` mutations are removed.
 
-- [ ] **Step 1: Finish failing route behavior tests**
+- [x] **Step 1: Finish failing route behavior tests**
 
 Assert stable bodies such as:
 
@@ -531,7 +531,7 @@ Assert stable bodies such as:
 
 Mappings: malformed/missing idempotency `400`; non-owned/not-found `404`; archived/disabled/duplicate/idempotency conflict `409`; validation/reason/stage/indicator `422`; model unavailable `503`. No response may expose raw exceptions, SQL, paths, model internals or request bodies.
 
-- [ ] **Step 2: Implement thin route handlers and paginated query**
+- [x] **Step 2: Implement thin route handlers and paginated query**
 
 Import `Header`, parse the UUID and call command services. The API module must not create visit/audit/idempotency ORM rows or own cross-table commits.
 
@@ -545,11 +545,11 @@ limit: int = Query(20, ge=1, le=100)
 
 Apply `OperatorCase.user_id == current_user.id` before all filters; search only escaped anonymous-code exact/prefix values, never `patient_label`.
 
-- [ ] **Step 3: Remove reference-case and alternate visit mutation APIs**
+- [x] **Step 3: Remove reference-case and alternate visit mutation APIs**
 
 Delete imports/handlers for `CaseRecordIn`, `CaseRecordOut`, `CaseRecord`, `/operator/cases*`, `VisitUpdate`, `VisitReplaceRequest`, and public add/update/delete/replace visit functions. Keep reference-case storage/import/similarity retrieval intact.
 
-- [ ] **Step 4: Run focused and full backend unit tests**
+- [x] **Step 4: Run focused and full backend unit tests**
 
 ```text
 cd backend
@@ -557,7 +557,7 @@ pytest tests/test_operator_case_workspace_api.py tests/test_operator_catalog_and
 pytest -q
 ```
 
-- [ ] **Step 5: Commit the API boundary**
+- [x] **Step 5: Commit the API boundary**
 
 ```text
 git add backend/app/api/operator.py backend/app/schemas/longitudinal_case.py backend/tests/test_operator_case_workspace_api.py backend/tests/test_operator_catalog_and_reports_api.py backend/tests/test_longitudinal_case_service.py

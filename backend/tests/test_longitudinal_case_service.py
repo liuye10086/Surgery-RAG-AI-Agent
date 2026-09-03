@@ -244,7 +244,10 @@ def test_report_generation_rejects_legacy_case_without_age_before_insert():
 
     db = MagicMock()
     legacy_case = SimpleNamespace(
+        status="active",
         age=None,
+        sex="female",
+        baseline_stage=None,
         disease=SimpleNamespace(
             id=11,
             code="fatty_liver",
@@ -267,8 +270,9 @@ def test_report_generation_rejects_legacy_case_without_age_before_insert():
                 )
             )
 
-    assert error.value.status_code == 422
-    assert error.value.detail == "请先补录患者年龄（0–120岁）"
+    assert error.value.status_code == 409
+    assert error.value.detail["code"] == "case_incomplete"
+    assert "年龄" in error.value.detail["message"]
     db.add.assert_not_called()
     db.commit.assert_not_called()
 
@@ -304,6 +308,7 @@ def test_report_generation_rejects_invalid_historical_indicator_without_rewritin
         status="active",
         age=65,
         sex="female",
+        baseline_stage="pre_cirrhosis",
         disease=SimpleNamespace(
             id=11,
             code="fatty_liver",
@@ -322,8 +327,9 @@ def test_report_generation_rejects_invalid_historical_indicator_without_rewritin
         with pytest.raises(HTTPException) as error:
             asyncio.run(create_longitudinal_report(3, None, db, SimpleNamespace(id=7)))
 
-    assert error.value.status_code == 422
-    assert "属于疾病 ad" in error.value.detail
+    assert error.value.status_code == 409
+    assert error.value.detail["code"] == "invalid_timeline"
+    assert "属于疾病 ad" in error.value.detail["message"]
     assert raw_indicators == [{"name": "MMSE", "value": 20, "unit": "分"}]
     db.add.assert_not_called()
     db.commit.assert_not_called()
@@ -469,6 +475,39 @@ def test_visit_schema_limits_timeline_to_ten_rows():
         )
 
 
+def test_case_list_is_owner_scoped_then_filtered_and_paginated():
+    from app.services.longitudinal_case_service import list_operator_cases
+
+    query = MagicMock()
+    query.filter.return_value = query
+    query.order_by.return_value = query
+    query.offset.return_value = query
+    query.limit.return_value = query
+    query.count.return_value = 23
+    query.all.return_value = [SimpleNamespace(id=3)]
+    db = MagicMock()
+    db.query.return_value = query
+
+    cases, total = list_operator_cases(
+        db,
+        7,
+        q="CASE-23%_",
+        disease_id=11,
+        status="active",
+        skip=20,
+        limit=10,
+    )
+
+    assert [case.id for case in cases] == [3]
+    assert total == 23
+    assert "operator_cases.user_id" in str(query.filter.call_args_list[0].args[0])
+    search_predicate = str(query.filter.call_args_list[1].args[0])
+    assert "operator_cases.anonymous_case_code" in search_predicate
+    assert "LIKE" in search_predicate
+    query.offset.assert_called_once_with(20)
+    query.limit.assert_called_once_with(10)
+
+
 def test_longitudinal_crud_routes_are_registered_and_protected():
     from app.api.operator import router
 
@@ -477,12 +516,7 @@ def test_longitudinal_crud_routes_are_registered_and_protected():
     assert ("/operator/longitudinal-cases", ("GET",)) in paths
     assert ("/operator/longitudinal-cases/{case_id}/status", ("PUT",)) in paths
     assert ("/operator/longitudinal-cases/{case_id}", ("GET",)) in paths
-    assert ("/operator/longitudinal-cases/{case_id}/visits", ("POST",)) in paths
-    assert ("/operator/longitudinal-cases/{case_id}/visits", ("PUT",)) in paths
-    assert (
-        "/operator/longitudinal-cases/{case_id}/visits/{visit_id}",
-        ("DELETE",),
-    ) in paths
+    assert not any("/visits" in path for path, _ in paths)
 
     for route in router.routes:
         if route.path.startswith("/operator/longitudinal-cases"):

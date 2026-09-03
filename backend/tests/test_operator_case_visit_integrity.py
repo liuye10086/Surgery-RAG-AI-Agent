@@ -48,8 +48,9 @@ def test_appendix5_case_create_persists_initial_visits_atomically():
     )
     payload = OperatorCaseCreate(
         disease_id=11,
-        patient_label="case",
         age=65,
+        sex="female",
+        baseline_stage="pre_cirrhosis",
         visits=[_visit_payload("2026-01-01")],
     )
 
@@ -82,8 +83,8 @@ def test_appendix4_client_payload_with_visit_index_is_forbidden_by_replace_schem
     from app.schemas.longitudinal_case import VisitReplaceRequest
 
     payload = {"visits": [{**_visit_payload("2026-01-01"), "visit_index": 99}]}
-    request = VisitReplaceRequest.model_validate(payload)
-    assert "visit_index" not in request.visits[0].model_dump()
+    with pytest.raises(ValidationError):
+        VisitReplaceRequest.model_validate(payload)
 
 
 def test_appendix4_orm_declares_positive_and_unique_visit_index_constraints():
@@ -146,8 +147,9 @@ def test_create_case_rolls_back_when_initial_visit_insert_fails():
     db.commit.side_effect = IntegrityError("duplicate", {}, Exception("duplicate"))
     payload = OperatorCaseCreate(
         disease_id=11,
-        patient_label="case",
         age=65,
+        sex="female",
+        baseline_stage="pre_cirrhosis",
         visits=[_visit_payload("2026-01-01")],
     )
 
@@ -167,8 +169,9 @@ def test_create_case_validates_initial_timeline_before_staging_case():
     )
     payload = OperatorCaseCreate(
         disease_id=11,
-        patient_label="case",
         age=65,
+        sex="female",
+        baseline_stage="pre_cirrhosis",
         visits=[_visit_payload("2026-01-01"), _visit_payload("2026-01-01")],
     )
 
@@ -178,10 +181,7 @@ def test_create_case_validates_initial_timeline_before_staging_case():
     db.add.assert_not_called()
 
 
-def test_delete_visit_route_maps_last_visit_limit_to_conflict():
-    from app.api.operator import _longitudinal_error
-    from app.services.longitudinal_case_service import VisitLimitError
+def test_public_api_does_not_expose_single_visit_deletion():
+    from app.api.operator import router
 
-    error = _longitudinal_error(VisitLimitError("至少需要 1 次访视"))
-
-    assert error.status_code == 409
+    assert not any("/visits" in route.path for route in router.routes)

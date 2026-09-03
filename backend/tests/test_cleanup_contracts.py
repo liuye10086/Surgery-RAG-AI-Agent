@@ -129,6 +129,10 @@ class CleanupContractTests(unittest.TestCase):
                 "2026-09-01-operator-case-age-design.md",
                 "2026-09-01-operator-disease-permission-design.md",
                 "2026-09-01-operator-case-status-design.md",
+                "2026-09-02-附录第七项-病例标签匿名保护设计.md",
+                "2026-09-02-附录八九历史报告与PDF安全设计.md",
+                "2026-09-02-附录十至十二输入快照状态与病例删除设计.md",
+                "2026-09-03-ai-operator-case-workspace-design.md",
             },
         )
 

@@ -149,14 +149,38 @@ def create_operator_case(
 
 
 def list_operator_cases(
-    db, user_id: int, disease_id: int | None = None, status: str | None = None
-) -> list[OperatorCase]:
+    db,
+    user_id: int,
+    *,
+    q: str | None = None,
+    disease_id: int | None = None,
+    status: str | None = None,
+    skip: int = 0,
+    limit: int = 20,
+) -> tuple[list[OperatorCase], int]:
     query = db.query(OperatorCase).filter(OperatorCase.user_id == user_id)
+    if q:
+        escaped = (
+            q.strip()
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        )
+        query = query.filter(
+            OperatorCase.anonymous_case_code.ilike(f"{escaped}%", escape="\\")
+        )
     if disease_id is not None:
         query = query.filter(OperatorCase.disease_id == disease_id)
     if status is not None:
         query = query.filter(OperatorCase.status == status)
-    return query.order_by(OperatorCase.updated_at.desc(), OperatorCase.id.desc()).all()
+    total = query.count()
+    cases = (
+        query.order_by(OperatorCase.updated_at.desc(), OperatorCase.id.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return cases, total
 
 
 def update_operator_case(
