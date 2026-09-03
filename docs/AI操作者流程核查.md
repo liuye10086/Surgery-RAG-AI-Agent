@@ -12,7 +12,7 @@
 
 - 当前分支：`main`
 - 当前实施分支：`main`
-- 当前实施提交：`c860fb9 test: add operator case browser acceptance harness`
+- 当前实施提交：`592b01a docs: record operator workspace verification status`
 - 核查方式：只读检查代码、接口、数据库模型和专项测试
 
 ## 第 1 项：操作者建立病例
