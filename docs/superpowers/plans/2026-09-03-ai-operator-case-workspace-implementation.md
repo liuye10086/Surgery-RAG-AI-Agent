@@ -265,23 +265,23 @@ git commit -m "feat: add operator case audit and idempotency storage"
 - Create: `scripts/check_operator_case_workspace_migration_readonly.py`
 - Create: `scripts/tests/test_check_operator_case_workspace_migration_readonly.py`
 
-- [ ] **Step 1: Write failing checker tests**
+- [x] **Step 1: Write failing checker tests**
 
 Cover empty database, valid existing database, illegal sex, incomplete profile counts, zero-visit counts, missing tables, unexpected database head and database errors. Illegal sex is `FAIL`; incomplete historical fields are explicit warnings requiring human acknowledgement. Database/query errors are `BLOCKED`, never PASS.
 
 Required aggregate-only output includes `operator_case_count`, `invalid_sex_counts`, `missing_age_count`, `missing_sex_count`, `missing_baseline_stage_count`, `zero_visit_case_count`, `constraint_present`, `audit_table_present`, and `idempotency_table_present`; never output row-level identifiers.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 ```text
 pytest scripts/tests/test_check_operator_case_workspace_migration_readonly.py -q
 ```
 
-- [ ] **Step 3: Implement read-only collection**
+- [x] **Step 3: Implement read-only collection**
 
 Start with `SET TRANSACTION READ ONLY`. Use parameterized SQL against `information_schema`, `pg_constraint`, `alembic_version`, grouped sex counts and outer-join visit counts. Do not print row-level data or generate repair SQL.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 ```text
 pytest scripts/tests/test_check_operator_case_workspace_migration_readonly.py -q
