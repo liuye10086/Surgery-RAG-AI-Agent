@@ -12,6 +12,10 @@ from app.db.models import (
     StandardRule,
 )
 from app.services.standard_validation import build_condition_tree
+from app.services.standard_source_binding import (
+    StandardSourceBindingError,
+    resolve_manifest_source_segment,
+)
 
 
 @dataclass(frozen=True)
@@ -62,11 +66,24 @@ def import_manifest_rules(db: Any, *, manifest, version_id: int, admin_id: int) 
     if version.status not in {"draft", "review"}:
         raise ValueError("只有 draft 或 review 版本可以导入 manifest")
 
+    approved_entries = _approved_rule_entries(manifest)
+    try:
+        source_segments = {
+            entry.entry_id: resolve_manifest_source_segment(
+                db,
+                version_id=version_id,
+                source=entry.source,
+            )
+            for entry in approved_entries
+        }
+    except StandardSourceBindingError as exc:
+        raise ValueError(exc.code) from exc
+
     existing_ids = set()
     for rule in getattr(version, "rules", None) or []:
         existing_ids.add((getattr(rule, "applicability", {}) or {}).get("_manifest_entry_id"))
     indicators_by_key: dict[str, Any] = {}
-    for entry in _approved_rule_entries(manifest):
+    for entry in approved_entries:
         key = entry.indicator.canonical_key
         existing = db.query(StandardIndicator).filter(StandardIndicator.canonical_key == key).first()
         if existing is None:
@@ -95,7 +112,7 @@ def import_manifest_rules(db: Any, *, manifest, version_id: int, admin_id: int) 
 
     created: list[str] = []
     existing_entry_ids: list[str] = []
-    for entry in _approved_rule_entries(manifest):
+    for entry in approved_entries:
         if entry.entry_id in existing_ids:
             existing_entry_ids.append(entry.entry_id)
             continue
@@ -108,7 +125,7 @@ def import_manifest_rules(db: Any, *, manifest, version_id: int, admin_id: int) 
         rule = StandardRule(
             version_id=version_id,
             indicator_id=getattr(indicators_by_key[entry.indicator.canonical_key], "id", None),
-            source_segment_id=None,
+            source_segment_id=source_segments[entry.entry_id].id,
             applicability=applicability,
             conditions=conditions,
             **{key: value for key, value in rule_data.items() if key != "actionability_reason"},
@@ -132,5 +149,5 @@ def import_manifest_rules(db: Any, *, manifest, version_id: int, admin_id: int) 
     return ManifestImportResult(
         created_rule_entry_ids=created,
         existing_rule_entry_ids=existing_entry_ids,
-        skipped_entry_ids=[entry.entry_id for entry in manifest.entries if entry not in _approved_rule_entries(manifest)],
+        skipped_entry_ids=[entry.entry_id for entry in manifest.entries if entry not in approved_entries],
     )

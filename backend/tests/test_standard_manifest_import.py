@@ -73,9 +73,26 @@ def _manifest(*entries):
     })
 
 
+def _matching_segments(manifest):
+    return [
+        SimpleNamespace(
+            id=100 + index,
+            version_id=4,
+            paragraph_index=entry.source.paragraph_index,
+            table_index=entry.source.table_index,
+            row_index=entry.source.row_index,
+            column_index=entry.source.column_index,
+            raw_text=entry.source.raw_text,
+        )
+        for index, entry in enumerate(manifest.entries)
+        if entry.entry_kind == "rule" and entry.review_status == "approved"
+    ]
+
+
 class ImportSession:
-    def __init__(self, *, existing_entry_ids=None):
+    def __init__(self, *, existing_entry_ids=None, segments=None):
         self.existing_entry_ids = set(existing_entry_ids or ())
+        self.segments = list(segments or ())
         self.added = []
         self.flushes = 0
         self.commits = 0
@@ -103,6 +120,8 @@ class ImportSession:
                 return None
 
             def all(self):
+                if name == "StandardSegment":
+                    return list(session.segments)
                 return []
 
         return Query()
@@ -141,7 +160,10 @@ def test_import_plan_counts_only_approved_rule_entries(approved_manifest):
 
 
 def test_import_is_idempotent_by_version_and_manifest_entry_id(approved_manifest):
-    db = ImportSession(existing_entry_ids={"fatty-alt"})
+    db = ImportSession(
+        existing_entry_ids={"fatty-alt"},
+        segments=_matching_segments(approved_manifest),
+    )
     result = import_manifest_rules(db, manifest=approved_manifest, version_id=4, admin_id=7)
     assert result.created_rule_entry_ids == ["fatty-ast"]
     assert result.existing_rule_entry_ids == ["fatty-alt"]
@@ -150,7 +172,7 @@ def test_import_is_idempotent_by_version_and_manifest_entry_id(approved_manifest
 
 def test_import_persists_manifest_review_time_for_reviewed_override():
     manifest = _manifest(_entry("fatty-ast", "ast"))
-    db = ImportSession()
+    db = ImportSession(segments=_matching_segments(manifest))
 
     import_manifest_rules(db, manifest=manifest, version_id=4, admin_id=7)
 
@@ -158,11 +180,12 @@ def test_import_persists_manifest_review_time_for_reviewed_override():
     assert rule.applicability["_manifest_entry_id"] == "fatty-ast"
     assert rule.applicability["_manifest_sha256"] == "a" * 64
     assert rule.applicability["_manifest_reviewed_at"] == "2026-08-25T12:00:00+00:00"
+    assert rule.source_segment_id == 100
 
 
 def test_import_persists_canonical_indicator_abnormal_direction():
     manifest = _manifest(_entry("fatty-alt", "alt"))
-    db = ImportSession()
+    db = ImportSession(segments=_matching_segments(manifest))
 
     import_manifest_rules(db, manifest=manifest, version_id=4, admin_id=7)
 
@@ -175,7 +198,7 @@ def test_import_persists_canonical_indicator_abnormal_direction():
 
 def test_import_rejects_existing_indicator_direction_conflict():
     manifest = _manifest(_entry("fatty-alt", "alt"))
-    db = ImportSession()
+    db = ImportSession(segments=_matching_segments(manifest))
     existing = SimpleNamespace(
         id=9,
         canonical_key="alt",
@@ -197,3 +220,13 @@ def test_import_rejects_existing_indicator_direction_conflict():
 
     with pytest.raises(ValueError, match="abnormal_direction"):
         import_manifest_rules(db, manifest=manifest, version_id=4, admin_id=7)
+
+
+def test_import_preparses_all_sources_before_any_database_write(approved_manifest):
+    db = ImportSession(segments=_matching_segments(approved_manifest)[:1])
+
+    with pytest.raises(ValueError, match="source_segment_missing"):
+        import_manifest_rules(db, manifest=approved_manifest, version_id=4, admin_id=7)
+
+    assert db.added == []
+    assert db.flushes == 0
