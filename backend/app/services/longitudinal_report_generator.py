@@ -13,6 +13,29 @@ from app.services.indicator_validation import validate_visits
 from app.services.report_integrity import create_generation_fingerprint
 
 
+def render_evidence_markdown(bundle: dict[str, Any] | Any) -> str:
+    """Render the saved evidence snapshot without consulting current data."""
+    payload = bundle.model_dump(mode="json") if hasattr(bundle, "model_dump") else dict(bundle or {})
+    standard = payload.get("standard") or {}
+    version = standard.get("version") or {}
+    document = standard.get("document") or {}
+    references = payload.get("reference_cases") or {}
+    lines = ["## 8. 参考标准和相似病例", f"- 正式标准：{document.get('title') or '未记录'}；版本：{version.get('version_label') or '未记录'}。"]
+    status = references.get("status")
+    copies = {
+        "no_eligible_cases": "当前没有通过生产准入的参考病例。",
+        "insufficient_comparability": "存在合格病例，但与当前病例可比信息不足。",
+        "reference_query_failed": "参考病例查询暂时不可用，本报告仅使用正式标准和模型结果。",
+        "reference_index_stale": "参考病例索引版本已过期，本报告未使用旧版本病例。",
+    }
+    if status in copies:
+        lines.append(f"- {copies[status]}")
+    for case in references.get("cases") or []:
+        lines.append(f"- 匿名编号 {case.get('anonymous_case_code', '未记录')}；排名分 {(case.get('score') or {}).get('ranking_score', '未记录')}。")
+    lines.extend(["- 参考病例结果不代表当前病例将发生相同结局。", "", "## 11. 模型和数据技术附录", f"- 证据快照哈希：{(payload.get('integrity') or {}).get('evidence_snapshot_sha256') or '未记录'}。"])
+    return "\n".join(lines)
+
+
 SAFE_LONGITUDINAL_ERRORS = {
     "longitudinal_prediction_failed": "纵向预测暂时无法完成",
     "longitudinal_prediction_timeout": "报告生成超时，请稍后重试",

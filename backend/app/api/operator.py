@@ -591,7 +591,12 @@ def download_report_pdf(
     pdf_title = safe_title
 
     try:
-        pdf_bytes = generate_pdf(report.content, pdf_title, report.prediction_result)
+        pdf_bytes = generate_pdf(
+            report.content,
+            pdf_title,
+            report.prediction_result,
+            getattr(report, "evidence_snapshot", None),
+        )
     except RuntimeError:
         logger.warning("PDF generation failed for report_id=%s", report_id)
         raise HTTPException(

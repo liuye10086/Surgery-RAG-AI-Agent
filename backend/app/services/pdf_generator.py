@@ -69,6 +69,7 @@ class _CriticalSectionBlocksTreeprocessor(Treeprocessor):
     _SECTION_CLASSES = {
         "报告摘要": "report-summary",
         "关键进展信号": "signal-block",
+        "参考标准和相似病例": "evidence-block",
         "人工复核重点": "review-block",
     }
 
@@ -219,8 +220,17 @@ class _LongitudinalPrintExtension(Extension):
 def _markdown_to_safe_html(
     markdown_content: str,
     prediction_result: dict[str, Any] | None = None,
+    evidence_snapshot: dict[str, Any] | None = None,
 ) -> str:
     """Render saved Markdown and preserve only approved print structure."""
+    if evidence_snapshot is not None:
+        from app.schemas.longitudinal_evidence import EvidenceBundle
+        from app.services.evidence_bundle import verify_evidence_bundle
+        bundle = EvidenceBundle.model_validate(evidence_snapshot)
+        if not verify_evidence_bundle(bundle):
+            raise ValueError("evidence_integrity_mismatch")
+        from app.services.longitudinal_report_generator import render_evidence_markdown
+        markdown_content = f"{markdown_content.rstrip()}\n\n{render_evidence_markdown(bundle)}"
     html_body = markdown.markdown(
         markdown_content,
         extensions=["tables", "fenced_code", _LongitudinalPrintExtension(prediction_result)],
@@ -242,6 +252,7 @@ def generate_pdf(
     markdown_content: str,
     title: str = "分析报告",
     prediction_result: dict[str, Any] | None = None,
+    evidence_snapshot: dict[str, Any] | None = None,
 ) -> bytes:
     """将 Markdown 报告转换为 PDF bytes。
 
@@ -258,7 +269,7 @@ def generate_pdf(
         RuntimeError: PDF 生成过程中发生错误。
     """
     # 1-2. Markdown → 带打印分组的安全 HTML
-    safe_html = _markdown_to_safe_html(markdown_content, prediction_result)
+    safe_html = _markdown_to_safe_html(markdown_content, prediction_result, evidence_snapshot)
 
     # 3. Jinja2 渲染完整 HTML 页面
     template = _jinja_env.get_template("report_pdf.html")
