@@ -11,6 +11,39 @@ from app.services.standard_evidence import (
 )
 
 
+@pytest.fixture(autouse=True)
+def approved_manifest(monkeypatch):
+    """Keep evidence tests isolated from repository medical-standard content."""
+    def load_manifest(path):
+        dataset = Path(path).name.split(".", 1)[0]
+        return SimpleNamespace(
+            dataset=dataset,
+            review_state="approved",
+            target_version_label="2026.1",
+            source_document_sha256=hashlib.sha256(b"approved standard content").hexdigest(),
+            entries=[
+                SimpleNamespace(
+                    entry_id="test-alt-reference",
+                    entry_kind="rule",
+                    review_status="approved",
+                    source=SimpleNamespace(
+                        paragraph_index=2,
+                        table_index=1,
+                        row_index=3,
+                        column_index=2,
+                        raw_text="ALT 7-40 U/L",
+                    ),
+                )
+            ],
+        )
+
+    monkeypatch.setattr(
+        "app.services.standard_evidence.load_standard_manifest",
+        load_manifest,
+        raising=False,
+    )
+
+
 class _Query:
     def __init__(self, value):
         self.value = value
@@ -35,14 +68,14 @@ def _approved(tmp_path: Path, *, disease_id=1, disease_code="fatty_liver", actio
     path.write_bytes(content)
     digest = hashlib.sha256(content).hexdigest()
     segment = SimpleNamespace(
-        id=11, section_title="Reference", paragraph_index=2, table_index=1,
+        id=11, version_id=6, section_title="Reference", paragraph_index=2, table_index=1,
         row_index=3, column_index=2, page_number=4, raw_text="ALT 7-40 U/L",
     )
     indicator = SimpleNamespace(canonical_key="alt", name_en="ALT", aliases=[])
     rule = SimpleNamespace(
         id=7, indicator=indicator, source_segment=segment, machine_actionability=actionability,
         unit="U/L", lower=7, upper=40, lower_inclusive=True, upper_inclusive=True,
-        applicability={"_manifest_sha256": digest}, interpretation="within reference", conflict_group=None,
+        applicability={"_manifest_sha256": digest, "_manifest_entry_id": "test-alt-reference"}, interpretation="within reference", conflict_group=None,
     )
     document = SimpleNamespace(
         id=5, title="Fatty liver standard", filename="standard.txt", file_path=str(path),
@@ -59,6 +92,11 @@ def _approved(tmp_path: Path, *, disease_id=1, disease_code="fatty_liver", actio
         disease=SimpleNamespace(code=disease_code),
     )
     return standard
+
+
+@pytest.fixture
+def approved_standard(tmp_path):
+    return _approved(tmp_path)
 
 
 def test_preflight_rejects_document_hash_mismatch(tmp_path):
@@ -87,6 +125,49 @@ def test_preflight_rejects_rule_manifest_not_bound_to_document(tmp_path):
         preflight_standard(_db(standard), 1, "fatty_liver")
 
     assert error.value.code == "standard_integrity_failed"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        None,
+        SimpleNamespace(
+            id=7,
+            version_id=99,
+            paragraph_index=2,
+            table_index=1,
+            row_index=3,
+            column_index=2,
+            raw_text="ALT 7-40 U/L",
+        ),
+    ],
+)
+def test_preflight_rejects_missing_or_cross_version_rule_source(source, approved_standard):
+    approved_standard.current_version.rules[0].source_segment = source
+
+    with pytest.raises(StandardEvidenceError) as caught:
+        preflight_standard(_db(approved_standard), 1, "fatty_liver")
+
+    assert caught.value.code == "standard_integrity_failed"
+
+
+@pytest.mark.parametrize(
+    "source_change",
+    [
+        {"raw_text": ""},
+        {"raw_text": "drifted source text"},
+        {"row_index": 4},
+    ],
+)
+def test_preflight_rejects_empty_or_drifted_rule_source(source_change, approved_standard):
+    source = approved_standard.current_version.rules[0].source_segment
+    for field, value in source_change.items():
+        setattr(source, field, value)
+
+    with pytest.raises(StandardEvidenceError) as caught:
+        preflight_standard(_db(approved_standard), 1, "fatty_liver")
+
+    assert caught.value.code == "standard_integrity_failed"
 
 
 def test_build_standard_evidence_contains_locator_and_safe_numeric_interpretation(tmp_path):

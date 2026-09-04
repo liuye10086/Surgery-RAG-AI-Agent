@@ -7,10 +7,11 @@ from pathlib import Path
 from typing import Any
 
 from app.db.models import Disease, ReferenceStandard, ReferenceStandardVersion, StandardRule, StandardSegment
+from app.services.operator_indicator_catalog import _project_root
 from app.services.standard_manifest import load_standard_manifest
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = _project_root()
 MANIFEST_DIRECTORY = PROJECT_ROOT / "standard_manifests"
 SUPPORTED_DATASETS = frozenset({"ad", "fatty_liver"})
 
@@ -34,6 +35,35 @@ def normalize_source_text(value: str) -> str:
     return "\n".join(
         line.rstrip() for line in str(value).replace("\r\n", "\n").split("\n")
     ).strip()
+
+
+def approved_manifest_path(dataset: str) -> Path:
+    if dataset not in SUPPORTED_DATASETS:
+        raise StandardSourceBindingError("standard_dataset_invalid")
+    return MANIFEST_DIRECTORY / f"{dataset}.v1.json"
+
+
+def validate_rule_source_binding(
+    rule: Any,
+    *,
+    version_id: int,
+    manifest_entry: Any,
+) -> None:
+    """Require an approved rule to retain its exact manifest source binding."""
+    source = getattr(rule, "source_segment", None)
+    expected_source = getattr(manifest_entry, "source", None)
+    if source is None or expected_source is None:
+        raise StandardSourceBindingError("standard_integrity_failed")
+    if getattr(source, "version_id", None) != version_id:
+        raise StandardSourceBindingError("standard_integrity_failed")
+    actual_text = normalize_source_text(getattr(source, "raw_text", "") or "")
+    expected_text = normalize_source_text(getattr(expected_source, "raw_text", "") or "")
+    if not actual_text or actual_text != expected_text:
+        raise StandardSourceBindingError("standard_integrity_failed")
+    for field in ("paragraph_index", "table_index", "row_index", "column_index"):
+        expected = getattr(expected_source, field, None)
+        if expected is not None and getattr(source, field, None) != expected:
+            raise StandardSourceBindingError("standard_integrity_failed")
 
 
 def resolve_manifest_source_segment(

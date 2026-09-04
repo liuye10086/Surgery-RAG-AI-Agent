@@ -12,6 +12,12 @@ from typing import Any, Mapping, Sequence
 
 from app.core.config import settings
 from app.services.longitudinal_features import sort_visits
+from app.services.standard_manifest import load_standard_manifest
+from app.services.standard_source_binding import (
+    StandardSourceBindingError,
+    approved_manifest_path,
+    validate_rule_source_binding,
+)
 from app.schemas.longitudinal_evidence import (
     EvidenceConditionDecision,
     EvidenceDocument,
@@ -356,10 +362,33 @@ def preflight_standard(db: Any, disease_id: int, disease_code: str) -> StandardV
             raise StandardEvidenceError("standard_integrity_failed")
         if version_hash != document_hash:
             raise StandardEvidenceError("standard_integrity_failed")
+        try:
+            manifest = load_standard_manifest(approved_manifest_path(str(disease_code)))
+            if (
+                getattr(manifest, "review_state", None) != "approved"
+                or getattr(manifest, "dataset", None) != str(disease_code)
+                or getattr(manifest, "target_version_label", None) != getattr(version, "version_label", None)
+                or getattr(manifest, "source_document_sha256", None) != document_hash
+            ):
+                raise StandardSourceBindingError("standard_integrity_failed")
+            entries_by_id = {
+                entry.entry_id: entry
+                for entry in getattr(manifest, "entries", ())
+                if getattr(entry, "entry_kind", None) == "rule"
+                and getattr(entry, "review_status", None) == "approved"
+            }
+        except (OSError, UnicodeError, ValueError, StandardSourceBindingError) as exc:
+            raise StandardEvidenceError("standard_integrity_failed") from exc
         for rule in getattr(version, "rules", None) or ():
             manifest_hash = (getattr(rule, "applicability", None) or {}).get("_manifest_sha256")
             if not _SHA256_RE.fullmatch(str(manifest_hash or "")) or str(manifest_hash) != document_hash:
                 raise StandardEvidenceError("standard_integrity_failed")
+            entry_id = (getattr(rule, "applicability", None) or {}).get("_manifest_entry_id")
+            entry = entries_by_id.get(entry_id)
+            try:
+                validate_rule_source_binding(rule, version_id=version.id, manifest_entry=entry)
+            except StandardSourceBindingError as exc:
+                raise StandardEvidenceError("standard_integrity_failed") from exc
         return StandardVersionToken(
             standard_id=int(standard.id), version_id=int(version.id), document_id=int(document.id),
             document_sha256=document_hash, version_sha256=version_hash,
