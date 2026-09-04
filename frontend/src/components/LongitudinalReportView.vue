@@ -55,6 +55,7 @@
       </section>
 
       <div class="markdown-body" v-html="renderedContent" />
+      <LongitudinalEvidenceSection v-if="evidence" :evidence="evidence" />
     </div>
   </section>
 </template>
@@ -62,7 +63,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ArrowLeft, Download } from '@element-plus/icons-vue'
-import type { LongitudinalPrediction, ReportDetail } from '@/api/operator'
+import type { EvidenceBundleV1, LongitudinalPrediction, ReportDetail } from '@/api/operator'
+import LongitudinalEvidenceSection from '@/components/LongitudinalEvidenceSection.vue'
 
 const props = defineProps<{ report?: ReportDetail | null; predictionResult?: LongitudinalPrediction | null; renderedContent: string; generating?: boolean }>()
 defineEmits<{ back: []; download: [] }>()
@@ -77,6 +79,7 @@ const signalCount = computed(() => {
 const outcomeAvailable = computed(() => prediction.value && 'model_status' in prediction.value && prediction.value.model_status.outcome.status === 'available')
 const snapshot = computed(() => props.report?.input_snapshot || {})
 const snapshotAvailable = computed(() => Object.keys(snapshot.value).length > 0)
+const evidence = computed<EvidenceBundleV1 | null>(() => props.report?.evidence_snapshot || null)
 const releaseSetId = computed(() => prediction.value?.schema_version === 'longitudinal_prediction.v3' ? prediction.value.release_set.release_set_id : '')
 const dataReleaseId = computed(() => prediction.value?.schema_version === 'longitudinal_prediction.v3' ? prediction.value.release_set.data_release_id : '')
 const chartSeries = computed(() => Object.entries(observation.value.indicators || {}).flatMap(([name, item]: [string, any]) => {
