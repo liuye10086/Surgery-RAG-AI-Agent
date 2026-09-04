@@ -230,6 +230,23 @@ def adapt_v1_applicability(value: Mapping[str, Any] | None) -> AllNode:
     return AllNode(tuple(children))
 
 
+def build_effective_applicability(rule: Any) -> AllNode:
+    base = adapt_v1_applicability(getattr(rule, "applicability", None))
+    sex = getattr(rule, "sex", None)
+    if not sex:
+        return base
+    return AllNode(children=(*base.children, EqualsNode("sex", sex)))
+
+
+def effective_applicability_hash(rule: Any) -> str:
+    payload = {
+        "applicability": getattr(rule, "applicability", None) or {},
+        "sex": getattr(rule, "sex", None),
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 def _context_from_visit(case: Mapping[str, Any], indicator: Mapping[str, Any], visit: Mapping[str, Any]) -> IndicatorContext:
     raw_name = str(indicator.get("name") or "").strip()
     context = visit.get("visit_context") if isinstance(visit.get("visit_context"), Mapping) else {}
@@ -404,7 +421,7 @@ def _build_standard_evidence_in_transaction(db: Any, token: StandardVersionToken
         indicator = getattr(rule, "indicator", None)
         indicator_name = str(getattr(indicator, "canonical_key", None) or getattr(indicator, "name_en", None) or "unknown")
         context = contexts.get(indicator_name.casefold(), {})
-        decision = evaluate_condition(adapt_v1_applicability(getattr(rule, "applicability", None)), context.__dict__ if isinstance(context, IndicatorContext) else context)
+        decision = evaluate_condition(build_effective_applicability(rule), context.__dict__ if isinstance(context, IndicatorContext) else context)
         actionability = getattr(rule, "machine_actionability", "evidence-only")
         if actionability not in {"calculable", "evidence-only", "blocked"}:
             actionability = "blocked"
@@ -448,7 +465,7 @@ def _build_standard_evidence_in_transaction(db: Any, token: StandardVersionToken
                 if status == "calculable" else None
             ),
             interpretation=getattr(rule, "interpretation", None), applicability=getattr(rule, "applicability", None) or {},
-            applicability_hash=hashlib.sha256(json.dumps(getattr(rule, "applicability", None) or {}, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+            applicability_hash=effective_applicability_hash(rule),
             conditions=EvidenceConditionDecision(status=decision.status, satisfied=list(decision.satisfied), missing=list(decision.missing), mismatched=list(decision.mismatched)), source=locator,
         ))
     for indexes in matched_calculable.values():
@@ -483,5 +500,5 @@ def build_standard_evidence(db: Any, token: StandardVersionToken, snapshot: Mapp
 __all__ = [
     "AllNode", "AnyNode", "ConditionDecision", "ConditionNode", "EqualsNode",
     "IndicatorContext", "InNode", "NotNode", "PresentNode", "RangeNode",
-    "StandardVersionToken", "StandardEvidenceError", "adapt_v1_applicability", "build_indicator_contexts", "evaluate_condition", "preflight_standard", "build_standard_evidence",
+    "StandardVersionToken", "StandardEvidenceError", "adapt_v1_applicability", "build_effective_applicability", "effective_applicability_hash", "build_indicator_contexts", "evaluate_condition", "preflight_standard", "build_standard_evidence",
 ]

@@ -71,6 +71,32 @@ def test_resolver_exposes_version_and_rule_provenance():
     assert result.calculable_rules[0].standard_rule_id == 7
 
 
+def test_resolver_effective_applicability_hash_includes_rule_sex():
+    male_rule = SimpleNamespace(
+        id=7,
+        sex="male",
+        machine_actionability="calculable",
+        applicability={"sample": "serum"},
+        indicator=SimpleNamespace(canonical_key="alt", aliases=[]),
+        conflict_group=None,
+    )
+    female_rule = SimpleNamespace(
+        id=8,
+        sex="female",
+        machine_actionability="calculable",
+        applicability={"sample": "serum"},
+        indicator=SimpleNamespace(canonical_key="alt", aliases=[]),
+        conflict_group=None,
+    )
+    version = SimpleNamespace(id=8, status="approved", rules=[male_rule, female_rule])
+    standard = SimpleNamespace(id=3, current_version=version)
+
+    male_result = resolve_standard_rules(_db(standard), 2, ["ALT"], {"sex": "male", "sample": "serum"})
+    female_result = resolve_standard_rules(_db(standard), 2, ["ALT"], {"sex": "female", "sample": "serum"})
+
+    assert male_result.calculable_rules[0].applicability_hash != female_result.calculable_rules[0].applicability_hash
+
+
 def test_resolver_ignores_manifest_audit_metadata_but_keeps_clinical_applicability():
     rule = SimpleNamespace(
         id=12,

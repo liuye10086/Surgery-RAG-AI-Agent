@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 
 
@@ -19,6 +21,26 @@ def test_missing_and_mismatched_conditions_are_distinct():
     assert "education" in missing.missing
     assert mismatched.status == "mismatched"
     assert "sex" in mismatched.mismatched
+
+
+def test_effective_applicability_includes_rule_sex():
+    from app.services.standard_evidence import build_effective_applicability, evaluate_condition
+
+    male_rule = SimpleNamespace(applicability={}, sex="male")
+    node = build_effective_applicability(male_rule)
+
+    assert evaluate_condition(node, {"sex": "male"}).status == "matched"
+    assert evaluate_condition(node, {"sex": "female"}).status == "mismatched"
+    assert evaluate_condition(node, {}).status == "missing"
+
+
+def test_effective_applicability_hash_changes_with_sex():
+    from app.services.standard_evidence import effective_applicability_hash
+
+    male = SimpleNamespace(applicability={"sample": "serum"}, sex="male")
+    female = SimpleNamespace(applicability={"sample": "serum"}, sex="female")
+
+    assert effective_applicability_hash(male) != effective_applicability_hash(female)
 
 
 @pytest.mark.parametrize(

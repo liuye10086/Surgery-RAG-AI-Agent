@@ -8,15 +8,12 @@ context.  Rules that cannot be safely calculated are returned as evidence.
 from __future__ import annotations
 
 import copy
-import hashlib
-import json
 from dataclasses import dataclass, field
-from types import SimpleNamespace
 from typing import Any
 
 from app.services.standard_evidence import (
-    EqualsNode,
-    adapt_v1_applicability,
+    build_effective_applicability,
+    effective_applicability_hash,
     evaluate_condition,
 )
 
@@ -39,11 +36,6 @@ class ResolvedStandardRules:
     unmatched_rules: list[Any] = field(default_factory=list)
     conflicting_rules: list[Any] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-
-
-def applicability_hash(applicability: dict[str, Any] | None) -> str:
-    payload = json.dumps(applicability or {}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _normalise(value: Any) -> str:
@@ -77,11 +69,7 @@ def _context_value(context: dict[str, Any], key: str) -> Any:
 
 
 def _applicability_matches(rule: Any, context: dict[str, Any]) -> tuple[bool, list[str]]:
-    applicability = getattr(rule, "applicability", None) or {}
-    node = adapt_v1_applicability(applicability)
-    if getattr(rule, "sex", None):
-        node = type(node)(children=(*node.children, EqualsNode("sex", rule.sex)))
-    decision = evaluate_condition(node, context)
+    decision = evaluate_condition(build_effective_applicability(rule), context)
     return decision.status == "matched", list(decision.missing)
 
 
@@ -128,7 +116,7 @@ def resolve_standard_rules(db: Any, disease_id: int, indicator_names: list[str],
         resolved = copy.copy(rule)
         resolved.standard_version_id = version.id
         resolved.standard_rule_id = getattr(rule, "id", None)
-        resolved.applicability_hash = applicability_hash(getattr(rule, "applicability", None))
+        resolved.applicability_hash = effective_applicability_hash(rule)
         if getattr(rule, "machine_actionability", "evidence-only") == "calculable":
             conflict_group = getattr(rule, "conflict_group", None)
             if conflict_group:
@@ -147,4 +135,4 @@ def resolve_standard_rules(db: Any, disease_id: int, indicator_names: list[str],
     return result
 
 
-__all__ = ["ResolvedStandardRules", "applicability_hash", "resolve_standard_rules"]
+__all__ = ["ResolvedStandardRules", "resolve_standard_rules"]

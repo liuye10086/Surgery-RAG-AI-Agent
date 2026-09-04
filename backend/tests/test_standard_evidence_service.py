@@ -105,6 +105,30 @@ def test_build_standard_evidence_contains_locator_and_safe_numeric_interpretatio
     assert evidence.rules[0].numeric_interpretation == "above_range"
 
 
+def test_build_standard_evidence_applies_rule_sex_before_calculating_alt(tmp_path):
+    standard = _approved(tmp_path)
+    male_rule = standard.current_version.rules[0]
+    male_rule.sex = "male"
+    female_rule = SimpleNamespace(**{**male_rule.__dict__, "id": 8, "sex": "female"})
+    standard.current_version.rules = [male_rule, female_rule]
+    token = preflight_standard(_db(standard), 1, "fatty_liver")
+
+    evidence = build_standard_evidence(
+        _db(standard),
+        token,
+        {
+            "case": {"age": 55, "sex": "male", "disease_code": "fatty_liver"},
+            "visits": [{"visit_date": "2026-01-01", "indicators": [{"name": "ALT", "value": 42, "unit": "U/L"}], "visit_context": {}}],
+        },
+    )
+
+    rules_by_id = {rule.rule_id: rule for rule in evidence.rules}
+    assert rules_by_id[7].status == "calculable"
+    assert rules_by_id[8].status == "not_applicable"
+    assert rules_by_id[7].numeric_interpretation == "above_range"
+    assert rules_by_id[8].numeric_interpretation is None
+
+
 def test_ad_rules_remain_evidence_only(tmp_path):
     standard = _approved(tmp_path, disease_code="ad", actionability="calculable")
     token = preflight_standard(_db(standard), 1, "ad")
