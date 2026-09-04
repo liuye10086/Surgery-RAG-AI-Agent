@@ -18,6 +18,7 @@ from app.schemas.longitudinal_report import (
     LongitudinalPredictionResult,
     LongitudinalPredictionResultV2,
     LongitudinalPredictionResultV3,
+    SignalInterpretationResult,
     StageProjection,
 )
 from app.services.disease_progression import DiseaseProgressionAdapter, predict_indicator_trends
@@ -440,7 +441,7 @@ def _run_suite_prediction(
     visits,
     adapter,
     suite: LoadedDiseaseModelSuite,
-    standard_sources,
+    standard_sources=None,
 ):
     observation = summarize_observation(visits)
     route = route_outcome_task(adapter.dataset, case.get("baseline_stage"))
@@ -489,11 +490,8 @@ def _run_suite_prediction(
         )
     )
     progression_signals = interpret_observation_signals(
-        dataset=adapter.dataset,
-        visits=visits,
-        standard_sources=standard_sources,
-        outcome_status=outcome_status,
-        feature_names=outcome_feature_names,
+        dataset=adapter.dataset, visits=visits, standard_sources=standard_sources or [],
+        outcome_status=outcome_status, feature_names=outcome_feature_names,
     )
     warnings = _audit_warnings(suite)
     warnings = list(dict.fromkeys(warnings))
@@ -541,16 +539,16 @@ def run_longitudinal_prediction(
     visits: list[dict[str, Any]],
     adapter: DiseaseProgressionAdapter,
     model_registry: LoadedDiseaseModelSuite | LongitudinalModelRegistry | dict[str, Any] | None = None,
-    *,
-    standard_sources: list[dict[str, Any]] | None = None,
+    **legacy_kwargs: Any,
 ) -> LongitudinalPredictionResult:
+    legacy_sources = legacy_kwargs.get("standard_sources")
     if isinstance(model_registry, LoadedDiseaseModelSuite):
         return _run_suite_prediction(
             case,
             visits,
             adapter,
             model_registry,
-            standard_sources,
+            legacy_sources,
         )
     observation = summarize_observation(visits)
     registry = _registry_v2(adapter.dataset, model_registry)
@@ -569,11 +567,8 @@ def run_longitudinal_prediction(
         score = band = None
         outcome_feature_names = None
     progression_signals = interpret_observation_signals(
-        dataset=adapter.dataset,
-        visits=visits,
-        standard_sources=standard_sources,
-        outcome_status=outcome_status,
-        feature_names=outcome_feature_names,
+        dataset=adapter.dataset, visits=visits, standard_sources=legacy_sources or [],
+        outcome_status=outcome_status, feature_names=outcome_feature_names,
     )
     stage = StageProjection(status="not_estimated")
     warnings = [adapter.synthetic_data_warning]

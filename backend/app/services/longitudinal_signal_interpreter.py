@@ -532,8 +532,32 @@ def interpret_observation_signals(
     )
 
 
+def attach_signal_interpretation(prediction, visits, standard):
+    """Attach standard interpretation after raw model inference is complete."""
+    if standard is None:
+        return prediction
+    standard_sources = []
+    for rule in getattr(standard, "rules", ()) or ():
+        payload = rule.model_dump(mode="json") if hasattr(rule, "model_dump") else dict(rule)
+        payload.update(
+            source_type="standard_evidence",
+            standard_rule_id=payload.get("rule_id"),
+            standard_version_id=getattr(getattr(standard, "version", None), "version_id", None),
+        )
+        standard_sources.append(payload)
+    outcome_status = getattr(getattr(prediction, "model_status", None), "outcome", None)
+    feature_names = (getattr(prediction, "evidence", None) or {}).get("outcome_feature_names", [])
+    interpreted = interpret_observation_signals(
+        dataset=prediction.disease["dataset"], visits=visits,
+        standard_sources=standard_sources, outcome_status=outcome_status,
+        feature_names=feature_names,
+    )
+    return prediction.model_copy(update={"progression_signals": interpreted})
+
+
 __all__ = [
     "canonicalize_indicator",
     "interpret_observation_signals",
+    "attach_signal_interpretation",
     "map_signal_model_features",
 ]

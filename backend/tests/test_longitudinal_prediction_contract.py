@@ -115,6 +115,16 @@ def test_result_contains_outcome_stage_and_trend_sections():
     assert prediction_result_to_dict(result)["schema_version"] == "longitudinal_prediction.v2"
 
 
+def test_prediction_signature_does_not_expose_standard_or_reference_inputs():
+    import inspect
+
+    from app.services.longitudinal_prediction import run_longitudinal_prediction
+
+    signature = inspect.signature(run_longitudinal_prediction)
+    assert "standard_sources" not in signature.parameters
+    assert "reference_cases" not in signature.parameters
+
+
 def test_unavailable_stage_never_emits_stage_guess():
     result = run_longitudinal_prediction(
         {},
