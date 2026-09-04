@@ -11,6 +11,7 @@ class VisitContext(BaseModel):
     source_type: Literal["lab", "imaging", "assessment", "clinical", "other"] | None = None
     facility_name: str | None = Field(None, max_length=200)
     device_name: str | None = Field(None, max_length=200)
+    assay_platform: str | None = Field(None, max_length=200)
     method: str | None = Field(None, max_length=200)
     specimen: str | None = Field(None, max_length=100)
     is_baseline: bool | None = None
@@ -25,6 +26,7 @@ class VisitContext(BaseModel):
     @field_validator(
         "facility_name",
         "device_name",
+        "assay_platform",
         "method",
         "specimen",
         "treatment_change",
