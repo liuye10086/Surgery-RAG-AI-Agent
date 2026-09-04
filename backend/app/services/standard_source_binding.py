@@ -47,11 +47,19 @@ def resolve_manifest_source_segment(
         value = getattr(source, field, None)
         if value is not None:
             query = query.filter(getattr(StandardSegment, field) == value)
+    expected_location = tuple(
+        getattr(source, field, None)
+        for field in ("paragraph_index", "table_index", "row_index", "column_index")
+    )
     expected = normalize_source_text(source.raw_text or "")
     matches = [
         item
         for item in query.all()
-        if normalize_source_text(item.raw_text) == expected
+        if tuple(
+            getattr(item, field, None)
+            for field in ("paragraph_index", "table_index", "row_index", "column_index")
+        ) == expected_location
+        and normalize_source_text(item.raw_text) == expected
     ]
     if not matches:
         raise StandardSourceBindingError("source_segment_missing")
