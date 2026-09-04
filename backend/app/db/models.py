@@ -363,6 +363,10 @@ class ReferenceCaseWindow(Base):
             "outcome_status IN ('positive', 'negative', 'unknown', 'not_observed')",
             name="ck_reference_case_windows_outcome_status",
         ),
+        CheckConstraint("eligibility_status IN ('eligible', 'excluded')", name="ck_reference_case_windows_eligibility_status"),
+        CheckConstraint("timeline_sha256 ~ '^[0-9a-f]{64}$'", name="ck_reference_case_windows_timeline_sha256"),
+        CheckConstraint("eligibility_config_hash ~ '^[0-9a-f]{64}$'", name="ck_reference_case_windows_eligibility_config_hash"),
+        CheckConstraint("data_content_sha256 ~ '^[0-9a-f]{64}$'", name="ck_reference_case_windows_data_content_sha256"),
         Index(
             "ix_reference_case_windows_pool_lookup",
             "disease_id",
@@ -391,6 +395,11 @@ class ReferenceCaseWindow(Base):
     visit_count = Column(Integer, nullable=False)
     span_days = Column(Integer, nullable=False)
     outcome_status = Column(String(30), nullable=False, default="unknown", server_default="unknown")
+    outcome_source = Column(String(100), nullable=False)
+    eligibility_status = Column(String(20), nullable=False, default="eligible", server_default="eligible")
+    timeline_sha256 = Column(String(64), nullable=False)
+    eligibility_config_hash = Column(String(64), nullable=False)
+    data_content_sha256 = Column(String(64), nullable=False)
     outcome_value = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
     source_trace = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
     feature_summary = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))

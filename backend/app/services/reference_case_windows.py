@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.schemas.longitudinal_evidence import ReferenceDataRelease
 from app.services.longitudinal_features import sort_visits, summarize_fixed_window_history
 from app.services.reference_case_eligibility import (
+    ELIGIBILITY_CONFIG_HASH,
     REFERENCE_PROFILE_SCHEMA_VERSION,
     ReferenceEligibilityCandidate,
     evaluate_reference_candidate,
@@ -33,6 +34,10 @@ class ReferenceCaseWindowWrite(BaseModel):
     visit_count: int = Field(ge=3)
     span_days: int = Field(ge=0)
     outcome_status: str = "unknown"
+    outcome_source: str
+    eligibility_status: Literal["eligible", "excluded"] = "eligible"
+    eligibility_config_hash: str
+    data_content_sha256: str
     outcome_value: dict[str, Any] = Field(default_factory=dict)
     source_trace: dict[str, Any]
     feature_summary: dict[str, Any]
@@ -148,6 +153,8 @@ def build_window_profiles(rows: Sequence[Mapping[str, Any]], disease_code: str, 
                 age=row.get("age"), sex=row.get("sex"), baseline_stage=row.get("baseline_stage"),
                 visit_count=len(history), span_days=(last - first).days,
                 outcome_status=str(row.get("outcome_status", "unknown")), outcome_value=outcome,
+                outcome_source=candidate.outcome_source, eligibility_config_hash=ELIGIBILITY_CONFIG_HASH,
+                data_content_sha256=release.data_content_sha256,
                 source_trace=dict(candidate.source_trace), feature_summary=feature_summary,
                 measurement_context_summary=_safe_context_summary(history),
                 timeline_sha256=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
@@ -225,7 +232,6 @@ def synchronize_reference_case_windows(db: Any, logical_dataset: str, *, apply: 
     for profile in result.profiles:
         payload = profile.model_dump(mode="json")
         payload.pop("disease_code", None)
-        payload.pop("timeline_sha256", None)
         payload.pop("timeline_canonical_json", None)
         values.append(payload)
     if not values:

@@ -101,6 +101,11 @@ REQUIRED_COLUMNS = {
         "indicators",
         "prediction_result",
         "input_snapshot",
+        "evidence_snapshot",
+        "evidence_snapshot_sha256",
+        "evidence_status",
+        "standard_evidence_status",
+        "reference_case_status",
     },
     # 标准版本化链路（Alembic 0009-0012）
     "reference_standards": {"id", "disease_id", "current_version_id"},
@@ -113,6 +118,11 @@ REQUIRED_COLUMNS = {
     },
     "standard_indicators": {"id", "canonical_key", "abnormal_direction"},
     "standard_segments": {"id", "version_id", "raw_text"},
+    "reference_case_windows": {
+        "id", "disease_id", "anonymous_case_code", "dataset_release_id", "as_of",
+        "feature_summary", "outcome_source", "eligibility_status", "timeline_sha256",
+        "eligibility_config_hash", "data_content_sha256",
+    },
     "standard_parse_candidates": {"id", "version_id", "segment_id", "candidate_json"},
     "standard_rules": {"id", "version_id", "indicator_id", "conditions"},
     "standard_rule_conditions": {"id", "rule_id", "parent_id", "payload"},
@@ -282,7 +292,7 @@ def _collect_workspace_catalog_checks(connection):
     }
 
 
-def collect_checks(connection, code_heads):
+def collect_checks(connection, code_heads, phase="postflight"):
     connection.execute(text("SET TRANSACTION READ ONLY"))
     server_version = connection.execute(text("SHOW server_version")).scalar_one_or_none()
     extension_rows = connection.execute(
@@ -349,6 +359,8 @@ def collect_checks(connection, code_heads):
         if actual_types.get((table_name, column_name)) != expected
     ]
     revision_matches = revision in code_heads and len(code_heads) == 1
+    if phase == "preflight":
+        revision_matches = revision in {"0021", "0022"}
     base_diseases_match = base_diseases == EXPECTED_BASE_DISEASES
     disease_fk_rules_match = (
         set(disease_fk_rules) == EXPECTED_DISEASE_FKS
@@ -405,6 +417,29 @@ def collect_checks(connection, code_heads):
         # Older checker fixtures/databases may not expose the new catalog
         # probes yet; schema migration verification is handled separately.
         pass
+    evidence_storage = {"missing_columns": [], "missing_constraints": [], "missing_indexes": [], "available": True}
+    try:
+        evidence_constraints = {
+            row["conname"] for row in connection.execute(text(
+                "SELECT conname FROM pg_constraint WHERE conrelid IN ('reference_case_windows'::regclass, 'ai_reports'::regclass)"
+            )).mappings().all()
+        }
+        evidence_indexes = {
+            row["indexname"] for row in connection.execute(text(
+                "SELECT indexname FROM pg_indexes WHERE schemaname='public' AND tablename='reference_case_windows'"
+            )).mappings().all()
+        }
+        expected_constraints = {
+            "uq_reference_case_windows_case_version", "ck_reference_case_windows_anonymous_code",
+            "ck_reference_case_windows_min_visits", "ck_ai_reports_evidence_snapshot_sha256",
+        }
+        expected_indexes = {"ix_reference_case_windows_pool_lookup", "ix_reference_case_windows_case_lookup", "ix_reference_case_windows_feature_summary_gin"}
+        evidence_storage["missing_constraints"] = sorted(expected_constraints - evidence_constraints)
+        evidence_storage["missing_indexes"] = sorted(expected_indexes - evidence_indexes)
+    except Exception:
+        evidence_storage["available"] = False
+    if phase == "preflight":
+        evidence_storage["migration_required"] = revision != "0022"
     status = (
         "PASS"
         if not missing_extensions
@@ -419,6 +454,7 @@ def collect_checks(connection, code_heads):
         and status_constraint_present is not False
         and status_constraint_validated is not False
         and status_audit_table_present is not False
+        and (phase == "preflight" or evidence_storage.get("available") is False or (not evidence_storage["missing_columns"] and not evidence_storage["missing_constraints"] and not evidence_storage["missing_indexes"]))
         else "FAIL"
     )
     return {
@@ -444,27 +480,31 @@ def collect_checks(connection, code_heads):
         "status_constraint_present": status_constraint_present,
         "status_constraint_validated": status_constraint_validated,
         "status_audit_table_present": status_audit_table_present,
+        "evidence_storage": evidence_storage,
+        "phase": phase,
     }
 
 
 def _argument_parser() -> argparse.ArgumentParser:
-    return argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         description=(
             "Run read-only schema and integrity checks against the configured "
             "database. The checker always rolls back its transaction."
         )
     )
+    parser.add_argument("--phase", choices=("preflight", "postflight"), default="postflight")
+    return parser
 
 
 def main(argv=None):
-    _argument_parser().parse_args(argv)
+    args = _argument_parser().parse_args(argv)
     engine = None
     try:
         engine = create_engine(settings.DATABASE_URL, future=True)
         with engine.connect() as connection:
             transaction = connection.begin()
             try:
-                report = collect_checks(connection, get_code_heads())
+                report = collect_checks(connection, get_code_heads(), phase=args.phase)
             finally:
                 transaction.rollback()
     except Exception as exc:

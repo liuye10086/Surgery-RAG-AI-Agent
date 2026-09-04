@@ -61,6 +61,11 @@ def upgrade() -> None:
         sa.Column("visit_count", sa.Integer(), nullable=False),
         sa.Column("span_days", sa.Integer(), nullable=False),
         sa.Column("outcome_status", sa.String(length=30), nullable=False, server_default="unknown"),
+        sa.Column("outcome_source", sa.String(length=100), nullable=False),
+        sa.Column("eligibility_status", sa.String(length=20), nullable=False, server_default="eligible"),
+        sa.Column("timeline_sha256", sa.String(length=64), nullable=False),
+        sa.Column("eligibility_config_hash", sa.String(length=64), nullable=False),
+        sa.Column("data_content_sha256", sa.String(length=64), nullable=False),
         sa.Column("outcome_value", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'::jsonb")),
         sa.Column("source_trace", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'::jsonb")),
         sa.Column("feature_summary", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'::jsonb")),
@@ -77,6 +82,10 @@ def upgrade() -> None:
         sa.CheckConstraint("visit_count >= 3", name="ck_reference_case_windows_min_visits"),
         sa.CheckConstraint("span_days >= 0", name="ck_reference_case_windows_min_span"),
         sa.CheckConstraint("outcome_status IN ('positive', 'negative', 'unknown', 'not_observed')", name="ck_reference_case_windows_outcome_status"),
+        sa.CheckConstraint("eligibility_status IN ('eligible', 'excluded')", name="ck_reference_case_windows_eligibility_status"),
+        sa.CheckConstraint("timeline_sha256 ~ '^[0-9a-f]{64}$'", name="ck_reference_case_windows_timeline_sha256"),
+        sa.CheckConstraint("eligibility_config_hash ~ '^[0-9a-f]{64}$'", name="ck_reference_case_windows_eligibility_config_hash"),
+        sa.CheckConstraint("data_content_sha256 ~ '^[0-9a-f]{64}$'", name="ck_reference_case_windows_data_content_sha256"),
     )
     op.create_index(
         "ix_reference_case_windows_pool_lookup", "reference_case_windows",

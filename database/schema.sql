@@ -481,6 +481,11 @@ CREATE TABLE IF NOT EXISTS reference_case_windows (
     visit_count INTEGER NOT NULL,
     span_days INTEGER NOT NULL,
     outcome_status VARCHAR(30) NOT NULL DEFAULT 'unknown',
+    outcome_source VARCHAR(100) NOT NULL,
+    eligibility_status VARCHAR(20) NOT NULL DEFAULT 'eligible',
+    timeline_sha256 VARCHAR(64) NOT NULL,
+    eligibility_config_hash VARCHAR(64) NOT NULL,
+    data_content_sha256 VARCHAR(64) NOT NULL,
     outcome_value JSONB NOT NULL DEFAULT '{}'::jsonb,
     source_trace JSONB NOT NULL DEFAULT '{}'::jsonb,
     feature_summary JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -499,7 +504,11 @@ CREATE TABLE IF NOT EXISTS reference_case_windows (
     CONSTRAINT ck_reference_case_windows_min_span CHECK (span_days >= 0),
     CONSTRAINT ck_reference_case_windows_outcome_status CHECK (
         outcome_status IN ('positive', 'negative', 'unknown', 'not_observed')
-    )
+    ),
+    CONSTRAINT ck_reference_case_windows_eligibility_status CHECK (eligibility_status IN ('eligible', 'excluded')),
+    CONSTRAINT ck_reference_case_windows_timeline_sha256 CHECK (timeline_sha256 ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT ck_reference_case_windows_eligibility_config_hash CHECK (eligibility_config_hash ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT ck_reference_case_windows_data_content_sha256 CHECK (data_content_sha256 ~ '^[0-9a-f]{64}$')
 );
 
 CREATE INDEX IF NOT EXISTS ix_reference_case_windows_pool_lookup
