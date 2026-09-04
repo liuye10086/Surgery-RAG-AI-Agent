@@ -235,6 +235,30 @@ def _collect_evidence_runtime_checks(connection, phase):
             )
         )
 
+        source_integrity_rows = connection.execute(text(
+            "SELECT d.code, COUNT(sr.id) AS total_rules, "
+            "COUNT(sr.source_segment_id) AS bound_rules, "
+            "COUNT(*) FILTER (WHERE ss.id IS NOT NULL AND ss.version_id <> sr.version_id) AS cross_version_sources, "
+            "COUNT(*) FILTER (WHERE ss.id IS NOT NULL AND btrim(ss.raw_text) = '') AS empty_source_texts "
+            "FROM reference_standards rs JOIN diseases d ON d.id = rs.disease_id "
+            "JOIN reference_standard_versions rsv ON rsv.id = rs.current_version_id "
+            "JOIN standard_rules sr ON sr.version_id = rsv.id "
+            "LEFT JOIN standard_segments ss ON ss.id = sr.source_segment_id "
+            "WHERE d.code IN ('ad', 'fatty_liver') AND rsv.status = 'approved' "
+            "GROUP BY d.code ORDER BY d.code"
+        )).mappings().all()
+        standard_source_integrity = [dict(row) for row in source_integrity_rows]
+        standard_source_integrity_match = (
+            {row["code"] for row in standard_source_integrity} == {"ad", "fatty_liver"}
+            and all(
+                row["total_rules"] > 0
+                and row["bound_rules"] == row["total_rules"]
+                and row["cross_version_sources"] == 0
+                and row["empty_source_texts"] == 0
+                for row in standard_source_integrity
+            )
+        )
+
         windows = []
         windows_match = None
         if phase == "postflight":
@@ -265,6 +289,8 @@ def _collect_evidence_runtime_checks(connection, phase):
             "standards_match": standards_match,
             "active_releases": releases,
             "active_releases_match": releases_match,
+            "standard_source_integrity": standard_source_integrity,
+            "standard_source_integrity_match": standard_source_integrity_match,
             "reference_window_pools": windows,
             "reference_window_pools_match": windows_match,
         }
@@ -279,7 +305,10 @@ def _evidence_runtime_matches(evidence_runtime, phase):
         and evidence_runtime.get("active_releases_match") is True
         and (
             phase == "preflight"
-            or evidence_runtime.get("reference_window_pools_match") is True
+            or (
+                evidence_runtime.get("standard_source_integrity_match") is True
+                and evidence_runtime.get("reference_window_pools_match") is True
+            )
         )
     )
 

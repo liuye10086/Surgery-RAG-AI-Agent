@@ -1,6 +1,8 @@
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("checker", ROOT / "scripts/check_database_readonly.py")
@@ -37,4 +39,69 @@ def test_runtime_query_failure_is_explicit_and_not_a_pass():
     result = checker._collect_evidence_runtime_checks(BrokenConnection(), "postflight")
 
     assert result == {"available": False, "reason_code": "evidence_runtime_query_failed"}
+    assert checker._evidence_runtime_matches(result, "postflight") is False
+
+
+def test_postflight_source_integrity_failure_blocks_otherwise_valid_runtime():
+    class Result:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def mappings(self):
+            return self
+
+        def all(self):
+            return self.rows
+
+    class Connection:
+        def __init__(self):
+            self.calls = 0
+
+        def execute(self, *_args, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return Result([
+                    {
+                        "code": "ad", "standard_id": 1, "version_id": 4,
+                        "status": "approved", "version_hash": "a" * 64,
+                        "document_hash": "a" * 64, "file_path": "ad.docx",
+                    },
+                    {
+                        "code": "fatty_liver", "standard_id": 2, "version_id": 5,
+                        "status": "approved", "version_hash": "b" * 64,
+                        "document_hash": "b" * 64, "file_path": "fatty.docx",
+                    },
+                ])
+            if self.calls == 2:
+                return Result([
+                    {
+                        "code": "ad", "logical_dataset": "ad", "dataset_release_id": "release-a",
+                        "data_content_sha256": "c" * 64, "row_count": 1,
+                    },
+                    {
+                        "code": "fatty_liver", "logical_dataset": "fatty_liver", "dataset_release_id": "release-f",
+                        "data_content_sha256": "d" * 64, "row_count": 1,
+                    },
+                ])
+            if self.calls == 3:
+                return Result([
+                    {"code": "ad", "total_rules": 8, "bound_rules": 7, "cross_version_sources": 0, "empty_source_texts": 0},
+                    {"code": "fatty_liver", "total_rules": 11, "bound_rules": 11, "cross_version_sources": 0, "empty_source_texts": 0},
+                ])
+            return Result([])
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        checker,
+        "_sha256_path",
+        lambda path: "a" * 64 if path == "ad.docx" else "b" * 64,
+    )
+    try:
+        result = checker._collect_evidence_runtime_checks(Connection(), "preflight")
+    finally:
+        monkeypatch.undo()
+
+    assert result["standards_match"] is True
+    assert result["active_releases_match"] is True
+    assert result["standard_source_integrity_match"] is False
     assert checker._evidence_runtime_matches(result, "postflight") is False
