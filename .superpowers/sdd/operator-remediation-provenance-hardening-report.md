@@ -37,3 +37,25 @@ The suite emitted five existing framework deprecation warnings (Pydantic and Fas
 - Publication of legacy or manually-created review versions without a complete approved manifest binding now fails closed; repair or re-import is required before approval.
 - The repair command remains transaction-neutral until its explicit apply mode; no repair was run here.
 - Error paths use stable codes or generic messages and do not output document paths, document text, database URLs, or patient data.
+
+## Follow-up review remediation
+
+### RED evidence
+
+The focused import and repair command failed with seven expected cases before the follow-up production edits:
+
+- a cross-owned current-version pointer was accepted by repair planning;
+- repair planning accepted duplicate, missing, extra, and null/untracked database manifest entry IDs;
+- import accepted null and unknown existing manifest entry IDs and proceeded to writes.
+
+### GREEN evidence
+
+`python -m pytest -q backend/tests/test_standard_source_binding.py backend/tests/test_standard_manifest_import.py backend/tests/test_standard_manifest.py scripts/tests/test_apply_standard_manifest.py scripts/tests/test_bind_standard_rule_sources.py scripts/tests/test_check_operator_report_evidence_readonly.py backend/tests/test_standard_evidence_service.py backend/tests/test_evidence_bundle_service.py backend/tests/test_operator_catalog_and_reports_api.py backend/tests/test_standard_lifecycle.py`
+
+Result: `119 passed`.
+
+### Follow-up controls
+
+- Current approved-version lookup now verifies the selected version belongs to the selected standard before planning.
+- Shared rule-entry mapping rejects null and duplicate IDs; exact-set validation is used by repair planning and approved-version validation.
+- Import rejects null or unknown existing entries before writes, permits genuinely missing approved entries to be created, and verifies the final logical entry-ID set is exact.

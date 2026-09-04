@@ -272,3 +272,27 @@ def test_idempotent_import_rejects_existing_rule_bound_to_different_segment(appr
         import_manifest_rules(db, manifest=approved_manifest, version_id=4, admin_id=7)
 
     assert db.added == []
+
+
+@pytest.mark.parametrize(
+    ("applicability", "code"),
+    [
+        ({}, "manifest_entry_id_missing"),
+        ({"_manifest_entry_id": "unknown-approved-entry"}, "manifest_rule_set_mismatch"),
+    ],
+)
+def test_import_rejects_untracked_existing_rule_before_any_write(
+    approved_manifest, applicability, code
+):
+    db = ImportSession(segments=_matching_segments(approved_manifest))
+    db.version.rules = [SimpleNamespace(
+        id=20,
+        applicability=applicability,
+        source_segment_id=None,
+    )]
+
+    with pytest.raises(ValueError, match=code):
+        import_manifest_rules(db, manifest=approved_manifest, version_id=4, admin_id=7)
+
+    assert db.added == []
+    assert db.flushes == 0

@@ -1,7 +1,9 @@
 import importlib.util
+import hashlib
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -14,6 +16,7 @@ from app.services.standard_source_binding import (
     SourceBindingPlan,
     StandardSourceBindingError,
     apply_current_standard_bindings,
+    _current_approved_version,
     plan_current_standard_bindings,
     resolve_manifest_source_segment,
 )
@@ -192,6 +195,95 @@ def test_repair_plan_rejects_document_file_hash_drift(monkeypatch, tmp_path):
         plan_current_standard_bindings(object(), "ad")
 
     assert caught.value.code == "manifest_document_hash_mismatch"
+
+
+def test_current_approved_version_rejects_cross_owned_pointer():
+    version = SimpleNamespace(id=4, standard_id=99, status="approved")
+    standard = SimpleNamespace(id=3, current_version=version, current_version_id=4)
+
+    class Query:
+        def join(self, *_args): return self
+        def filter(self, *_args): return self
+        def first(self): return standard
+
+    class Session:
+        def query(self, _model): return Query()
+
+    with pytest.raises(StandardSourceBindingError) as caught:
+        _current_approved_version(Session(), "ad")
+
+    assert caught.value.code == "current_standard_ownership_invalid"
+
+
+def _repair_manifest_and_version(tmp_path, rule_entry_ids):
+    document_path = tmp_path / "approved-standard.txt"
+    content = b"approved standard content"
+    document_path.write_bytes(content)
+    document_hash = hashlib.sha256(content).hexdigest()
+    source = SourceLocator(table_index=3, row_index=3, raw_text="source text")
+    manifest = SimpleNamespace(
+        dataset="ad",
+        review_state="approved",
+        target_version_label="2026.1",
+        source_document_sha256=document_hash,
+        entries=[SimpleNamespace(
+            entry_id="ad-rule",
+            entry_kind="rule",
+            review_status="approved",
+            source=source,
+        )],
+    )
+    rules = [SimpleNamespace(
+        id=index + 20,
+        applicability={} if entry_id is None else {"_manifest_entry_id": entry_id},
+        source_segment_id=None,
+    ) for index, entry_id in enumerate(rule_entry_ids)]
+    version = SimpleNamespace(
+        id=4,
+        status="approved",
+        version_label="2026.1",
+        content_hash=document_hash,
+        standard_document=SimpleNamespace(
+            content_hash=document_hash,
+            file_path=str(document_path),
+        ),
+        rules=rules,
+    )
+    return manifest, version
+
+
+@pytest.mark.parametrize(
+    ("rule_entry_ids", "code"),
+    [
+        (["ad-rule", "ad-rule"], "manifest_entry_id_duplicate"),
+        ([], "manifest_rule_set_mismatch"),
+        (["ad-rule", "unknown-rule"], "manifest_rule_set_mismatch"),
+        ([None], "manifest_entry_id_missing"),
+    ],
+)
+def test_repair_plan_requires_exact_tracked_manifest_rule_set(
+    monkeypatch, tmp_path, rule_entry_ids, code
+):
+    manifest, version = _repair_manifest_and_version(tmp_path, rule_entry_ids)
+    monkeypatch.setattr(
+        "app.services.standard_source_binding.load_standard_manifest", lambda _path: manifest
+    )
+    monkeypatch.setattr(
+        "app.services.standard_source_binding._current_approved_version", lambda _db, _dataset: version
+    )
+
+    class Session:
+        writes = 0
+
+        def add(self, _value):
+            self.writes += 1
+
+    db = Session()
+    with pytest.raises(StandardSourceBindingError) as caught:
+        plan_current_standard_bindings(db, "ad")
+
+    assert caught.value.code == code
+    assert db.writes == 0
 
 
 @pytest.mark.parametrize(

@@ -128,7 +128,7 @@ def _approved_rule_entries(manifest: Any) -> dict[str, Any]:
     return entries
 
 
-def _rules_by_manifest_entry_id(rules: Any) -> dict[str, Any]:
+def map_rules_by_manifest_entry_id(rules: Any) -> dict[str, Any]:
     entries: dict[str, Any] = {}
     for rule in rules:
         entry_id = (getattr(rule, "applicability", None) or {}).get("_manifest_entry_id")
@@ -138,6 +138,15 @@ def _rules_by_manifest_entry_id(rules: Any) -> dict[str, Any]:
             raise StandardSourceBindingError("manifest_entry_id_duplicate")
         entries[entry_id] = rule
     return entries
+
+
+def require_exact_manifest_rule_set(
+    rules: Any, manifest_entries: dict[str, Any]
+) -> dict[str, Any]:
+    rules_by_entry = map_rules_by_manifest_entry_id(rules)
+    if set(rules_by_entry) != set(manifest_entries):
+        raise StandardSourceBindingError("manifest_rule_set_mismatch")
+    return rules_by_entry
 
 
 def _current_approved_version(db: Any, dataset: str) -> Any:
@@ -156,6 +165,8 @@ def _current_approved_version(db: Any, dataset: str) -> Any:
         ).first()
     if version is None or getattr(version, "status", None) != "approved":
         raise StandardSourceBindingError("current_standard_not_approved")
+    if getattr(version, "standard_id", None) != getattr(standard, "id", None):
+        raise StandardSourceBindingError("current_standard_ownership_invalid")
     return version
 
 
@@ -180,9 +191,9 @@ def validate_version_manifest_rule_bindings(version: Any, dataset: str) -> None:
         raise StandardSourceBindingError("standard_dataset_invalid")
     manifest = load_standard_manifest(approved_manifest_path(dataset))
     entries = _validate_manifest_for_version(manifest, version, dataset)
-    rules_by_entry = _rules_by_manifest_entry_id(getattr(version, "rules", None) or ())
-    if set(rules_by_entry) != set(entries):
-        raise StandardSourceBindingError("manifest_rule_set_mismatch")
+    rules_by_entry = require_exact_manifest_rule_set(
+        getattr(version, "rules", None) or (), entries
+    )
     for entry_id, rule in rules_by_entry.items():
         validate_rule_source_binding(
             rule,
@@ -198,16 +209,12 @@ def plan_current_standard_bindings(db: Any, dataset: str) -> SourceBindingPlan:
     version = _current_approved_version(db, dataset)
     entries = _validate_manifest_for_version(manifest, version, dataset)
     rules = list(getattr(version, "rules", None) or ())
-    if not rules:
-        raise StandardSourceBindingError("current_standard_rules_missing")
+    rules_by_entry = require_exact_manifest_rule_set(rules, entries)
 
     to_bind: list[tuple[int, int]] = []
     consistent = 0
-    for rule in rules:
-        entry_id = (getattr(rule, "applicability", {}) or {}).get("_manifest_entry_id")
-        entry = entries.get(entry_id)
-        if entry is None:
-            raise StandardSourceBindingError("manifest_entry_id_missing")
+    for entry_id, rule in rules_by_entry.items():
+        entry = entries[entry_id]
         segment = resolve_manifest_source_segment(
             db, version_id=version.id, source=entry.source
         )

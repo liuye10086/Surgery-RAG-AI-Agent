@@ -14,6 +14,7 @@ from app.db.models import (
 from app.services.standard_validation import build_condition_tree
 from app.services.standard_source_binding import (
     StandardSourceBindingError,
+    map_rules_by_manifest_entry_id,
     resolve_manifest_source_segment,
 )
 
@@ -44,18 +45,6 @@ def _require_approved(manifest) -> None:
         raise ValueError("manifest 必须为 approved")
     if any(entry.review_status == "pending" for entry in manifest.entries):
         raise ValueError("approved manifest 不得包含 pending 条目")
-
-
-def _rules_by_manifest_entry_id(rules) -> dict[str, Any]:
-    mapped: dict[str, Any] = {}
-    for rule in rules:
-        entry_id = (getattr(rule, "applicability", {}) or {}).get("_manifest_entry_id")
-        if not entry_id:
-            continue
-        if entry_id in mapped:
-            raise StandardSourceBindingError("manifest_entry_id_duplicate")
-        mapped[entry_id] = rule
-    return mapped
 
 
 def plan_manifest_import(db: Any, *, manifest, version_id: int) -> ManifestImportPlan:
@@ -92,9 +81,12 @@ def import_manifest_rules(db: Any, *, manifest, version_id: int, admin_id: int) 
         raise ValueError(exc.code) from exc
 
     try:
-        existing_rules = _rules_by_manifest_entry_id(
+        existing_rules = map_rules_by_manifest_entry_id(
             getattr(version, "rules", None) or []
         )
+        approved_entry_ids = {entry.entry_id for entry in approved_entries}
+        if set(existing_rules) - approved_entry_ids:
+            raise StandardSourceBindingError("manifest_rule_set_mismatch")
         existing_segments_to_bind: list[tuple[Any, int]] = []
         for entry in approved_entries:
             existing = existing_rules.get(entry.entry_id)
@@ -174,6 +166,8 @@ def import_manifest_rules(db: Any, *, manifest, version_id: int, admin_id: int) 
             actor_id=admin_id,
         ))
         created.append(entry.entry_id)
+    if set(existing_rules) | set(created) != {entry.entry_id for entry in approved_entries}:
+        raise ValueError("manifest_rule_set_mismatch")
     return ManifestImportResult(
         created_rule_entry_ids=created,
         existing_rule_entry_ids=existing_entry_ids,
