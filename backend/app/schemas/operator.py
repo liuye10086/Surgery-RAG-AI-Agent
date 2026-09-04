@@ -29,6 +29,11 @@ class ReportOut(BaseModel):
     prediction_result: dict = {}
     input_snapshot: dict | None = None
     input_snapshot_sha256: Optional[str] = None
+    evidence_snapshot: dict | None = None
+    evidence_snapshot_sha256: Optional[str] = None
+    evidence_status: Optional[str] = None
+    standard_evidence_status: Optional[str] = None
+    reference_case_status: Optional[str] = None
     generation_batch_id: Optional[str] = None
     generation_fingerprint: Optional[str] = None
     error_stage: Optional[str] = None

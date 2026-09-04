@@ -18,6 +18,7 @@ class IntegrityVerificationResult:
     reason_code: str
     input_snapshot_valid: bool | None
     generation_fingerprint_valid: bool | None
+    evidence_valid: bool | None = None
 
 
 def _normalize(value: Any, *, drop_hash_declaration: bool = False) -> Any:
@@ -51,11 +52,13 @@ def compute_input_snapshot_sha256(snapshot: dict[str, Any]) -> str:
 
 
 def create_generation_fingerprint(
-    snapshot: dict[str, Any], prediction_result: dict[str, Any], content: str
+    snapshot: dict[str, Any], prediction_result: dict[str, Any], content: str,
+    evidence_snapshot: dict[str, Any] | None = None,
 ) -> str:
     payload = {
         "input_snapshot": _normalize(snapshot, drop_hash_declaration=True),
         "prediction_result": _normalize(prediction_result),
+        "evidence_snapshot": _normalize(evidence_snapshot),
         "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
     }
     encoded = json.dumps(
@@ -74,13 +77,28 @@ def verify_report_integrity(
     generation_fingerprint: str | None,
     prediction_result: dict[str, Any] | None,
     content: str | None,
+    evidence_snapshot: dict[str, Any] | None = None,
+    evidence_sha256: str | None = None,
 ) -> IntegrityVerificationResult:
     if not input_snapshot_sha256 or not generation_fingerprint:
-        return IntegrityVerificationResult("unverifiable", "legacy_missing_integrity_fields", None, None)
+        return IntegrityVerificationResult("unverifiable", "legacy_missing_integrity_fields", None, None, None)
     if not isinstance(input_snapshot, dict) or not isinstance(prediction_result, dict) or content is None:
-        return IntegrityVerificationResult("invalid", "integrity_input_missing", False, False)
+        return IntegrityVerificationResult("invalid", "integrity_input_missing", False, False, None)
+    evidence_valid = None
+    if evidence_snapshot is not None:
+        from app.schemas.longitudinal_evidence import EvidenceBundle
+        from app.services.evidence_bundle import verify_evidence_bundle
+        try:
+            bundle = EvidenceBundle.model_validate(evidence_snapshot)
+            evidence_valid = verify_evidence_bundle(bundle)
+        except Exception:
+            evidence_valid = False
+        if evidence_sha256 and evidence_snapshot.get("integrity", {}).get("evidence_snapshot_sha256") != evidence_sha256:
+            evidence_valid = False
+        if not evidence_valid:
+            return IntegrityVerificationResult("invalid", "evidence_integrity_mismatch", None, None, False)
     input_valid = compute_input_snapshot_sha256(input_snapshot) == input_snapshot_sha256
-    fingerprint_valid = create_generation_fingerprint(input_snapshot, prediction_result, content) == generation_fingerprint
+    fingerprint_valid = create_generation_fingerprint(input_snapshot, prediction_result, content, evidence_snapshot) == generation_fingerprint
     if input_valid and fingerprint_valid:
-        return IntegrityVerificationResult("valid", "integrity_verified", True, True)
-    return IntegrityVerificationResult("invalid", "integrity_mismatch", input_valid, fingerprint_valid)
+        return IntegrityVerificationResult("valid", "integrity_verified", True, True, evidence_valid)
+    return IntegrityVerificationResult("invalid", "integrity_mismatch", input_valid, fingerprint_valid, evidence_valid)

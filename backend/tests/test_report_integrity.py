@@ -6,6 +6,14 @@ from app.services.report_integrity import (
 )
 
 
+def test_generation_fingerprint_changes_when_evidence_changes():
+    snapshot = {"case": 1}
+    prediction = {"risk": 0.2}
+    first = create_generation_fingerprint(snapshot, prediction, "正文", {"evidence": "a"})
+    second = create_generation_fingerprint(snapshot, prediction, "正文", {"evidence": "b"})
+    assert first != second
+
+
 def test_snapshot_hash_is_stable_for_mapping_key_order():
     first = {"age": 60, "visits": [{"visit_date": "2024-01-01"}]}
     second = {"visits": [{"visit_date": "2024-01-01"}], "age": 60}

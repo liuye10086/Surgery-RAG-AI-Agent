@@ -511,6 +511,8 @@ def get_report(
         getattr(report, "generation_fingerprint", None),
         report.prediction_result,
         report.content,
+        getattr(report, "evidence_snapshot", None),
+        getattr(report, "evidence_snapshot_sha256", None),
     )
     result.integrity_status = verification.status
     result.integrity_reason_code = verification.reason_code
