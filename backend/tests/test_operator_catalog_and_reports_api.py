@@ -196,9 +196,8 @@ class TestReportStateMachine(unittest.TestCase):
             "app.api.operator.evaluate_operator_case_readiness",
             return_value=_ready_readiness(),
         ), patch(
-            "app.api.operator.build_reference_range_sources", return_value=[]
-        ), patch(
-            "app.api.operator.select_similar_longitudinal_cases", return_value=[]
+            "app.api.operator.preflight_evidence_versions",
+            return_value=MagicMock(name="evidence_version_token"),
         ), patch(
             "app.api.operator.load_active_model_registry", return_value={}
         ), patch(
@@ -256,9 +255,8 @@ class TestReportStateMachine(unittest.TestCase):
             "app.api.operator.evaluate_operator_case_readiness",
             return_value=_ready_readiness(),
         ), patch(
-            "app.api.operator.build_reference_range_sources", return_value=[]
-        ), patch(
-            "app.api.operator.select_similar_longitudinal_cases", return_value=[]
+            "app.api.operator.preflight_evidence_versions",
+            return_value=MagicMock(name="evidence_version_token"),
         ), patch(
             "app.api.operator.load_active_model_registry", side_effect=RuntimeError("secret path")
         ):
@@ -283,6 +281,58 @@ class TestReportStateMachine(unittest.TestCase):
         self.assertEqual(created_reports[0].status, "failed")
         self.assertEqual(created_reports[0].error_stage, "model_loading")
         self.assertNotIn("secret path", str(error.exception.detail))
+
+    def test_standard_preflight_failure_stops_before_model_loading(self):
+        from app.api.operator import create_longitudinal_report
+        from app.services.evidence_bundle import EvidenceBuildError
+
+        case = SimpleNamespace(
+            id=3,
+            user_id=7,
+            disease_id=11,
+            patient_label="case-A",
+            anonymous_case_code="CASE-ABCD-1234",
+            disease=SimpleNamespace(
+                id=11,
+                code="fatty_liver",
+                name="脂肪肝",
+                operator_enabled=True,
+            ),
+            visits=[],
+        )
+        snapshot = {
+            "disease_id": 11,
+            "disease_code": "fatty_liver",
+            "visits": [],
+            "input_snapshot_sha256": "a" * 64,
+        }
+        db = MagicMock()
+        created_reports = []
+        db.add.side_effect = created_reports.append
+
+        with patch("app.api.operator.get_operator_case", return_value=case), patch(
+            "app.api.operator.evaluate_operator_case_readiness",
+            return_value=_ready_readiness(),
+        ), patch(
+            "app.api.operator.build_input_snapshot", return_value=snapshot,
+        ), patch(
+            "app.api.operator.preflight_evidence_versions",
+            side_effect=EvidenceBuildError("standard_integrity_failed"),
+        ), patch(
+            "app.api.operator.load_active_model_registry"
+        ) as load_models:
+            with self.assertRaises(HTTPException) as error:
+                asyncio.run(create_longitudinal_report(
+                    case_id=3,
+                    request=None,
+                    db=db,
+                    current_user=SimpleNamespace(id=7),
+                ))
+
+        self.assertEqual(error.exception.detail["code"], "standard_integrity_failed")
+        load_models.assert_not_called()
+        self.assertEqual(created_reports[0].status, "failed")
+        self.assertEqual(created_reports[0].error_stage, "standard_evidence")
 
     def test_disabled_disease_rejects_report_before_insert(self):
         from app.api.operator import create_longitudinal_report

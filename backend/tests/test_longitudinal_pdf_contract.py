@@ -123,3 +123,23 @@ def test_pdf_only_charts_persisted_comparable_observation_series():
     assert html.count("<circle") == 4
     assert "体重 已观察值趋势图" not in html
     assert "甘油三酯 已观察值趋势图" not in html
+
+
+def test_pdf_validates_saved_evidence_without_duplicating_saved_section(monkeypatch):
+    evidence = {"already": "validated by boundary test"}
+    monkeypatch.setattr(
+        "app.schemas.longitudinal_evidence.EvidenceBundle.model_validate",
+        lambda value: value,
+    )
+    monkeypatch.setattr(
+        "app.services.evidence_bundle.verify_evidence_bundle",
+        lambda value: True,
+    )
+    content = "## 8. 参考标准和相似病例\n\n唯一证据区"
+
+    html = pdf_generator._markdown_to_safe_html(
+        content,
+        evidence_snapshot=evidence,
+    )
+
+    assert html.count("唯一证据区") == 1

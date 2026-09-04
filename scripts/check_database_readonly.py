@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -119,7 +120,8 @@ REQUIRED_COLUMNS = {
     "standard_indicators": {"id", "canonical_key", "abnormal_direction"},
     "standard_segments": {"id", "version_id", "raw_text"},
     "reference_case_windows": {
-        "id", "disease_id", "anonymous_case_code", "dataset_release_id", "as_of",
+        "id", "disease_id", "logical_dataset", "anonymous_case_code", "dataset_release_id",
+        "prediction_task", "outcome_reliability", "is_synthetic", "as_of",
         "feature_summary", "outcome_source", "eligibility_status", "timeline_sha256",
         "eligibility_config_hash", "data_content_sha256",
     },
@@ -159,6 +161,106 @@ EXPECTED_WORKSPACE_INDEXES = {
     "ix_operator_case_change_logs_actor_time",
     "ix_operator_idempotency_keys_user_time",
 }
+
+
+def _sha256_path(path_value):
+    try:
+        path = Path(str(path_value))
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for block in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(block)
+        return digest.hexdigest()
+    except Exception:
+        return None
+
+
+def _collect_evidence_runtime_checks(connection, phase):
+    """Collect only release identities/counts; never output case values or paths."""
+    try:
+        standard_rows = connection.execute(text(
+            "SELECT d.code, rs.id AS standard_id, v.id AS version_id, v.status, "
+            "v.content_hash AS version_hash, sd.content_hash AS document_hash, sd.file_path "
+            "FROM diseases d JOIN reference_standards rs ON rs.disease_id=d.id "
+            "JOIN reference_standard_versions v ON v.id=rs.current_version_id "
+            "JOIN standard_documents sd ON sd.id=v.standard_document_id "
+            "WHERE d.code IN ('ad','fatty_liver') ORDER BY d.code"
+        )).mappings().all()
+        standards = []
+        for row in standard_rows:
+            actual_hash = _sha256_path(row["file_path"])
+            standards.append({
+                "disease_code": row["code"],
+                "standard_id": row["standard_id"],
+                "version_id": row["version_id"],
+                "status": row["status"],
+                "content_sha256": row["document_hash"],
+                "database_hashes_match": row["version_hash"] == row["document_hash"],
+                "file_hash_matches": actual_hash == row["document_hash"],
+            })
+        standards_match = (
+            {row["disease_code"] for row in standards} == {"ad", "fatty_liver"}
+            and all(
+                row["status"] == "approved"
+                and row["database_hashes_match"]
+                and row["file_hash_matches"]
+                for row in standards
+            )
+        )
+
+        release_rows = connection.execute(text(
+            "SELECT d.code, cr.metadata->>'dataset_release_id' AS dataset_release_id, "
+            "cr.metadata->>'data_content_sha256' AS data_content_sha256, COUNT(*) AS row_count "
+            "FROM case_records cr JOIN diseases d ON d.id=cr.disease_id "
+            "WHERE d.code IN ('ad','fatty_liver') "
+            "AND cr.metadata->>'dataset_active'='true' "
+            "GROUP BY d.code, cr.metadata->>'dataset_release_id', cr.metadata->>'data_content_sha256' "
+            "ORDER BY d.code, dataset_release_id"
+        )).mappings().all()
+        releases = [dict(row) for row in release_rows]
+        release_codes = [row["code"] for row in releases]
+        releases_match = (
+            sorted(release_codes) == ["ad", "fatty_liver"]
+            and all(
+                row.get("dataset_release_id")
+                and isinstance(row.get("data_content_sha256"), str)
+                and len(row["data_content_sha256"]) == 64
+                for row in releases
+            )
+        )
+
+        windows = []
+        windows_match = None
+        if phase == "postflight":
+            window_rows = connection.execute(text(
+                "SELECT logical_dataset, dataset_release_id, data_content_sha256, "
+                "eligibility_config_hash, COUNT(*) AS total_windows, "
+                "COUNT(*) FILTER (WHERE eligibility_status='eligible') AS eligible_windows "
+                "FROM reference_case_windows GROUP BY logical_dataset, dataset_release_id, "
+                "data_content_sha256, eligibility_config_hash "
+                "ORDER BY logical_dataset, dataset_release_id"
+            )).mappings().all()
+            windows = [dict(row) for row in window_rows]
+            active_identities = {
+                (row["code"], row["dataset_release_id"], row["data_content_sha256"])
+                for row in releases
+            }
+            window_identities = {
+                (row["logical_dataset"], row["dataset_release_id"], row["data_content_sha256"])
+                for row in windows
+            }
+            windows_match = active_identities <= window_identities
+        return {
+            "available": True,
+            "standards": standards,
+            "standards_match": standards_match,
+            "active_releases": releases,
+            "active_releases_match": releases_match,
+            "reference_window_pools": windows,
+            "reference_window_pools_match": windows_match,
+        }
+    except Exception:
+        return {"available": False}
 
 
 def get_code_heads():
@@ -348,6 +450,22 @@ def collect_checks(connection, code_heads, phase="postflight"):
         for table_name, columns in REQUIRED_COLUMNS.items()
         if columns - actual_columns.get(table_name, set())
     }
+    blocking_missing_columns = dict(missing_columns)
+    if phase == "preflight":
+        # Revision 0021 is a valid pre-migration state: the entire evidence
+        # window table and the five nullable report columns are expected to be
+        # absent until 0022 is applied.
+        blocking_missing_columns.pop("reference_case_windows", None)
+        allowed_report_columns = {
+            "evidence_snapshot", "evidence_snapshot_sha256", "evidence_status",
+            "standard_evidence_status", "reference_case_status",
+        }
+        report_missing = set(blocking_missing_columns.get("ai_reports", ()))
+        report_missing -= allowed_report_columns
+        if report_missing:
+            blocking_missing_columns["ai_reports"] = sorted(report_missing)
+        else:
+            blocking_missing_columns.pop("ai_reports", None)
     column_type_mismatches = [
         {
             "table_name": table_name,
@@ -369,6 +487,7 @@ def collect_checks(connection, code_heads, phase="postflight"):
     visit_integrity = _collect_visit_integrity_checks(connection)
     anonymous_code_integrity = _collect_anonymous_code_checks(connection)
     workspace_catalog = _collect_workspace_catalog_checks(connection)
+    evidence_runtime = _collect_evidence_runtime_checks(connection, phase)
     visit_integrity_match = (
         visit_integrity.get("available") is False
         or all(
@@ -390,6 +509,15 @@ def collect_checks(connection, code_heads, phase="postflight"):
         or not workspace_catalog["missing_constraints"]
         and not workspace_catalog["unvalidated_constraints"]
         and not workspace_catalog["missing_indexes"]
+    )
+    evidence_runtime_match = (
+        evidence_runtime.get("available") is False
+        or evidence_runtime.get("standards_match") is True
+        and evidence_runtime.get("active_releases_match") is True
+        and (
+            phase == "preflight"
+            or evidence_runtime.get("reference_window_pools_match") is True
+        )
     )
     # Keep the baseline checker backwards-compatible with lightweight test
     # doubles while checking the new status guard on real PostgreSQL systems.
@@ -431,7 +559,8 @@ def collect_checks(connection, code_heads, phase="postflight"):
         }
         expected_constraints = {
             "uq_reference_case_windows_case_version", "ck_reference_case_windows_anonymous_code",
-            "ck_reference_case_windows_min_visits", "ck_ai_reports_evidence_snapshot_sha256",
+            "ck_reference_case_windows_min_visits", "ck_reference_case_windows_outcome_reliability",
+            "ck_ai_reports_evidence_snapshot_sha256",
         }
         expected_indexes = {"ix_reference_case_windows_pool_lookup", "ix_reference_case_windows_case_lookup", "ix_reference_case_windows_feature_summary_gin"}
         evidence_storage["missing_constraints"] = sorted(expected_constraints - evidence_constraints)
@@ -443,7 +572,7 @@ def collect_checks(connection, code_heads, phase="postflight"):
     status = (
         "PASS"
         if not missing_extensions
-        and not missing_columns
+        and not blocking_missing_columns
         and not column_type_mismatches
         and revision_matches
         and base_diseases_match
@@ -451,6 +580,7 @@ def collect_checks(connection, code_heads, phase="postflight"):
         and visit_integrity_match
         and anonymous_code_integrity_match
         and workspace_catalog_match
+        and evidence_runtime_match
         and status_constraint_present is not False
         and status_constraint_validated is not False
         and status_audit_table_present is not False
@@ -466,6 +596,7 @@ def collect_checks(connection, code_heads, phase="postflight"):
         "revision_matches": revision_matches,
         "missing_extensions": missing_extensions,
         "missing_columns": missing_columns,
+        "blocking_missing_columns": blocking_missing_columns,
         "column_type_mismatches": column_type_mismatches,
         "base_diseases": base_diseases,
         "base_diseases_match": base_diseases_match,
@@ -477,6 +608,8 @@ def collect_checks(connection, code_heads, phase="postflight"):
         "anonymous_code_integrity_match": anonymous_code_integrity_match,
         "workspace_catalog": workspace_catalog,
         "workspace_catalog_match": workspace_catalog_match,
+        "evidence_runtime": evidence_runtime,
+        "evidence_runtime_match": evidence_runtime_match,
         "status_constraint_present": status_constraint_present,
         "status_constraint_validated": status_constraint_validated,
         "status_audit_table_present": status_audit_table_present,
@@ -492,7 +625,7 @@ def _argument_parser() -> argparse.ArgumentParser:
             "database. The checker always rolls back its transaction."
         )
     )
-    parser.add_argument("--phase", choices=("preflight", "postflight"), default="postflight")
+    parser.add_argument("--phase", choices=("preflight", "postflight"), required=True)
     return parser
 
 

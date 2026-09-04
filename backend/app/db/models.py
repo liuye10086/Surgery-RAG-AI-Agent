@@ -363,6 +363,10 @@ class ReferenceCaseWindow(Base):
             "outcome_status IN ('positive', 'negative', 'unknown', 'not_observed')",
             name="ck_reference_case_windows_outcome_status",
         ),
+        CheckConstraint(
+            "outcome_reliability IN ('low', 'medium', 'high')",
+            name="ck_reference_case_windows_outcome_reliability",
+        ),
         CheckConstraint("eligibility_status IN ('eligible', 'excluded')", name="ck_reference_case_windows_eligibility_status"),
         CheckConstraint("timeline_sha256 ~ '^[0-9a-f]{64}$'", name="ck_reference_case_windows_timeline_sha256"),
         CheckConstraint("eligibility_config_hash ~ '^[0-9a-f]{64}$'", name="ck_reference_case_windows_eligibility_config_hash"),
@@ -371,8 +375,9 @@ class ReferenceCaseWindow(Base):
             "ix_reference_case_windows_pool_lookup",
             "disease_id",
             "dataset_release_id",
-            "as_of",
-            "horizon_days",
+            "eligibility_status",
+            "prediction_task",
+            "baseline_stage",
         ),
         Index("ix_reference_case_windows_case_lookup", "anonymous_case_code", "as_of"),
         Index(
@@ -384,11 +389,13 @@ class ReferenceCaseWindow(Base):
 
     id = Column(Integer, primary_key=True)
     disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="RESTRICT"), nullable=False)
+    logical_dataset = Column(String(50), nullable=False)
     dataset_release_id = Column(String(100), nullable=False)
+    prediction_task = Column(String(120), nullable=False)
     anonymous_case_code = Column(String(14), nullable=False)
     as_of = Column(Date, nullable=False)
     horizon_days = Column(Integer, nullable=False, default=365, server_default="365")
-    profile_schema_version = Column(String(50), nullable=False)
+    profile_schema_version = Column(String(80), nullable=False)
     age = Column(Integer, nullable=True)
     sex = Column(String(10), nullable=True)
     baseline_stage = Column(String(100), nullable=True)
@@ -396,6 +403,8 @@ class ReferenceCaseWindow(Base):
     span_days = Column(Integer, nullable=False)
     outcome_status = Column(String(30), nullable=False, default="unknown", server_default="unknown")
     outcome_source = Column(String(100), nullable=False)
+    outcome_reliability = Column(String(10), nullable=False)
+    is_synthetic = Column(Boolean, nullable=False, default=False, server_default="false")
     eligibility_status = Column(String(20), nullable=False, default="eligible", server_default="eligible")
     timeline_sha256 = Column(String(64), nullable=False)
     eligibility_config_hash = Column(String(64), nullable=False)
@@ -790,11 +799,11 @@ class AIReport(Base):
             name="ck_ai_reports_evidence_status",
         ),
         CheckConstraint(
-            "standard_evidence_status IS NULL OR standard_evidence_status IN ('complete', 'partial', 'not_applicable')",
+            "standard_evidence_status IS NULL OR standard_evidence_status IN ('available', 'context_incomplete', 'not_applicable', 'conflict')",
             name="ck_ai_reports_standard_evidence_status",
         ),
         CheckConstraint(
-            "reference_case_status IS NULL OR reference_case_status IN ('complete', 'partial', 'not_applicable')",
+            "reference_case_status IS NULL OR reference_case_status IN ('available', 'no_eligible_cases', 'insufficient_comparability', 'reference_query_failed', 'reference_index_stale')",
             name="ck_ai_reports_reference_case_status",
         ),
         Index("ix_ai_reports_user_id", "user_id"),

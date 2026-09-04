@@ -35,6 +35,7 @@
           v-if="reportReadingMode"
           :report="operatorStore.currentReport"
           :prediction-result="operatorStore.longitudinalPrediction"
+          :evidence-snapshot="operatorStore.longitudinalEvidence"
           :rendered-content="renderMarkdown(operatorStore.generating ? operatorStore.longitudinalReportContent : operatorStore.currentReport?.content || '')"
           :generating="operatorStore.generating"
           @back="closeReport"

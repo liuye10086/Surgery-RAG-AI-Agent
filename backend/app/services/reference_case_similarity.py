@@ -11,6 +11,7 @@ from app.schemas.longitudinal_evidence import (
     ReferenceCaseProfile,
     ReferenceCaseScoreBreakdown,
     ReferenceCaseSelection,
+    ReferenceFeatureComparison,
 )
 
 
@@ -99,6 +100,38 @@ def score_reference_case(current: ReferenceCaseFeatureProfile, candidate: Refere
     )
 
 
+def _feature_comparisons(
+    current: ReferenceCaseFeatureProfile,
+    candidate: ReferenceCaseFeatureProfile,
+) -> list[ReferenceFeatureComparison]:
+    current_map, candidate_map = _indicator_map(current), _indicator_map(candidate)
+    comparisons: list[ReferenceFeatureComparison] = []
+    for indicator in sorted(set(current_map) | set(candidate_map)):
+        if indicator not in current_map or indicator not in candidate_map:
+            comparisons.append(ReferenceFeatureComparison(
+                indicator=indicator,
+                status="excluded",
+                reason="indicator_missing_on_one_side",
+            ))
+            continue
+        left = _number(current_map[indicator].get("last"))
+        right = _number(candidate_map[indicator].get("last"))
+        if left is None or right is None:
+            comparisons.append(ReferenceFeatureComparison(
+                indicator=indicator,
+                status="excluded",
+                reason="latest_value_not_comparable",
+            ))
+            continue
+        scale = max(abs(left), abs(right), 1.0)
+        comparisons.append(ReferenceFeatureComparison(
+            indicator=indicator,
+            status="comparable",
+            score=max(0.0, 1.0 - abs(left - right) / scale),
+        ))
+    return comparisons
+
+
 def rank_reference_cases(current: ReferenceCaseFeatureProfile, candidates: Sequence[ReferenceCaseProfile], limit: int = MAX_RESULTS):
     scored: list[ReferenceCaseProfile] = []
     for candidate in list(candidates)[:MAX_CANDIDATES]:
@@ -107,7 +140,10 @@ def rank_reference_cases(current: ReferenceCaseFeatureProfile, candidates: Seque
         score = score_reference_case(current, candidate.features)
         if score.coverage < float(MIN_COVERAGE) or score.ranking_score < float(MIN_RANKING_SCORE):
             continue
-        scored.append(candidate.model_copy(update={"score": score}))
+        scored.append(candidate.model_copy(update={
+            "score": score,
+            "comparisons": _feature_comparisons(current, candidate.features),
+        }))
     scored.sort(key=lambda item: (-item.score.ranking_score, -item.score.coverage, -OUTCOME_RELIABILITY_RANK[item.outcome_reliability], item.anonymous_case_code, -item.features.as_of.toordinal()))
     return ReferenceCaseSelection(cases=list(scored[: max(0, min(limit, MAX_RESULTS))]))
 

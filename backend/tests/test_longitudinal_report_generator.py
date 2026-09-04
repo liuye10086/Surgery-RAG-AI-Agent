@@ -1,4 +1,7 @@
-from app.services.longitudinal_report_generator import render_longitudinal_markdown
+from app.services.longitudinal_report_generator import (
+    merge_evidence_markdown,
+    render_longitudinal_markdown,
+)
 
 
 def _prediction():
@@ -153,3 +156,31 @@ def test_report_does_not_pad_missing_signals_and_v1_still_renders():
     assert "当前没有足够的关键进展信号" in content
     assert "progression_signal" not in content
     assert "纵向进展预测报告" in render_longitudinal_markdown(_prediction())
+
+
+def test_evidence_merge_replaces_section_eight_and_extends_single_appendix():
+    bundle = {
+        "standard": {
+            "status": "available",
+            "document": {"title": "正式标准"},
+            "version": {"version_label": "v1", "version_id": 12},
+            "rules": [],
+        },
+        "reference_cases": {
+            "status": "no_eligible_cases",
+            "data_release": {"dataset_release_id": "release-1"},
+            "algorithm_version": "reference_similarity.v1",
+            "configuration_hash": "d" * 64,
+            "cases": [],
+        },
+        "integrity": {"evidence_snapshot_sha256": "e" * 64},
+    }
+    original = render_longitudinal_markdown(_prediction())
+
+    merged = merge_evidence_markdown(original, bundle)
+
+    assert merged.count("## 8. 参考标准和相似病例") == 1
+    assert merged.count("## 11. 模型和数据技术附录") == 1
+    assert merged.count("证据快照哈希") == 1
+    assert "当前没有通过生产准入的参考病例。" in merged
+    assert "数据版本：release-1" in merged

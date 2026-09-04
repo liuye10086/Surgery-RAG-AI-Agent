@@ -4,10 +4,14 @@ import LongitudinalEvidenceSection from '@/components/LongitudinalEvidenceSectio
 
 const evidence = (status: string) => ({
   schema_version: 'longitudinal_evidence_bundle.v1',
+  evidence_bundle_id: '00000000-0000-4000-8000-000000000001',
+  generation_batch_id: '00000000-0000-4000-8000-000000000002',
   disease_code: 'fatty_liver',
-  standard: { document: { title: '标准' }, version: { version_label: 'v1' }, rules: [] },
-  reference_cases: { status, cases: [] },
-  integrity: { evidence_snapshot_sha256: null },
+  created_at: '2026-09-04T00:00:00Z',
+  standard: { status: 'available', document: { title: '标准' }, version: { version_label: 'v1' }, rules: [], warnings: [] },
+  reference_cases: { status, data_release: { dataset_release_id: 'r1' }, algorithm_version: 'reference_similarity.v1', cases: [], warnings: [] },
+  warnings: [],
+  integrity: { canonicalization_version: 'v1', hash_algorithm: 'sha256', evidence_snapshot_sha256: null },
 }) as any
 
 describe('LongitudinalEvidenceSection', () => {

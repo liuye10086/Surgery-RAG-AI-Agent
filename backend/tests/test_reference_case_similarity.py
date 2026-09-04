@@ -36,4 +36,5 @@ def test_ties_use_stable_privacy_safe_order():
     ]
     selected = rank_reference_cases(current, list(reversed(candidates)))
     assert [item.anonymous_case_code for item in selected.cases] == ["CASE-ABCD-2345", "CASE-ABCD-2346"]
-
+    assert selected.cases[0].comparisons[0].indicator == "alt"
+    assert selected.cases[0].comparisons[0].status == "comparable"

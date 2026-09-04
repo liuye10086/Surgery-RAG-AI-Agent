@@ -35,12 +35,16 @@ def test_reference_window_has_privacy_and_version_columns():
     assert "patient_label" not in columns
     assert {
         "disease_id",
+        "logical_dataset",
         "dataset_release_id",
+        "prediction_task",
         "anonymous_case_code",
         "as_of",
         "horizon_days",
         "profile_schema_version",
         "outcome_value",
+        "outcome_reliability",
+        "is_synthetic",
         "source_trace",
         "feature_summary",
         "measurement_context_summary",
@@ -67,6 +71,13 @@ def test_report_evidence_columns_are_nullable_for_legacy():
     assert AIReport.__table__.columns["evidence_status"].nullable is True
     assert AIReport.__table__.columns["standard_evidence_status"].nullable is True
     assert AIReport.__table__.columns["reference_case_status"].nullable is True
+    constraints = {
+        constraint.name: str(constraint.sqltext)
+        for constraint in AIReport.__table__.constraints
+        if getattr(constraint, "name", None) and hasattr(constraint, "sqltext")
+    }
+    assert "available" in constraints["ck_ai_reports_standard_evidence_status"]
+    assert "no_eligible_cases" in constraints["ck_ai_reports_reference_case_status"]
 
 
 def test_standard_citation_columns_and_page_number_contract():

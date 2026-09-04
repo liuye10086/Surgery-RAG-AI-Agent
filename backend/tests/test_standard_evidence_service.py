@@ -42,7 +42,7 @@ def _approved(tmp_path: Path, *, disease_id=1, disease_code="fatty_liver", actio
     rule = SimpleNamespace(
         id=7, indicator=indicator, source_segment=segment, machine_actionability=actionability,
         unit="U/L", lower=7, upper=40, lower_inclusive=True, upper_inclusive=True,
-        applicability={}, interpretation="within reference", conflict_group=None,
+        applicability={"_manifest_sha256": digest}, interpretation="within reference", conflict_group=None,
     )
     document = SimpleNamespace(
         id=5, title="Fatty liver standard", filename="standard.txt", file_path=str(path),
@@ -79,6 +79,16 @@ def test_preflight_rejects_missing_or_unapproved_standard(tmp_path):
     assert error.value.code == "standard_not_approved"
 
 
+def test_preflight_rejects_rule_manifest_not_bound_to_document(tmp_path):
+    standard = _approved(tmp_path)
+    standard.current_version.rules[0].applicability["_manifest_sha256"] = "b" * 64
+
+    with pytest.raises(StandardEvidenceError) as error:
+        preflight_standard(_db(standard), 1, "fatty_liver")
+
+    assert error.value.code == "standard_integrity_failed"
+
+
 def test_build_standard_evidence_contains_locator_and_safe_numeric_interpretation(tmp_path):
     standard = _approved(tmp_path)
     db = _db(standard)
@@ -104,4 +114,3 @@ def test_ad_rules_remain_evidence_only(tmp_path):
     )
     assert all(rule.status != "calculable" for rule in evidence.rules)
     assert all(rule.numeric_interpretation is None for rule in evidence.rules)
-

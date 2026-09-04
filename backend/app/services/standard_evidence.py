@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 from typing import Any, Mapping, Sequence
 
+from app.core.config import settings
 from app.services.longitudinal_features import sort_visits
 from app.schemas.longitudinal_evidence import (
     EvidenceConditionDecision,
@@ -269,18 +270,40 @@ def _sha256_file(path: Path) -> str:
 
 
 def _query_standard(db: Any, disease_id: int) -> Any:
-    from app.db.models import ReferenceStandard
+    from app.db.models import ReferenceStandard, ReferenceStandardVersion, StandardRule
+    from sqlalchemy.orm import selectinload
 
     query = db.query(ReferenceStandard).filter(ReferenceStandard.disease_id == disease_id)
     try:
-        query = query.options()
-    except TypeError:
+        query = query.options(
+            selectinload(ReferenceStandard.current_version).selectinload(ReferenceStandardVersion.standard_document),
+            selectinload(ReferenceStandard.current_version).selectinload(ReferenceStandardVersion.rules).selectinload(StandardRule.indicator),
+            selectinload(ReferenceStandard.current_version).selectinload(ReferenceStandardVersion.rules).selectinload(StandardRule.source_segment),
+        )
+    except (TypeError, AttributeError):
         pass
     return query.first()
 
 
+def _set_local_timeout(db: Any, milliseconds: int) -> bool:
+    execute = getattr(db, "execute", None)
+    if not callable(execute):
+        return False
+    from sqlalchemy import text
+
+    execute(text(f"SET LOCAL statement_timeout = {max(1, int(milliseconds))}"))
+    return True
+
+
+def _close_read_transaction(db: Any, timeout_was_set: bool) -> None:
+    if timeout_was_set and callable(getattr(db, "rollback", None)):
+        db.rollback()
+
+
 def preflight_standard(db: Any, disease_id: int, disease_code: str) -> StandardVersionToken:
+    should_close_transaction = callable(getattr(db, "rollback", None))
     try:
+        _set_local_timeout(db, settings.STANDARD_EVIDENCE_QUERY_TIMEOUT_MS)
         standard = _query_standard(db, disease_id)
         if standard is None:
             raise StandardEvidenceError("standard_missing")
@@ -306,13 +329,9 @@ def preflight_standard(db: Any, disease_id: int, disease_code: str) -> StandardV
             raise StandardEvidenceError("standard_integrity_failed")
         if version_hash != document_hash:
             raise StandardEvidenceError("standard_integrity_failed")
-        expected_manifest = getattr(version, "manifest_sha256", None)
         for rule in getattr(version, "rules", None) or ():
             manifest_hash = (getattr(rule, "applicability", None) or {}).get("_manifest_sha256")
-            if manifest_hash is not None and (
-                not _SHA256_RE.fullmatch(str(manifest_hash))
-                or (expected_manifest and str(manifest_hash) != str(expected_manifest))
-            ):
+            if not _SHA256_RE.fullmatch(str(manifest_hash or "")) or str(manifest_hash) != document_hash:
                 raise StandardEvidenceError("standard_integrity_failed")
         return StandardVersionToken(
             standard_id=int(standard.id), version_id=int(version.id), document_id=int(document.id),
@@ -322,6 +341,8 @@ def preflight_standard(db: Any, disease_id: int, disease_code: str) -> StandardV
         raise
     except Exception as exc:
         raise StandardEvidenceError("standard_query_failed") from exc
+    finally:
+        _close_read_transaction(db, should_close_transaction)
 
 
 def _indicator_matches(rule: Any, requested: str) -> bool:
@@ -345,7 +366,7 @@ def _numeric_interpretation(value: Any, rule: Any, disease_code: str) -> str | N
     return "within_range"
 
 
-def build_standard_evidence(db: Any, token: StandardVersionToken, snapshot: Mapping[str, Any]) -> StandardEvidence:
+def _build_standard_evidence_in_transaction(db: Any, token: StandardVersionToken, snapshot: Mapping[str, Any]) -> StandardEvidence:
     try:
         from app.db.models import ReferenceStandardVersion
 
@@ -429,6 +450,15 @@ def build_standard_evidence(db: Any, token: StandardVersionToken, snapshot: Mapp
         rules=rules,
         warnings=[],
     )
+
+
+def build_standard_evidence(db: Any, token: StandardVersionToken, snapshot: Mapping[str, Any]) -> StandardEvidence:
+    should_close_transaction = callable(getattr(db, "rollback", None))
+    try:
+        _set_local_timeout(db, settings.STANDARD_EVIDENCE_QUERY_TIMEOUT_MS)
+        return _build_standard_evidence_in_transaction(db, token, snapshot)
+    finally:
+        _close_read_transaction(db, should_close_transaction)
 
 
 __all__ = [

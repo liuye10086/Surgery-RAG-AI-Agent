@@ -54,7 +54,7 @@
         <p v-else class="snapshot-missing">历史资料未完整保存。</p>
       </section>
 
-      <div class="markdown-body" v-html="renderedContent" />
+      <div class="markdown-body" v-html="renderedContentWithoutEvidence" />
       <LongitudinalEvidenceSection v-if="evidence" :evidence="evidence" />
     </div>
   </section>
@@ -66,7 +66,13 @@ import { ArrowLeft, Download } from '@element-plus/icons-vue'
 import type { EvidenceBundleV1, LongitudinalPrediction, ReportDetail } from '@/api/operator'
 import LongitudinalEvidenceSection from '@/components/LongitudinalEvidenceSection.vue'
 
-const props = defineProps<{ report?: ReportDetail | null; predictionResult?: LongitudinalPrediction | null; renderedContent: string; generating?: boolean }>()
+const props = defineProps<{
+  report?: ReportDetail | null
+  predictionResult?: LongitudinalPrediction | null
+  evidenceSnapshot?: EvidenceBundleV1 | null
+  renderedContent: string
+  generating?: boolean
+}>()
 defineEmits<{ back: []; download: [] }>()
 
 const prediction = computed<LongitudinalPrediction | null>(() => props.report?.prediction_result || props.predictionResult || null)
@@ -79,7 +85,21 @@ const signalCount = computed(() => {
 const outcomeAvailable = computed(() => prediction.value && 'model_status' in prediction.value && prediction.value.model_status.outcome.status === 'available')
 const snapshot = computed(() => props.report?.input_snapshot || {})
 const snapshotAvailable = computed(() => Object.keys(snapshot.value).length > 0)
-const evidence = computed<EvidenceBundleV1 | null>(() => props.report?.evidence_snapshot || null)
+const evidence = computed<EvidenceBundleV1 | null>(() => props.report?.evidence_snapshot || props.evidenceSnapshot || null)
+const renderedContentWithoutEvidence = computed(() => {
+  if (!evidence.value || typeof DOMParser === 'undefined') return props.renderedContent
+  const document = new DOMParser().parseFromString(props.renderedContent, 'text/html')
+  const section = document.body.querySelector('#section-8')
+  if (!section) return props.renderedContent
+  let current: Element | null = section
+  while (current) {
+    const nextElement: Element | null = current.nextElementSibling
+    current.remove()
+    if (nextElement?.matches('h2')) break
+    current = nextElement
+  }
+  return document.body.innerHTML
+})
 const releaseSetId = computed(() => prediction.value?.schema_version === 'longitudinal_prediction.v3' ? prediction.value.release_set.release_set_id : '')
 const dataReleaseId = computed(() => prediction.value?.schema_version === 'longitudinal_prediction.v3' ? prediction.value.release_set.data_release_id : '')
 const chartSeries = computed(() => Object.entries(observation.value.indicators || {}).flatMap(([name, item]: [string, any]) => {

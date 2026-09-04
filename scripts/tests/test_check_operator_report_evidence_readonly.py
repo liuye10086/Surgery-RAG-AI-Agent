@@ -15,3 +15,10 @@ def test_checker_declares_evidence_storage_contract():
     }
     assert checker.REQUIRED_COLUMNS["ai_reports"] >= {"evidence_snapshot", "evidence_snapshot_sha256", "evidence_status"}
 
+
+def test_phase_is_explicit_for_deployment_safety():
+    action = next(
+        item for item in checker._argument_parser()._actions
+        if item.dest == "phase"
+    )
+    assert action.required is True

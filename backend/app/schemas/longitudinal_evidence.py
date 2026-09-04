@@ -107,8 +107,8 @@ class StandardEvidence(StrictEvidenceModel):
 
 class ReferenceDataRelease(StrictEvidenceModel):
     logical_dataset: str
-    dataset_release_id: str
-    data_content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    dataset_release_id: str | None = None
+    data_content_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class ReferenceFeatureComparison(StrictEvidenceModel):

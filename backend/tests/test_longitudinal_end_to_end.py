@@ -418,4 +418,70 @@ def test_report_generator_passes_safe_standard_sources_to_prediction(monkeypatch
 
     asyncio.run(collect())
 
-    assert captured["standard_sources"] == sources
+    assert "standard_sources" not in captured
+
+
+def test_stream_emits_and_persists_one_evidence_snapshot(monkeypatch):
+    from app.services import longitudinal_report_generator as generator
+    from app.services.evidence_bundle import EvidenceBuildResult
+
+    visits = [
+        {"visit_date": day, "indicators": [{"name": "ALT", "value": value, "unit": "U/L"}]}
+        for day, value in (
+            ("2024-01-01", 20), ("2024-06-01", 35), ("2024-12-31", 60)
+        )
+    ]
+    prediction = run_longitudinal_prediction(
+        {"baseline_stage": "pre_cirrhosis"}, visits,
+        FATTY_LIVER_ADAPTER, {},
+    )
+    evidence_payload = {
+        "schema_version": "longitudinal_evidence_bundle.v1",
+        "standard": {
+            "status": "available",
+            "document": {"title": "正式标准"},
+            "version": {"version_label": "v1", "version_id": 1},
+            "rules": [],
+        },
+        "reference_cases": {
+            "status": "no_eligible_cases",
+            "data_release": {"dataset_release_id": "release-1"},
+            "algorithm_version": "reference_similarity.v1",
+            "configuration_hash": "d" * 64,
+            "cases": [],
+        },
+        "integrity": {"evidence_snapshot_sha256": "e" * 64},
+    }
+    bundle = SimpleNamespace(
+        model_dump=lambda mode="json": evidence_payload,
+        integrity=SimpleNamespace(evidence_snapshot_sha256="e" * 64),
+        standard=SimpleNamespace(status="available"),
+        reference_cases=SimpleNamespace(status="no_eligible_cases"),
+    )
+    monkeypatch.setattr(generator, "run_longitudinal_prediction", lambda *args, **kwargs: prediction)
+    monkeypatch.setattr(generator, "attach_signal_interpretation", lambda result, *_: result)
+    monkeypatch.setattr(
+        generator,
+        "build_evidence_bundle_with_retry",
+        lambda *_: EvidenceBuildResult(bundle, "complete", ()),
+    )
+    report = SimpleNamespace(id=10, status="generating")
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = report
+
+    async def collect():
+        return [
+            event async for event in generator.generate_longitudinal_report(
+                db, 10,
+                {"disease_code": "fatty_liver", "baseline_stage": "pre_cirrhosis", "visits": visits},
+                visits, FATTY_LIVER_ADAPTER, model_registry={},
+                evidence_token=SimpleNamespace(),
+            )
+        ]
+
+    events = asyncio.run(collect())
+
+    assert sum("event: evidence" in event for event in events) == 1
+    assert report.evidence_snapshot == evidence_payload
+    assert report.evidence_status == "complete"
+    assert report.content.count("## 8. 参考标准和相似病例") == 1

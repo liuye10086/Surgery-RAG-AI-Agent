@@ -257,10 +257,10 @@ CREATE TABLE IF NOT EXISTS ai_reports (
         evidence_status IS NULL OR evidence_status IN ('complete', 'partial')
     ),
     CONSTRAINT ck_ai_reports_standard_evidence_status CHECK (
-        standard_evidence_status IS NULL OR standard_evidence_status IN ('complete', 'partial', 'not_applicable')
+        standard_evidence_status IS NULL OR standard_evidence_status IN ('available', 'context_incomplete', 'not_applicable', 'conflict')
     ),
     CONSTRAINT ck_ai_reports_reference_case_status CHECK (
-        reference_case_status IS NULL OR reference_case_status IN ('complete', 'partial', 'not_applicable')
+        reference_case_status IS NULL OR reference_case_status IN ('available', 'no_eligible_cases', 'insufficient_comparability', 'reference_query_failed', 'reference_index_stale')
     )
 );
 
@@ -469,12 +469,14 @@ ON standard_segments(version_id, table_index, row_index);
 
 CREATE TABLE IF NOT EXISTS reference_case_windows (
     id SERIAL PRIMARY KEY,
-    disease_id INTEGER NOT NULL REFERENCES diseases(id) ON DELETE RESTRICT,
+    disease_id INTEGER NOT NULL REFERENCES diseases (id) ON DELETE RESTRICT,
+    logical_dataset VARCHAR(50) NOT NULL,
     dataset_release_id VARCHAR(100) NOT NULL,
+    prediction_task VARCHAR(120) NOT NULL,
     anonymous_case_code VARCHAR(14) NOT NULL,
     as_of DATE NOT NULL,
     horizon_days INTEGER NOT NULL DEFAULT 365,
-    profile_schema_version VARCHAR(50) NOT NULL,
+    profile_schema_version VARCHAR(80) NOT NULL,
     age INTEGER,
     sex VARCHAR(10),
     baseline_stage VARCHAR(100),
@@ -482,6 +484,8 @@ CREATE TABLE IF NOT EXISTS reference_case_windows (
     span_days INTEGER NOT NULL,
     outcome_status VARCHAR(30) NOT NULL DEFAULT 'unknown',
     outcome_source VARCHAR(100) NOT NULL,
+    outcome_reliability VARCHAR(10) NOT NULL,
+    is_synthetic BOOLEAN NOT NULL DEFAULT FALSE,
     eligibility_status VARCHAR(20) NOT NULL DEFAULT 'eligible',
     timeline_sha256 VARCHAR(64) NOT NULL,
     eligibility_config_hash VARCHAR(64) NOT NULL,
@@ -505,6 +509,9 @@ CREATE TABLE IF NOT EXISTS reference_case_windows (
     CONSTRAINT ck_reference_case_windows_outcome_status CHECK (
         outcome_status IN ('positive', 'negative', 'unknown', 'not_observed')
     ),
+    CONSTRAINT ck_reference_case_windows_outcome_reliability CHECK (
+        outcome_reliability IN ('low', 'medium', 'high')
+    ),
     CONSTRAINT ck_reference_case_windows_eligibility_status CHECK (eligibility_status IN ('eligible', 'excluded')),
     CONSTRAINT ck_reference_case_windows_timeline_sha256 CHECK (timeline_sha256 ~ '^[0-9a-f]{64}$'),
     CONSTRAINT ck_reference_case_windows_eligibility_config_hash CHECK (eligibility_config_hash ~ '^[0-9a-f]{64}$'),
@@ -512,7 +519,7 @@ CREATE TABLE IF NOT EXISTS reference_case_windows (
 );
 
 CREATE INDEX IF NOT EXISTS ix_reference_case_windows_pool_lookup
-ON reference_case_windows(disease_id, dataset_release_id, as_of, horizon_days);
+ON reference_case_windows(disease_id, dataset_release_id, eligibility_status, prediction_task, baseline_stage);
 CREATE INDEX IF NOT EXISTS ix_reference_case_windows_case_lookup
 ON reference_case_windows(anonymous_case_code, as_of);
 CREATE INDEX IF NOT EXISTS ix_reference_case_windows_feature_summary_gin

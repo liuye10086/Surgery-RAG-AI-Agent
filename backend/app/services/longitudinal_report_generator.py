@@ -11,16 +11,38 @@ from typing import AsyncGenerator, Any
 from app.services.longitudinal_prediction import prediction_result_to_dict, run_longitudinal_prediction
 from app.services.indicator_validation import validate_visits
 from app.services.report_integrity import create_generation_fingerprint
+from app.services.evidence_bundle import (
+    EvidenceBuildError,
+    EvidenceVersionToken,
+    build_evidence_bundle_with_retry,
+)
+from app.services.longitudinal_signal_interpreter import attach_signal_interpretation
 
 
 def render_evidence_markdown(bundle: dict[str, Any] | Any) -> str:
-    """Render the saved evidence snapshot without consulting current data."""
+    """Render the unique section 8 from a saved evidence snapshot."""
     payload = bundle.model_dump(mode="json") if hasattr(bundle, "model_dump") else dict(bundle or {})
     standard = payload.get("standard") or {}
     version = standard.get("version") or {}
     document = standard.get("document") or {}
     references = payload.get("reference_cases") or {}
-    lines = ["## 8. 参考标准和相似病例", f"- 正式标准：{document.get('title') or '未记录'}；版本：{version.get('version_label') or '未记录'}。"]
+    lines = [
+        "## 8. 参考标准和相似病例",
+        (
+            f"- 正式标准：{document.get('title') or '未记录'}；"
+            f"版本：{version.get('version_label') or '未记录'}；"
+            f"状态：{standard.get('status') or '未记录'}。"
+        ),
+    ]
+    for rule in standard.get("rules") or []:
+        source = rule.get("source") or {}
+        location = source.get("section_title") or "章节未记录"
+        if source.get("page_number"):
+            location += f"，第 {source['page_number']} 页"
+        lines.append(
+            f"- {rule.get('display_name') or rule.get('indicator') or '未命名规则'}："
+            f"{rule.get('status') or '未记录'}；来源：{location}。"
+        )
     status = references.get("status")
     copies = {
         "no_eligible_cases": "当前没有通过生产准入的参考病例。",
@@ -31,9 +53,52 @@ def render_evidence_markdown(bundle: dict[str, Any] | Any) -> str:
     if status in copies:
         lines.append(f"- {copies[status]}")
     for case in references.get("cases") or []:
-        lines.append(f"- 匿名编号 {case.get('anonymous_case_code', '未记录')}；排名分 {(case.get('score') or {}).get('ranking_score', '未记录')}。")
-    lines.extend(["- 参考病例结果不代表当前病例将发生相同结局。", "", "## 11. 模型和数据技术附录", f"- 证据快照哈希：{(payload.get('integrity') or {}).get('evidence_snapshot_sha256') or '未记录'}。"])
+        score = case.get("score") or {}
+        lines.append(
+            f"- 匿名编号 {case.get('anonymous_case_code', '未记录')}；"
+            f"覆盖率 {score.get('coverage', '未记录')}；"
+            f"排名分 {score.get('ranking_score', '未记录')}；"
+            f"结局来源 {case.get('outcome_source') or '未记录'}。"
+        )
+    lines.append("- 参考病例结果不代表当前病例将发生相同结局。")
     return "\n".join(lines)
+
+
+def _evidence_appendix_lines(payload: dict[str, Any]) -> list[str]:
+    standard = payload.get("standard") or {}
+    version = standard.get("version") or {}
+    references = payload.get("reference_cases") or {}
+    release = references.get("data_release") or {}
+    return [
+        f"- 证据快照哈希：{(payload.get('integrity') or {}).get('evidence_snapshot_sha256') or '未记录'}。",
+        f"- 标准版本：{version.get('version_label') or '未记录'}（ID：{version.get('version_id') or '未记录'}）。",
+        f"- 参考数据版本：{release.get('dataset_release_id') or '未记录'}。",
+        f"- 相似度算法：{references.get('algorithm_version') or '未记录'}。",
+        f"- 相似度配置哈希：{references.get('configuration_hash') or '未记录'}。",
+    ]
+
+
+def merge_evidence_markdown(content: str, bundle: dict[str, Any] | Any) -> str:
+    """Replace section 8 and extend section 11 without creating duplicates."""
+    payload = bundle.model_dump(mode="json") if hasattr(bundle, "model_dump") else dict(bundle or {})
+    section = render_evidence_markdown(payload)
+    section_eight = re.compile(
+        r"(?ms)^## 8\. 参考标准和相似病例\s*.*?(?=^## 9\.)"
+    )
+    if not section_eight.search(content):
+        raise ValueError("report_section_8_missing")
+    merged = section_eight.sub(f"{section}\n\n", content, count=1)
+
+    appendix_heading = re.compile(r"(?m)^## 11\. 模型和数据技术附录\s*$")
+    heading_match = appendix_heading.search(merged)
+    if heading_match is None:
+        raise ValueError("report_section_11_missing")
+    insert_at = heading_match.end()
+    compatibility = re.match(r"\n（兼容旧版标题：技术附录）", merged[insert_at:])
+    if compatibility:
+        insert_at += compatibility.end()
+    appendix = "\n" + "\n".join(_evidence_appendix_lines(payload))
+    return f"{merged[:insert_at]}{appendix}{merged[insert_at:]}"
 
 
 SAFE_LONGITUDINAL_ERRORS = {
@@ -548,7 +613,16 @@ def render_longitudinal_markdown(
     return "\n".join(lines)
 
 
-async def generate_longitudinal_report(db, report_id: int, case: dict[str, Any], visits: list[dict[str, Any]], adapter, model_registry: dict[str, Any] | None = None, sources: list[dict[str, Any]] | None = None) -> AsyncGenerator[str, None]:
+async def generate_longitudinal_report(
+    db,
+    report_id: int,
+    case: dict[str, Any],
+    visits: list[dict[str, Any]],
+    adapter,
+    model_registry: dict[str, Any] | None = None,
+    sources: list[dict[str, Any]] | None = None,
+    evidence_token: EvidenceVersionToken | None = None,
+) -> AsyncGenerator[str, None]:
     stage = "feature_extraction"
     try:
         validate_visits(adapter.dataset, visits)
@@ -561,28 +635,42 @@ async def generate_longitudinal_report(db, report_id: int, case: dict[str, Any],
                 visits,
                 adapter,
                 model_registry,
-                standard_sources=sources,
             ),
             timeout=PREDICTION_TIMEOUT_SECONDS,
         )
+        evidence_result = None
+        evidence_snapshot = None
+        if evidence_token is not None:
+            stage = "standard_evidence"
+            evidence_result = build_evidence_bundle_with_retry(db, case, evidence_token)
+            result = attach_signal_interpretation(result, visits, evidence_result.bundle.standard)
+            sources = list(evidence_result.sources_projection)
+            evidence_snapshot = evidence_result.bundle.model_dump(mode="json")
         payload = prediction_result_to_dict(result)
         payload["evidence"] = {"sources": sources or []}
         yield _sse("prediction", payload)
+        if evidence_snapshot is not None:
+            yield _sse("evidence", evidence_snapshot)
         stage = "rendering"
         content = render_longitudinal_markdown(payload, sources, case)
-        generation_fingerprint = create_generation_fingerprint(case, payload, content)
+        if evidence_result is not None:
+            content = merge_evidence_markdown(content, evidence_result.bundle)
+        generation_fingerprint = create_generation_fingerprint(case, payload, content, evidence_snapshot)
         stage = "persistence"
-        _transition_report_from_generating(
-            db,
-            report_id,
-            prediction_result=payload,
-            sources=sources or [],
-            content=content,
-            generation_fingerprint=generation_fingerprint,
-            error_stage=None,
-            status="completed",
-            analysis_type="longitudinal_predictive",
+        values = dict(
+            prediction_result=payload, sources=sources or [], content=content,
+            generation_fingerprint=generation_fingerprint, error_stage=None,
+            status="completed", analysis_type="longitudinal_predictive",
         )
+        if evidence_result is not None:
+            values.update(
+                evidence_snapshot=evidence_snapshot,
+                evidence_snapshot_sha256=evidence_result.bundle.integrity.evidence_snapshot_sha256,
+                evidence_status=evidence_result.evidence_status,
+                standard_evidence_status=evidence_result.bundle.standard.status,
+                reference_case_status=evidence_result.bundle.reference_cases.status,
+            )
+        _transition_report_from_generating(db, report_id, **values)
         for chunk in (content[i : i + 600] for i in range(0, len(content), 600)):
             yield _sse("delta", {"content": chunk})
         yield _sse("done", {"report_id": report_id, "status": "completed"})
@@ -605,8 +693,12 @@ async def generate_longitudinal_report(db, report_id: int, case: dict[str, Any],
             error_message="用户取消生成",
         )
         return
-    except Exception:
+    except Exception as exc:
         code, message = safe_longitudinal_error("longitudinal_prediction_failed")
+        if isinstance(exc, EvidenceBuildError):
+            code = exc.code
+            message = "正式标准证据暂时不可用，请稍后重试"
+            stage = "standard_evidence"
         error_stage = "persistence" if stage == "persistence" else stage
         try:
             _transition_report_from_generating(

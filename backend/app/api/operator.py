@@ -90,6 +90,7 @@ from app.services.operator_indicator_catalog import (
     load_operator_indicator_catalog,
 )
 from app.services.operator_case_readiness import evaluate_operator_case_readiness
+from app.services.evidence_bundle import EvidenceBuildError, preflight_evidence_versions
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/operator", tags=["operator"])
@@ -379,19 +380,6 @@ async def create_longitudinal_report(
     ) as exc:
         raise _longitudinal_error(exc) from exc
     visits = snapshot["visits"]
-    indicator_names = sorted({
-        str(indicator.get("name", "")).strip().lower()
-        for visit in visits
-        for indicator in visit["indicators"]
-        if str(indicator.get("name", "")).strip()
-    })
-    try:
-        sources = build_reference_range_sources(db, indicator_names, case.sex, disease_id=case.disease_id)
-        sources.extend(select_similar_longitudinal_cases(db, case.disease_id, visits, adapter))
-        sources = [mark_synthetic_source(source) for source in sources]
-    except Exception:
-        logger.exception("Longitudinal evidence selection failed for case_id=%s", case.id)
-        sources = []
     snapshot_hash = compute_input_snapshot_sha256(snapshot)
     snapshot["input_snapshot_sha256"] = snapshot_hash
     batch_id = str(uuid.uuid4())
@@ -402,6 +390,24 @@ async def create_longitudinal_report(
     db.add(report)
     db.commit()
     db.refresh(report)
+    # Capture before evidence preflight closes its short read transaction;
+    # accessing an expired ORM row afterward would reopen a transaction across
+    # model loading.
+    report_id = report.id
+    try:
+        evidence_token = preflight_evidence_versions(
+            db, disease_id=case.disease_id, disease_code=disease.code
+        )
+    except EvidenceBuildError as exc:
+        report.status = "failed"
+        report.error_message = exc.code
+        report.error_stage = "standard_evidence"
+        db.commit()
+        raise _operator_http_error(
+            503,
+            exc.code,
+            "正式标准或参考数据版本暂时不可用，请稍后重试",
+        ) from exc
     try:
         model_registry = load_active_model_registry(adapter.dataset)
     except Exception:
@@ -414,7 +420,13 @@ async def create_longitudinal_report(
             "model_unavailable",
             "模型暂时不可用，请稍后重试",
         )
-    return StreamingResponse(generate_longitudinal_report(db, report.id, snapshot, snapshot["visits"], adapter, model_registry=model_registry, sources=sources), media_type="text/event-stream")
+    return StreamingResponse(
+        generate_longitudinal_report(
+            db, report_id, snapshot, snapshot["visits"], adapter,
+            model_registry=model_registry, evidence_token=evidence_token,
+        ),
+        media_type="text/event-stream",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -591,11 +603,17 @@ def download_report_pdf(
     pdf_title = safe_title
 
     try:
-        pdf_bytes = generate_pdf(
-            report.content,
-            pdf_title,
-            report.prediction_result,
-            getattr(report, "evidence_snapshot", None),
+        saved_evidence = getattr(report, "evidence_snapshot", None)
+        if saved_evidence is None:
+            pdf_bytes = generate_pdf(report.content, pdf_title, report.prediction_result)
+        else:
+            pdf_bytes = generate_pdf(report.content, pdf_title, report.prediction_result, saved_evidence)
+    except ValueError:
+        logger.warning("Evidence integrity validation failed for report_id=%s", report_id)
+        raise _operator_http_error(
+            409,
+            "evidence_integrity_failed",
+            "报告证据完整性校验失败，已停止导出",
         )
     except RuntimeError:
         logger.warning("PDF generation failed for report_id=%s", report_id)

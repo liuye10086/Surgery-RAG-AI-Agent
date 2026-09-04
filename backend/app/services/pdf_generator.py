@@ -229,8 +229,6 @@ def _markdown_to_safe_html(
         bundle = EvidenceBundle.model_validate(evidence_snapshot)
         if not verify_evidence_bundle(bundle):
             raise ValueError("evidence_integrity_mismatch")
-        from app.services.longitudinal_report_generator import render_evidence_markdown
-        markdown_content = f"{markdown_content.rstrip()}\n\n{render_evidence_markdown(bundle)}"
     html_body = markdown.markdown(
         markdown_content,
         extensions=["tables", "fenced_code", _LongitudinalPrintExtension(prediction_result)],

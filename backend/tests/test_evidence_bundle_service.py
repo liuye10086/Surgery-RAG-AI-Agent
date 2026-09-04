@@ -20,6 +20,7 @@ from app.services.evidence_bundle import (
     EvidenceVersionToken,
     build_evidence_bundle_with_retry,
     build_sources_projection,
+    preflight_evidence_versions,
 )
 from app.services.standard_evidence import StandardVersionToken
 
@@ -62,3 +63,25 @@ def test_reference_query_failure_keeps_standard_and_marks_partial():
     assert built.bundle.reference_cases.status == "reference_query_failed"
     assert built.bundle.standard.status == "available"
 
+
+def test_reference_preflight_failure_does_not_block_standard(monkeypatch):
+    standard = StandardVersionToken(1, 2, 3, "a" * 64, "b" * 64)
+    monkeypatch.setattr("app.services.evidence_bundle.preflight_standard", lambda *_: standard)
+    monkeypatch.setattr(
+        "app.services.reference_case_windows.read_active_reference_release",
+        lambda *_: (_ for _ in ()).throw(RuntimeError("database details")),
+    )
+
+    token = preflight_evidence_versions(SimpleNamespace(), 1, "fatty_liver")
+
+    assert token.standard == standard
+    assert token.reference_status == "reference_query_failed"
+    assert token.dataset_release_id is None
+    assert token.data_content_sha256 is None
+
+
+def test_legacy_projection_is_typed_and_privacy_bounded():
+    projection = build_sources_projection(_bundle())
+
+    assert all("source_type" in item for item in projection)
+    assert all("patient_label" not in item for item in projection)

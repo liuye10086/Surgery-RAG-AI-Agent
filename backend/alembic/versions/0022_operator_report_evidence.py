@@ -38,23 +38,25 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_ai_reports_standard_evidence_status",
         "ai_reports",
-        "standard_evidence_status IS NULL OR standard_evidence_status IN ('complete', 'partial', 'not_applicable')",
+        "standard_evidence_status IS NULL OR standard_evidence_status IN ('available', 'context_incomplete', 'not_applicable', 'conflict')",
     )
     op.create_check_constraint(
         "ck_ai_reports_reference_case_status",
         "ai_reports",
-        "reference_case_status IS NULL OR reference_case_status IN ('complete', 'partial', 'not_applicable')",
+        "reference_case_status IS NULL OR reference_case_status IN ('available', 'no_eligible_cases', 'insufficient_comparability', 'reference_query_failed', 'reference_index_stale')",
     )
 
     op.create_table(
         "reference_case_windows",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("disease_id", sa.Integer(), sa.ForeignKey("diseases.id", ondelete="RESTRICT"), nullable=False),
+        sa.Column("logical_dataset", sa.String(length=50), nullable=False),
         sa.Column("dataset_release_id", sa.String(length=100), nullable=False),
+        sa.Column("prediction_task", sa.String(length=120), nullable=False),
         sa.Column("anonymous_case_code", sa.String(length=14), nullable=False),
         sa.Column("as_of", sa.Date(), nullable=False),
         sa.Column("horizon_days", sa.Integer(), nullable=False, server_default="365"),
-        sa.Column("profile_schema_version", sa.String(length=50), nullable=False),
+        sa.Column("profile_schema_version", sa.String(length=80), nullable=False),
         sa.Column("age", sa.Integer(), nullable=True),
         sa.Column("sex", sa.String(length=10), nullable=True),
         sa.Column("baseline_stage", sa.String(length=100), nullable=True),
@@ -62,6 +64,8 @@ def upgrade() -> None:
         sa.Column("span_days", sa.Integer(), nullable=False),
         sa.Column("outcome_status", sa.String(length=30), nullable=False, server_default="unknown"),
         sa.Column("outcome_source", sa.String(length=100), nullable=False),
+        sa.Column("outcome_reliability", sa.String(length=10), nullable=False),
+        sa.Column("is_synthetic", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("eligibility_status", sa.String(length=20), nullable=False, server_default="eligible"),
         sa.Column("timeline_sha256", sa.String(length=64), nullable=False),
         sa.Column("eligibility_config_hash", sa.String(length=64), nullable=False),
@@ -82,6 +86,7 @@ def upgrade() -> None:
         sa.CheckConstraint("visit_count >= 3", name="ck_reference_case_windows_min_visits"),
         sa.CheckConstraint("span_days >= 0", name="ck_reference_case_windows_min_span"),
         sa.CheckConstraint("outcome_status IN ('positive', 'negative', 'unknown', 'not_observed')", name="ck_reference_case_windows_outcome_status"),
+        sa.CheckConstraint("outcome_reliability IN ('low', 'medium', 'high')", name="ck_reference_case_windows_outcome_reliability"),
         sa.CheckConstraint("eligibility_status IN ('eligible', 'excluded')", name="ck_reference_case_windows_eligibility_status"),
         sa.CheckConstraint("timeline_sha256 ~ '^[0-9a-f]{64}$'", name="ck_reference_case_windows_timeline_sha256"),
         sa.CheckConstraint("eligibility_config_hash ~ '^[0-9a-f]{64}$'", name="ck_reference_case_windows_eligibility_config_hash"),
@@ -89,7 +94,7 @@ def upgrade() -> None:
     )
     op.create_index(
         "ix_reference_case_windows_pool_lookup", "reference_case_windows",
-        ["disease_id", "dataset_release_id", "as_of", "horizon_days"],
+        ["disease_id", "dataset_release_id", "eligibility_status", "prediction_task", "baseline_stage"],
     )
     op.create_index("ix_reference_case_windows_case_lookup", "reference_case_windows", ["anonymous_case_code", "as_of"])
     op.create_index(

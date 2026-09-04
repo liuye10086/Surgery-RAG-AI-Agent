@@ -98,6 +98,9 @@ export interface ReportDetail extends ReportListItem {
   input_snapshot: Record<string, unknown> | null
   evidence_snapshot: EvidenceBundleV1 | null
   evidence_snapshot_sha256: string | null
+  evidence_status: EvidenceStatus | null
+  standard_evidence_status: StandardEvidenceStatus | null
+  reference_case_status: ReferenceCaseStatus | null
 }
 
 export interface LegacyEvidenceSource {
@@ -113,13 +116,80 @@ export interface LegacyEvidenceSource {
 export type EvidenceStatus = 'complete' | 'partial'
 export type StandardEvidenceStatus = 'available' | 'context_incomplete' | 'not_applicable' | 'conflict'
 export type ReferenceCaseStatus = 'available' | 'no_eligible_cases' | 'insufficient_comparability' | 'reference_query_failed' | 'reference_index_stale'
+export interface EvidenceSourceLocator {
+  segment_id: number
+  section_title: string | null
+  paragraph_index: number | null
+  table_index: number | null
+  row_index: number | null
+  column_index: number | null
+  page_number: number | null
+  raw_text: string
+}
+export interface StandardRuleEvidence {
+  rule_id: number
+  indicator: string
+  display_name: string
+  status: 'calculable' | 'evidence_only' | 'missing_context' | 'not_applicable' | 'conflict'
+  machine_actionability: 'calculable' | 'evidence-only' | 'blocked'
+  unit: string | null
+  lower: number | null
+  upper: number | null
+  lower_inclusive: boolean
+  upper_inclusive: boolean
+  latest_value: number | null
+  numeric_interpretation: 'within_range' | 'above_range' | 'below_range' | null
+  interpretation: string | null
+  applicability: Record<string, unknown>
+  applicability_hash: string | null
+  conditions: { status: 'matched' | 'missing' | 'mismatched'; satisfied: string[]; missing: string[]; mismatched: string[] }
+  source: EvidenceSourceLocator
+}
+export interface ReferenceCaseEvidenceItem {
+  anonymous_case_code: string
+  features: {
+    baseline_stage: string
+    prediction_task: string
+    age: number | null
+    sex: 'male' | 'female' | null
+    as_of: string
+    visit_count: number
+    observation_span_days: number
+    feature_summary: Record<string, unknown>
+    measurement_context_summary: Record<string, unknown>
+  }
+  score: { conditional_similarity: number; coverage: number; ranking_score: number; available_weight: number; dimensions: Record<string, number> }
+  comparisons: { indicator: string; status: 'comparable' | 'excluded'; score: number | null; reason: string | null }[]
+  outcome_status: 'positive' | 'negative' | 'unknown'
+  outcome_value: Record<string, unknown>
+  outcome_source: string
+  outcome_reliability: 'low' | 'medium' | 'high'
+  source_trace: Record<string, unknown>
+}
 export interface EvidenceBundleV1 {
   schema_version: 'longitudinal_evidence_bundle.v1'
+  evidence_bundle_id: string
+  generation_batch_id: string
   disease_code: 'fatty_liver' | 'ad'
-  standard: Record<string, unknown>
-  reference_cases: { status: ReferenceCaseStatus; cases: Record<string, unknown>[]; [key: string]: unknown }
-  integrity: { evidence_snapshot_sha256: string | null; [key: string]: unknown }
-  [key: string]: unknown
+  created_at: string
+  standard: {
+    status: StandardEvidenceStatus
+    document: { document_id: number; title: string; filename: string; content_sha256: string; issuer: string | null; publication_date: string | null; external_identifier: string | null; source_url: string | null }
+    version: { version_id: number; version_label: string; content_sha256: string; parser_version: string; approved_at: string | null; effective_from: string | null }
+    rules: StandardRuleEvidence[]
+    warnings: string[]
+  }
+  reference_cases: {
+    status: ReferenceCaseStatus
+    data_release: { logical_dataset: string; dataset_release_id: string | null; data_content_sha256: string | null }
+    algorithm_version: 'reference_similarity.v1'
+    configuration_hash: string
+    pool_statistics: { total_windows: number; eligible_windows: number; comparable_windows: number; returned_windows: number; exclusion_counts: Record<string, number> }
+    cases: ReferenceCaseEvidenceItem[]
+    warnings: string[]
+  }
+  warnings: string[]
+  integrity: { canonicalization_version: 'v1'; hash_algorithm: 'sha256'; evidence_snapshot_sha256: string | null }
 }
 
 export interface LongitudinalVisit {
