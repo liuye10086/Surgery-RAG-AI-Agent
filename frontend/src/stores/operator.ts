@@ -215,15 +215,15 @@ export const useOperatorStore = defineStore('operator', () => {
     if (currentLongitudinalCase.value && currentLongitudinalCase.value.status !== 'active') throw new Error(currentLongitudinalCase.value.status === 'archived' ? '病例已归档，请先恢复病例' : '病例状态未知，已停止写入操作')
     const current = currentLongitudinalCase.value
     if (!current) throw new Error('请先选择病例')
+    const revision = caseSessionRevision.value
     await deleteLongitudinalCase(current.id)
+    if (!isCurrentCaseSession(revision, current.id)) return
     try {
       await fetchLongitudinalCases({ status: longitudinalCaseStatusFilter.value })
     } catch {
       throw new Error('病例已删除，但病例列表刷新失败，请重新加载页面')
     } finally {
-      currentLongitudinalCase.value = null
-      longitudinalPrediction.value = null
-      longitudinalReportContent.value = ''
+      if (isCurrentCaseSession(revision, current.id)) startNewLongitudinalCase()
     }
   }
 

@@ -5,6 +5,7 @@ const api = vi.hoisted(() => ({
   listLongitudinalCases: vi.fn(),
   createLongitudinalCase: vi.fn(),
   saveLongitudinalCase: vi.fn(),
+  deleteLongitudinalCase: vi.fn(),
   getLongitudinalCaseReportReadiness: vi.fn(),
   getReport: vi.fn(),
   generateLongitudinalReportStream: vi.fn(),
@@ -130,6 +131,22 @@ describe('operator case workspace store', () => {
     expect(store.saving).toBe(false)
   })
 
+  it('does not restore a created case after a new case session starts', async () => {
+    const { useOperatorStore } = await import('../operator')
+    let resolveCreate!: (value: any) => void
+    api.createLongitudinalCase.mockReturnValue(new Promise((resolve) => { resolveCreate = resolve }))
+    const store = useOperatorStore()
+    const payload = { disease_id: 11, age: 56, sex: 'male' as const, baseline_stage: 'pre_cirrhosis' as const, notes: null, visits: [] }
+
+    const pendingCreate = store.saveLongitudinalCase(payload)
+    store.startNewLongitudinalCase()
+    resolveCreate({ id: 5, anonymous_case_code: 'CASE-OLD' })
+    await pendingCreate
+
+    expect(store.currentLongitudinalCase).toBeNull()
+    expect(store.longitudinalCases).not.toContainEqual(expect.objectContaining({ id: 5 }))
+  })
+
   it('does not restore readiness after a new case session starts', async () => {
     const { useOperatorStore } = await import('../operator')
     let resolveReadiness!: (value: any) => void
@@ -160,6 +177,31 @@ describe('operator case workspace store', () => {
     expect(store.loading).toBe(false)
   })
 
+  it('does not clear a newly selected case when an older deletion finishes', async () => {
+    const { useOperatorStore } = await import('../operator')
+    let resolveDelete!: () => void
+    let resolveRefresh!: (value: any) => void
+    api.deleteLongitudinalCase.mockReturnValue(new Promise<void>((resolve) => { resolveDelete = resolve }))
+    api.listLongitudinalCases.mockReturnValue(new Promise((resolve) => { resolveRefresh = resolve }))
+    const store = useOperatorStore()
+    store.selectLongitudinalCase({ id: 3, status: 'active' } as any)
+
+    const pendingDelete = store.removeLongitudinalCase()
+    resolveDelete()
+    await Promise.resolve()
+    store.selectLongitudinalCase({ id: 4, status: 'active' } as any)
+    store.longitudinalPrediction = { summary: '新病例预测' } as any
+    store.longitudinalReportContent = '新病例流内容'
+    store.currentStage = 'new-case'
+    resolveRefresh({ cases: [] })
+    await pendingDelete
+
+    expect(store.currentLongitudinalCase?.id).toBe(4)
+    expect(store.longitudinalPrediction).toEqual({ summary: '新病例预测' })
+    expect(store.longitudinalReportContent).toBe('新病例流内容')
+    expect(store.currentStage).toBe('new-case')
+  })
+
   it('ignores stale report stream callbacks after a new case session starts', async () => {
     const { useOperatorStore } = await import('../operator')
     let callbacks!: Record<string, (...args: any[]) => void>
@@ -174,11 +216,17 @@ describe('operator case workspace store', () => {
 
     callbacks.onStage('predicting', '旧阶段')
     callbacks.onPrediction({ summary: '旧预测' })
+    callbacks.onEvidence({ evidence: ['旧证据'] })
+    callbacks.onDelta('旧流内容')
+    callbacks.onSources([{ title: '旧来源' }])
     callbacks.onDone(8)
     callbacks.onError()
 
     expect(store.currentStage).toBe('')
     expect(store.longitudinalPrediction).toBeNull()
+    expect(store.longitudinalEvidence).toBeNull()
+    expect(store.longitudinalReportContent).toBe('')
+    expect(store.currentSources).toEqual([])
     expect(store.currentReport).toBeNull()
     expect(api.getReport).not.toHaveBeenCalled()
   })
