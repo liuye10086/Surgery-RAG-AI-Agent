@@ -135,6 +135,7 @@ class CleanupContractTests(unittest.TestCase):
                 "2026-09-03-ai-operator-case-workspace-design.md",
                 "2026-09-03-ai-operator-model-invocation-design.md",
                 "2026-09-03-operator-visit-input-contract-design.md",
+                "2026-09-04-operator-e2e-defect-remediation-design.md",
                 "2026-09-04-operator-standard-reference-evidence-design.md",
             },
         )
