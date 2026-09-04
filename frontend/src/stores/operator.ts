@@ -24,6 +24,7 @@ import {
   type OperatorCaseReportReadiness,
   type LongitudinalPrediction,
   type OperatorIndicatorCatalog,
+  type EvidenceBundleV1,
 } from '@/api/operator'
 
 export const useOperatorStore = defineStore('operator', () => {
@@ -48,6 +49,7 @@ export const useOperatorStore = defineStore('operator', () => {
   const longitudinalCaseStatusFilter = ref<LongitudinalCaseStatus | undefined>(undefined)
   const longitudinalPrediction = ref<LongitudinalPrediction | null>(null)
   const longitudinalReportContent = ref('')
+  const longitudinalEvidence = ref<EvidenceBundleV1 | null>(null)
 
   let cancelFn: (() => void) | null = null
   let createIdempotencyKey: string | null = null
@@ -77,6 +79,7 @@ export const useOperatorStore = defineStore('operator', () => {
   async function loadSavedReport(reportId: number) {
     cancelGeneration()
     longitudinalPrediction.value = null
+    longitudinalEvidence.value = null
     longitudinalReportContent.value = ''
     currentSources.value = []
     return fetchReport(reportId)
@@ -200,10 +203,12 @@ export const useOperatorStore = defineStore('operator', () => {
   function generateLongitudinalReport(caseId: number) {
     generating.value = true
     longitudinalPrediction.value = null
+    longitudinalEvidence.value = null
     longitudinalReportContent.value = ''
     cancelFn = generateLongitudinalReportStream(caseId, {
       onStage: (stage, message) => { currentStage.value = stage; stageMessage.value = message },
       onPrediction: (prediction) => { longitudinalPrediction.value = prediction },
+      onEvidence: (evidence) => { longitudinalEvidence.value = evidence },
       onDelta: (content) => { longitudinalReportContent.value += content },
       onSources: (sources) => { currentSources.value = sources },
       onDone: (id) => { generating.value = false; fetchReports(); fetchReport(id) },
@@ -215,6 +220,7 @@ export const useOperatorStore = defineStore('operator', () => {
   function clearCurrent() {
     currentReport.value = null
     longitudinalReportContent.value = ''
+    longitudinalEvidence.value = null
     currentStage.value = ''
     stageMessage.value = ''
     currentSources.value = []
@@ -241,6 +247,7 @@ export const useOperatorStore = defineStore('operator', () => {
     readiness,
     longitudinalCaseStatusFilter,
     longitudinalPrediction,
+    longitudinalEvidence,
     longitudinalReportContent,
 
     fetchReports,

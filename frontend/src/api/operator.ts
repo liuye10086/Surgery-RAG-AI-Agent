@@ -13,6 +13,7 @@ export interface VisitContext {
   source_type?: VisitSourceType | null
   facility_name?: string | null
   device_name?: string | null
+  assay_platform?: string | null
   method?: string | null
   specimen?: string | null
   is_baseline?: boolean | null
@@ -91,10 +92,34 @@ export interface ReportListItem {
 
 export interface ReportDetail extends ReportListItem {
   content: string
-  sources: any[]
-  retrieval_meta: any
+  sources: LegacyEvidenceSource[]
+  retrieval_meta: Record<string, unknown>
   prediction_result: LongitudinalPrediction | null
-    input_snapshot: Record<string, unknown> | null
+  input_snapshot: Record<string, unknown> | null
+  evidence_snapshot: EvidenceBundleV1 | null
+  evidence_snapshot_sha256: string | null
+}
+
+export interface LegacyEvidenceSource {
+  source_type?: string
+  indicator?: string
+  standard_version_id?: number
+  standard_rule_id?: number
+  anonymous_case_code?: string
+  status?: string
+  [key: string]: unknown
+}
+
+export type EvidenceStatus = 'complete' | 'partial'
+export type StandardEvidenceStatus = 'available' | 'context_incomplete' | 'not_applicable' | 'conflict'
+export type ReferenceCaseStatus = 'available' | 'no_eligible_cases' | 'insufficient_comparability' | 'reference_query_failed' | 'reference_index_stale'
+export interface EvidenceBundleV1 {
+  schema_version: 'longitudinal_evidence_bundle.v1'
+  disease_code: 'fatty_liver' | 'ad'
+  standard: Record<string, unknown>
+  reference_cases: { status: ReferenceCaseStatus; cases: Record<string, unknown>[]; [key: string]: unknown }
+  integrity: { evidence_snapshot_sha256: string | null; [key: string]: unknown }
+  [key: string]: unknown
 }
 
 export interface LongitudinalVisit {
@@ -369,6 +394,7 @@ export interface ReportStreamCallbacks {
 
 export interface PredictionStreamCallbacks extends ReportStreamCallbacks {
   onPrediction?: (prediction: LongitudinalPrediction) => void
+  onEvidence?: (evidence: EvidenceBundleV1) => void
 }
 
 // ===== 疾病 / 病例 / 参考范围 API =====
@@ -442,6 +468,9 @@ function parseOperatorSSE(raw: string, callbacks: PredictionStreamCallbacks) {
         break
       case 'prediction':
         callbacks.onPrediction?.(payload as LongitudinalPrediction)
+        break
+      case 'evidence':
+        callbacks.onEvidence?.(payload as EvidenceBundleV1)
         break
       case 'delta':
         callbacks.onDelta(payload.content || '')
