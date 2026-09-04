@@ -176,6 +176,10 @@ class ReferencePoolStatistics(StrictEvidenceModel):
     exclusion_counts: dict[str, int] = Field(default_factory=dict)
 
 
+class ReferenceCaseSelection(StrictEvidenceModel):
+    cases: list[ReferenceCaseProfile] = Field(default_factory=list, max_length=5)
+
+
 class ReferenceCaseEvidence(StrictEvidenceModel):
     status: Literal["available", "no_eligible_cases", "insufficient_comparability", "reference_query_failed", "reference_index_stale"]
     data_release: ReferenceDataRelease
@@ -216,6 +220,7 @@ __all__ = [
     "ReferenceCaseFeatureProfile",
     "ReferenceCaseProfile",
     "ReferenceCaseScoreBreakdown",
+    "ReferenceCaseSelection",
     "ReferenceDataRelease",
     "ReferenceFeatureComparison",
     "ReferencePoolStatistics",
