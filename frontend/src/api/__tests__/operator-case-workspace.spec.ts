@@ -47,4 +47,16 @@ describe('operator case workspace API', () => {
     await expect(getLongitudinalCaseReportReadiness(3)).resolves.toEqual(readiness)
     expect(request.get).toHaveBeenCalledWith('/v1/operator/longitudinal-cases/3/report-readiness')
   })
+
+  it('maps structured Chinese validation issues directly to their fields', async () => {
+    const { ApiRequestError, validationIssueMap } = await vi.importActual<typeof import('../request')>('../request')
+    const error = new ApiRequestError({
+      code: 'validation_error',
+      message: '输入数据无效',
+      issues: [{ code: 'less_than_equal', field: 'age', message: '必须小于或等于 120' }],
+      status: 422,
+    })
+
+    expect(validationIssueMap(error).age).toBe('必须小于或等于 120')
+  })
 })

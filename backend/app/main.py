@@ -8,12 +8,14 @@ from langchain_core._api.deprecation import LangChainDeprecationWarning
 warnings.filterwarnings("ignore", category=LangChainDeprecationWarning)
 
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from app.api import admin, admin_diseases, admin_standard_documents, admin_standards, auth, chat, files, operator, user
 from app.api.deps import get_current_user
 from app.core.config import settings
+from app.core.validation_errors import request_validation_exception_handler
 from app.db.models import Chunk, Department, Document, User
 from app.db.session import get_db
 from app.rag.vectorstore import ensure_vectorstore_tables
@@ -22,6 +24,7 @@ from app.services.file_storage import ensure_upload_dir
 from app.services.source_access import user_can_access_document
 
 app = FastAPI(title="Surgery RAG Agent")
+app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
 
 app.add_middleware(
     CORSMiddleware,
