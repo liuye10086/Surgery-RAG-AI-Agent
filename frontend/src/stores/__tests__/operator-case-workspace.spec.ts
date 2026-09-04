@@ -72,4 +72,25 @@ describe('operator case workspace store', () => {
     expect(store.indicatorCatalogs.fatty_liver).toEqual(catalog)
     expect(api.listOperatorIndicatorCatalog).toHaveBeenCalledTimes(1)
   })
+
+  it('starts a new case without retaining selected case or report state', async () => {
+    const { useOperatorStore } = await import('../operator')
+    const store = useOperatorStore()
+
+    store.currentLongitudinalCase = { id: 3, anonymous_case_code: 'CASE-OLD' } as any
+    store.currentReport = { id: 8 } as any
+    store.longitudinalPrediction = { summary: '旧预测' } as any
+    store.longitudinalEvidence = { evidence: [] } as any
+    store.readiness = { ready: true, blockers: [], minimum_visits: 3, visit_count: 3 } as any
+    store.draft = { disease_id: 11, age: 56, sex: 'male', baseline_stage: 'pre_cirrhosis', notes: '旧草稿', visits: [] }
+
+    store.startNewLongitudinalCase()
+
+    expect(store.currentLongitudinalCase).toBeNull()
+    expect(store.currentReport).toBeNull()
+    expect(store.longitudinalPrediction).toBeNull()
+    expect(store.longitudinalEvidence).toBeNull()
+    expect(store.readiness).toBeNull()
+    expect(store.draft).toBeNull()
+  })
 })

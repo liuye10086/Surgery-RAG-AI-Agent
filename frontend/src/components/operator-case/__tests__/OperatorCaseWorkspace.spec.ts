@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import OperatorCaseWorkspace from '../OperatorCaseWorkspace.vue'
 
+function existingCase() {
+  return {
+    id: 3, user_id: 7, disease_id: 11, anonymous_case_code: 'CASE-OLD', age: 56, sex: 'male', baseline_stage: 'pre_cirrhosis', notes: null, status: 'active',
+    visits: [{ id: 1, case_id: 3, visit_date: '2026-01-01', visit_index: 1, indicators: [{ name: 'ALT', value: 42, unit: 'U/L' }], notes: null }],
+    disease: { id: 11, code: 'fatty_liver', name: '脂肪肝', operator_enabled: true },
+  } as any
+}
+
+function mountWorkspace(props: Record<string, unknown>) {
+  return mount(OperatorCaseWorkspace, { props })
+}
+
 describe('OperatorCaseWorkspace', () => {
   it('starts a new case with exactly one initial visit', () => {
     const wrapper = mount(OperatorCaseWorkspace)
@@ -36,5 +48,15 @@ describe('OperatorCaseWorkspace', () => {
 
     expect(wrapper.emitted('disease-change')?.[0]).toEqual(['fatty_liver'])
     expect((wrapper.find('select[aria-label="指标名称"]').element as HTMLSelectElement).value).toBe('')
+  })
+
+  it('rebuilds a blank draft when model changes from an existing case to null', async () => {
+    const wrapper = mountWorkspace({ model: existingCase() })
+
+    await wrapper.setProps({ model: null })
+
+    expect((wrapper.find('.profile-grid input[type="number"]').element as HTMLInputElement).value).toBe('0')
+    expect((wrapper.get('[aria-label="指标名称"]').element as HTMLSelectElement).value).toBe('')
+    expect(wrapper.text()).not.toContain('CASE-OLD')
   })
 })

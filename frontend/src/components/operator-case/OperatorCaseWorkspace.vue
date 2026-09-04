@@ -30,7 +30,7 @@ const emit = defineEmits<{ save: [payload: LongitudinalCaseCreatePayload | Longi
 const reasonOpen = ref(false)
 const draft = ref<LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload>(makeDraft(props.model))
 const baseline = ref(JSON.stringify(draft.value))
-watch(() => props.model, (model) => { if (model) { draft.value = makeDraft(model); baseline.value = JSON.stringify(draft.value) } }, { deep: true })
+watch(() => props.model, (model) => { draft.value = makeDraft(model); baseline.value = JSON.stringify(draft.value); reasonOpen.value = false }, { deep: true })
 const dirty = computed(() => JSON.stringify(draft.value) !== baseline.value)
 const readonly = computed(() => props.model?.status !== undefined && props.model.status !== 'active')
 const diseaseCode = computed(() => props.model?.disease.code || props.diseases?.find((d) => d.id === (draft.value as LongitudinalCaseCreatePayload).disease_id)?.code)

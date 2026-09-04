@@ -226,6 +226,16 @@ export const useOperatorStore = defineStore('operator', () => {
     currentSources.value = []
   }
 
+  function startNewLongitudinalCase() {
+    cancelGeneration()
+    clearCurrent()
+    currentLongitudinalCase.value = null
+    draft.value = null
+    readiness.value = null
+    longitudinalPrediction.value = null
+    createIdempotencyKey = null
+  }
+
   return {
     reports,
     total,
@@ -258,6 +268,7 @@ export const useOperatorStore = defineStore('operator', () => {
     fetchOperatorIndicatorCatalog,
     cancelGeneration,
     clearCurrent,
+    startNewLongitudinalCase,
     fetchLongitudinalCases,
     saveLongitudinalCase,
     refreshLongitudinalCaseReadiness,

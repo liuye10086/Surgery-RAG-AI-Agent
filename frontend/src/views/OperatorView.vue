@@ -157,10 +157,7 @@ async function handleWorkspaceSave(payload: LongitudinalCaseCreatePayload | Long
 }
 
 function startNewLongitudinalCase() {
-  operatorStore.clearCurrent()
-  operatorStore.currentLongitudinalCase = null
-  operatorStore.longitudinalPrediction = null
-  operatorStore.longitudinalReportContent = ''
+  operatorStore.startNewLongitudinalCase()
   draftDiseaseCode.value = ''
   validationIssues.value = {}
 }
