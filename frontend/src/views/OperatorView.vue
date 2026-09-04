@@ -144,13 +144,16 @@ function loadMoreReports() {
 }
 
 async function handleWorkspaceSave(payload: LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload) {
+  const sessionRevision = operatorStore.caseSessionRevision
   validationIssues.value = {}
   try {
     const saved = operatorStore.currentLongitudinalCase?.id
       ? await operatorStore.saveLongitudinalCase(operatorStore.currentLongitudinalCase.id, payload as LongitudinalCaseSavePayload)
       : await operatorStore.saveLongitudinalCase(payload as LongitudinalCaseCreatePayload)
+    if (operatorStore.caseSessionRevision !== sessionRevision) return
     ElMessage.success(`病例已保存：${saved.anonymous_case_code || '匿名编号待生成'}`)
   } catch (error: any) {
+    if (operatorStore.caseSessionRevision !== sessionRevision) return
     validationIssues.value = validationIssueMap(error)
     ElMessage.error(error?.message || '病例保存失败')
   }
@@ -163,11 +166,11 @@ function startNewLongitudinalCase() {
 }
 
 async function selectLongitudinalCase(item: any) {
-  operatorStore.currentLongitudinalCase = item
+  const sessionRevision = operatorStore.selectLongitudinalCase(item)
   draftDiseaseCode.value = ''
   validationIssues.value = {}
   await Promise.all([
-    operatorStore.refreshLongitudinalCaseReadiness(item.id),
+    operatorStore.refreshLongitudinalCaseReadiness(item.id, sessionRevision),
     handleDiseaseChange(item.disease.code),
   ])
 }
@@ -200,7 +203,6 @@ async function handleDownload() {
 async function handleSelect(id: number) {
   // 从病例库选择历史报告时，切回纵向报告视图
   activeView.value = 'progression'
-  operatorStore.clearCurrent()
   await operatorStore.loadSavedReport(id)
 }
 

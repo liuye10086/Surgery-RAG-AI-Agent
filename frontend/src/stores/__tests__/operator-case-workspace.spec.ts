@@ -6,6 +6,8 @@ const api = vi.hoisted(() => ({
   createLongitudinalCase: vi.fn(),
   saveLongitudinalCase: vi.fn(),
   getLongitudinalCaseReportReadiness: vi.fn(),
+  getReport: vi.fn(),
+  generateLongitudinalReportStream: vi.fn(),
   listOperatorIndicatorCatalog: vi.fn(),
 }))
 
@@ -26,6 +28,7 @@ describe('operator case workspace store', () => {
     api.saveLongitudinalCase.mockReturnValue(new Promise((resolve) => { resolveSave = resolve }))
     api.getLongitudinalCaseReportReadiness.mockResolvedValue({ ready: false, blockers: [], minimum_visits: 3, visit_count: 1 })
     const store = useOperatorStore()
+    store.selectLongitudinalCase({ id: 3, status: 'active' } as any)
     const promise = store.saveLongitudinalCase(3, { age: 56, sex: 'male', baseline_stage: 'pre_cirrhosis', notes: null, visits: [], change_reason: '校正' })
 
     expect(store.saving).toBe(true)
@@ -92,5 +95,91 @@ describe('operator case workspace store', () => {
     expect(store.longitudinalEvidence).toBeNull()
     expect(store.readiness).toBeNull()
     expect(store.draft).toBeNull()
+  })
+
+  it('does not restore a saved case after a new case session starts', async () => {
+    const { useOperatorStore } = await import('../operator')
+    let resolveSave!: (value: any) => void
+    api.saveLongitudinalCase.mockReturnValue(new Promise((resolve) => { resolveSave = resolve }))
+    const store = useOperatorStore()
+    store.selectLongitudinalCase({ id: 3, status: 'active' } as any)
+
+    const pendingSave = store.saveLongitudinalCase(3, { age: 56, sex: 'male', baseline_stage: 'pre_cirrhosis', notes: null, visits: [], change_reason: '校正' })
+    store.startNewLongitudinalCase()
+    resolveSave({ id: 3, anonymous_case_code: 'CASE-OLD' })
+    await pendingSave
+
+    expect(store.currentLongitudinalCase).toBeNull()
+    expect(store.draft).toBeNull()
+    expect(store.readiness).toBeNull()
+  })
+
+  it('does not leave a stale save active after switching cases', async () => {
+    const { useOperatorStore } = await import('../operator')
+    let resolveSave!: (value: any) => void
+    api.saveLongitudinalCase.mockReturnValue(new Promise((resolve) => { resolveSave = resolve }))
+    const store = useOperatorStore()
+    store.selectLongitudinalCase({ id: 3, status: 'active' } as any)
+
+    const pendingSave = store.saveLongitudinalCase(3, { age: 56, sex: 'male', baseline_stage: 'pre_cirrhosis', notes: null, visits: [], change_reason: '校正' })
+    store.selectLongitudinalCase({ id: 4, status: 'active' } as any)
+    resolveSave({ id: 3, anonymous_case_code: 'CASE-OLD' })
+    await pendingSave
+
+    expect(store.currentLongitudinalCase?.id).toBe(4)
+    expect(store.saving).toBe(false)
+  })
+
+  it('does not restore readiness after a new case session starts', async () => {
+    const { useOperatorStore } = await import('../operator')
+    let resolveReadiness!: (value: any) => void
+    api.getLongitudinalCaseReportReadiness.mockReturnValue(new Promise((resolve) => { resolveReadiness = resolve }))
+    const store = useOperatorStore()
+    store.selectLongitudinalCase({ id: 3, status: 'active' } as any)
+
+    const pendingReadiness = store.refreshLongitudinalCaseReadiness(3)
+    store.startNewLongitudinalCase()
+    resolveReadiness({ ready: true, blockers: [], minimum_visits: 3, visit_count: 3 })
+    await pendingReadiness
+
+    expect(store.readiness).toBeNull()
+  })
+
+  it('does not restore a report fetched before a new case session starts', async () => {
+    const { useOperatorStore } = await import('../operator')
+    let resolveReport!: (value: any) => void
+    api.getReport.mockReturnValue(new Promise((resolve) => { resolveReport = resolve }))
+    const store = useOperatorStore()
+
+    const pendingReport = store.fetchReport(8)
+    store.startNewLongitudinalCase()
+    resolveReport({ id: 8, content: '旧报告' })
+    await pendingReport
+
+    expect(store.currentReport).toBeNull()
+    expect(store.loading).toBe(false)
+  })
+
+  it('ignores stale report stream callbacks after a new case session starts', async () => {
+    const { useOperatorStore } = await import('../operator')
+    let callbacks!: Record<string, (...args: any[]) => void>
+    api.generateLongitudinalReportStream.mockImplementation((_caseId: number, value: Record<string, (...args: any[]) => void>) => {
+      callbacks = value
+      return vi.fn()
+    })
+    const store = useOperatorStore()
+    store.selectLongitudinalCase({ id: 3, status: 'active' } as any)
+    store.generateLongitudinalReport(3)
+    store.startNewLongitudinalCase()
+
+    callbacks.onStage('predicting', '旧阶段')
+    callbacks.onPrediction({ summary: '旧预测' })
+    callbacks.onDone(8)
+    callbacks.onError()
+
+    expect(store.currentStage).toBe('')
+    expect(store.longitudinalPrediction).toBeNull()
+    expect(store.currentReport).toBeNull()
+    expect(api.getReport).not.toHaveBeenCalled()
   })
 })

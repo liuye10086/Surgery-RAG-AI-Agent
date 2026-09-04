@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { readonly, ref } from 'vue'
 import {
   listReports,
   getReport,
@@ -50,9 +50,28 @@ export const useOperatorStore = defineStore('operator', () => {
   const longitudinalPrediction = ref<LongitudinalPrediction | null>(null)
   const longitudinalReportContent = ref('')
   const longitudinalEvidence = ref<EvidenceBundleV1 | null>(null)
+  const caseSessionRevision = ref(0)
 
   let cancelFn: (() => void) | null = null
   let createIdempotencyKey: string | null = null
+
+  function beginCaseSession() {
+    caseSessionRevision.value += 1
+    return caseSessionRevision.value
+  }
+
+  function isCurrentCaseSession(revision: number, caseId?: number) {
+    return caseSessionRevision.value === revision
+      && (caseId === undefined || currentLongitudinalCase.value?.id === caseId)
+  }
+
+  function stopGeneration() {
+    if (cancelFn) {
+      cancelFn()
+      cancelFn = null
+    }
+    generating.value = false
+  }
 
   async function fetchReports(skip = 0, limit = 20, append = false) {
     loading.value = true
@@ -67,22 +86,26 @@ export const useOperatorStore = defineStore('operator', () => {
     }
   }
 
-  async function fetchReport(reportId: number) {
+  async function fetchReport(reportId: number, revision = caseSessionRevision.value) {
     loading.value = true
     try {
-      currentReport.value = await getReport(reportId)
+      const report = await getReport(reportId)
+      if (isCurrentCaseSession(revision)) currentReport.value = report
+      return report
     } finally {
-      loading.value = false
+      if (isCurrentCaseSession(revision)) loading.value = false
     }
   }
 
   async function loadSavedReport(reportId: number) {
-    cancelGeneration()
+    stopGeneration()
+    clearCurrent()
+    const revision = caseSessionRevision.value
     longitudinalPrediction.value = null
     longitudinalEvidence.value = null
     longitudinalReportContent.value = ''
     currentSources.value = []
-    return fetchReport(reportId)
+    return fetchReport(reportId, revision)
   }
 
   async function removeReport(reportId: number) {
@@ -112,21 +135,19 @@ export const useOperatorStore = defineStore('operator', () => {
   }
 
   function cancelGeneration() {
-    if (cancelFn) {
-      cancelFn()
-      cancelFn = null
-    }
-    generating.value = false
+    stopGeneration()
+    beginCaseSession()
     currentStage.value = 'cancelled'
   }
 
   async function fetchLongitudinalCases(params: OperatorCaseListParams = {}) {
+    const revision = caseSessionRevision.value
     longitudinalCaseStatusFilter.value = params.status
     caseListLoading.value = true
     try {
       const result = await listLongitudinalCases(params)
       longitudinalCases.value = result.cases
-      if (!currentLongitudinalCase.value && result.cases.length) currentLongitudinalCase.value = result.cases[0]
+      if (isCurrentCaseSession(revision) && !currentLongitudinalCase.value && result.cases.length) selectLongitudinalCase(result.cases[0])
       return result
     } finally {
       caseListLoading.value = false
@@ -138,6 +159,7 @@ export const useOperatorStore = defineStore('operator', () => {
   async function saveLongitudinalCase(idOrData: number | LongitudinalCaseCreatePayload, maybeData?: LongitudinalCaseSavePayload) {
     const isCreate = typeof idOrData !== 'number'
     const id = isCreate ? undefined : idOrData
+    const revision = caseSessionRevision.value
     const data = (isCreate ? idOrData : maybeData) as LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload
     draft.value = data
     saving.value = true
@@ -146,41 +168,46 @@ export const useOperatorStore = defineStore('operator', () => {
       if (isCreate) {
         createIdempotencyKey ||= crypto.randomUUID()
         saved = await createLongitudinalCase(data as LongitudinalCaseCreatePayload, createIdempotencyKey)
-        createIdempotencyKey = null
+        if (isCurrentCaseSession(revision)) createIdempotencyKey = null
       } else {
         saved = await saveLongitudinalCaseRequest(id as number, data as LongitudinalCaseSavePayload)
       }
+      if (!isCurrentCaseSession(revision, id)) return saved
       currentLongitudinalCase.value = saved
       draft.value = null
       longitudinalCases.value = [saved, ...longitudinalCases.value.filter((item) => item.id !== saved.id)]
-      await refreshLongitudinalCaseReadiness(saved.id)
+      await refreshLongitudinalCaseReadiness(saved.id, revision)
       return saved
     } finally {
-      saving.value = false
+      if (isCurrentCaseSession(revision)) saving.value = false
     }
   }
 
-  async function refreshLongitudinalCaseReadiness(caseId: number) {
+  async function refreshLongitudinalCaseReadiness(caseId: number, revision = caseSessionRevision.value) {
+    if (!isCurrentCaseSession(revision, caseId)) return null
     readinessLoading.value = true
     try {
-      readiness.value = await getLongitudinalCaseReportReadiness(caseId)
-      return readiness.value
+      const nextReadiness = await getLongitudinalCaseReportReadiness(caseId)
+      if (isCurrentCaseSession(revision, caseId)) readiness.value = nextReadiness
+      return nextReadiness
     } finally {
-      readinessLoading.value = false
+      if (isCurrentCaseSession(revision, caseId)) readinessLoading.value = false
     }
   }
 
   async function changeLongitudinalCaseStatus(status: LongitudinalCaseStatus, reason?: string) {
     const current = currentLongitudinalCase.value
     if (!current) throw new Error('请先选择病例')
+    const revision = caseSessionRevision.value
     const saved = await updateLongitudinalCaseStatus(current.id, {
       expected_status: current.status,
       status,
       reason: reason || null,
     })
+    if (!isCurrentCaseSession(revision, current.id)) return saved
     currentLongitudinalCase.value = saved
     longitudinalCases.value = longitudinalCases.value.map((item) => item.id === saved.id ? saved : item)
-    await refreshLongitudinalCaseReadiness(saved.id)
+    await refreshLongitudinalCaseReadiness(saved.id, revision)
     return saved
   }
 
@@ -201,24 +228,28 @@ export const useOperatorStore = defineStore('operator', () => {
   }
 
   function generateLongitudinalReport(caseId: number) {
+    const revision = caseSessionRevision.value
+    if (!isCurrentCaseSession(revision, caseId)) return
     generating.value = true
     longitudinalPrediction.value = null
     longitudinalEvidence.value = null
     longitudinalReportContent.value = ''
     cancelFn = generateLongitudinalReportStream(caseId, {
-      onStage: (stage, message) => { currentStage.value = stage; stageMessage.value = message },
-      onPrediction: (prediction) => { longitudinalPrediction.value = prediction },
-      onEvidence: (evidence) => { longitudinalEvidence.value = evidence },
-      onDelta: (content) => { longitudinalReportContent.value += content },
-      onSources: (sources) => { currentSources.value = sources },
-      onDone: (id) => { generating.value = false; fetchReports(); fetchReport(id) },
-      onError: () => { generating.value = false; currentStage.value = 'error'; fetchReports() },
+      onStage: (stage, message) => { if (isCurrentCaseSession(revision, caseId)) { currentStage.value = stage; stageMessage.value = message } },
+      onPrediction: (prediction) => { if (isCurrentCaseSession(revision, caseId)) longitudinalPrediction.value = prediction },
+      onEvidence: (evidence) => { if (isCurrentCaseSession(revision, caseId)) longitudinalEvidence.value = evidence },
+      onDelta: (content) => { if (isCurrentCaseSession(revision, caseId)) longitudinalReportContent.value += content },
+      onSources: (sources) => { if (isCurrentCaseSession(revision, caseId)) currentSources.value = sources },
+      onDone: (id) => { if (isCurrentCaseSession(revision, caseId)) { generating.value = false; fetchReports(); fetchReport(id, revision) } },
+      onError: () => { if (isCurrentCaseSession(revision, caseId)) { generating.value = false; currentStage.value = 'error'; fetchReports() } },
     })
     return cancelFn
   }
 
   function clearCurrent() {
+    beginCaseSession()
     currentReport.value = null
+    loading.value = false
     longitudinalReportContent.value = ''
     longitudinalEvidence.value = null
     currentStage.value = ''
@@ -227,13 +258,27 @@ export const useOperatorStore = defineStore('operator', () => {
   }
 
   function startNewLongitudinalCase() {
-    cancelGeneration()
+    stopGeneration()
     clearCurrent()
     currentLongitudinalCase.value = null
     draft.value = null
     readiness.value = null
+    readinessLoading.value = false
+    saving.value = false
     longitudinalPrediction.value = null
     createIdempotencyKey = null
+  }
+
+  function selectLongitudinalCase(item: LongitudinalCase) {
+    stopGeneration()
+    clearCurrent()
+    currentLongitudinalCase.value = item
+    draft.value = null
+    readiness.value = null
+    readinessLoading.value = false
+    saving.value = false
+    longitudinalPrediction.value = null
+    return caseSessionRevision.value
   }
 
   return {
@@ -245,6 +290,7 @@ export const useOperatorStore = defineStore('operator', () => {
     currentStage,
     stageMessage,
     currentSources,
+    caseSessionRevision: readonly(caseSessionRevision),
     diseases,
     indicatorCatalogs,
     indicatorCatalogLoading,
@@ -269,6 +315,7 @@ export const useOperatorStore = defineStore('operator', () => {
     cancelGeneration,
     clearCurrent,
     startNewLongitudinalCase,
+    selectLongitudinalCase,
     fetchLongitudinalCases,
     saveLongitudinalCase,
     refreshLongitudinalCaseReadiness,
