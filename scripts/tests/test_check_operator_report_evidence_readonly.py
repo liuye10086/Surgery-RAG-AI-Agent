@@ -105,3 +105,97 @@ def test_postflight_source_integrity_failure_blocks_otherwise_valid_runtime():
     assert result["active_releases_match"] is True
     assert result["standard_source_integrity_match"] is False
     assert checker._evidence_runtime_matches(result, "postflight") is False
+
+
+def test_postflight_rejects_whitespace_only_bound_source_text(monkeypatch):
+    class Result:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def mappings(self):
+            return self
+
+        def all(self):
+            return self.rows
+
+    whitespace_source_text = "\t\n"
+
+    class Connection:
+        def __init__(self):
+            self.calls = 0
+
+        def execute(self, statement, *_args, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return Result([
+                    {
+                        "code": "ad", "standard_id": 1, "version_id": 4,
+                        "status": "approved", "version_hash": "a" * 64,
+                        "document_hash": "a" * 64, "file_path": "ad.docx",
+                    },
+                    {
+                        "code": "fatty_liver", "standard_id": 2, "version_id": 5,
+                        "status": "approved", "version_hash": "b" * 64,
+                        "document_hash": "b" * 64, "file_path": "fatty.docx",
+                    },
+                ])
+            if self.calls == 2:
+                return Result([
+                    {
+                        "code": "ad", "logical_dataset": "ad", "dataset_release_id": "release-a",
+                        "data_content_sha256": "c" * 64, "row_count": 1,
+                    },
+                    {
+                        "code": "fatty_liver", "logical_dataset": "fatty_liver", "dataset_release_id": "release-f",
+                        "data_content_sha256": "d" * 64, "row_count": 1,
+                    },
+                ])
+            if self.calls == 3:
+                query = str(statement)
+                rejects_whitespace_only_text = (
+                    "ss.raw_text IS NULL" in query
+                    and "[:space:]" in query
+                    and not any(not char.isspace() for char in whitespace_source_text)
+                )
+                return Result([
+                    {
+                        "code": "ad", "total_rules": 8, "bound_rules": 8,
+                        "cross_version_sources": 0,
+                        "empty_source_texts": int(rejects_whitespace_only_text),
+                    },
+                    {
+                        "code": "fatty_liver", "total_rules": 11, "bound_rules": 11,
+                        "cross_version_sources": 0, "empty_source_texts": 0,
+                    },
+                ])
+            return Result([
+                {
+                    "logical_dataset": "ad", "dataset_release_id": "release-a",
+                    "data_content_sha256": "c" * 64,
+                    "eligibility_config_hash": checker.ELIGIBILITY_CONFIG_HASH,
+                    "total_windows": 1, "eligible_windows": 1,
+                },
+                {
+                    "logical_dataset": "fatty_liver", "dataset_release_id": "release-f",
+                    "data_content_sha256": "d" * 64,
+                    "eligibility_config_hash": checker.ELIGIBILITY_CONFIG_HASH,
+                    "total_windows": 1, "eligible_windows": 1,
+                },
+            ])
+
+    monkeypatch.setattr(
+        checker,
+        "_sha256_path",
+        lambda path: "a" * 64 if path == "ad.docx" else "b" * 64,
+    )
+
+    result = checker._collect_evidence_runtime_checks(Connection(), "postflight")
+
+    assert result["standards_match"] is True
+    assert result["active_releases_match"] is True
+    assert result["standard_source_integrity"] == [
+        {"code": "ad", "total_rules": 8, "bound_rules": 8, "cross_version_sources": 0, "empty_source_texts": 1},
+        {"code": "fatty_liver", "total_rules": 11, "bound_rules": 11, "cross_version_sources": 0, "empty_source_texts": 0},
+    ]
+    assert result["standard_source_integrity_match"] is False
+    assert checker._evidence_runtime_matches(result, "postflight") is False
