@@ -20,6 +20,10 @@ from app.services.standard_validation import (
     normalize_disease_key,
     validate_version_rules,
 )
+from app.services.standard_source_binding import (
+    StandardSourceBindingError,
+    validate_version_manifest_rule_bindings,
+)
 import hashlib
 from pathlib import Path
 import json
@@ -300,6 +304,10 @@ def publish_review_version(db: Any, *, version_id: int, admin_id: int, commit: b
     report = _validation_for_publish(list(version.rules or []), disease_key=disease)
     if not report.can_publish:
         raise ValueError("标准版本存在阻止发布的校验错误")
+    try:
+        validate_version_manifest_rule_bindings(version, str(disease or ""))
+    except StandardSourceBindingError as exc:
+        raise ValueError("标准版本来源完整性校验失败") from exc
 
     projections: list[Any] = []
     try:

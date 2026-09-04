@@ -199,3 +199,45 @@ def test_postflight_rejects_whitespace_only_bound_source_text(monkeypatch):
     ]
     assert result["standard_source_integrity_match"] is False
     assert checker._evidence_runtime_matches(result, "postflight") is False
+
+
+def test_checker_rejects_current_version_owned_by_another_standard(monkeypatch):
+    class Result:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def mappings(self):
+            return self
+
+        def all(self):
+            return self.rows
+
+    class Connection:
+        def __init__(self):
+            self.calls = 0
+
+        def execute(self, statement, *_args, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                assert "v.standard_id AS version_standard_id" in str(statement)
+                return Result([
+                    {"code": "ad", "standard_id": 1, "version_id": 4,
+                     "version_standard_id": 99, "status": "approved",
+                     "version_hash": "a" * 64, "document_hash": "a" * 64,
+                     "file_path": "ad.docx"},
+                    {"code": "fatty_liver", "standard_id": 2, "version_id": 5,
+                     "version_standard_id": 2, "status": "approved",
+                     "version_hash": "b" * 64, "document_hash": "b" * 64,
+                     "file_path": "fatty.docx"},
+                ])
+            if self.calls == 2:
+                return Result([])
+            return Result([])
+
+    monkeypatch.setattr(
+        checker, "_sha256_path", lambda path: "a" * 64 if path == "ad.docx" else "b" * 64
+    )
+    result = checker._collect_evidence_runtime_checks(Connection(), "preflight")
+
+    assert result["standards"][0]["version_belongs_to_standard"] is False
+    assert result["standards_match"] is False

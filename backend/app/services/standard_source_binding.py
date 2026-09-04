@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,12 @@ from app.services.standard_manifest import load_standard_manifest
 PROJECT_ROOT = _project_root()
 MANIFEST_DIRECTORY = PROJECT_ROOT / "standard_manifests"
 SUPPORTED_DATASETS = frozenset({"ad", "fatty_liver"})
+SOURCE_LOCATOR_FIELDS = (
+    "paragraph_index",
+    "table_index",
+    "row_index",
+    "column_index",
+)
 
 
 class StandardSourceBindingError(RuntimeError):
@@ -35,6 +42,22 @@ def normalize_source_text(value: str) -> str:
     return "\n".join(
         line.rstrip() for line in str(value).replace("\r\n", "\n").split("\n")
     ).strip()
+
+
+def source_locator_tuple(source: Any) -> tuple[Any, Any, Any, Any]:
+    """Return the complete stable source location, including intentional nulls."""
+    return tuple(getattr(source, field, None) for field in SOURCE_LOCATOR_FIELDS)
+
+
+def _sha256_file(path: Path) -> str | None:
+    try:
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for block in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(block)
+        return digest.hexdigest()
+    except (OSError, TypeError, ValueError):
+        return None
 
 
 def approved_manifest_path(dataset: str) -> Path:
@@ -60,10 +83,8 @@ def validate_rule_source_binding(
     expected_text = normalize_source_text(getattr(expected_source, "raw_text", "") or "")
     if not actual_text or actual_text != expected_text:
         raise StandardSourceBindingError("standard_integrity_failed")
-    for field in ("paragraph_index", "table_index", "row_index", "column_index"):
-        expected = getattr(expected_source, field, None)
-        if expected is not None and getattr(source, field, None) != expected:
-            raise StandardSourceBindingError("standard_integrity_failed")
+    if source_locator_tuple(source) != source_locator_tuple(expected_source):
+        raise StandardSourceBindingError("standard_integrity_failed")
 
 
 def resolve_manifest_source_segment(
@@ -76,21 +97,15 @@ def resolve_manifest_source_segment(
     if not expected:
         raise StandardSourceBindingError("source_segment_missing")
     query = db.query(StandardSegment).filter(StandardSegment.version_id == version_id)
-    for field in ("paragraph_index", "table_index", "row_index", "column_index"):
+    for field in SOURCE_LOCATOR_FIELDS:
         value = getattr(source, field, None)
         if value is not None:
             query = query.filter(getattr(StandardSegment, field) == value)
-    expected_location = tuple(
-        getattr(source, field, None)
-        for field in ("paragraph_index", "table_index", "row_index", "column_index")
-    )
+    expected_location = source_locator_tuple(source)
     matches = [
         item
         for item in query.all()
-        if tuple(
-            getattr(item, field, None)
-            for field in ("paragraph_index", "table_index", "row_index", "column_index")
-        ) == expected_location
+        if source_locator_tuple(item) == expected_location
         and normalize_source_text(item.raw_text) == expected
     ]
     if not matches:
@@ -103,11 +118,26 @@ def resolve_manifest_source_segment(
 def _approved_rule_entries(manifest: Any) -> dict[str, Any]:
     if getattr(manifest, "review_state", None) != "approved":
         raise StandardSourceBindingError("manifest_not_approved")
-    return {
-        entry.entry_id: entry
-        for entry in manifest.entries
-        if entry.entry_kind == "rule" and entry.review_status == "approved"
-    }
+    entries: dict[str, Any] = {}
+    for entry in manifest.entries:
+        if entry.entry_kind != "rule" or entry.review_status != "approved":
+            continue
+        if entry.entry_id in entries:
+            raise StandardSourceBindingError("manifest_entry_id_duplicate")
+        entries[entry.entry_id] = entry
+    return entries
+
+
+def _rules_by_manifest_entry_id(rules: Any) -> dict[str, Any]:
+    entries: dict[str, Any] = {}
+    for rule in rules:
+        entry_id = (getattr(rule, "applicability", None) or {}).get("_manifest_entry_id")
+        if not isinstance(entry_id, str) or not entry_id:
+            raise StandardSourceBindingError("manifest_entry_id_missing")
+        if entry_id in entries:
+            raise StandardSourceBindingError("manifest_entry_id_duplicate")
+        entries[entry_id] = rule
+    return entries
 
 
 def _current_approved_version(db: Any, dataset: str) -> Any:
@@ -137,9 +167,28 @@ def _validate_manifest_for_version(manifest: Any, version: Any, dataset: str) ->
     if getattr(version, "content_hash", None) != manifest.source_document_sha256:
         raise StandardSourceBindingError("manifest_document_hash_mismatch")
     document = getattr(version, "standard_document", None)
-    if document is not None and getattr(document, "content_hash", None) != manifest.source_document_sha256:
+    if document is None or getattr(document, "content_hash", None) != manifest.source_document_sha256:
+        raise StandardSourceBindingError("manifest_document_hash_mismatch")
+    if _sha256_file(Path(str(getattr(document, "file_path", "")))) != manifest.source_document_sha256:
         raise StandardSourceBindingError("manifest_document_hash_mismatch")
     return _approved_rule_entries(manifest)
+
+
+def validate_version_manifest_rule_bindings(version: Any, dataset: str) -> None:
+    """Fail closed unless a version has a complete, uniquely bound approved manifest."""
+    if dataset not in SUPPORTED_DATASETS:
+        raise StandardSourceBindingError("standard_dataset_invalid")
+    manifest = load_standard_manifest(approved_manifest_path(dataset))
+    entries = _validate_manifest_for_version(manifest, version, dataset)
+    rules_by_entry = _rules_by_manifest_entry_id(getattr(version, "rules", None) or ())
+    if set(rules_by_entry) != set(entries):
+        raise StandardSourceBindingError("manifest_rule_set_mismatch")
+    for entry_id, rule in rules_by_entry.items():
+        validate_rule_source_binding(
+            rule,
+            version_id=version.id,
+            manifest_entry=entries[entry_id],
+        )
 
 
 def plan_current_standard_bindings(db: Any, dataset: str) -> SourceBindingPlan:

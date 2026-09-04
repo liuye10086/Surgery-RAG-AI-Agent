@@ -371,24 +371,36 @@ def preflight_standard(db: Any, disease_id: int, disease_code: str) -> StandardV
                 or getattr(manifest, "source_document_sha256", None) != document_hash
             ):
                 raise StandardSourceBindingError("standard_integrity_failed")
-            entries_by_id = {
-                entry.entry_id: entry
+            approved_entries = [
+                entry
                 for entry in getattr(manifest, "entries", ())
                 if getattr(entry, "entry_kind", None) == "rule"
                 and getattr(entry, "review_status", None) == "approved"
+            ]
+            entries_by_id = {
+                entry.entry_id: entry
+                for entry in approved_entries
             }
+            if len(entries_by_id) != len(approved_entries):
+                raise StandardSourceBindingError("standard_integrity_failed")
         except (OSError, UnicodeError, ValueError, StandardSourceBindingError) as exc:
             raise StandardEvidenceError("standard_integrity_failed") from exc
+        rule_entry_ids: set[str] = set()
         for rule in getattr(version, "rules", None) or ():
             manifest_hash = (getattr(rule, "applicability", None) or {}).get("_manifest_sha256")
             if not _SHA256_RE.fullmatch(str(manifest_hash or "")) or str(manifest_hash) != document_hash:
                 raise StandardEvidenceError("standard_integrity_failed")
             entry_id = (getattr(rule, "applicability", None) or {}).get("_manifest_entry_id")
+            if entry_id in rule_entry_ids:
+                raise StandardEvidenceError("standard_integrity_failed")
+            rule_entry_ids.add(entry_id)
             entry = entries_by_id.get(entry_id)
             try:
                 validate_rule_source_binding(rule, version_id=version.id, manifest_entry=entry)
             except StandardSourceBindingError as exc:
                 raise StandardEvidenceError("standard_integrity_failed") from exc
+        if rule_entry_ids != set(entries_by_id):
+            raise StandardEvidenceError("standard_integrity_failed")
         return StandardVersionToken(
             standard_id=int(standard.id), version_id=int(version.id), document_id=int(document.id),
             document_sha256=document_hash, version_sha256=version_hash,

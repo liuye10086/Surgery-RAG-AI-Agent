@@ -14,6 +14,7 @@ from app.services.standard_source_binding import (
     SourceBindingPlan,
     StandardSourceBindingError,
     apply_current_standard_bindings,
+    plan_current_standard_bindings,
     resolve_manifest_source_segment,
 )
 from app.schemas.standard_manifest import SourceLocator
@@ -150,6 +151,47 @@ def test_resolver_rejects_same_text_at_a_different_manifest_location():
     resolved = resolve_manifest_source_segment(Session(), version_id=4, source=source)
 
     assert resolved.id == 213
+
+
+def test_repair_plan_rejects_document_file_hash_drift(monkeypatch, tmp_path):
+    document_path = tmp_path / "standard.txt"
+    document_path.write_bytes(b"changed content")
+    manifest_hash = "a" * 64
+    source = SourceLocator(table_index=3, row_index=3, raw_text="source text")
+    manifest = type("Manifest", (), {
+        "dataset": "ad",
+        "review_state": "approved",
+        "target_version_label": "2026.1",
+        "source_document_sha256": manifest_hash,
+        "entries": [type("Entry", (), {
+            "entry_id": "ad-rule",
+            "entry_kind": "rule",
+            "review_status": "approved",
+            "source": source,
+        })()],
+    })()
+    version = type("Version", (), {
+        "id": 4,
+        "status": "approved",
+        "version_label": "2026.1",
+        "content_hash": manifest_hash,
+        "standard_document": type("Document", (), {
+            "content_hash": manifest_hash,
+            "file_path": str(document_path),
+        })(),
+        "rules": [],
+    })()
+    monkeypatch.setattr(
+        "app.services.standard_source_binding.load_standard_manifest", lambda _path: manifest
+    )
+    monkeypatch.setattr(
+        "app.services.standard_source_binding._current_approved_version", lambda _db, _dataset: version
+    )
+
+    with pytest.raises(StandardSourceBindingError) as caught:
+        plan_current_standard_bindings(object(), "ad")
+
+    assert caught.value.code == "manifest_document_hash_mismatch"
 
 
 @pytest.mark.parametrize(

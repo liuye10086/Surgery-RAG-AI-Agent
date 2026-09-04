@@ -230,3 +230,45 @@ def test_import_preparses_all_sources_before_any_database_write(approved_manifes
 
     assert db.added == []
     assert db.flushes == 0
+
+
+def test_import_rejects_duplicate_database_manifest_entry_ids(approved_manifest):
+    db = ImportSession(segments=_matching_segments(approved_manifest))
+    db.version.rules = [
+        SimpleNamespace(id=20, applicability={"_manifest_entry_id": "fatty-alt"}),
+        SimpleNamespace(id=21, applicability={"_manifest_entry_id": "fatty-alt"}),
+    ]
+
+    with pytest.raises(ValueError, match="manifest_entry_id_duplicate"):
+        import_manifest_rules(db, manifest=approved_manifest, version_id=4, admin_id=7)
+
+    assert db.added == []
+
+
+def test_idempotent_import_binds_existing_unbound_rule_to_resolved_segment(approved_manifest):
+    db = ImportSession(segments=_matching_segments(approved_manifest))
+    existing = SimpleNamespace(
+        id=20,
+        applicability={"_manifest_entry_id": "fatty-alt"},
+        source_segment_id=None,
+    )
+    db.version.rules = [existing]
+
+    result = import_manifest_rules(db, manifest=approved_manifest, version_id=4, admin_id=7)
+
+    assert result.existing_rule_entry_ids == ["fatty-alt"]
+    assert existing.source_segment_id == 100
+
+
+def test_idempotent_import_rejects_existing_rule_bound_to_different_segment(approved_manifest):
+    db = ImportSession(segments=_matching_segments(approved_manifest))
+    db.version.rules = [SimpleNamespace(
+        id=20,
+        applicability={"_manifest_entry_id": "fatty-alt"},
+        source_segment_id=999,
+    )]
+
+    with pytest.raises(ValueError, match="source_binding_conflict"):
+        import_manifest_rules(db, manifest=approved_manifest, version_id=4, admin_id=7)
+
+    assert db.added == []

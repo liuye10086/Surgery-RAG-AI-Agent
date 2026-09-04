@@ -816,7 +816,68 @@ def test_publish_rejects_zero_calculable_rules_before_mutation(monkeypatch):
     assert db.mutations == []
 
 
-def test_publish_allows_ad_evidence_only_version_and_creates_no_projection():
+def test_publish_rejects_manifest_rule_binding_failure_before_mutation(monkeypatch):
+    from app.services.standard_source_binding import StandardSourceBindingError
+
+    monkeypatch.setattr(
+        "app.services.standard_lifecycle.validate_version_rules",
+        lambda *args, **kwargs: SimpleNamespace(can_publish=True),
+    )
+
+    def reject_binding(*_args, **_kwargs):
+        raise StandardSourceBindingError("standard_integrity_failed")
+
+    monkeypatch.setattr(
+        "app.services.standard_lifecycle.validate_version_manifest_rule_bindings",
+        reject_binding,
+        raising=False,
+    )
+    version = SimpleNamespace(id=2, standard_id=3, status="review", rules=[])
+    standard = SimpleNamespace(
+        id=3,
+        current_version=None,
+        current_version_id=None,
+        disease=SimpleNamespace(code="fatty_liver"),
+    )
+
+    class PublishSession:
+        commits = 0
+        added = []
+
+        def query(self, model):
+            value = version if model.__name__ == "ReferenceStandardVersion" else standard
+
+            class Query:
+                def filter(self, *args, **kwargs): return self
+                def populate_existing(self): return self
+                def with_for_update(self): return self
+                def first(self): return value
+
+            return Query()
+
+        def add(self, value):
+            self.added.append(value)
+
+        def flush(self): return None
+
+        def commit(self):
+            self.commits += 1
+
+    db = PublishSession()
+    with pytest.raises(ValueError, match="来源完整性"):
+        from app.services.standard_lifecycle import publish_review_version
+        publish_review_version(db, version_id=2, admin_id=10)
+
+    assert db.commits == 0
+    assert db.added == []
+    assert version.status == "review"
+
+
+def test_publish_allows_ad_evidence_only_version_and_creates_no_projection(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.standard_lifecycle.validate_version_manifest_rule_bindings",
+        lambda *_args, **_kwargs: None,
+    )
     evidence = SimpleNamespace(
         id=8,
         machine_actionability="evidence-only",

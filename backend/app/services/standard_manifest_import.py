@@ -46,6 +46,18 @@ def _require_approved(manifest) -> None:
         raise ValueError("approved manifest 不得包含 pending 条目")
 
 
+def _rules_by_manifest_entry_id(rules) -> dict[str, Any]:
+    mapped: dict[str, Any] = {}
+    for rule in rules:
+        entry_id = (getattr(rule, "applicability", {}) or {}).get("_manifest_entry_id")
+        if not entry_id:
+            continue
+        if entry_id in mapped:
+            raise StandardSourceBindingError("manifest_entry_id_duplicate")
+        mapped[entry_id] = rule
+    return mapped
+
+
 def plan_manifest_import(db: Any, *, manifest, version_id: int) -> ManifestImportPlan:
     _require_approved(manifest)
     entries = _approved_rule_entries(manifest)
@@ -79,9 +91,23 @@ def import_manifest_rules(db: Any, *, manifest, version_id: int, admin_id: int) 
     except StandardSourceBindingError as exc:
         raise ValueError(exc.code) from exc
 
-    existing_ids = set()
-    for rule in getattr(version, "rules", None) or []:
-        existing_ids.add((getattr(rule, "applicability", {}) or {}).get("_manifest_entry_id"))
+    try:
+        existing_rules = _rules_by_manifest_entry_id(
+            getattr(version, "rules", None) or []
+        )
+        existing_segments_to_bind: list[tuple[Any, int]] = []
+        for entry in approved_entries:
+            existing = existing_rules.get(entry.entry_id)
+            if existing is None:
+                continue
+            expected_segment_id = source_segments[entry.entry_id].id
+            current_segment_id = getattr(existing, "source_segment_id", None)
+            if current_segment_id is None:
+                existing_segments_to_bind.append((existing, expected_segment_id))
+            elif current_segment_id != expected_segment_id:
+                raise StandardSourceBindingError("source_binding_conflict")
+    except StandardSourceBindingError as exc:
+        raise ValueError(exc.code) from exc
     indicators_by_key: dict[str, Any] = {}
     for entry in approved_entries:
         key = entry.indicator.canonical_key
@@ -112,8 +138,10 @@ def import_manifest_rules(db: Any, *, manifest, version_id: int, admin_id: int) 
 
     created: list[str] = []
     existing_entry_ids: list[str] = []
+    for existing, segment_id in existing_segments_to_bind:
+        existing.source_segment_id = segment_id
     for entry in approved_entries:
-        if entry.entry_id in existing_ids:
+        if entry.entry_id in existing_rules:
             existing_entry_ids.append(entry.entry_id)
             continue
         rule_data = entry.rule.model_dump()

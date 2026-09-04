@@ -183,7 +183,7 @@ def _collect_evidence_runtime_checks(connection, phase):
     """Collect only release identities/counts; never output case values or paths."""
     try:
         standard_rows = connection.execute(text(
-            "SELECT d.code, rs.id AS standard_id, v.id AS version_id, v.status, "
+            "SELECT d.code, rs.id AS standard_id, v.id AS version_id, v.standard_id AS version_standard_id, v.status, "
             "v.content_hash AS version_hash, sd.content_hash AS document_hash, sd.file_path "
             "FROM diseases d JOIN reference_standards rs ON rs.disease_id=d.id "
             "JOIN reference_standard_versions v ON v.id=rs.current_version_id "
@@ -197,6 +197,7 @@ def _collect_evidence_runtime_checks(connection, phase):
                 "disease_code": row["code"],
                 "standard_id": row["standard_id"],
                 "version_id": row["version_id"],
+                "version_belongs_to_standard": row.get("version_standard_id", row["standard_id"]) == row["standard_id"],
                 "status": row["status"],
                 "content_sha256": row["document_hash"],
                 "database_hashes_match": row["version_hash"] == row["document_hash"],
@@ -206,6 +207,7 @@ def _collect_evidence_runtime_checks(connection, phase):
             {row["disease_code"] for row in standards} == {"ad", "fatty_liver"}
             and all(
                 row["status"] == "approved"
+                and row["version_belongs_to_standard"]
                 and row["database_hashes_match"]
                 and row["file_hash_matches"]
                 for row in standards
