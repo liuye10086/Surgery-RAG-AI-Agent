@@ -42,6 +42,9 @@ def resolve_manifest_source_segment(
     version_id: int,
     source: Any,
 ) -> StandardSegment:
+    expected = normalize_source_text(getattr(source, "raw_text", "") or "")
+    if not expected:
+        raise StandardSourceBindingError("source_segment_missing")
     query = db.query(StandardSegment).filter(StandardSegment.version_id == version_id)
     for field in ("paragraph_index", "table_index", "row_index", "column_index"):
         value = getattr(source, field, None)
@@ -51,7 +54,6 @@ def resolve_manifest_source_segment(
         getattr(source, field, None)
         for field in ("paragraph_index", "table_index", "row_index", "column_index")
     )
-    expected = normalize_source_text(source.raw_text or "")
     matches = [
         item
         for item in query.all()

@@ -152,6 +152,47 @@ def test_resolver_rejects_same_text_at_a_different_manifest_location():
     assert resolved.id == 213
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        SourceLocator(document_absence_terms=["missing source"]),
+        SourceLocator(table_index=3, row_index=3, raw_text=" \t\n"),
+    ],
+)
+def test_resolver_rejects_missing_or_whitespace_source_text_before_any_query_or_write(source):
+    empty_segment = type("Segment", (), {
+        "id": 213, "version_id": 4, "paragraph_index": None,
+        "table_index": None, "row_index": None, "column_index": None,
+        "raw_text": "",
+    })()
+
+    class Query:
+        def filter(self, *_criteria):
+            return self
+
+        def all(self):
+            return [empty_segment]
+
+    class Session:
+        commits = 0
+        queries = 0
+
+        def query(self, _model):
+            self.queries += 1
+            return Query()
+
+        def commit(self):
+            self.commits += 1
+
+    db = Session()
+    with pytest.raises(StandardSourceBindingError) as caught:
+        resolve_manifest_source_segment(db, version_id=4, source=source)
+
+    assert caught.value.code == "source_segment_missing"
+    assert db.queries == 0
+    assert db.commits == 0
+
+
 def test_apply_commits_once_and_a_repeat_reports_zero_writes(monkeypatch, capsys):
     module = load_script()
     first_transaction = fake_session()
