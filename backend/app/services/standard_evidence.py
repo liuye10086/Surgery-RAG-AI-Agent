@@ -4,9 +4,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
+import hashlib
+import json
+from pathlib import Path
+import re
 from typing import Any, Mapping, Sequence
 
 from app.services.longitudinal_features import sort_visits
+from app.schemas.longitudinal_evidence import (
+    EvidenceConditionDecision,
+    EvidenceDocument,
+    EvidenceSourceLocator,
+    EvidenceVersion,
+    StandardEvidence,
+    StandardRuleEvidence,
+)
 
 
 NON_CLINICAL_APPLICABILITY_KEYS = frozenset(
@@ -18,6 +30,22 @@ NON_CLINICAL_APPLICABILITY_KEYS = frozenset(
         "_manifest_reviewed_at",
     }
 )
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+@dataclass(frozen=True)
+class StandardVersionToken:
+    standard_id: int
+    version_id: int
+    document_id: int
+    document_sha256: str
+    version_sha256: str
+
+
+class StandardEvidenceError(RuntimeError):
+    def __init__(self, code: str, message: str | None = None):
+        super().__init__(message or code)
+        self.code = code
 
 
 @dataclass(frozen=True)
@@ -108,6 +136,9 @@ def _context_value(context: Mapping[str, Any], field: str) -> Any:
         "scale_version": ("scale_version", "assessment_version"),
         "education": ("education_years", "education", "education_level"),
         "language": ("assessment_language", "language"),
+        "cohort": ("cohort", "study", "dataset"),
+        "tracer": ("tracer",),
+        "device": ("device_name", "device"),
     }
     for key in aliases.get(field, (field,)):
         value = context.get(key)
@@ -229,8 +260,179 @@ def build_indicator_contexts(case: Mapping[str, Any], visits: Sequence[Mapping[s
     return contexts
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _query_standard(db: Any, disease_id: int) -> Any:
+    from app.db.models import ReferenceStandard
+
+    query = db.query(ReferenceStandard).filter(ReferenceStandard.disease_id == disease_id)
+    try:
+        query = query.options()
+    except TypeError:
+        pass
+    return query.first()
+
+
+def preflight_standard(db: Any, disease_id: int, disease_code: str) -> StandardVersionToken:
+    try:
+        standard = _query_standard(db, disease_id)
+        if standard is None:
+            raise StandardEvidenceError("standard_missing")
+        if getattr(standard, "disease_id", disease_id) != disease_id:
+            raise StandardEvidenceError("standard_integrity_failed")
+        linked_disease = getattr(getattr(standard, "disease", None), "code", None)
+        if linked_disease and str(linked_disease) != str(disease_code):
+            raise StandardEvidenceError("standard_integrity_failed")
+        version = getattr(standard, "current_version", None)
+        if version is None or getattr(version, "status", None) != "approved":
+            raise StandardEvidenceError("standard_not_approved")
+        if getattr(version, "standard_id", getattr(standard, "id", None)) != getattr(standard, "id", None):
+            raise StandardEvidenceError("standard_integrity_failed")
+        document = getattr(version, "standard_document", None)
+        if document is None:
+            raise StandardEvidenceError("standard_integrity_failed")
+        document_hash = str(getattr(document, "content_hash", ""))
+        version_hash = str(getattr(version, "content_hash", ""))
+        if not _SHA256_RE.fullmatch(document_hash) or not _SHA256_RE.fullmatch(version_hash):
+            raise StandardEvidenceError("standard_integrity_failed")
+        file_path = Path(str(getattr(document, "file_path", "")))
+        if not file_path.is_file() or _sha256_file(file_path) != document_hash:
+            raise StandardEvidenceError("standard_integrity_failed")
+        if version_hash != document_hash:
+            raise StandardEvidenceError("standard_integrity_failed")
+        expected_manifest = getattr(version, "manifest_sha256", None)
+        for rule in getattr(version, "rules", None) or ():
+            manifest_hash = (getattr(rule, "applicability", None) or {}).get("_manifest_sha256")
+            if manifest_hash is not None and (
+                not _SHA256_RE.fullmatch(str(manifest_hash))
+                or (expected_manifest and str(manifest_hash) != str(expected_manifest))
+            ):
+                raise StandardEvidenceError("standard_integrity_failed")
+        return StandardVersionToken(
+            standard_id=int(standard.id), version_id=int(version.id), document_id=int(document.id),
+            document_sha256=document_hash, version_sha256=version_hash,
+        )
+    except StandardEvidenceError:
+        raise
+    except Exception as exc:
+        raise StandardEvidenceError("standard_query_failed") from exc
+
+
+def _indicator_matches(rule: Any, requested: str) -> bool:
+    indicator = getattr(rule, "indicator", None)
+    names = [getattr(indicator, "canonical_key", ""), getattr(indicator, "name_en", ""), *(getattr(indicator, "aliases", None) or [])]
+    return str(requested).strip().casefold() in {str(name).strip().casefold() for name in names if name}
+
+
+def _numeric_interpretation(value: Any, rule: Any, disease_code: str) -> str | None:
+    if disease_code != "fatty_liver" or getattr(rule, "machine_actionability", None) != "calculable":
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    lower, upper = getattr(rule, "lower", None), getattr(rule, "upper", None)
+    if lower is not None and (number < lower or (number == lower and not getattr(rule, "lower_inclusive", True))):
+        return "below_range"
+    if upper is not None and (number > upper or (number == upper and not getattr(rule, "upper_inclusive", True))):
+        return "above_range"
+    return "within_range"
+
+
+def build_standard_evidence(db: Any, token: StandardVersionToken, snapshot: Mapping[str, Any]) -> StandardEvidence:
+    try:
+        from app.db.models import ReferenceStandardVersion
+
+        version = db.query(ReferenceStandardVersion).filter(ReferenceStandardVersion.id == token.version_id).first()
+    except Exception as exc:
+        raise StandardEvidenceError("standard_query_failed") from exc
+    if version is None:
+        raise StandardEvidenceError("standard_missing")
+    if getattr(version, "current_version", None) is not None:
+        version = version.current_version
+    document = getattr(version, "standard_document", None)
+    case = snapshot.get("case") if isinstance(snapshot.get("case"), Mapping) else snapshot
+    visits = snapshot.get("visits") if isinstance(snapshot.get("visits"), Sequence) else []
+    contexts = build_indicator_contexts(case, visits)
+    requested = list(contexts)
+    for value in snapshot.get("indicators", []) if isinstance(snapshot.get("indicators"), list) else []:
+        if isinstance(value, Mapping) and value.get("name"):
+            requested.append(str(value["name"]).casefold())
+    requested = list(dict.fromkeys(requested))
+    rules: list[StandardRuleEvidence] = []
+    matched_calculable: dict[str, list[int]] = {}
+    for rule in getattr(version, "rules", None) or ():
+        if requested and not any(_indicator_matches(rule, name) for name in requested):
+            continue
+        indicator = getattr(rule, "indicator", None)
+        indicator_name = str(getattr(indicator, "canonical_key", None) or getattr(indicator, "name_en", None) or "unknown")
+        context = contexts.get(indicator_name.casefold(), {})
+        decision = evaluate_condition(adapt_v1_applicability(getattr(rule, "applicability", None)), context.__dict__ if isinstance(context, IndicatorContext) else context)
+        actionability = getattr(rule, "machine_actionability", "evidence-only")
+        if actionability not in {"calculable", "evidence-only", "blocked"}:
+            actionability = "blocked"
+        if str(case.get("disease_code", "")) == "ad" and actionability == "calculable":
+            actionability = "evidence-only"
+        if decision.status == "mismatched":
+            status = "not_applicable"
+        elif decision.status == "missing":
+            status = "missing_context"
+        elif actionability != "calculable":
+            status = "evidence_only"
+        else:
+            status = "calculable"
+            if getattr(rule, "conflict_group", None):
+                matched_calculable.setdefault(str(rule.conflict_group), []).append(len(rules))
+        source = getattr(rule, "source_segment", None)
+        locator = EvidenceSourceLocator(
+            segment_id=int(getattr(source, "id", 0) or 0), section_title=getattr(source, "section_title", None),
+            paragraph_index=getattr(source, "paragraph_index", None), table_index=getattr(source, "table_index", None),
+            row_index=getattr(source, "row_index", None), column_index=getattr(source, "column_index", None),
+            page_number=getattr(source, "page_number", None), raw_text=str(getattr(source, "raw_text", "source unavailable"))[:1000] or "source unavailable",
+        )
+        latest_value = None
+        if isinstance(context, IndicatorContext):
+            for visit in visits:
+                for item in visit.get("indicators") or []:
+                    if isinstance(item, Mapping) and str(item.get("name", "")).casefold() == indicator_name.casefold() and visit.get("visit_date") == context.observed_at.isoformat():
+                        latest_value = item.get("value")
+        try:
+            latest_value = float(latest_value) if latest_value is not None else None
+        except (TypeError, ValueError):
+            latest_value = None
+        rules.append(StandardRuleEvidence(
+            rule_id=int(getattr(rule, "id", 0)), indicator=indicator_name,
+            display_name=str(getattr(indicator, "name_en", None) or indicator_name), status=status,
+            machine_actionability=actionability, unit=getattr(rule, "unit", None), lower=getattr(rule, "lower", None), upper=getattr(rule, "upper", None),
+            lower_inclusive=getattr(rule, "lower_inclusive", True), upper_inclusive=getattr(rule, "upper_inclusive", True),
+            latest_value=latest_value, numeric_interpretation=_numeric_interpretation(latest_value, rule, str(case.get("disease_code", ""))),
+            interpretation=getattr(rule, "interpretation", None), applicability=getattr(rule, "applicability", None) or {},
+            applicability_hash=hashlib.sha256(json.dumps(getattr(rule, "applicability", None) or {}, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+            conditions=EvidenceConditionDecision(status=decision.status, satisfied=list(decision.satisfied), missing=list(decision.missing), mismatched=list(decision.mismatched)), source=locator,
+        ))
+    for indexes in matched_calculable.values():
+        if len(indexes) > 1:
+            for index in indexes:
+                rules[index] = rules[index].model_copy(update={"status": "conflict", "numeric_interpretation": None})
+    statuses = {rule.status for rule in rules}
+    overall = "conflict" if "conflict" in statuses else "context_incomplete" if "missing_context" in statuses else "not_applicable" if rules and statuses <= {"not_applicable"} else "available"
+    return StandardEvidence(
+        status=overall,
+        document=EvidenceDocument(document_id=token.document_id, title=str(getattr(document, "title", None) or getattr(document, "filename", "standard")), filename=str(getattr(document, "filename", "standard")), content_sha256=token.document_sha256, issuer=getattr(document, "issuer", None), publication_date=getattr(document, "publication_date", None), external_identifier=getattr(document, "external_identifier", None), source_url=getattr(document, "source_url", None)),
+        version=EvidenceVersion(version_id=token.version_id, version_label=str(getattr(version, "version_label", "")), content_sha256=token.version_sha256, parser_version=str(getattr(version, "parser_version", "")), approved_at=getattr(version, "approved_at", None), effective_from=getattr(version, "effective_from", None)),
+        rules=rules,
+        warnings=[],
+    )
+
+
 __all__ = [
     "AllNode", "AnyNode", "ConditionDecision", "ConditionNode", "EqualsNode",
     "IndicatorContext", "InNode", "NotNode", "PresentNode", "RangeNode",
-    "adapt_v1_applicability", "build_indicator_contexts", "evaluate_condition",
+    "StandardVersionToken", "StandardEvidenceError", "adapt_v1_applicability", "build_indicator_contexts", "evaluate_condition", "preflight_standard", "build_standard_evidence",
 ]

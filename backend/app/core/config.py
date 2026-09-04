@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
     DEEPSEEK_MODEL: str = "deepseek-chat"
     DEEPSEEK_REQUEST_TIMEOUT: int = 60
+    STANDARD_EVIDENCE_QUERY_TIMEOUT_MS: int = 500
 
     # 文件上传配置（默认放到项目根目录的 uploads/，与代码分离）
     UPLOAD_DIR: str = os.path.join(_PROJECT_ROOT, "uploads")

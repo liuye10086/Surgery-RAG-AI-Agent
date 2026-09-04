@@ -1,0 +1,107 @@
+import hashlib
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from app.services.standard_evidence import (
+    StandardEvidenceError,
+    build_standard_evidence,
+    preflight_standard,
+)
+
+
+class _Query:
+    def __init__(self, value):
+        self.value = value
+
+    def filter(self, *args, **kwargs):
+        return self
+
+    def options(self, *args, **kwargs):
+        return self
+
+    def first(self):
+        return self.value
+
+
+def _db(value):
+    return SimpleNamespace(query=lambda model: _Query(value))
+
+
+def _approved(tmp_path: Path, *, disease_id=1, disease_code="fatty_liver", actionability="calculable"):
+    content = b"approved standard content"
+    path = tmp_path / "standard.txt"
+    path.write_bytes(content)
+    digest = hashlib.sha256(content).hexdigest()
+    segment = SimpleNamespace(
+        id=11, section_title="Reference", paragraph_index=2, table_index=1,
+        row_index=3, column_index=2, page_number=4, raw_text="ALT 7-40 U/L",
+    )
+    indicator = SimpleNamespace(canonical_key="alt", name_en="ALT", aliases=[])
+    rule = SimpleNamespace(
+        id=7, indicator=indicator, source_segment=segment, machine_actionability=actionability,
+        unit="U/L", lower=7, upper=40, lower_inclusive=True, upper_inclusive=True,
+        applicability={}, interpretation="within reference", conflict_group=None,
+    )
+    document = SimpleNamespace(
+        id=5, title="Fatty liver standard", filename="standard.txt", file_path=str(path),
+        content_hash=digest, issuer="Society", publication_date=None,
+        external_identifier="STD-1", source_url="https://example.test/std",
+    )
+    version = SimpleNamespace(
+        id=6, standard_id=9, version_label="2026.1", content_hash=digest,
+        parser_version="parser-1", approved_at=None, effective_from=None,
+        status="approved", standard_document=document, rules=[rule], segments=[segment],
+    )
+    standard = SimpleNamespace(
+        id=9, disease_id=disease_id, name="Fatty liver", current_version=version,
+        disease=SimpleNamespace(code=disease_code),
+    )
+    return standard
+
+
+def test_preflight_rejects_document_hash_mismatch(tmp_path):
+    standard = _approved(tmp_path)
+    Path(standard.current_version.standard_document.file_path).write_bytes(b"changed")
+    with pytest.raises(StandardEvidenceError) as error:
+        preflight_standard(_db(standard), 1, "fatty_liver")
+    assert error.value.code == "standard_integrity_failed"
+
+
+def test_preflight_rejects_missing_or_unapproved_standard(tmp_path):
+    with pytest.raises(StandardEvidenceError, match="standard_missing"):
+        preflight_standard(_db(None), 1, "fatty_liver")
+    standard = _approved(tmp_path)
+    standard.current_version.status = "draft"
+    with pytest.raises(StandardEvidenceError) as error:
+        preflight_standard(_db(standard), 1, "fatty_liver")
+    assert error.value.code == "standard_not_approved"
+
+
+def test_build_standard_evidence_contains_locator_and_safe_numeric_interpretation(tmp_path):
+    standard = _approved(tmp_path)
+    db = _db(standard)
+    token = preflight_standard(db, 1, "fatty_liver")
+    evidence = build_standard_evidence(
+        db,
+        token,
+        {"case": {"age": 55, "sex": "female", "disease_code": "fatty_liver"},
+         "visits": [{"visit_date": "2026-01-01", "indicators": [{"name": "ALT", "value": 42, "unit": "U/L"}], "visit_context": {}}]},
+    )
+    assert evidence.status == "available"
+    assert evidence.document.external_identifier == "STD-1"
+    assert evidence.rules[0].source.page_number == 4
+    assert evidence.rules[0].numeric_interpretation == "above_range"
+
+
+def test_ad_rules_remain_evidence_only(tmp_path):
+    standard = _approved(tmp_path, disease_code="ad", actionability="calculable")
+    token = preflight_standard(_db(standard), 1, "ad")
+    evidence = build_standard_evidence(
+        _db(standard), token,
+        {"case": {"disease_code": "ad"}, "visits": [{"visit_date": "2026-01-01", "indicators": [{"name": "ALT", "value": 42}]}]},
+    )
+    assert all(rule.status != "calculable" for rule in evidence.rules)
+    assert all(rule.numeric_interpretation is None for rule in evidence.rules)
+

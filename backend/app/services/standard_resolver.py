@@ -14,6 +14,12 @@ from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any
 
+from app.services.standard_evidence import (
+    EqualsNode,
+    adapt_v1_applicability,
+    evaluate_condition,
+)
+
 
 NON_CLINICAL_APPLICABILITY_KEYS = frozenset({
     "source_language",
@@ -72,24 +78,11 @@ def _context_value(context: dict[str, Any], key: str) -> Any:
 
 def _applicability_matches(rule: Any, context: dict[str, Any]) -> tuple[bool, list[str]]:
     applicability = getattr(rule, "applicability", None) or {}
-    missing: list[str] = []
-    for key, expected in applicability.items():
-        if key in NON_CLINICAL_APPLICABILITY_KEYS:
-            continue
-        actual = _context_value(context, key)
-        if actual is None:
-            missing.append(str(key))
-            continue
-        expected_values = expected if isinstance(expected, list) else [expected]
-        if _normalise(actual) not in {_normalise(item) for item in expected_values}:
-            return False, []
-    rule_sex = getattr(rule, "sex", None)
-    context_sex = context.get("sex")
-    if rule_sex and context_sex and _normalise(rule_sex) != _normalise(context_sex):
-        return False, []
-    if rule_sex and not context_sex:
-        missing.append("sex")
-    return not missing, missing
+    node = adapt_v1_applicability(applicability)
+    if getattr(rule, "sex", None):
+        node = type(node)(children=(*node.children, EqualsNode("sex", rule.sex)))
+    decision = evaluate_condition(node, context)
+    return decision.status == "matched", list(decision.missing)
 
 
 def _as_evidence(rule: Any, reason: str) -> Any:
