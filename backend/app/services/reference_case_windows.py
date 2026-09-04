@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 import hashlib
 import json
+import re
 from typing import Any, Literal, Mapping, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -47,6 +48,25 @@ class WindowBuildResult(BaseModel):
     total_windows: int
     eligible_windows: int
     exclusion_counts: dict[str, int]
+
+
+class ReferenceIndexError(RuntimeError):
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
+
+class WindowBuildStatistics(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    logical_dataset: str
+    dataset_release_id: str
+    data_content_sha256: str
+    eligibility_config_hash: str
+    total_windows: int = Field(ge=0)
+    eligible_windows: int = Field(ge=0)
+    inserted: int = Field(ge=0)
+    unchanged: int = Field(ge=0)
+    exclusion_counts: dict[str, int] = Field(default_factory=dict)
 
 
 _CONTEXT_KEYS = (
@@ -136,4 +156,87 @@ def build_window_profiles(rows: Sequence[Mapping[str, Any]], disease_code: str, 
     return WindowBuildResult(profiles=tuple(profiles), total_windows=total_windows, eligible_windows=len(profiles), exclusion_counts=exclusion_counts)
 
 
-__all__ = ["ReferenceCaseWindowWrite", "WindowBuildResult", "build_window_profiles"]
+def _metadata(row: Any) -> dict[str, Any]:
+    value = getattr(row, "case_metadata", None)
+    if value is None and isinstance(row, Mapping):
+        value = row.get("case_metadata", row.get("metadata", {}))
+    return dict(value) if isinstance(value, Mapping) else {}
+
+
+def load_active_reference_rows(db: Any, logical_dataset: str) -> tuple[ReferenceDataRelease, list[dict[str, Any]]]:
+    from app.db.models import CaseRecord
+
+    try:
+        source_rows = db.query(CaseRecord).all()
+    except Exception as exc:
+        raise ReferenceIndexError("reference_query_failed") from exc
+    scoped = [row for row in source_rows if _metadata(row).get("logical_dataset", _metadata(row).get("source_dataset")) == logical_dataset]
+    active_ids = {str(_metadata(row).get("dataset_release_id")) for row in scoped if _metadata(row).get("dataset_active") is True}
+    if len(active_ids) != 1:
+        raise ReferenceIndexError("multiple_active_releases" if len(active_ids) > 1 else "active_release_missing")
+    release_id = next(iter(active_ids))
+    hashes = {str(_metadata(row).get("data_content_sha256")) for row in scoped if str(_metadata(row).get("dataset_release_id")) == release_id}
+    hashes.discard("None")
+    if len(hashes) != 1 or not re.fullmatch(r"[0-9a-f]{64}", next(iter(hashes), "")):
+        raise ReferenceIndexError("active_release_hash_invalid")
+    disease_code = "ad" if logical_dataset == "ad" else "fatty_liver"
+    grouped: dict[str, dict[str, Any]] = {}
+    for row in scoped:
+        metadata = _metadata(row)
+        if str(metadata.get("dataset_release_id")) != release_id:
+            continue
+        code = getattr(row, "anonymous_case_code", None) or metadata.get("anonymous_case_code")
+        if not code:
+            continue
+        item = grouped.setdefault(str(code), {
+            "disease_code": disease_code, "dataset_release_id": release_id,
+            "is_synthetic": bool(metadata.get("is_synthetic", False)), "anonymous_case_code": str(code),
+            "source_trace": metadata.get("source_trace", {}), "outcome_source": metadata.get("outcome_source", ""),
+            "outcome_reliability": metadata.get("outcome_reliability", "low"), "task_compatible": metadata.get("task_compatible", True),
+            "timeline_valid": metadata.get("timeline_valid", True), "age": metadata.get("age"), "sex": metadata.get("sex"),
+            "baseline_stage": metadata.get("baseline_stage"), "outcome_status": metadata.get("outcome_status", "unknown"),
+            "outcome_value": metadata.get("outcome_value", {}), "visits": [],
+        })
+        if isinstance(row, Mapping) and isinstance(row.get("visits"), list):
+            item["visits"].extend(row["visits"])
+        else:
+            item["visits"].append({"visit_date": metadata.get("visit_date") or getattr(row, "created_at", None), "indicators": getattr(row, "indicators", None) or metadata.get("indicators", []), "visit_context": metadata.get("visit_context", {})})
+    release = ReferenceDataRelease(logical_dataset=logical_dataset, dataset_release_id=release_id, data_content_sha256=next(iter(hashes)))
+    return release, list(grouped.values())
+
+
+def synchronize_reference_case_windows(db: Any, logical_dataset: str, *, apply: bool = False) -> WindowBuildStatistics:
+    from app.db.models import ReferenceCaseWindow
+    from app.services.reference_case_eligibility import ELIGIBILITY_CONFIG_HASH
+
+    release, rows = load_active_reference_rows(db, logical_dataset)
+    result = build_window_profiles(rows, logical_dataset, release)
+    statistics = WindowBuildStatistics(
+        logical_dataset=logical_dataset, dataset_release_id=release.dataset_release_id,
+        data_content_sha256=release.data_content_sha256, eligibility_config_hash=ELIGIBILITY_CONFIG_HASH,
+        total_windows=result.total_windows, eligible_windows=result.eligible_windows, inserted=0,
+        unchanged=0, exclusion_counts=result.exclusion_counts,
+    )
+    if not apply:
+        return statistics
+    from sqlalchemy.dialects.postgresql import insert
+
+    values = []
+    for profile in result.profiles:
+        payload = profile.model_dump(mode="json")
+        payload.pop("disease_code", None)
+        payload.pop("timeline_sha256", None)
+        payload.pop("timeline_canonical_json", None)
+        values.append(payload)
+    if not values:
+        return statistics
+    statement = insert(ReferenceCaseWindow).values(values).on_conflict_do_nothing(constraint="uq_reference_case_windows_case_version")
+    try:
+        inserted = max(int(db.execute(statement).rowcount or 0), 0)
+    except Exception as exc:
+        raise ReferenceIndexError("reference_persistence_failed") from exc
+    db.commit()
+    return statistics.model_copy(update={"inserted": inserted, "unchanged": result.eligible_windows - inserted})
+
+
+__all__ = ["ReferenceCaseWindowWrite", "WindowBuildResult", "ReferenceIndexError", "WindowBuildStatistics", "build_window_profiles", "load_active_reference_rows", "synchronize_reference_case_windows"]
