@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import call, patch
 from uuid import uuid4
 
 import pytest
@@ -48,10 +48,20 @@ def _bundle(status="no_eligible_cases"):
 def test_standard_change_retries_once_then_fails():
     token = EvidenceVersionToken(StandardVersionToken(1, 2, 3, "a" * 64, "b" * 64), "r", "c" * 64, "d" * 64, "e" * 64)
     result = EvidenceBuildResult(bundle=_bundle(), evidence_status="complete", sources_projection=())
-    with patch("app.services.evidence_bundle.build_evidence_bundle_once", return_value=result), patch("app.services.evidence_bundle.read_version_token", side_effect=[token, token.__class__(token.standard, "r2", "c" * 64, "d" * 64, "e" * 64), token.__class__(token.standard, "r3", "c" * 64, "d" * 64, "e" * 64)]):
+    with patch("app.services.evidence_bundle.build_evidence_bundle_once", return_value=result), patch("app.services.evidence_bundle.read_version_token", side_effect=[token.__class__(token.standard, "r2", "c" * 64, "d" * 64, "e" * 64), token.__class__(token.standard, "r3", "c" * 64, "d" * 64, "e" * 64)]):
         with pytest.raises(EvidenceBuildError) as error:
             build_evidence_bundle_with_retry(SimpleNamespace(), {"disease_code": "fatty_liver"}, token)
     assert error.value.code == "evidence_version_changed"
+
+
+def test_one_version_change_rebuilds_once():
+    token = EvidenceVersionToken(StandardVersionToken(1, 2, 3, "a" * 64, "b" * 64), "r1", "c" * 64, "d" * 64, "e" * 64)
+    changed = token.__class__(token.standard, "r2", "c" * 64, "d" * 64, "e" * 64)
+    result = EvidenceBuildResult(bundle=_bundle(), evidence_status="complete", sources_projection=())
+    with patch("app.services.evidence_bundle.build_evidence_bundle_once", return_value=result) as build, patch("app.services.evidence_bundle.read_version_token", side_effect=[changed, changed]):
+        built = build_evidence_bundle_with_retry(SimpleNamespace(), {"disease_code": "fatty_liver"}, token)
+    assert built is result
+    assert [call.args[2] for call in build.call_args_list] == [token, changed]
 
 
 def test_reference_query_failure_keeps_standard_and_marks_partial():

@@ -43,6 +43,9 @@ def render_evidence_markdown(bundle: dict[str, Any] | Any) -> str:
             f"- {rule.get('display_name') or rule.get('indicator') or '未命名规则'}："
             f"{rule.get('status') or '未记录'}；来源：{location}。"
         )
+        if source.get("raw_text"):
+            excerpt = " ".join(str(source["raw_text"]).split())[:500]
+            lines.append(f"  - 原文摘录：{excerpt}")
     status = references.get("status")
     copies = {
         "no_eligible_cases": "当前没有通过生产准入的参考病例。",
@@ -54,11 +57,23 @@ def render_evidence_markdown(bundle: dict[str, Any] | Any) -> str:
         lines.append(f"- {copies[status]}")
     for case in references.get("cases") or []:
         score = case.get("score") or {}
+        features = case.get("features") or {}
+        age = features.get("age")
+        age_band = (
+            f"{int(age) // 10 * 10}–{int(age) // 10 * 10 + 9} 岁"
+            if isinstance(age, int) else "年龄未记录"
+        )
         lines.append(
             f"- 匿名编号 {case.get('anonymous_case_code', '未记录')}；"
             f"覆盖率 {score.get('coverage', '未记录')}；"
             f"排名分 {score.get('ranking_score', '未记录')}；"
-            f"结局来源 {case.get('outcome_source') or '未记录'}。"
+            f"{age_band}；性别 {features.get('sex') or '未记录'}；"
+            f"基线阶段 {features.get('baseline_stage') or '未记录'}；"
+            f"{features.get('visit_count', '未记录')} 次访视 / "
+            f"{features.get('observation_span_days', '未记录')} 天；"
+            f"历史结局 {case.get('outcome_status') or 'unknown'}；"
+            f"结局来源 {case.get('outcome_source') or '未记录'}；"
+            f"可靠性 {case.get('outcome_reliability') or '未记录'}。"
         )
     lines.append("- 参考病例结果不代表当前病例将发生相同结局。")
     return "\n".join(lines)

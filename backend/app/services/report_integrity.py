@@ -58,9 +58,12 @@ def create_generation_fingerprint(
     payload = {
         "input_snapshot": _normalize(snapshot, drop_hash_declaration=True),
         "prediction_result": _normalize(prediction_result),
-        "evidence_snapshot": _normalize(evidence_snapshot),
         "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
     }
+    # Preserve the exact pre-EvidenceBundle fingerprint for existing reports.
+    # New reports always pass their immutable evidence snapshot explicitly.
+    if evidence_snapshot is not None:
+        payload["evidence_snapshot"] = _normalize(evidence_snapshot)
     encoded = json.dumps(
         payload,
         ensure_ascii=False,
@@ -80,10 +83,6 @@ def verify_report_integrity(
     evidence_snapshot: dict[str, Any] | None = None,
     evidence_sha256: str | None = None,
 ) -> IntegrityVerificationResult:
-    if not input_snapshot_sha256 or not generation_fingerprint:
-        return IntegrityVerificationResult("unverifiable", "legacy_missing_integrity_fields", None, None, None)
-    if not isinstance(input_snapshot, dict) or not isinstance(prediction_result, dict) or content is None:
-        return IntegrityVerificationResult("invalid", "integrity_input_missing", False, False, None)
     evidence_valid = None
     if evidence_snapshot is not None:
         from app.schemas.longitudinal_evidence import EvidenceBundle
@@ -97,6 +96,13 @@ def verify_report_integrity(
             evidence_valid = False
         if not evidence_valid:
             return IntegrityVerificationResult("invalid", "evidence_integrity_mismatch", None, None, False)
+    if not input_snapshot_sha256 or not generation_fingerprint:
+        return IntegrityVerificationResult(
+            "unverifiable", "legacy_missing_integrity_fields", None, None,
+            evidence_valid,
+        )
+    if not isinstance(input_snapshot, dict) or not isinstance(prediction_result, dict) or content is None:
+        return IntegrityVerificationResult("invalid", "integrity_input_missing", False, False, evidence_valid)
     input_valid = compute_input_snapshot_sha256(input_snapshot) == input_snapshot_sha256
     fingerprint_valid = create_generation_fingerprint(input_snapshot, prediction_result, content, evidence_snapshot) == generation_fingerprint
     if input_valid and fingerprint_valid:

@@ -1,3 +1,6 @@
+import hashlib
+import json
+
 from app.services.report_integrity import (
     canonicalize_snapshot,
     compute_input_snapshot_sha256,
@@ -66,3 +69,24 @@ def test_legacy_report_without_integrity_fields_is_readable_but_unverifiable():
     assert result.status == "unverifiable"
     assert result.input_snapshot_valid is None
     assert result.generation_fingerprint_valid is None
+
+
+def test_existing_fingerprint_without_evidence_key_remains_valid():
+    snapshot = {"age": 60, "visits": []}
+    prediction = {"risk": {"score": 0.4}}
+    content = "历史正文"
+    legacy_payload = {
+        "input_snapshot": snapshot,
+        "prediction_result": prediction,
+        "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+    }
+    legacy_fingerprint = hashlib.sha256(json.dumps(
+        legacy_payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True,
+    ).encode("utf-8")).hexdigest()
+
+    result = verify_report_integrity(
+        snapshot, compute_input_snapshot_sha256(snapshot), legacy_fingerprint,
+        prediction, content, None, None,
+    )
+
+    assert result.status == "valid"

@@ -114,3 +114,30 @@ def test_ad_rules_remain_evidence_only(tmp_path):
     )
     assert all(rule.status != "calculable" for rule in evidence.rules)
     assert all(rule.numeric_interpretation is None for rule in evidence.rules)
+
+
+def test_missing_applicability_context_never_produces_numeric_interpretation(tmp_path):
+    standard = _approved(tmp_path)
+    standard.current_version.rules[0].applicability.update({"platform": "required"})
+    token = preflight_standard(_db(standard), 1, "fatty_liver")
+
+    evidence = build_standard_evidence(
+        _db(standard), token,
+        {"case": {"disease_code": "fatty_liver"}, "visits": [{"visit_date": "2026-01-01", "indicators": [{"name": "ALT", "value": 42, "unit": "U/L"}]}]},
+    )
+
+    assert evidence.rules[0].status == "missing_context"
+    assert evidence.rules[0].numeric_interpretation is None
+
+
+def test_no_matching_rule_is_not_applicable(tmp_path):
+    standard = _approved(tmp_path)
+    token = preflight_standard(_db(standard), 1, "fatty_liver")
+
+    evidence = build_standard_evidence(
+        _db(standard), token,
+        {"case": {"disease_code": "fatty_liver"}, "visits": [{"visit_date": "2026-01-01", "indicators": [{"name": "AST", "value": 42, "unit": "U/L"}]}]},
+    )
+
+    assert evidence.rules == []
+    assert evidence.status == "not_applicable"

@@ -357,6 +357,7 @@ class ReferenceCaseWindow(Base):
         ),
         CheckConstraint("horizon_days = 365", name="ck_reference_case_windows_horizon"),
         CheckConstraint("age IS NULL OR age BETWEEN 0 AND 120", name="ck_reference_case_windows_age_range"),
+        CheckConstraint("sex IS NULL OR sex IN ('male', 'female')", name="ck_reference_case_windows_sex"),
         CheckConstraint("visit_count >= 3", name="ck_reference_case_windows_min_visits"),
         CheckConstraint("span_days >= 0", name="ck_reference_case_windows_min_span"),
         CheckConstraint(
@@ -669,7 +670,13 @@ class StandardIndicator(Base):
 
 class StandardSegment(Base):
     __tablename__ = "standard_segments"
-    __table_args__ = (Index("ix_standard_segments_version_location", "version_id", "table_index", "row_index"),)
+    __table_args__ = (
+        CheckConstraint(
+            "page_number IS NULL OR page_number > 0",
+            name="ck_standard_segments_page_number_positive",
+        ),
+        Index("ix_standard_segments_version_location", "version_id", "table_index", "row_index"),
+    )
 
     id = Column(Integer, primary_key=True)
     version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="CASCADE"), nullable=False)

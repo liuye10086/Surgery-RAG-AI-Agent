@@ -99,6 +99,7 @@ _REASON_ORDER = MappingProxyType(
                 "unit_missing",
                 "unit_conflict",
                 "unsupported_unit",
+                "measurement_context_changed",
                 "directional_change",
                 "persistent_direction",
                 "reference_unavailable",
@@ -166,7 +167,7 @@ def _persistent(values: list[float], direction: str) -> bool:
 
 
 def _unit_state(
-    canonical: str, entries: list[tuple[date, float, str | None, str]]
+    canonical: str, entries: list[tuple[Any, ...]]
 ) -> tuple[str, str | None]:
     units = [entry[2] for entry in entries]
     present = {unit for unit in units if unit is not None}
@@ -388,7 +389,7 @@ def interpret_observation_signals(
         )
 
     ordered = sort_visits([dict(visit) for visit in visits])
-    observations: dict[str, list[tuple[date, float, str | None, str]]] = defaultdict(list)
+    observations: dict[str, list[tuple[Any, ...]]] = defaultdict(list)
     invalid: dict[str, list[str]] = defaultdict(list)
     for visit in ordered:
         visit_date = date.fromisoformat(visit["visit_date"])
@@ -410,7 +411,16 @@ def interpret_observation_signals(
                     invalid[canonical].append(reason)
                 continue
             unit = str(indicator.get("unit") or "").strip() or None
-            observations[canonical].append((visit_date, value, unit, raw_name.lower()))
+            visit_context = visit.get("visit_context") if isinstance(visit.get("visit_context"), Mapping) else {}
+            context_signature = tuple(
+                str(visit_context.get(key)).strip().casefold()
+                if visit_context.get(key) not in (None, "") else None
+                for key in (
+                    "assay_platform", "method", "specimen", "scale_version",
+                    "assessment_language", "education_years", "education_adjusted",
+                )
+            )
+            observations[canonical].append((visit_date, value, unit, raw_name.lower(), context_signature))
 
     signals: list[LongitudinalSignal] = []
     omitted: list[dict[str, Any]] = []
@@ -428,6 +438,14 @@ def interpret_observation_signals(
                         "observation_count": len(entries),
                     }
                 )
+            continue
+
+        if len({entry[4] for entry in entries}) > 1:
+            omitted.append({
+                "indicator": canonical,
+                "reason_codes": [*invalid.get(canonical, []), "measurement_context_changed"],
+                "observation_count": len(entries),
+            })
             continue
 
         values = [entry[1] for entry in entries]
@@ -540,7 +558,12 @@ def attach_signal_interpretation(prediction, visits, standard):
     for rule in getattr(standard, "rules", ()) or ():
         payload = rule.model_dump(mode="json") if hasattr(rule, "model_dump") else dict(rule)
         payload.update(
-            source_type="standard_evidence",
+            source_type=(
+                "reference_range"
+                if payload.get("status") == "calculable"
+                and payload.get("machine_actionability") == "calculable"
+                else "standard_evidence"
+            ),
             standard_rule_id=payload.get("rule_id"),
             standard_version_id=getattr(getattr(standard, "version", None), "version_id", None),
         )

@@ -19,6 +19,11 @@ def upgrade() -> None:
     op.add_column("standard_documents", sa.Column("external_identifier", sa.String(length=200), nullable=True))
     op.add_column("standard_documents", sa.Column("source_url", sa.String(length=1000), nullable=True))
     op.add_column("standard_segments", sa.Column("page_number", sa.Integer(), nullable=True))
+    op.create_check_constraint(
+        "ck_standard_segments_page_number_positive",
+        "standard_segments",
+        "page_number IS NULL OR page_number > 0",
+    )
 
     op.add_column("ai_reports", sa.Column("evidence_snapshot", postgresql.JSONB(astext_type=sa.Text()), nullable=True))
     op.add_column("ai_reports", sa.Column("evidence_snapshot_sha256", sa.String(length=64), nullable=True))
@@ -83,6 +88,7 @@ def upgrade() -> None:
         sa.CheckConstraint("anonymous_case_code ~ '^CASE-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$'", name="ck_reference_case_windows_anonymous_code"),
         sa.CheckConstraint("horizon_days = 365", name="ck_reference_case_windows_horizon"),
         sa.CheckConstraint("age IS NULL OR age BETWEEN 0 AND 120", name="ck_reference_case_windows_age_range"),
+        sa.CheckConstraint("sex IS NULL OR sex IN ('male', 'female')", name="ck_reference_case_windows_sex"),
         sa.CheckConstraint("visit_count >= 3", name="ck_reference_case_windows_min_visits"),
         sa.CheckConstraint("span_days >= 0", name="ck_reference_case_windows_min_span"),
         sa.CheckConstraint("outcome_status IN ('positive', 'negative', 'unknown', 'not_observed')", name="ck_reference_case_windows_outcome_status"),
@@ -130,6 +136,11 @@ def downgrade() -> None:
         op.drop_constraint(name, "ai_reports", type_="check")
     for column in ("reference_case_status", "standard_evidence_status", "evidence_status", "evidence_snapshot_sha256", "evidence_snapshot"):
         op.drop_column("ai_reports", column)
+    op.drop_constraint(
+        "ck_standard_segments_page_number_positive",
+        "standard_segments",
+        type_="check",
+    )
     op.drop_column("standard_segments", "page_number")
     for column in ("source_url", "external_identifier", "publication_date", "issuer"):
         op.drop_column("standard_documents", column)

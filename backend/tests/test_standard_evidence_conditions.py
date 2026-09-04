@@ -57,3 +57,26 @@ def test_latest_indicator_uses_its_own_visit_context():
     )
     assert contexts["nfl"].assay_platform == "A"
     assert contexts["mmse"].assay_platform == "B"
+
+
+def test_indicator_context_marks_cross_visit_measurement_changes():
+    from app.services.standard_evidence import build_indicator_contexts
+
+    contexts = build_indicator_contexts(
+        {"age": 67, "sex": "female", "baseline_stage": "mci", "disease_code": "ad"},
+        [
+            {
+                "visit_date": "2025-01-01",
+                "visit_context": {"assay_platform": "A", "specimen": "plasma"},
+                "indicators": [{"name": "nfl", "value": 20, "unit": "pg/mL"}],
+            },
+            {
+                "visit_date": "2025-06-01",
+                "visit_context": {"assay_platform": "B", "specimen": "plasma"},
+                "indicators": [{"name": "nfl", "value": 24, "unit": "pg/mL"}],
+            },
+        ],
+    )
+
+    assert contexts["nfl"].assay_platform == "B"
+    assert contexts["nfl"].measurement_context_changed is True

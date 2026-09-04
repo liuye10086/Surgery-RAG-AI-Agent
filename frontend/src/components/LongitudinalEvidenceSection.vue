@@ -2,12 +2,13 @@
   <section id="section-8" class="evidence-section" aria-labelledby="evidence-title">
     <div class="evidence-card">
       <h4 id="evidence-title">正式标准证据</h4>
-      <p class="evidence-meta">{{ standardInfo.document?.title || '已批准标准' }} · {{ standardInfo.version?.version_label || '版本未记录' }}</p>
+      <p class="evidence-meta">{{ standardInfo.document.title || '已批准标准' }} · {{ standardInfo.version.version_label || '版本未记录' }} · {{ standardInfo.document.issuer || '发布机构未注明' }} · {{ standardInfo.document.publication_date || '发布日期未注明' }}</p>
       <details v-for="rule in standardRules" :key="String(rule.rule_id)" class="evidence-rule">
         <summary>{{ rule.display_name || rule.indicator }} · {{ rule.status }}</summary>
         <p>最新观察：{{ rule.latest_value ?? '未记录' }} {{ rule.unit || '' }}</p>
         <p>条件：{{ rule.conditions.status }}<span v-if="rule.conditions.missing.length">；缺少 {{ rule.conditions.missing.join('、') }}</span><span v-if="rule.conditions.mismatched.length">；不匹配 {{ rule.conditions.mismatched.join('、') }}</span></p>
         <p>来源：{{ rule.source?.section_title || '章节未记录' }}<span v-if="rule.source?.page_number">，第 {{ rule.source.page_number }} 页</span></p>
+        <blockquote>{{ rule.source.raw_text }}</blockquote>
       </details>
     </div>
     <div class="evidence-card" aria-labelledby="reference-title">
@@ -18,7 +19,7 @@
           <summary>{{ item.anonymous_case_code }} · 覆盖率 {{ formatPercent(item.score.coverage) }} · 排名分 {{ item.score.ranking_score }}</summary>
           <p>{{ ageBand(item.features.age) }} · {{ sexText(item.features.sex) }} · 基线阶段 {{ item.features.baseline_stage }}</p>
           <p>{{ item.features.visit_count }} 次访视 · 观察跨度 {{ item.features.observation_span_days }} 天 · 截止 {{ item.features.as_of }}</p>
-          <p>结局来源：{{ item.outcome_source }} · 可靠性：{{ reliabilityText(item.outcome_reliability) }}</p>
+          <p>历史结局：{{ outcomeText(item.outcome_status) }} · 来源：{{ item.outcome_source }} · 可靠性：{{ reliabilityText(item.outcome_reliability) }}</p>
           <p v-if="item.comparisons.length">比较项：{{ item.comparisons.map(entry => `${entry.indicator}（${entry.status}）`).join('、') }}</p>
         </details>
       </template>
@@ -57,6 +58,9 @@ function sexText(value: 'male' | 'female' | null) {
 function reliabilityText(value: 'low' | 'medium' | 'high') {
   return ({ low: '低', medium: '中', high: '高' } as const)[value]
 }
+function outcomeText(value: 'positive' | 'negative' | 'unknown') {
+  return ({ positive: '已观察到目标结局', negative: '未观察到目标结局', unknown: '结局未知' } as const)[value]
+}
 </script>
 
 <style scoped>
@@ -66,6 +70,7 @@ function reliabilityText(value: 'low' | 'medium' | 'high') {
 .evidence-meta, .evidence-card p { color: var(--text-secondary); font-size: var(--text-sm); }
 .evidence-rule { margin-top: var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-light); border-radius: var(--radius-item); }
 .evidence-rule summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--text-primary); }
+.evidence-rule blockquote { margin: var(--space-2) 0 0; padding: var(--space-2) var(--space-3); border-left: 3px solid var(--color-primary-light); color: var(--text-secondary); font-size: var(--text-xs); }
 .non-causal-notice { padding: var(--space-3); border-radius: var(--radius-item); background: var(--color-accent-light); }
 .technical-meta { font-family: var(--font-mono); font-size: var(--text-xs) !important; }
 @media (prefers-reduced-motion: reduce) { .evidence-section *, .evidence-section *::before, .evidence-section *::after { transition: none !important; animation: none !important; } }

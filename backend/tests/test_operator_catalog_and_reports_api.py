@@ -218,6 +218,11 @@ class TestReportStateMachine(unittest.TestCase):
         )
         self.assertEqual(captured["snapshot"]["visits"], captured["visits"])
         db.add.assert_called_once()
+        created_report = db.add.call_args.args[0]
+        self.assertEqual(
+            captured["snapshot"]["generation_batch_id"],
+            created_report.generation_batch_id,
+        )
 
     def test_model_loading_failure_converges_report_to_failed(self):
         from app.api.operator import create_longitudinal_report

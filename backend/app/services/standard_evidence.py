@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 import hashlib
 import json
@@ -252,12 +252,22 @@ def _context_from_visit(case: Mapping[str, Any], indicator: Mapping[str, Any], v
 
 def build_indicator_contexts(case: Mapping[str, Any], visits: Sequence[Mapping[str, Any]]) -> dict[str, IndicatorContext]:
     contexts: dict[str, IndicatorContext] = {}
+    signatures: dict[str, set[tuple[Any, ...]]] = {}
     for visit in sort_visits([dict(item) for item in visits]):
         for indicator in visit.get("indicators") or []:
             if not isinstance(indicator, Mapping) or not str(indicator.get("name") or "").strip():
                 continue
             context = _context_from_visit(case, indicator, visit)
-            contexts[context.canonical_code] = context
+            signature = (
+                context.unit, context.assay_platform, context.method, context.specimen,
+                context.scale_version, context.assessment_language,
+                context.education_years, context.education_adjusted,
+            )
+            observed = signatures.setdefault(context.canonical_code, set())
+            observed.add(signature)
+            contexts[context.canonical_code] = replace(
+                context, measurement_context_changed=len(observed) > 1,
+            )
     return contexts
 
 
@@ -432,7 +442,11 @@ def _build_standard_evidence_in_transaction(db: Any, token: StandardVersionToken
             display_name=str(getattr(indicator, "name_en", None) or indicator_name), status=status,
             machine_actionability=actionability, unit=getattr(rule, "unit", None), lower=getattr(rule, "lower", None), upper=getattr(rule, "upper", None),
             lower_inclusive=getattr(rule, "lower_inclusive", True), upper_inclusive=getattr(rule, "upper_inclusive", True),
-            latest_value=latest_value, numeric_interpretation=_numeric_interpretation(latest_value, rule, str(case.get("disease_code", ""))),
+            latest_value=latest_value,
+            numeric_interpretation=(
+                _numeric_interpretation(latest_value, rule, str(case.get("disease_code", "")))
+                if status == "calculable" else None
+            ),
             interpretation=getattr(rule, "interpretation", None), applicability=getattr(rule, "applicability", None) or {},
             applicability_hash=hashlib.sha256(json.dumps(getattr(rule, "applicability", None) or {}, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
             conditions=EvidenceConditionDecision(status=decision.status, satisfied=list(decision.satisfied), missing=list(decision.missing), mismatched=list(decision.mismatched)), source=locator,
@@ -442,7 +456,12 @@ def _build_standard_evidence_in_transaction(db: Any, token: StandardVersionToken
             for index in indexes:
                 rules[index] = rules[index].model_copy(update={"status": "conflict", "numeric_interpretation": None})
     statuses = {rule.status for rule in rules}
-    overall = "conflict" if "conflict" in statuses else "context_incomplete" if "missing_context" in statuses else "not_applicable" if rules and statuses <= {"not_applicable"} else "available"
+    overall = (
+        "conflict" if "conflict" in statuses
+        else "context_incomplete" if "missing_context" in statuses
+        else "not_applicable" if not rules or statuses <= {"not_applicable"}
+        else "available"
+    )
     return StandardEvidence(
         status=overall,
         document=EvidenceDocument(document_id=token.document_id, title=str(getattr(document, "title", None) or getattr(document, "filename", "standard")), filename=str(getattr(document, "filename", "standard")), content_sha256=token.document_sha256, issuer=getattr(document, "issuer", None), publication_date=getattr(document, "publication_date", None), external_identifier=getattr(document, "external_identifier", None), source_url=getattr(document, "source_url", None)),

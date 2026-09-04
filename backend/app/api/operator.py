@@ -380,9 +380,10 @@ async def create_longitudinal_report(
     ) as exc:
         raise _longitudinal_error(exc) from exc
     visits = snapshot["visits"]
+    batch_id = str(uuid.uuid4())
+    snapshot["generation_batch_id"] = batch_id
     snapshot_hash = compute_input_snapshot_sha256(snapshot)
     snapshot["input_snapshot_sha256"] = snapshot_hash
-    batch_id = str(uuid.uuid4())
     anonymous_code = getattr(case, "anonymous_case_code", None) or "旧病例未设置匿名编号"
     report = AIReport(user_id=current_user.id, operator_case_id=case.id, disease_id=case.disease_id, query=anonymous_code, title=f"{anonymous_code}纵向进展预测报告", indicators=[], analysis_type="longitudinal_predictive", status="generating", input_snapshot=snapshot)
     report.input_snapshot_sha256 = snapshot_hash
@@ -589,6 +590,27 @@ def download_report_pdf(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="报告内容为空，无法生成 PDF",
+        )
+
+    integrity = verify_report_integrity(
+        getattr(report, "input_snapshot", None),
+        getattr(report, "input_snapshot_sha256", None),
+        getattr(report, "generation_fingerprint", None),
+        getattr(report, "prediction_result", None),
+        report.content,
+        getattr(report, "evidence_snapshot", None),
+        getattr(report, "evidence_snapshot_sha256", None),
+    )
+    if integrity.status == "invalid":
+        logger.warning(
+            "Report integrity validation failed for report_id=%s reason=%s",
+            report_id,
+            integrity.reason_code,
+        )
+        raise _operator_http_error(
+            409,
+            "report_integrity_failed",
+            "报告完整性校验失败，已停止导出",
         )
 
     anonymous_code = (

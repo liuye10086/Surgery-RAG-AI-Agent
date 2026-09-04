@@ -54,6 +54,7 @@ def test_reference_window_has_privacy_and_version_columns():
     assert "uq_reference_case_windows_case_version" in constraint_names
     assert "ck_reference_case_windows_anonymous_code" in constraint_names
     assert "ck_reference_case_windows_horizon" in constraint_names
+    assert "ck_reference_case_windows_sex" in constraint_names
     assert "ck_reference_case_windows_min_visits" in constraint_names
     assert "ck_reference_case_windows_min_span" in constraint_names
 
@@ -88,6 +89,12 @@ def test_standard_citation_columns_and_page_number_contract():
         "source_url",
     }.issubset({column.name for column in StandardDocument.__table__.columns})
     assert "page_number" in StandardSegment.__table__.columns
+    constraints = {
+        constraint.name: str(constraint.sqltext)
+        for constraint in StandardSegment.__table__.constraints
+        if getattr(constraint, "name", None) and hasattr(constraint, "sqltext")
+    }
+    assert "page_number > 0" in constraints["ck_standard_segments_page_number_positive"]
 
 
 def test_downgrade_refuses_nonempty_evidence_before_ddl():
@@ -118,6 +125,7 @@ def test_clean_schema_contains_evidence_contract():
         "source_url",
         "page_number",
         "ck_reference_case_windows_anonymous_code",
+        "ck_reference_case_windows_sex",
     ):
         assert token in schema
 

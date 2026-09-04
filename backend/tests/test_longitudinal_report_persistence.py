@@ -110,6 +110,32 @@ def test_pdf_download_uses_saved_content_verbatim():
     assert report.download_count == 1
 
 
+def test_pdf_download_rejects_report_fingerprint_mismatch():
+    from fastapi import HTTPException
+    import pytest
+
+    from app.services.report_integrity import (
+        compute_input_snapshot_sha256,
+        create_generation_fingerprint,
+    )
+
+    report = _saved_report("原始正文")
+    report.input_snapshot_sha256 = compute_input_snapshot_sha256(report.input_snapshot)
+    report.generation_fingerprint = create_generation_fingerprint(
+        report.input_snapshot, report.prediction_result, report.content,
+    )
+    report.content = "被篡改正文"
+    db = _db_returning(report)
+
+    with patch("app.api.operator.generate_pdf") as generate:
+        with pytest.raises(HTTPException) as raised:
+            download_report_pdf(17, db=db, current_user=SimpleNamespace(id=5))
+
+    assert raised.value.status_code == 409
+    assert raised.value.detail["code"] == "report_integrity_failed"
+    generate.assert_not_called()
+
+
 def test_report_integrity_fields_survive_case_detachment():
     report = _saved_report()
     report.operator_case_id = None

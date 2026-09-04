@@ -54,8 +54,9 @@
         <p v-else class="snapshot-missing">历史资料未完整保存。</p>
       </section>
 
-      <div class="markdown-body" v-html="renderedContentWithoutEvidence" />
+      <div class="markdown-body" v-html="renderedContentParts.before" />
       <LongitudinalEvidenceSection v-if="evidence" :evidence="evidence" />
+      <div v-if="renderedContentParts.after" class="markdown-body" v-html="renderedContentParts.after" />
     </div>
   </section>
 </template>
@@ -86,19 +87,28 @@ const outcomeAvailable = computed(() => prediction.value && 'model_status' in pr
 const snapshot = computed(() => props.report?.input_snapshot || {})
 const snapshotAvailable = computed(() => Object.keys(snapshot.value).length > 0)
 const evidence = computed<EvidenceBundleV1 | null>(() => props.report?.evidence_snapshot || props.evidenceSnapshot || null)
-const renderedContentWithoutEvidence = computed(() => {
-  if (!evidence.value || typeof DOMParser === 'undefined') return props.renderedContent
+const renderedContentParts = computed(() => {
+  if (!evidence.value || typeof DOMParser === 'undefined') return { before: props.renderedContent, after: '' }
   const document = new DOMParser().parseFromString(props.renderedContent, 'text/html')
   const section = document.body.querySelector('#section-8')
-  if (!section) return props.renderedContent
-  let current: Element | null = section
-  while (current) {
-    const nextElement: Element | null = current.nextElementSibling
-    current.remove()
-    if (nextElement?.matches('h2')) break
-    current = nextElement
+  if (!section) return { before: props.renderedContent, after: '' }
+  const before: string[] = []
+  const after: string[] = []
+  let position: 'before' | 'skip' | 'after' = 'before'
+  for (const node of Array.from(document.body.childNodes)) {
+    if (node === section) {
+      position = 'skip'
+      continue
+    }
+    if (position === 'skip' && node instanceof Element && node.matches('h2')) {
+      position = 'after'
+    }
+    if (position === 'skip') continue
+    const html = node instanceof Element ? node.outerHTML : node.textContent || ''
+    if (position === 'before') before.push(html)
+    else after.push(html)
   }
-  return document.body.innerHTML
+  return { before: before.join(''), after: after.join('') }
 })
 const releaseSetId = computed(() => prediction.value?.schema_version === 'longitudinal_prediction.v3' ? prediction.value.release_set.release_set_id : '')
 const dataReleaseId = computed(() => prediction.value?.schema_version === 'longitudinal_prediction.v3' ? prediction.value.release_set.data_release_id : '')

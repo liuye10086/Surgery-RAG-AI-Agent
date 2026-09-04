@@ -103,7 +103,8 @@ class DatabaseBaselineTests(unittest.TestCase):
         connection = _FakeConnection()
         report = checker.collect_checks(connection, {"test-head"})
         self.assertIn("SET TRANSACTION READ ONLY", connection.statements[0])
-        self.assertEqual(report["status"], "PASS")
+        self.assertEqual(report["status"], "FAIL")
+        self.assertFalse(report["evidence_runtime_match"])
 
     def test_checker_requires_expected_extensions(self):
         checker = _load_checker()
@@ -182,7 +183,8 @@ class DatabaseBaselineTests(unittest.TestCase):
         self.assertTrue(report["base_diseases_match"])
         self.assertEqual(set(report["disease_fk_rules"].values()), {"RESTRICT"})
         self.assertTrue(report["disease_fk_rules_match"])
-        self.assertEqual(report["status"], "PASS")
+        self.assertEqual(report["status"], "FAIL")
+        self.assertFalse(report["evidence_runtime_match"])
 
     def test_checker_fails_for_disabled_base_disease_or_cascade_fk(self):
         checker = _load_checker()

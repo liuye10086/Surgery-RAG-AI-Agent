@@ -26,5 +26,6 @@ describe('LongitudinalReportView evidence placement', () => {
     expect(wrapper.text()).toContain('唯一正式标准')
     expect(wrapper.text()).not.toContain('旧证据内容')
     expect(wrapper.findAll('#section-8')).toHaveLength(1)
+    expect(wrapper.html().indexOf('id="section-8"')).toBeLessThan(wrapper.html().indexOf('id="section-9"'))
   })
 })

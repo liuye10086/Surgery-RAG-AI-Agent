@@ -451,7 +451,7 @@ CREATE TABLE IF NOT EXISTS standard_segments (
     id SERIAL PRIMARY KEY,
     version_id INTEGER NOT NULL REFERENCES reference_standard_versions(id) ON DELETE CASCADE,
     section_title VARCHAR(300),
-    page_number INTEGER,
+    page_number INTEGER CHECK (page_number IS NULL OR page_number > 0),
     paragraph_index INTEGER,
     table_index INTEGER,
     row_index INTEGER,
@@ -504,6 +504,7 @@ CREATE TABLE IF NOT EXISTS reference_case_windows (
     ),
     CONSTRAINT ck_reference_case_windows_horizon CHECK (horizon_days = 365),
     CONSTRAINT ck_reference_case_windows_age_range CHECK (age IS NULL OR age BETWEEN 0 AND 120),
+    CONSTRAINT ck_reference_case_windows_sex CHECK (sex IS NULL OR sex IN ('male', 'female')),
     CONSTRAINT ck_reference_case_windows_min_visits CHECK (visit_count >= 3),
     CONSTRAINT ck_reference_case_windows_min_span CHECK (span_days >= 0),
     CONSTRAINT ck_reference_case_windows_outcome_status CHECK (

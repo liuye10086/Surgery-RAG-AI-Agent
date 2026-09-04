@@ -189,6 +189,16 @@ class ReferenceCaseEvidence(StrictEvidenceModel):
     cases: list[ReferenceCaseProfile] = Field(default_factory=list, max_length=5)
     warnings: list[str] = Field(default_factory=list)
 
+    @model_validator(mode="after")
+    def require_consistent_selection(self) -> "ReferenceCaseEvidence":
+        if self.pool_statistics.returned_windows != len(self.cases):
+            raise ValueError("returned_windows must match the number of cases")
+        if self.status == "available" and not self.cases:
+            raise ValueError("available reference evidence must include at least one case")
+        if self.status != "available" and self.cases:
+            raise ValueError("unavailable reference evidence must not include cases")
+        return self
+
 
 class EvidenceBundle(StrictEvidenceModel):
     schema_version: Literal["longitudinal_evidence_bundle.v1"] = "longitudinal_evidence_bundle.v1"

@@ -14,6 +14,7 @@ BACKEND_ROOT = PROJECT_ROOT / "backend"
 sys.path.insert(0, str(BACKEND_ROOT))
 
 from app.core.config import settings  # noqa: E402
+from app.services.reference_case_eligibility import ELIGIBILITY_CONFIG_HASH  # noqa: E402
 
 
 REQUIRED_EXTENSIONS = {"vector", "uuid-ossp", "pg_trgm"}
@@ -110,7 +111,10 @@ REQUIRED_COLUMNS = {
     },
     # 标准版本化链路（Alembic 0009-0012）
     "reference_standards": {"id", "disease_id", "current_version_id"},
-    "standard_documents": {"id", "content_hash"},
+    "standard_documents": {
+        "id", "content_hash", "issuer", "publication_date",
+        "external_identifier", "source_url",
+    },
     "reference_standard_versions": {
         "id",
         "standard_id",
@@ -118,7 +122,7 @@ REQUIRED_COLUMNS = {
         "status",
     },
     "standard_indicators": {"id", "canonical_key", "abnormal_direction"},
-    "standard_segments": {"id", "version_id", "raw_text"},
+    "standard_segments": {"id", "version_id", "raw_text", "page_number"},
     "reference_case_windows": {
         "id", "disease_id", "logical_dataset", "anonymous_case_code", "dataset_release_id",
         "prediction_task", "outcome_reliability", "is_synthetic", "as_of",
@@ -209,12 +213,14 @@ def _collect_evidence_runtime_checks(connection, phase):
         )
 
         release_rows = connection.execute(text(
-            "SELECT d.code, cr.metadata->>'dataset_release_id' AS dataset_release_id, "
+            "SELECT d.code, COALESCE(cr.metadata->>'logical_dataset', cr.metadata->>'source_dataset') AS logical_dataset, "
+            "cr.metadata->>'dataset_release_id' AS dataset_release_id, "
             "cr.metadata->>'data_content_sha256' AS data_content_sha256, COUNT(*) AS row_count "
             "FROM case_records cr JOIN diseases d ON d.id=cr.disease_id "
             "WHERE d.code IN ('ad','fatty_liver') "
             "AND cr.metadata->>'dataset_active'='true' "
-            "GROUP BY d.code, cr.metadata->>'dataset_release_id', cr.metadata->>'data_content_sha256' "
+            "GROUP BY d.code, COALESCE(cr.metadata->>'logical_dataset', cr.metadata->>'source_dataset'), "
+            "cr.metadata->>'dataset_release_id', cr.metadata->>'data_content_sha256' "
             "ORDER BY d.code, dataset_release_id"
         )).mappings().all()
         releases = [dict(row) for row in release_rows]
@@ -242,14 +248,17 @@ def _collect_evidence_runtime_checks(connection, phase):
             )).mappings().all()
             windows = [dict(row) for row in window_rows]
             active_identities = {
-                (row["code"], row["dataset_release_id"], row["data_content_sha256"])
+                (row["logical_dataset"], row["dataset_release_id"], row["data_content_sha256"])
                 for row in releases
             }
             window_identities = {
                 (row["logical_dataset"], row["dataset_release_id"], row["data_content_sha256"])
                 for row in windows
             }
-            windows_match = active_identities <= window_identities
+            windows_match = (
+                active_identities <= window_identities
+                and all(row["eligibility_config_hash"] == ELIGIBILITY_CONFIG_HASH for row in windows)
+            )
         return {
             "available": True,
             "standards": standards,
@@ -260,7 +269,30 @@ def _collect_evidence_runtime_checks(connection, phase):
             "reference_window_pools_match": windows_match,
         }
     except Exception:
-        return {"available": False}
+        return {"available": False, "reason_code": "evidence_runtime_query_failed"}
+
+
+def _evidence_runtime_matches(evidence_runtime, phase):
+    return (
+        evidence_runtime.get("available") is True
+        and evidence_runtime.get("standards_match") is True
+        and evidence_runtime.get("active_releases_match") is True
+        and (
+            phase == "preflight"
+            or evidence_runtime.get("reference_window_pools_match") is True
+        )
+    )
+
+
+def _evidence_storage_matches(evidence_storage, phase):
+    if phase == "preflight":
+        return True
+    return (
+        evidence_storage.get("available") is True
+        and not evidence_storage.get("missing_columns")
+        and not evidence_storage.get("missing_constraints")
+        and not evidence_storage.get("missing_indexes")
+    )
 
 
 def get_code_heads():
@@ -466,6 +498,15 @@ def collect_checks(connection, code_heads, phase="postflight"):
             blocking_missing_columns["ai_reports"] = sorted(report_missing)
         else:
             blocking_missing_columns.pop("ai_reports", None)
+        for table_name, allowed_columns in {
+            "standard_documents": {"issuer", "publication_date", "external_identifier", "source_url"},
+            "standard_segments": {"page_number"},
+        }.items():
+            remaining = set(blocking_missing_columns.get(table_name, ())) - allowed_columns
+            if remaining:
+                blocking_missing_columns[table_name] = sorted(remaining)
+            else:
+                blocking_missing_columns.pop(table_name, None)
     column_type_mismatches = [
         {
             "table_name": table_name,
@@ -510,15 +551,7 @@ def collect_checks(connection, code_heads, phase="postflight"):
         and not workspace_catalog["unvalidated_constraints"]
         and not workspace_catalog["missing_indexes"]
     )
-    evidence_runtime_match = (
-        evidence_runtime.get("available") is False
-        or evidence_runtime.get("standards_match") is True
-        and evidence_runtime.get("active_releases_match") is True
-        and (
-            phase == "preflight"
-            or evidence_runtime.get("reference_window_pools_match") is True
-        )
-    )
+    evidence_runtime_match = _evidence_runtime_matches(evidence_runtime, phase)
     # Keep the baseline checker backwards-compatible with lightweight test
     # doubles while checking the new status guard on real PostgreSQL systems.
     status_constraint_present = None
@@ -549,7 +582,9 @@ def collect_checks(connection, code_heads, phase="postflight"):
     try:
         evidence_constraints = {
             row["conname"] for row in connection.execute(text(
-                "SELECT conname FROM pg_constraint WHERE conrelid IN ('reference_case_windows'::regclass, 'ai_reports'::regclass)"
+                "SELECT conname FROM pg_constraint WHERE conrelid IN ("
+                "'reference_case_windows'::regclass, 'ai_reports'::regclass, "
+                "'standard_segments'::regclass)"
             )).mappings().all()
         }
         evidence_indexes = {
@@ -559,8 +594,18 @@ def collect_checks(connection, code_heads, phase="postflight"):
         }
         expected_constraints = {
             "uq_reference_case_windows_case_version", "ck_reference_case_windows_anonymous_code",
-            "ck_reference_case_windows_min_visits", "ck_reference_case_windows_outcome_reliability",
-            "ck_ai_reports_evidence_snapshot_sha256",
+            "ck_reference_case_windows_horizon", "ck_reference_case_windows_age_range",
+            "ck_reference_case_windows_sex",
+            "ck_reference_case_windows_min_visits", "ck_reference_case_windows_min_span",
+            "ck_reference_case_windows_outcome_status",
+            "ck_reference_case_windows_outcome_reliability",
+            "ck_reference_case_windows_eligibility_status",
+            "ck_reference_case_windows_timeline_sha256",
+            "ck_reference_case_windows_eligibility_config_hash",
+            "ck_reference_case_windows_data_content_sha256",
+            "ck_ai_reports_evidence_snapshot_sha256", "ck_ai_reports_evidence_status",
+            "ck_ai_reports_standard_evidence_status", "ck_ai_reports_reference_case_status",
+            "ck_standard_segments_page_number_positive",
         }
         expected_indexes = {"ix_reference_case_windows_pool_lookup", "ix_reference_case_windows_case_lookup", "ix_reference_case_windows_feature_summary_gin"}
         evidence_storage["missing_constraints"] = sorted(expected_constraints - evidence_constraints)
@@ -584,7 +629,7 @@ def collect_checks(connection, code_heads, phase="postflight"):
         and status_constraint_present is not False
         and status_constraint_validated is not False
         and status_audit_table_present is not False
-        and (phase == "preflight" or evidence_storage.get("available") is False or (not evidence_storage["missing_columns"] and not evidence_storage["missing_constraints"] and not evidence_storage["missing_indexes"]))
+        and _evidence_storage_matches(evidence_storage, phase)
         else "FAIL"
     )
     return {

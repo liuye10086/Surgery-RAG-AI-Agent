@@ -168,3 +168,22 @@ def test_timezone_is_required(bundle_payload):
     payload["created_at"] = "2026-09-04T00:00:00"
     with pytest.raises(ValidationError):
         EvidenceBundle.model_validate(payload)
+
+
+def test_available_reference_evidence_requires_cases_and_matching_count(bundle_payload):
+    payload = deepcopy(bundle_payload)
+    payload["reference_cases"]["cases"] = []
+    with pytest.raises(ValidationError):
+        EvidenceBundle.model_validate(payload)
+
+    payload = deepcopy(bundle_payload)
+    payload["reference_cases"]["pool_statistics"]["returned_windows"] = 0
+    with pytest.raises(ValidationError):
+        EvidenceBundle.model_validate(payload)
+
+
+def test_unavailable_reference_evidence_forbids_cases(bundle_payload):
+    payload = deepcopy(bundle_payload)
+    payload["reference_cases"]["status"] = "no_eligible_cases"
+    with pytest.raises(ValidationError):
+        EvidenceBundle.model_validate(payload)

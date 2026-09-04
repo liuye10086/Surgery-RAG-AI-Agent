@@ -436,3 +436,54 @@ def test_repeat_calculation_is_identical_and_no_three_signal_padding():
     assert first["summary"]["signal_count"] == 1
     assert first["summary"]["summary_code"] == "signals_available"
     assert first["signals"][0]["reason_codes"][-1] == "contribution_unavailable"
+
+
+def test_measurement_context_change_prevents_direction_and_range_claims():
+    from app.services.longitudinal_signal_interpreter import interpret_observation_signals
+
+    result = interpret_observation_signals(
+        dataset="fatty_liver",
+        visits=[
+            {
+                "visit_date": f"2024-0{index + 1}-01",
+                "visit_context": {"assay_platform": platform},
+                "indicators": [{"name": "ALT", "value": value, "unit": "U/L"}],
+            }
+            for index, (value, platform) in enumerate([(20, "A"), (35, "A"), (60, "B")])
+        ],
+        standard_sources=[{
+            "source_type": "reference_range", "indicator": "ALT", "unit": "U/L",
+            "lower": 7, "upper": 40, "standard_version_id": 3, "standard_rule_id": 2,
+        }],
+    )
+
+    assert result.signals == []
+    assert "measurement_context_changed" in result.omitted_indicators[0]["reason_codes"]
+
+
+def test_attach_signal_interpretation_keeps_calculable_rules_calculable():
+    from app.services.longitudinal_signal_interpreter import attach_signal_interpretation
+
+    class Prediction:
+        disease = {"dataset": "fatty_liver"}
+        model_status = SimpleNamespace(outcome=SimpleNamespace(status="missing"))
+        evidence = {}
+
+        def model_copy(self, *, update):
+            return SimpleNamespace(**update)
+
+    standard = SimpleNamespace(
+        version=SimpleNamespace(version_id=3),
+        rules=[{
+            "rule_id": 2, "indicator": "alt", "status": "calculable",
+            "machine_actionability": "calculable", "unit": "U/L", "lower": 7, "upper": 40,
+        }],
+    )
+    visits = [
+        {"visit_date": f"2024-0{index + 1}-01", "indicators": [{"name": "ALT", "value": value, "unit": "U/L"}]}
+        for index, value in enumerate([20, 35, 60])
+    ]
+
+    result = attach_signal_interpretation(Prediction(), visits, standard)
+
+    assert result.progression_signals.signals[0].reference_status == "above_range"
