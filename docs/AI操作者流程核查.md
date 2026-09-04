@@ -209,21 +209,24 @@ ad.pre_dementia_to_dementia
 
 - 两个病种使用独立的 active 指针和 release set，不会串用另一病种的模型。
 - 评审或启用 release set 时会校验 review；实际加载时会校验 artifact、metadata、文件路径和哈希。
+- active release set 加载前会要求病种、生命周期和 `REQUIRED_TASKS` 完整匹配；缺 bundle、重复任务或哈希链异常时整体拒绝，不会部分加载。
+- active 模型组按 registry root 隔离，并以 `dataset + release_set_id + release_set_sha256` 缓存；活动指针 ID 或哈希变化后自动失效，并使用线程安全单飞避免并发重复加载。加载完成的 suite 若与首次读取的指针身份不一致，不会写入旧缓存键。
 - 任务与模型不匹配时会拒绝调用。
 - 模型或 metadata 缺失、损坏时会返回稳定的错误状态，而不是继续输出不明结果。
 - 结局模型、阶段模型和趋势模型分开执行。
+- 结局、阶段和趋势模型统一按 metadata 的 `feature_names`、`required_features` 和 `allowed_missing_features` 构造输入；缺失必需特征时不调用模型并返回稳定原因码。
 - 单个趋势模型失败时，其他趋势结果仍可保留。
 - 阶段模型失败时不猜测阶段。
-- 未校准模型会提示分数不代表临床概率。
+- 当前 active 模型即使 `production_enabled = false` 也可按运行授权参与报告；报告会如实提示合成训练数据、无临床有效性声明和未校准分数。
+- 模型加载、推理超时、持久化异常和用户取消都会把报告从 `generating` 收敛到 `failed` 或 `cancelled`，不会长期停留在生成中。
 - 报告会记录 release set ID 和数据版本，前端可以显示模型组版本及参与状态。
-- 相关专项验证通过：模型注册、artifact、metadata 和 release set 测试 `21 passed`；推理任务选择、模型组一致性和失败隔离测试 `4 passed`。
+- 相关专项验证通过：第 4 项模型注册、release set、推理契约、readiness 和 API 聚焦回归共 `97 passed`；其中模型注册/完整性/缓存测试 `44 passed`。后端完整回归 `896 passed, 12 skipped, 2 subtests passed`，前端生产构建通过。
 
 ### 当前缺失或不符合目标流程的部分
 
-1. 当前活动模型来自合成演示数据。manifest 标记 `formal_training_source = synthetic_demonstration`、`synthetic_in_formal_metrics = true`、`clinical_validity_claim = false`，且模型 metadata 标记 `production_enabled = false`；因此目前只能说明工程链路可运行，不能说明模型具有临床有效性，也不应直接作为生产临床模型宣称。多个趋势模型目前还出现相同 artifact 哈希，需要在后续模型审计中确认是否为有意复用。
-2. 完整 release set 的输入检查主要按 metadata 排列特征，除年龄外的其他严格必需字段还没有在调用前统一列出；缺失输入可能直到模型处理或推理失败时才暴露给操作者。
-3. active 指针或 release set 加载失败时，API 可能已经先创建 `generating` 状态的报告；如果随后加载异常，报告可能停留在 `generating`，不能稳定落为失败状态。
-4. 没有模型缓存，每次生成报告都会重新读取活动模型组和模型文件。
+1. 当前活动模型仍来自合成演示数据，模型 metadata 的 `clinical_validity_claim = false`、`production_enabled = false` 且结局模型未校准；这只说明工程链路可运行，不能说明模型具有临床有效性，也不应把分数写成诊断或临床概率。多个趋势模型存在相同 artifact 哈希，后续模型审计仍需确认是否为有意复用。
+2. 真实临床数据接入、外部验证和模型校准尚未完成；这些属于后续模型发布与临床审计流程，不阻断当前工程链路运行。
+3. 生产数据库迁移、迁移后只读核对、真实 PostgreSQL 集成、浏览器 E2E 和线上冒烟尚未在部署窗口执行。
 
 ### 安全降级边界
 
@@ -238,7 +241,7 @@ ad.pre_dementia_to_dementia
 
 ### 结论
 
-第 4 项的模型注册、版本校验、任务路由和基础失败隔离已经存在，年龄输入链路也已补齐；但当前模型仍是合成演示模型，其他严格输入门和生成失败状态收敛仍需补齐。后续正式接入应保证：
+第 4 项仓库实现已完成：模型注册、版本校验、完整 release set、任务路由、统一输入契约、缓存、审计提示和失败状态收敛均已接通。当前模型按你的要求可以参与报告生成，但仍必须保留模型临床有效性和校准限制说明。后续正式接入应保证：
 
 ```text
 只调用与疾病和阶段匹配的活动模型组
@@ -247,7 +250,7 @@ ad.pre_dementia_to_dementia
 → 任何加载或推理异常都明确落为失败或安全降级
 ```
 
-本项已由用户确认。下一项“结合对应疾病标准和参考病例”待用户确认后再开始核查和补充。
+本项仓库实现已完成；真实生产数据库、浏览器和部署环境验收仍待单独执行。下一项“结合对应疾病标准和参考病例”待用户确认后再开始核查和补充。
 
 ## 第 5 项：结合对应疾病标准和参考病例
 

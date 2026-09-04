@@ -295,6 +295,11 @@ def _v2_metadata(artifact_type, task, *, indicator=None):
             horizon={"kind": "next_visit", "value": None},
         )
     payload["model_contract"]["model_id"] = task.replace(".", "-")
+    payload["audit"].update(
+        leakage_status="review_required",
+        synthetic_in_formal_metrics=True,
+        synthetic_purpose="demonstration_training_only",
+    )
     return ArtifactMetadataV2.model_validate(payload)
 
 
@@ -551,6 +556,48 @@ def test_synthetic_suite_emits_audit_warnings_without_blocking_prediction():
     assert any("合成" in warning for warning in result.warnings)
     assert any("临床有效性" in warning for warning in result.warnings)
     assert any("未校准" in warning for warning in result.warnings)
+
+
+def test_non_synthetic_suite_does_not_emit_synthetic_warning():
+    from app.services.disease_progression import AD_ADAPTER
+
+    suite = _complete_ad_suite()
+
+    def without_synthetic_audit(entry):
+        audit = entry.metadata.audit.model_copy(
+            update={
+                "leakage_status": "passed",
+                "synthetic_in_formal_metrics": False,
+                "synthetic_purpose": None,
+            }
+        )
+        return entry.model_copy(
+            update={
+                "metadata": entry.metadata.model_copy(update={"audit": audit})
+            }
+        )
+
+    suite = suite.model_copy(
+        update={
+            "outcomes": {
+                task: without_synthetic_audit(entry)
+                for task, entry in suite.outcomes.items()
+            },
+            "stage": without_synthetic_audit(suite.stage),
+            "trends": {
+                indicator: without_synthetic_audit(entry)
+                for indicator, entry in suite.trends.items()
+            },
+        }
+    )
+    result = run_longitudinal_prediction(
+        {"baseline_stage": "mci", "age": 65, "sex": "female"},
+        _ad_visits(),
+        AD_ADAPTER,
+        suite,
+    )
+
+    assert not any("合成" in warning for warning in result.warnings)
 
 
 def test_incompatible_stage_emits_no_guess_but_keeps_outcome_and_trends():

@@ -426,6 +426,8 @@ def _audit_warnings(suite: LoadedDiseaseModelSuite) -> list[str]:
         if entry is not None and entry.metadata is not None
     ]
     warnings: list[str] = []
+    if any(item.audit.synthetic_in_formal_metrics for item in metadata_items):
+        warnings.append("当前活动模型使用合成演示数据")
     if any(item.audit.clinical_validity_claim is False for item in metadata_items):
         warnings.append("当前模型没有临床有效性声明，不构成医学诊断依据")
     if any(item.calibration.status == "not_calibrated" for item in metadata_items):
@@ -493,7 +495,7 @@ def _run_suite_prediction(
         outcome_status=outcome_status,
         feature_names=outcome_feature_names,
     )
-    warnings = [adapter.synthetic_data_warning, *_audit_warnings(suite)]
+    warnings = _audit_warnings(suite)
     warnings = list(dict.fromkeys(warnings))
     return LongitudinalPredictionResultV3(
         disease={"dataset": adapter.dataset, "name": adapter.disease_name},

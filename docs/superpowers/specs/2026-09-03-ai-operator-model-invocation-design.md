@@ -71,7 +71,7 @@ AI 操作者流程的第 1–3 项和附录 12 项已经完成仓库侧实现。
 
 ## 缓存设计
 
-缓存位于模型注册/加载服务内部，键为：
+缓存位于模型注册/加载服务内部；不同 registry root 使用独立命名空间，每个命名空间内的键为：
 
 ```text
 (dataset, release_set_id, release_set_sha256)
@@ -80,7 +80,9 @@ AI 操作者流程的第 1–3 项和附录 12 项已经完成仓库侧实现。
 规则：
 
 - 同一进程内同一键只加载一次模型文件；
+- 不同 registry root 即使模型身份相同也不得共享缓存对象；
 - active 指针的 release set ID 或 SHA-256 变化时，旧缓存不可命中；
+- 首次读取的 active 指针与加载完成的 suite 身份不一致时返回 `active_pointer_changed`，不得把 suite 写入旧键；
 - 首次加载使用线程安全的单飞（single-flight）保护，避免并发请求重复反序列化；
 - 缓存只保存已完成完整性校验和 `joblib.load` 成功的不可变模型组；失败结果不缓存为可用模型；
 - 缓存不改变报告的版本追溯，prediction 仍保存实际使用的 release set ID、记录哈希和数据版本。

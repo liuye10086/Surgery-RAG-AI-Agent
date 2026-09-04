@@ -133,6 +133,7 @@ class CleanupContractTests(unittest.TestCase):
                 "2026-09-02-附录八九历史报告与PDF安全设计.md",
                 "2026-09-02-附录十至十二输入快照状态与病例删除设计.md",
                 "2026-09-03-ai-operator-case-workspace-design.md",
+                "2026-09-03-ai-operator-model-invocation-design.md",
                 "2026-09-03-operator-visit-input-contract-design.md",
             },
         )

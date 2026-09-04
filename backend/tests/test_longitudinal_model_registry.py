@@ -595,6 +595,9 @@ def test_active_release_set_loads_one_immutable_suite(monkeypatch, tmp_path):
                 "metadata_path": metadata_path.relative_to(root).as_posix(),
                 "evaluation_path": evaluation_path.relative_to(root).as_posix(),
                 "manifest_path": "dataset/manifest.json",
+                "model_sha256": _sha256(model_path),
+                "metadata_sha256": _sha256(metadata_path),
+                "evaluation_sha256": _sha256(evaluation_path),
             }
         )
     release_path.write_text(
@@ -606,7 +609,7 @@ def test_active_release_set_loads_one_immutable_suite(monkeypatch, tmp_path):
                 "status": "reviewed",
                 "data_release_id": "ad-data-v1",
                 "dataset_manifest_sha256": "a" * 64,
-                "split_sha256": "b" * 64,
+                "split_sha256": "d" * 64,
                 "bundles": bundles,
                 "created_at": "2026-08-27T00:00:00+00:00",
             }
@@ -712,6 +715,164 @@ def test_active_suite_rejects_duplicate_task(monkeypatch, tmp_path):
         registry.load_disease_model_suite("ad", tmp_path)
 
 
+def test_active_suite_rejects_an_incompatible_bundle(monkeypatch, tmp_path):
+    from app.schemas.longitudinal_model_registry import SuiteModelEntry
+    from app.services import longitudinal_model_registry as registry
+
+    tasks = sorted(registry.REQUIRED_TASKS["ad"])
+    bundles = tuple(
+        {
+            "task": task,
+            "artifact_type": (
+                "stage"
+                if task.endswith(".next_stage")
+                else "trend"
+                if ".next_visit_trend." in task
+                else "outcome"
+            ),
+            "indicator": task.rsplit(".", 1)[-1]
+            if ".next_visit_trend." in task
+            else None,
+        }
+        for task in tasks
+    )
+    release = SimpleNamespace(
+        dataset="ad",
+        release_set_id="ad-set-v1",
+        record_sha256="a" * 64,
+        data_release_id="ad-data-v1",
+        split_sha256="b" * 64,
+        bundles=bundles,
+        status="reviewed",
+    )
+    monkeypatch.setattr(registry, "load_disease_release_set", lambda dataset, root: release)
+
+    def entry_for(bundle, root):
+        return SuiteModelEntry(
+            status=ModelRuntimeStatus(
+                artifact_type=bundle["artifact_type"],
+                task=bundle["task"],
+                status="incompatible",
+                reason_code="artifact_hash_mismatch",
+            ),
+            model=None,
+        )
+
+    monkeypatch.setattr(registry, "_suite_entry_from_bundle", entry_for)
+
+    with pytest.raises(ValueError, match="bundle_preload_failed"):
+        registry.load_disease_model_suite("ad", tmp_path)
+
+
+def test_suite_entry_rejects_release_declared_hash_mismatch(monkeypatch, tmp_path):
+    from app.schemas.longitudinal_model_suite import ArtifactMetadataV2
+    from app.services import longitudinal_model_registry as registry
+    from backend.tests.test_longitudinal_model_suite_schema import valid_metadata
+
+    model_path = tmp_path / "model.joblib"
+    metadata_path = tmp_path / "model.meta.json"
+    evaluation_path = tmp_path / "model.evaluation.json"
+    manifest_path = tmp_path / "manifest.json"
+    model_path.write_bytes(b"model")
+    metadata_path.write_text("{}", encoding="utf-8")
+    evaluation_path.write_text("{}", encoding="utf-8")
+    manifest_path.write_text("{}", encoding="utf-8")
+    metadata = ArtifactMetadataV2.model_validate(valid_metadata("outcome"))
+    monkeypatch.setattr(
+        registry,
+        "validate_bundle_files",
+        lambda **kwargs: SimpleNamespace(
+            status=SimpleNamespace(status="available", reason_code="bundle_valid"),
+            metadata=metadata,
+        ),
+    )
+    monkeypatch.setattr(registry.joblib, "load", lambda path: object())
+    bundle = {
+        "task": metadata.task,
+        "artifact_type": "outcome",
+        "indicator": None,
+        "model_path": model_path.name,
+        "metadata_path": metadata_path.name,
+        "evaluation_path": evaluation_path.name,
+        "manifest_path": manifest_path.name,
+        "model_sha256": _sha256(model_path),
+        "metadata_sha256": "0" * 64,
+        "evaluation_sha256": _sha256(evaluation_path),
+    }
+
+    entry = registry._suite_entry_from_bundle(bundle, tmp_path)
+
+    assert entry.status.status == "incompatible"
+    assert entry.status.reason_code == "metadata_hash_mismatch"
+
+
+def test_active_suite_rejects_release_level_identity_mismatch(monkeypatch, tmp_path):
+    from app.services import longitudinal_model_registry as registry
+
+    tasks = sorted(registry.REQUIRED_TASKS["ad"])
+    bundles = tuple(
+        {
+            "task": task,
+            "artifact_type": "stage" if task.endswith(".next_stage") else "trend" if ".next_visit_trend." in task else "outcome",
+            "indicator": task.rsplit(".", 1)[-1] if ".next_visit_trend." in task else None,
+        }
+        for task in tasks
+    )
+    release = SimpleNamespace(
+        dataset="ad",
+        release_set_id="ad-set-v1",
+        record_sha256="a" * 64,
+        data_release_id="ad-data-v1",
+        dataset_manifest_sha256="a" * 64,
+        split_sha256="b" * 64,
+        bundles=bundles,
+        status="reviewed",
+    )
+    metadata = SimpleNamespace(
+        dataset="ad",
+        dataset_contract=SimpleNamespace(manifest_sha256="c" * 64),
+        split_sha256="b" * 64,
+    )
+    monkeypatch.setattr(registry, "load_disease_release_set", lambda dataset, root: release)
+    monkeypatch.setattr(
+        registry,
+        "_suite_entry_from_bundle",
+        lambda bundle, root: SimpleNamespace(
+            status=SimpleNamespace(status="available"),
+            metadata=metadata,
+            model=object(),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="release_set_bundle_mismatch"):
+        registry.load_disease_model_suite("ad", tmp_path)
+
+
+def test_active_suite_rejects_task_artifact_mapping_mismatch(monkeypatch, tmp_path):
+    from app.services import longitudinal_model_registry as registry
+
+    tasks = sorted(registry.REQUIRED_TASKS["ad"])
+    bundles = []
+    for task in tasks:
+        artifact_type = "stage" if task.endswith(".next_stage") else "trend" if ".next_visit_trend." in task else "outcome"
+        indicator = task.rsplit(".", 1)[-1] if artifact_type == "trend" else None
+        bundles.append({"task": task, "artifact_type": artifact_type, "indicator": indicator})
+    bundles[0]["artifact_type"] = "trend"
+    release = SimpleNamespace(
+        dataset="ad",
+        release_set_id="ad-set-v1",
+        record_sha256="a" * 64,
+        data_release_id="ad-data-v1",
+        split_sha256="b" * 64,
+        bundles=tuple(bundles),
+        status="reviewed",
+    )
+    monkeypatch.setattr(registry, "load_disease_release_set", lambda dataset, root: release)
+
+    with pytest.raises(ValueError, match="release_set_bundle_mismatch"):
+        registry.load_disease_model_suite("ad", tmp_path)
+
+
 def test_active_release_set_prevents_fallback_to_legacy_task_releases(monkeypatch, tmp_path):
     from app.services import longitudinal_model_registry as registry
 
@@ -791,7 +952,10 @@ def test_active_suite_cache_loads_same_pointer_once(monkeypatch, tmp_path):
     root = tmp_path / "registry"
     _write_active_pointer(root, "ad-cache-set-1", "1" * 64)
     calls = 0
-    suite = object()
+    suite = SimpleNamespace(
+        release_set_id="ad-cache-set-1",
+        release_set_sha256="1" * 64,
+    )
 
     def counted(dataset, registry_root):
         nonlocal calls
@@ -814,7 +978,13 @@ def test_active_suite_cache_misses_when_pointer_hash_changes(monkeypatch, tmp_pa
     registry._SUITE_CACHE.clear()
     root = tmp_path / "registry"
     _write_active_pointer(root, "ad-cache-set-2", "2" * 64)
-    suites = [object(), object()]
+    suites = [
+        SimpleNamespace(
+            release_set_id="ad-cache-set-2",
+            release_set_sha256=value * 64,
+        )
+        for value in ("2", "3")
+    ]
     calls = 0
 
     def counted(dataset, registry_root):
@@ -840,7 +1010,10 @@ def test_active_suite_cache_single_flight_under_concurrency(monkeypatch, tmp_pat
     _write_active_pointer(root, "ad-cache-set-3", "4" * 64)
     calls = 0
     calls_lock = threading.Lock()
-    suite = object()
+    suite = SimpleNamespace(
+        release_set_id="ad-cache-set-3",
+        release_set_sha256="4" * 64,
+    )
 
     def counted(dataset, registry_root):
         nonlocal calls
@@ -859,3 +1032,52 @@ def test_active_suite_cache_single_flight_under_concurrency(monkeypatch, tmp_pat
 
     assert all(item is suite for item in results)
     assert calls == 1
+
+
+def test_active_suite_cache_isolated_by_registry_root(monkeypatch, tmp_path):
+    from app.services import longitudinal_model_registry as registry
+
+    registry._SUITE_CACHE.clear()
+    first_root = tmp_path / "first"
+    second_root = tmp_path / "second"
+    _write_active_pointer(first_root, "ad-cache-shared", "5" * 64)
+    _write_active_pointer(second_root, "ad-cache-shared", "5" * 64)
+
+    monkeypatch.setattr(
+        registry,
+        "load_disease_model_suite",
+        lambda dataset, registry_root: SimpleNamespace(
+            root=registry_root.resolve(),
+            release_set_id="ad-cache-shared",
+            release_set_sha256="5" * 64,
+        ),
+    )
+
+    first = registry.load_active_model_registry("ad", first_root)
+    second = registry.load_active_model_registry("ad", second_root)
+
+    assert first.root == first_root.resolve()
+    assert second.root == second_root.resolve()
+    assert first.root != second.root
+
+
+def test_active_suite_cache_never_stores_suite_under_stale_pointer(monkeypatch, tmp_path):
+    from app.services import longitudinal_model_registry as registry
+
+    registry._SUITE_CACHE.clear()
+    root = tmp_path / "registry"
+    _write_active_pointer(root, "ad-cache-old", "6" * 64)
+    mismatched_suite = SimpleNamespace(
+        release_set_id="ad-cache-new",
+        release_set_sha256="7" * 64,
+    )
+    monkeypatch.setattr(
+        registry,
+        "load_disease_model_suite",
+        lambda dataset, registry_root: mismatched_suite,
+    )
+
+    with pytest.raises(ValueError, match="active_pointer_changed"):
+        registry.load_active_model_registry("ad", root)
+
+    assert registry._SUITE_CACHE == {}

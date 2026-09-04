@@ -45,7 +45,7 @@ from app.services.longitudinal_release_set import (
 
 HEX64 = set("0123456789abcdef")
 
-_SUITE_CACHE: dict[tuple[str, str, str], LoadedDiseaseModelSuite] = {}
+_SUITE_CACHE: dict[tuple[str, str, str, str], LoadedDiseaseModelSuite] = {}
 _SUITE_CACHE_LOCK = RLock()
 
 
@@ -824,6 +824,31 @@ def _suite_entry_from_bundle(
         if resolved is None:
             raise ValueError("registry_path_escape")
         paths[name] = resolved
+    for path_field, hash_field, reason_code in (
+        ("model_path", "model_sha256", "artifact_hash_mismatch"),
+        ("metadata_path", "metadata_sha256", "metadata_hash_mismatch"),
+        ("evaluation_path", "evaluation_sha256", "evaluation_hash_mismatch"),
+    ):
+        expected_hash = bundle.get(hash_field)
+        if not _valid_hash(expected_hash):
+            return SuiteModelEntry(
+                status=ModelRuntimeStatus(
+                    artifact_type=artifact_type,
+                    task=task,
+                    status="incompatible",
+                    reason_code="release_set_bundle_invalid",
+                )
+            )
+        path = paths[path_field]
+        if path.is_file() and sha256_file(path) != expected_hash:
+            return SuiteModelEntry(
+                status=ModelRuntimeStatus(
+                    artifact_type=artifact_type,
+                    task=task,
+                    status="incompatible",
+                    reason_code=reason_code,
+                )
+            )
     validation = validate_bundle_files(
         model_path=paths["model_path"],
         metadata_path=paths["metadata_path"],
@@ -918,6 +943,20 @@ def load_disease_model_suite(
         raise ValueError("duplicate_bundle_task")
     if set(actual_tasks) != expected_tasks:
         raise ValueError("required_bundle_missing")
+    for bundle in release_set.bundles:
+        task = str(bundle["task"])
+        if task.endswith(".next_stage"):
+            expected_type, expected_indicator = "stage", None
+        elif ".next_visit_trend." in task:
+            expected_type = "trend"
+            expected_indicator = task.rsplit(".", 1)[-1]
+        else:
+            expected_type, expected_indicator = "outcome", None
+        if (
+            bundle.get("artifact_type") != expected_type
+            or bundle.get("indicator") != expected_indicator
+        ):
+            raise ValueError("release_set_bundle_mismatch")
     outcomes: dict[str, SuiteModelEntry] = {}
     stage: SuiteModelEntry | None = None
     trends: dict[str, SuiteModelEntry] = {}
@@ -937,6 +976,21 @@ def load_disease_model_suite(
             trends[indicator] = entry
     if stage is None:
         raise ValueError("required_bundle_missing")
+    entries = [*outcomes.values(), stage, *trends.values()]
+    if any(
+        entry.status.status != "available" or entry.model is None
+        for entry in entries
+    ):
+        raise ValueError("bundle_preload_failed")
+    if any(
+        entry.metadata is None
+        or entry.metadata.dataset != dataset
+        or entry.metadata.dataset_contract.manifest_sha256
+        != release_set.dataset_manifest_sha256
+        or entry.metadata.split_sha256 != release_set.split_sha256
+        for entry in entries
+    ):
+        raise ValueError("release_set_bundle_mismatch")
     return LoadedDiseaseModelSuite(
         dataset=dataset,
         release_set_id=release_set.release_set_id,
@@ -968,17 +1022,28 @@ def load_active_model_registry(
             # Preserve the loader's stable validation error for malformed
             # pointers; malformed state must never fall back to legacy models.
             return load_disease_model_suite(dataset, root)
-        key = (dataset, pointer.release_set_id, pointer.release_set_sha256)
+        resolved_root = str(root.resolve())
+        key = (
+            resolved_root,
+            dataset,
+            pointer.release_set_id,
+            pointer.release_set_sha256,
+        )
         with _SUITE_CACHE_LOCK:
             cached = _SUITE_CACHE.get(key)
             if cached is not None:
                 return cached
             suite = load_disease_model_suite(dataset, root)
+            if (
+                suite.release_set_id != pointer.release_set_id
+                or suite.release_set_sha256 != pointer.release_set_sha256
+            ):
+                raise ValueError("active_pointer_changed")
             _SUITE_CACHE[key] = suite
             stale = [
                 item
                 for item in _SUITE_CACHE
-                if item[0] == dataset and item != key
+                if item[0] == resolved_root and item[1] == dataset and item != key
             ]
             for item in stale:
                 _SUITE_CACHE.pop(item, None)
