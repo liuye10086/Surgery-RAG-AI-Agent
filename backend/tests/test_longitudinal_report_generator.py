@@ -2,6 +2,7 @@ from app.services.longitudinal_report_generator import (
     merge_evidence_markdown,
     render_longitudinal_markdown,
 )
+import pytest
 
 
 def _prediction():
@@ -99,8 +100,25 @@ def test_report_source_snapshot_is_renderable_without_recalculation():
 def test_v2_report_renders_independent_model_statuses():
     content = render_longitudinal_markdown(_v2_prediction())
     assert "365 天结局模型：未启用，因此未计算风险分数" in content
-    assert "阶段模型：尚未配置，因此未预测下一阶段" in content
+    assert "当前未配置可用的阶段模型，因此未预测下一阶段" in content
     assert "趋势模型：尚未配置，仅展示已观察到的指标变化" in content
+
+
+@pytest.mark.parametrize(
+    ("status", "reason", "expected"),
+    [
+        ("missing", "stage_model_missing", "当前未配置可用的阶段模型"),
+        ("incompatible", "required_feature_missing", "本次输入缺少必需特征"),
+        ("disabled", "prediction_not_applicable", "当前基线阶段不适用阶段预测"),
+        ("incompatible", "prediction_failed", "阶段模型推理失败"),
+        ("incompatible", "unmapped_reason", "原因码：unmapped_reason"),
+    ],
+)
+def test_report_explains_stage_model_reason(status, reason, expected):
+    prediction = _v2_prediction()
+    prediction["model_status"]["stage"].update(status=status, reason_code=reason)
+
+    assert expected in render_longitudinal_markdown(prediction)
 
 
 def test_renderer_accepts_historical_v1_payload():

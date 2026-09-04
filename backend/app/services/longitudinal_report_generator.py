@@ -6,7 +6,7 @@ import asyncio
 import json
 import re
 from dataclasses import dataclass, field
-from typing import AsyncGenerator, Any
+from typing import AsyncGenerator, Any, Mapping
 
 from app.services.longitudinal_prediction import prediction_result_to_dict, run_longitudinal_prediction
 from app.services.indicator_validation import validate_visits
@@ -362,17 +362,31 @@ def _model_status_lines(prediction: dict[str, Any]) -> list[str]:
         outcome_line = "365 天结局模型：尚未配置，因此未计算风险分数。"
     else:
         outcome_line = "365 天结局模型：与当前契约不兼容，因此未计算风险分数。"
-    stage_line = (
-        "阶段模型：尚未配置，因此未预测下一阶段。"
-        if stage.get("status") != "available"
-        else "阶段模型：已参与本次推理。"
-    )
+    stage_line = _stage_status_text(stage)
     trend_line = (
         "趋势模型：尚未配置，仅展示已观察到的指标变化。"
         if trend.get("status") != "available"
         else "趋势模型：已参与本次推理。"
     )
     return [outcome_line, stage_line, trend_line]
+
+
+def _stage_status_text(status: Mapping[str, Any]) -> str:
+    reason = status.get("reason_code")
+    if status.get("status") == "available":
+        return "阶段模型已参与本次推理。"
+    if reason == "required_feature_missing":
+        return "阶段模型存在，但本次输入缺少必需特征，因此未预测下一阶段。"
+    if reason in {"prediction_not_applicable", "terminal_stage"}:
+        return "当前基线阶段不适用阶段预测，因此未预测下一阶段。"
+    if reason == "prediction_failed":
+        return "阶段模型推理失败，未生成下一阶段预测。"
+    if status.get("status") == "missing" or reason in {
+        "stage_model_missing",
+        "release_record_missing",
+    }:
+        return "当前未配置可用的阶段模型，因此未预测下一阶段。"
+    return f"阶段模型不可用，未生成下一阶段预测；原因码：{reason or 'unknown'}。"
 
 
 def _observed_direction(item: dict[str, Any]) -> str:
@@ -388,13 +402,15 @@ def _observed_direction(item: dict[str, Any]) -> str:
     return "stable"
 
 
-def _stage_prediction_lines(stage: dict[str, Any]) -> list[str]:
+def _stage_prediction_lines(
+    stage: dict[str, Any], model_status: Mapping[str, Any]
+) -> list[str]:
     if stage.get("status") != "available" or not stage.get("likely_next_stage"):
-        return ["阶段模型暂不可用，未生成下一疾病阶段预测。"]
+        return [_stage_status_text(model_status)]
     likely = _STAGE_TEXT.get(
         str(stage.get("likely_next_stage")), "未识别的阶段类别"
     )
-    lines = [f"模型预测的下一疾病阶段：{likely}。"]
+    lines = [_stage_status_text(model_status), f"模型预测的下一疾病阶段：{likely}。"]
     candidates = stage.get("stage_candidates") or []
     if candidates:
         lines.extend(
@@ -518,6 +534,7 @@ def render_longitudinal_markdown(
     observation = prediction.get("observation") or {}
     disease = prediction.get("disease") or {}
     model_status = prediction.get("model_status") or {}
+    stage_model_status = model_status.get("stage") or {}
     signal_result = prediction.get("progression_signals") or {}
     signal_count = len(signal_result.get("signals") or []) if isinstance(signal_result, dict) else 0
     model_lines = _model_status_lines(prediction)
@@ -582,12 +599,12 @@ def render_longitudinal_markdown(
         lines.append(f"模型风险等级：{outcome.get('risk_band') or '当前未提供'}。模型分数：{_format_number(outcome.get('risk_score'))}；这是模型分数，不代表临床概率。")
     lines.extend(["", "## 6. 阶段模型和下一次随访趋势的可用状态", "（兼容旧版标题：疾病阶段与进展结局预测）"])
     lines.extend([
-        "阶段模型：已参与本次推理。" if stage.get("status") == "available" else "阶段模型：尚未配置，因此未预测下一阶段。",
+        _stage_status_text(stage_model_status),
         "趋势模型：已参与本次推理。" if (model_status.get("trend") or {}).get("status") == "available" else "趋势模型：尚未配置，仅展示已观察到的指标变化。",
         "",
         "### 6.1 下一疾病阶段预测",
     ])
-    lines.extend(_stage_prediction_lines(stage))
+    lines.extend(_stage_prediction_lines(stage, stage_model_status))
     lines.extend(["", "### 6.2 下一次访视指标趋势预测"])
     lines.extend(_trend_prediction_lines(prediction))
     lines.extend(["", "## 7. 关键进展信号"])

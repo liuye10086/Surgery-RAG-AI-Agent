@@ -17,7 +17,7 @@
       <article>
         <span>下一疾病阶段</span>
         <strong>{{ stageLabel }}</strong>
-        <small>{{ stageAvailable ? '阶段模型已参与' : '阶段模型未参与或推理失败' }}</small>
+        <small>{{ stageStatusText }}</small>
       </article>
       <article>
         <span>下一次访视趋势</span>
@@ -50,7 +50,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { LongitudinalObservedIndicator, LongitudinalPrediction, LongitudinalTrendPrediction, LongitudinalTrendPredictionV3 } from '@/api/operator'
+import type { LongitudinalObservedIndicator, LongitudinalPrediction, LongitudinalStageRuntimeStatus, LongitudinalTrendPrediction, LongitudinalTrendPredictionV3 } from '@/api/operator'
 
 const props = defineProps<{ prediction: LongitudinalPrediction | null }>()
 
@@ -61,7 +61,24 @@ const stageLabels: Record<string, string> = {
 }
 const directionLabels: Record<string, string> = { rising: '上升', stable: '基本稳定', falling: '下降' }
 const releaseSetId = computed(() => props.prediction?.schema_version === 'longitudinal_prediction.v3' ? props.prediction.release_set.release_set_id : '')
-const stageAvailable = computed(() => props.prediction?.outcome_prediction.stage_projection.status === 'available')
+const stageRuntimeStatus = computed<LongitudinalStageRuntimeStatus | undefined>(() => {
+  const prediction = props.prediction
+  return prediction && 'model_status' in prediction ? prediction.model_status.stage : undefined
+})
+const stageStatusText = computed(() => {
+  const status = stageRuntimeStatus.value
+  const reason = status?.reason_code
+  if (status?.status === 'available' || (!status && props.prediction?.outcome_prediction.stage_projection.status === 'available')) {
+    return '阶段模型已参与本次推理。'
+  }
+  if (reason === 'required_feature_missing') return '阶段模型存在，但本次输入缺少必需特征，因此未预测下一阶段。'
+  if (reason === 'prediction_not_applicable' || reason === 'terminal_stage') return '当前基线阶段不适用阶段预测，因此未预测下一阶段。'
+  if (reason === 'prediction_failed') return '阶段模型推理失败，未生成下一阶段预测。'
+  if (status?.status === 'missing' || reason === 'stage_model_missing' || reason === 'release_record_missing') {
+    return '当前未配置可用的阶段模型，因此未预测下一阶段。'
+  }
+  return '阶段模型暂不可用，未生成下一阶段预测。'
+})
 const stageLabel = computed(() => {
   const value = props.prediction?.outcome_prediction.stage_projection.likely_next_stage
   return value ? stageLabels[value] || '未识别的阶段类别' : '未估计'

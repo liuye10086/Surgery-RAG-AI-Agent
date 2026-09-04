@@ -315,9 +315,13 @@ export interface LongitudinalRuntimeStatus {
   calibration_status?: string | null
 }
 
+export interface LongitudinalStageRuntimeStatus extends LongitudinalRuntimeStatus {
+  artifact_type: 'stage'
+}
+
 export interface LongitudinalModelStatuses {
   outcome: LongitudinalRuntimeStatus
-  stage: LongitudinalRuntimeStatus
+  stage: LongitudinalStageRuntimeStatus
   trend: LongitudinalRuntimeStatus
 }
 

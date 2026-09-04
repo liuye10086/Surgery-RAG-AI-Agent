@@ -225,7 +225,7 @@ def test_ad_three_visit_report_keeps_cdr_as_stage_related_observation():
         "cdr",
     }
     assert "阶段相关" in content
-    assert "阶段模型：尚未配置，因此未预测下一阶段" in content
+    assert "当前未配置可用的阶段模型，因此未预测下一阶段" in content
     assert "CDR 阶段模型结论" not in content
 
 
@@ -280,7 +280,7 @@ def test_outcome_can_be_available_while_stage_remains_unavailable():
     assert result.outcome_prediction.risk_score == 0.75
     assert result.model_status.stage.status == "missing"
     assert "365 天结局模型：已启用并参与本次推理" in content
-    assert "阶段模型：尚未配置，因此未预测下一阶段" in content
+    assert "当前未配置可用的阶段模型，因此未预测下一阶段" in content
     assert "模型分数：0.75" in content
 
 
