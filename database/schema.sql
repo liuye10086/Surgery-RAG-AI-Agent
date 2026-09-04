@@ -240,11 +240,28 @@ CREATE TABLE IF NOT EXISTS ai_reports (
     prediction_result JSONB DEFAULT '{}',
     input_snapshot JSONB,
     input_snapshot_sha256 VARCHAR(64),
+    evidence_snapshot JSONB,
+    evidence_snapshot_sha256 VARCHAR(64),
+    evidence_status VARCHAR(20),
+    standard_evidence_status VARCHAR(40),
+    reference_case_status VARCHAR(40),
     generation_batch_id VARCHAR(36),
     generation_fingerprint VARCHAR(64),
     error_stage VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT ck_ai_reports_evidence_snapshot_sha256 CHECK (
+        evidence_snapshot_sha256 IS NULL OR evidence_snapshot_sha256 ~ '^[0-9a-f]{64}$'
+    ),
+    CONSTRAINT ck_ai_reports_evidence_status CHECK (
+        evidence_status IS NULL OR evidence_status IN ('complete', 'partial')
+    ),
+    CONSTRAINT ck_ai_reports_standard_evidence_status CHECK (
+        standard_evidence_status IS NULL OR standard_evidence_status IN ('complete', 'partial', 'not_applicable')
+    ),
+    CONSTRAINT ck_ai_reports_reference_case_status CHECK (
+        reference_case_status IS NULL OR reference_case_status IN ('complete', 'partial', 'not_applicable')
+    )
 );
 
 CREATE INDEX IF NOT EXISTS ix_ai_reports_user_id ON ai_reports(user_id);
@@ -325,6 +342,10 @@ CREATE TABLE IF NOT EXISTS standard_documents (
     file_type VARCHAR(50) NOT NULL,
     file_size INTEGER NOT NULL,
     content_hash VARCHAR(64) NOT NULL,
+    issuer VARCHAR(300),
+    publication_date DATE,
+    external_identifier VARCHAR(200),
+    source_url VARCHAR(1000),
     uploaded_by INTEGER,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_standard_documents_content_hash UNIQUE (content_hash),
@@ -430,6 +451,7 @@ CREATE TABLE IF NOT EXISTS standard_segments (
     id SERIAL PRIMARY KEY,
     version_id INTEGER NOT NULL REFERENCES reference_standard_versions(id) ON DELETE CASCADE,
     section_title VARCHAR(300),
+    page_number INTEGER,
     paragraph_index INTEGER,
     table_index INTEGER,
     row_index INTEGER,
@@ -444,6 +466,48 @@ CREATE TABLE IF NOT EXISTS standard_segments (
 
 CREATE INDEX IF NOT EXISTS ix_standard_segments_version_location
 ON standard_segments(version_id, table_index, row_index);
+
+CREATE TABLE IF NOT EXISTS reference_case_windows (
+    id SERIAL PRIMARY KEY,
+    disease_id INTEGER NOT NULL REFERENCES diseases(id) ON DELETE RESTRICT,
+    dataset_release_id VARCHAR(100) NOT NULL,
+    anonymous_case_code VARCHAR(14) NOT NULL,
+    as_of DATE NOT NULL,
+    horizon_days INTEGER NOT NULL DEFAULT 365,
+    profile_schema_version VARCHAR(50) NOT NULL,
+    age INTEGER,
+    sex VARCHAR(10),
+    baseline_stage VARCHAR(100),
+    visit_count INTEGER NOT NULL,
+    span_days INTEGER NOT NULL,
+    outcome_status VARCHAR(30) NOT NULL DEFAULT 'unknown',
+    outcome_value JSONB NOT NULL DEFAULT '{}'::jsonb,
+    source_trace JSONB NOT NULL DEFAULT '{}'::jsonb,
+    feature_summary JSONB NOT NULL DEFAULT '{}'::jsonb,
+    measurement_context_summary JSONB NOT NULL DEFAULT '{}'::jsonb,
+    exclusion_reasons JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_reference_case_windows_case_version UNIQUE (
+        dataset_release_id, anonymous_case_code, as_of, horizon_days, profile_schema_version
+    ),
+    CONSTRAINT ck_reference_case_windows_anonymous_code CHECK (
+        anonymous_case_code ~ '^CASE-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$'
+    ),
+    CONSTRAINT ck_reference_case_windows_horizon CHECK (horizon_days = 365),
+    CONSTRAINT ck_reference_case_windows_age_range CHECK (age IS NULL OR age BETWEEN 0 AND 120),
+    CONSTRAINT ck_reference_case_windows_min_visits CHECK (visit_count >= 3),
+    CONSTRAINT ck_reference_case_windows_min_span CHECK (span_days >= 0),
+    CONSTRAINT ck_reference_case_windows_outcome_status CHECK (
+        outcome_status IN ('positive', 'negative', 'unknown', 'not_observed')
+    )
+);
+
+CREATE INDEX IF NOT EXISTS ix_reference_case_windows_pool_lookup
+ON reference_case_windows(disease_id, dataset_release_id, as_of, horizon_days);
+CREATE INDEX IF NOT EXISTS ix_reference_case_windows_case_lookup
+ON reference_case_windows(anonymous_case_code, as_of);
+CREATE INDEX IF NOT EXISTS ix_reference_case_windows_feature_summary_gin
+ON reference_case_windows USING GIN(feature_summary);
 
 CREATE TABLE IF NOT EXISTS standard_parse_candidates (
     id SERIAL PRIMARY KEY,

@@ -87,6 +87,10 @@ class StandardDocument(Base):
     file_type = Column(String(50), nullable=False)
     file_size = Column(Integer, nullable=False)
     content_hash = Column(String(64), nullable=False)
+    issuer = Column(String(300), nullable=True)
+    publication_date = Column(Date, nullable=True)
+    external_identifier = Column(String(200), nullable=True)
+    source_url = Column(String(1000), nullable=True)
     uploaded_by = Column(
         Integer,
         ForeignKey(
@@ -332,6 +336,67 @@ class OperatorCaseVisit(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     case = relationship("OperatorCase", back_populates="visits")
+
+
+class ReferenceCaseWindow(Base):
+    """Anonymized, versioned reference-case window used for comparisons."""
+
+    __tablename__ = "reference_case_windows"
+    __table_args__ = (
+        UniqueConstraint(
+            "dataset_release_id",
+            "anonymous_case_code",
+            "as_of",
+            "horizon_days",
+            "profile_schema_version",
+            name="uq_reference_case_windows_case_version",
+        ),
+        CheckConstraint(
+            "anonymous_case_code ~ '^CASE-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$'",
+            name="ck_reference_case_windows_anonymous_code",
+        ),
+        CheckConstraint("horizon_days = 365", name="ck_reference_case_windows_horizon"),
+        CheckConstraint("age IS NULL OR age BETWEEN 0 AND 120", name="ck_reference_case_windows_age_range"),
+        CheckConstraint("visit_count >= 3", name="ck_reference_case_windows_min_visits"),
+        CheckConstraint("span_days >= 0", name="ck_reference_case_windows_min_span"),
+        CheckConstraint(
+            "outcome_status IN ('positive', 'negative', 'unknown', 'not_observed')",
+            name="ck_reference_case_windows_outcome_status",
+        ),
+        Index(
+            "ix_reference_case_windows_pool_lookup",
+            "disease_id",
+            "dataset_release_id",
+            "as_of",
+            "horizon_days",
+        ),
+        Index("ix_reference_case_windows_case_lookup", "anonymous_case_code", "as_of"),
+        Index(
+            "ix_reference_case_windows_feature_summary_gin",
+            "feature_summary",
+            postgresql_using="gin",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="RESTRICT"), nullable=False)
+    dataset_release_id = Column(String(100), nullable=False)
+    anonymous_case_code = Column(String(14), nullable=False)
+    as_of = Column(Date, nullable=False)
+    horizon_days = Column(Integer, nullable=False, default=365, server_default="365")
+    profile_schema_version = Column(String(50), nullable=False)
+    age = Column(Integer, nullable=True)
+    sex = Column(String(10), nullable=True)
+    baseline_stage = Column(String(100), nullable=True)
+    visit_count = Column(Integer, nullable=False)
+    span_days = Column(Integer, nullable=False)
+    outcome_status = Column(String(30), nullable=False, default="unknown", server_default="unknown")
+    outcome_value = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    source_trace = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    feature_summary = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    measurement_context_summary = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    exclusion_reasons = Column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
 class OperatorCaseStatusLog(Base):
@@ -591,6 +656,7 @@ class StandardSegment(Base):
     id = Column(Integer, primary_key=True)
     version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="CASCADE"), nullable=False)
     section_title = Column(String(300))
+    page_number = Column(Integer)
     paragraph_index = Column(Integer)
     table_index = Column(Integer)
     row_index = Column(Integer)
@@ -706,6 +772,22 @@ class StandardChangeLog(Base):
 class AIReport(Base):
     __tablename__ = "ai_reports"
     __table_args__ = (
+        CheckConstraint(
+            "evidence_snapshot_sha256 IS NULL OR evidence_snapshot_sha256 ~ '^[0-9a-f]{64}$'",
+            name="ck_ai_reports_evidence_snapshot_sha256",
+        ),
+        CheckConstraint(
+            "evidence_status IS NULL OR evidence_status IN ('complete', 'partial')",
+            name="ck_ai_reports_evidence_status",
+        ),
+        CheckConstraint(
+            "standard_evidence_status IS NULL OR standard_evidence_status IN ('complete', 'partial', 'not_applicable')",
+            name="ck_ai_reports_standard_evidence_status",
+        ),
+        CheckConstraint(
+            "reference_case_status IS NULL OR reference_case_status IN ('complete', 'partial', 'not_applicable')",
+            name="ck_ai_reports_reference_case_status",
+        ),
         Index("ix_ai_reports_user_id", "user_id"),
         Index("ix_ai_reports_created_at", "created_at"),
         Index("ix_ai_reports_status", "status"),
@@ -747,6 +829,11 @@ class AIReport(Base):
     prediction_result = Column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
     input_snapshot = Column(JSONB, nullable=True)
     input_snapshot_sha256 = Column(String(64), nullable=True)
+    evidence_snapshot = Column(JSONB, nullable=True)
+    evidence_snapshot_sha256 = Column(String(64), nullable=True)
+    evidence_status = Column(String(20), nullable=True)
+    standard_evidence_status = Column(String(40), nullable=True)
+    reference_case_status = Column(String(40), nullable=True)
     generation_batch_id = Column(String(36), nullable=True)
     generation_fingerprint = Column(String(64), nullable=True)
     error_stage = Column(String(50), nullable=True)
