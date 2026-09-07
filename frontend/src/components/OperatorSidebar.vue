@@ -2,7 +2,7 @@
   <div :class="['operator-sidebar', { collapsed }]">
     <div class="sidebar-inner">
       <!-- ====== 展开列 ====== -->
-      <div class="expanded-col">
+      <div class="expanded-col" :aria-hidden="collapsed" :inert="collapsed">
         <!-- 顶部固定：品牌 + 折叠 + 新建纵向病例 -->
         <div class="sidebar-top">
           <div class="top-row">
@@ -24,12 +24,12 @@
             </el-button>
           </div>
           <div class="nav-row">
-              <div :class="['nav-item', { active: activeView === 'progression' }]" @click="$emit('navigate', 'progression')">
+              <button type="button" :class="['nav-item', { active: activeView === 'cases' }]" @click="$emit('navigate', 'cases')">
               <el-icon :size="15"><DataLine /></el-icon><span>我的病例</span>
-            </div>
-            <div :class="['nav-item', { active: activeView === 'cases' }]" @click="$emit('navigate', 'cases')">
+            </button>
+            <button type="button" :class="['nav-item', { active: activeView === 'history' }]" @click="$emit('navigate', 'history')">
               <el-icon :size="15"><FolderOpened /></el-icon><span>历史报告</span>
-            </div>
+            </button>
           </div>
         </div>
 
@@ -44,7 +44,7 @@
             <div class="report-info">
               <div class="report-time">{{ formatTime(report.created_at) }}</div>
               <div class="report-title">{{ report.anonymous_case_code || `报告-${report.id}` }}</div>
-              <div class="report-summary-line">{{ report.disease_name || '疾病未记录' }} · {{ report.baseline_stage || '阶段未记录' }}</div>
+              <div class="report-summary-line">{{ report.disease_name || '疾病未记录' }} · {{ stageLabel(report.baseline_stage) }}</div>
               <div class="report-summary-line">{{ report.visit_count ?? '—' }} 次访视 · {{ report.model_version_summary || '模型版本未记录' }}</div>
               <div class="report-meta">
                 <el-tag
@@ -119,12 +119,12 @@
       </div>
 
       <!-- ====== 折叠列 ====== -->
-      <div class="collapsed-col">
+      <div class="collapsed-col" :aria-hidden="!collapsed" :inert="!collapsed">
         <div class="cs-top">
           <el-button class="toggle-btn" :icon="collapsed ? Expand : Fold" text @click="$emit('toggle')" :title="collapsed ? '展开' : '折叠'" />
           <el-button type="primary" :icon="Plus" circle @click="$emit('new-longitudinal-case')" :disabled="generating" title="新建纵向病例" />
         </div>
-        <div class="cs-mid" />
+        <div class="cs-mid"><el-button :icon="DataLine" text aria-label="我的病例" title="我的病例" @click="$emit('navigate','cases')" /><el-button :icon="FolderOpened" text aria-label="历史报告" title="历史报告" @click="$emit('navigate','history')" /></div>
         <div class="cs-bot">
           <el-popover
             placement="right-end"
@@ -153,6 +153,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import {stageLabel} from '@/utils/report-read-model'
 import { Plus, SwitchButton, Fold, Expand, MoreFilled, Delete, DataAnalysis, DataLine, FolderOpened } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import type { ReportListItem } from '@/api/operator'
@@ -164,7 +165,7 @@ defineProps<{
   collapsed: boolean
   loading: boolean
   generating: boolean
-  activeView: 'progression' | 'cases'
+  activeView: 'cases' | 'history' | 'report'
 }>()
 
 defineEmits<{
@@ -173,7 +174,7 @@ defineEmits<{
   'new-longitudinal-case': []
   delete: [id: number]
   'load-more': []
-  navigate: [view: 'progression' | 'cases']
+  navigate: [view: 'cases' | 'history' | 'report']
 }>()
 
 const authStore = useAuthStore()
@@ -235,6 +236,9 @@ function handleLogout() {
 </script>
 
 <style scoped>
+.nav-item { min-height:44px; border:0; font:inherit; background:transparent; }
+.nav-item:focus-visible { outline:2px solid var(--color-primary); }
+.cs-mid :deep(button) { min-width:44px; min-height:44px; }
 /* ===== 外层 ===== */
 .operator-sidebar {
   width: var(--sidebar-width);

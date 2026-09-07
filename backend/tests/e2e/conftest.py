@@ -30,11 +30,21 @@ def playwright_instance():
 
 
 @pytest.fixture()
-def browser_page(playwright_instance: Playwright):
+def browser_page(playwright_instance: Playwright, request):
     browser = playwright_instance.chromium.launch(headless=True)
     context = browser.new_context(base_url=BASE_URL)
     page = context.new_page()
+    errors=[]
+    page.on('pageerror',lambda error:errors.append(str(error)))
     yield page
+    from pathlib import Path
+    import re,json
+    output=Path(__file__).resolve().parents[3]/'outputs/operator-report-verification/browser'
+    output.mkdir(parents=True,exist_ok=True)
+    name=re.sub(r'[^a-zA-Z0-9_-]','_',request.node.name)
+    page.screenshot(path=str(output/(name+'.png')),full_page=True)
+    (output/(name+'.html')).write_text(page.content(),encoding='utf-8')
+    (output/(name+'-errors.json')).write_text(json.dumps(errors),encoding='utf-8')
     context.close()
     browser.close()
 

@@ -64,6 +64,32 @@ class Settings(BaseSettings):
             raise ValueError("report_job_concurrency_requires_capacity_review")
         return self
 
+    REPORT_HISTORY_CURSOR_SECRET: str = ""
+    REPORT_PDF_ENABLED: bool = False
+    REPORT_PDF_ACCEPTING: bool = False
+    REPORT_PDF_CONCURRENCY: int = 1
+    REPORT_PDF_QUEUE_LIMIT: int = 20
+    REPORT_PDF_USER_ACTIVE_LIMIT: int = 2
+    REPORT_PDF_QUEUE_SECONDS: int = 600
+    REPORT_PDF_RUN_SECONDS: int = 120
+    REPORT_PDF_LEASE_SECONDS: int = 45
+    REPORT_PDF_HEARTBEAT_SECONDS: int = 10
+    REPORT_PDF_SWEEP_SECONDS: int = 15
+    REPORT_PDF_MAX_BYTES: int = 64 * 1024 * 1024
+    REPORT_PDF_MAX_PAGES: int = 200
+    REPORT_ARCHIVE_ROOT: str = ""
+    REPORT_PDF_RENDERER_MANIFEST: str = ""
+
+    @model_validator(mode="after")
+    def pdf_limits(self):
+        if any(getattr(self,key)<=0 for key in type(self).model_fields if key.startswith("REPORT_PDF_") and key not in ("REPORT_PDF_ENABLED","REPORT_PDF_ACCEPTING","REPORT_PDF_RENDERER_MANIFEST")):
+            raise ValueError("pdf_limits_must_be_positive")
+        if self.REPORT_PDF_CONCURRENCY != 1 or self.REPORT_PDF_MAX_BYTES > 67108864 or self.REPORT_PDF_MAX_PAGES > 200:
+            raise ValueError("pdf_limits_exceed_reviewed_budget")
+        if not self.REPORT_PDF_HEARTBEAT_SECONDS < self.REPORT_PDF_LEASE_SECONDS or self.REPORT_PDF_SWEEP_SECONDS > self.REPORT_PDF_LEASE_SECONDS:
+            raise ValueError("pdf_lease_limits_invalid")
+        return self
+
     # 文件上传配置（默认放到项目根目录的 uploads/，与代码分离）
     UPLOAD_DIR: str = os.path.join(_PROJECT_ROOT, "uploads")
     MAX_UPLOAD_SIZE_MB: int = 50

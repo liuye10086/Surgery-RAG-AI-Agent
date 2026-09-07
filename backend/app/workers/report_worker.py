@@ -77,6 +77,11 @@ def run_worker_once(
             with session_factory() as db:
                 return update_phase(db, claim, value)
 
+        def audit(event):
+            from app.services.report_generation_audit import append_generation_audit
+            with session_factory() as db:
+                return append_generation_audit(db, claim, event)
+
         result = supervise_execution(
             execution_target,
             payload,
@@ -85,6 +90,7 @@ def run_worker_once(
             ),
             lease_check=renew,
             on_phase=phase,
+            on_audit=audit,
             phase_limits={
                 "model_loading": settings.REPORT_JOB_LOAD_SECONDS,
                 "prediction": settings.REPORT_JOB_PREDICTION_SECONDS,

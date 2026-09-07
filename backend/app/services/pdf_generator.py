@@ -323,6 +323,8 @@ def generate_pdf(
     evidence_snapshot: dict[str, Any] | None = None,
     *,
     report_document: dict | None = None,
+    renderer_manifest: str | None = None,
+    on_phase=None,
 ) -> bytes:
     """将 Markdown 报告转换为 PDF bytes。
 
@@ -338,6 +340,18 @@ def generate_pdf(
     Raises:
         RuntimeError: PDF 生成过程中发生错误。
     """
+
+    def phase(value):
+        if on_phase is not None:
+            on_phase(value)
+
+    font_css = ""
+    manifest = None
+    if renderer_manifest:
+        from app.services.report_pdf_renderer_manifest import load_renderer_manifest
+
+        manifest, _ = load_renderer_manifest(renderer_manifest)
+    phase("html")
     # 1-2. Markdown → 带打印分组的安全 HTML
     safe_html = _markdown_to_safe_html(
         markdown_content,
@@ -362,6 +376,13 @@ def generate_pdf(
         content=safe_html,
         model_version_notice=model_version_notice,
     )
+    if manifest:
+        from app.services.report_pdf_fonts import controlled_font_css
+
+        font_css = controlled_font_css(manifest, renderer_manifest, full_html, title)
+        full_html = full_html.replace(
+            "</head>", "<style>" + font_css + "</style></head>"
+        )
 
     # 4. Playwright HTML → PDF
     try:
@@ -373,34 +394,47 @@ def generate_pdf(
 
     try:
         with sync_playwright() as p:
+            phase("browser_launch")
             browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            page.set_content(full_html, timeout=30000)
-            # 等待字体和样式加载完毕
-            page.wait_for_timeout(500)
-            pdf_bytes = page.pdf(
-                format="A4",
-                margin={
-                    "top": "20mm",
-                    "bottom": "20mm",
-                    "left": "22mm",
-                    "right": "22mm",
-                },
-                print_background=True,
-                display_header_footer=True,
-                header_template=(
-                    f'<div style="font-size:9pt;color:#666;font-family:SimSun,Microsoft YaHei,sans-serif;'
-                    f'text-align:center;width:100%;padding:0 22mm">{_html.escape(title)}</div>'
-                ),
-                footer_template=(
-                    '<div style="font-size:9pt;color:#666;font-family:SimSun,Microsoft YaHei,sans-serif;'
-                    'text-align:center;width:100%;padding:0 22mm">'
-                    '第 <span class="pageNumber"></span> 页'
-                    "</div>"
-                ),
-            )
-            browser.close()
-            return pdf_bytes
-    except Exception as exc:
-        logger.exception("PDF generation failed for title='%s'", title)
-        raise RuntimeError(f"PDF 生成失败: {exc}") from exc
+            try:
+                if manifest and browser.version != manifest.chromium_version:
+                    raise ValueError("pdf_renderer_unavailable")
+                page = browser.new_page()
+                page.route("**/*", lambda route: route.abort())
+                page.set_content(full_html, timeout=30000)
+                phase("fonts")
+                page.evaluate("async () => { await document.fonts.ready; }")
+                if manifest and not page.evaluate(
+                    """() => [...document.fonts].some(f => f.family === 'ReportCJK' && f.status === 'loaded') && document.fonts.check('16px "ReportCJK"', '脂肪肝阿尔茨海默病')"""
+                ):
+                    raise ValueError("pdf_font_unavailable")
+                phase("print")
+                pdf_bytes = page.pdf(
+                    format="A4",
+                    margin={
+                        "top": "20mm",
+                        "bottom": "20mm",
+                        "left": "22mm",
+                        "right": "22mm",
+                    },
+                    print_background=True,
+                    display_header_footer=True,
+                    header_template=(
+                        ("<style>" + font_css + "</style>" if font_css else "")
+                        + f'<div style="font-size:9pt;color:#666;font-family:ReportCJK,SimSun,Microsoft YaHei,sans-serif;'
+                        f'text-align:center;width:100%;padding:0 22mm">{_html.escape(title)}</div>'
+                    ),
+                    footer_template=(
+                        ("<style>" + font_css + "</style>" if font_css else "")
+                        + '<div style="font-size:9pt;color:#666;font-family:ReportCJK,SimSun,Microsoft YaHei,sans-serif;'
+                        'text-align:center;width:100%;padding:0 22mm">'
+                        '第 <span class="pageNumber"></span> 页'
+                        "</div>"
+                    ),
+                )
+                return pdf_bytes
+            finally:
+                browser.close()
+    except Exception:
+        logger.warning("PDF generation failed")
+        raise RuntimeError("PDF 生成失败") from None

@@ -72,11 +72,18 @@ def test_pdf_filename_uses_anonymous_code_when_saved_title_is_sensitive():
         status="completed",
         download_count=0,
         operator_case=SimpleNamespace(anonymous_case_code="CASE-7F3K-92LM"),
+        input_snapshot={"anonymous_case_code": "CASE-7F3K-92LM"},
     )
     db = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = report
-    with patch("app.api.operator.generate_pdf", return_value=b"%PDF"):
+    import io
+    from app.services.report_pdf_delivery import PdfDelivery
+    from app.services.report_saved_identity import saved_report_identity
+    identity = saved_report_identity(report.id, report.input_snapshot)
+    delivery = PdfDelivery(io.BytesIO(b"%PDF"), identity.title+'.pdf', 4, 'a'*64)
+    with patch("app.services.report_pdf_delivery.prepare_delivery", return_value=delivery):
         response = download_report_pdf(17, db=db, current_user=SimpleNamespace(id=5))
+    delivery.file.close()
     disposition = response.headers["Content-Disposition"]
     assert "张三" not in disposition
     assert "CASE-7F3K-92LM" in disposition
@@ -96,6 +103,7 @@ def test_pdf_title_uses_safe_report_id_when_legacy_report_has_no_anonymous_code(
     )
     db = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = report
-    with patch("app.api.operator.generate_pdf", return_value=b"%PDF") as generate:
-        download_report_pdf(18, db=db, current_user=SimpleNamespace(id=5))
-    assert generate.call_args.args[1] == "报告-18"
+    from app.services.report_saved_identity import saved_report_identity
+    identity = saved_report_identity(report.id, None)
+    assert identity.title == "报告-18"
+    assert "张三" not in identity.title

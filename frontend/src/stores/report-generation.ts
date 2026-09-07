@@ -56,8 +56,10 @@ export const useReportGenerationStore=defineStore('report-generation',()=>{
     try {
       const detail=await getReport(id)
       if (currentEpoch!==epoch || detailRevision!==detailAttempt || reportId.value!==id) return
-      if (detail.id!==id || detail.status!=='completed' || (state.value?.batch_id && detail.generation_batch_id!==state.value.batch_id)) throw new Error('报告详情与生成状态不一致')
-      report.value=detail;viewState.value='completed';message.value='报告已完成'
+      const terminal=state.value?.status
+      if (detail.id!==id || !['completed','failed','cancelled'].includes(detail.status) || detail.status!==terminal || (state.value?.batch_id && detail.generation_batch_id!==state.value.batch_id)) throw new Error('报告详情与生成状态不一致')
+      if (terminal!=='completed' && detail.publication_status!=='not_published') throw new Error('报告发布状态不一致')
+      report.value=detail;viewState.value=terminal as GenerationViewState;message.value=state.value?.message || (terminal==='completed'?'报告已完成':'报告生成已结束')
     } catch(error) {
       if (currentEpoch!==epoch || detailRevision!==detailAttempt) return
       terminalError(error);viewState.value='load_failed';message.value=(error as Error).message || '报告已生成，详情加载失败，请重试读取'
@@ -66,8 +68,7 @@ export const useReportGenerationStore=defineStore('report-generation',()=>{
   async function receive(next:GenerationStatus,currentEpoch:number) {
     if (currentEpoch!==epoch || next.report_id!==reportId.value || !acceptsRevision(state.value,next)) return
     state.value=next;message.value=next.message
-    if (next.status==='completed') {stop();await loadDetail(currentEpoch)}
-    else if (next.status==='failed' || next.status==='cancelled') {stop();viewState.value=next.status}
+    if (['completed','failed','cancelled'].includes(next.status)) {stop();await loadDetail(currentEpoch)}
     else viewState.value=next.status
   }
   function reconnect(currentEpoch:number,error?:unknown) {
@@ -131,7 +132,7 @@ export const useReportGenerationStore=defineStore('report-generation',()=>{
     try {await receive(await cancelReportJob(reportId.value),currentEpoch)}
     catch(error) {if (currentEpoch===epoch) message.value=(error as Error).message || '取消结果暂未确认，请查询状态'}
   }
-  async function retryDetail() {if (state.value?.status==='completed') await loadDetail();else if (reportId.value) await poll(epoch)}
+  async function retryDetail() {if (state.value && ['completed','failed','cancelled'].includes(state.value.status)) await loadDetail();else if (reportId.value) await poll(epoch)}
   function recoverPending() {return saved()}
   watch(()=>auth.user?.id,(next,previous)=>{
     if (previous!==undefined && next!==previous) {detach();clearReportRequestStorage()}

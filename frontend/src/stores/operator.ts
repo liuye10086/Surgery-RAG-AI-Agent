@@ -1,6 +1,7 @@
 import { useReportGenerationStore } from '@/stores/report-generation'
 import { defineStore } from 'pinia'
-import { readonly, ref } from 'vue'
+import { readonly, ref, watch } from 'vue'
+import { useAuthStore } from './auth'
 import {
   listReports,
   getReport,
@@ -28,6 +29,8 @@ import {
 } from '@/api/operator'
 
 export const useOperatorStore = defineStore('operator', () => {
+  const auth = useAuthStore()
+  let reportListEpoch = 0
   const reports = ref<ReportListItem[]>([])
   const total = ref(0)
   const currentReport = ref<ReportDetail | null>(null)
@@ -74,17 +77,24 @@ export const useOperatorStore = defineStore('operator', () => {
   }
 
   async function fetchReports(skip = 0, limit = 20, append = false) {
+    if (append && loading.value) return
+    const requestEpoch = ++reportListEpoch, userId = auth.user?.id
     loading.value = true
     try {
       const res = await listReports(skip, limit, 'longitudinal_predictive')
+      if (requestEpoch !== reportListEpoch || userId !== auth.user?.id) return
       reports.value = append
         ? [...reports.value, ...res.reports.filter((item) => !reports.value.some((existing) => existing.id === item.id))]
         : res.reports
       total.value = res.total
     } finally {
-      loading.value = false
+      if (requestEpoch === reportListEpoch) loading.value = false
     }
   }
+
+  watch(()=>auth.user?.id,(next,previous)=>{
+    if(next!==previous){reportListEpoch++;reports.value=[];total.value=0;loading.value=false;clearCurrent()}
+  },{flush:'sync'})
 
   async function fetchReport(reportId: number, revision = caseSessionRevision.value) {
     loading.value = true
@@ -109,13 +119,14 @@ export const useOperatorStore = defineStore('operator', () => {
   }
 
   async function removeReport(reportId: number) {
-    await deleteReport(reportId)
+    const result = await deleteReport(reportId)
     reports.value = reports.value.filter((r) => r.id !== reportId)
     total.value = Math.max(0, total.value - 1)
     if (currentReport.value?.id === reportId) {
       currentReport.value = null
       longitudinalReportContent.value = ''
     }
+    return result
   }
 
   async function fetchDiseases() {

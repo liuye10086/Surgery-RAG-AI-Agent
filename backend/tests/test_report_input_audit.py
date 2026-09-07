@@ -85,3 +85,17 @@ def test_explicit_visits_must_match_snapshot():
         run_audited_prediction(
             {"visits": []}, AD_ADAPTER, _complete_ad_suite(), visits=_ad_visits()
         )
+
+
+def test_events_finish_each_task_before_next_task_starts_without_values():
+    events = []
+    run_audited_prediction({"age": 62, "sex": "female", "baseline_stage": "mci", "notes": "PRIVATE"},
+                          AD_ADAPTER, _complete_ad_suite(bad_mmse=True), visits=_ad_visits(), on_event=events.append)
+    finished = [event for event in events if event["kind"] == "task_finished"]
+    assert len(finished) == 4
+    assert finished[2]["result_state"] == "unavailable"
+    for left, right in zip(finished, finished[1:]):
+        next_start = next(event for event in events if event["task"] == right["task"] and event["kind"] == "input_prepared")
+        assert events.index(left) < events.index(next_start)
+    assert "PRIVATE" not in str(events)
+    assert all(set(field) == {"name", "state"} for event in events for field in event["input_audit"]["fields"])

@@ -233,6 +233,8 @@ def get_generation_status(db, user_id, report_id):
     if job is None:
         if report.status == "generating":
             raise ReportJobError("legacy_generation_unmanaged")
+        code = (None if report.status == "completed" else "cancelled_by_user"
+                if report.status == "cancelled" else safe_code(getattr(report, "error_message", None)))
         return GenerationStatus(
             report_id=report.id,
             batch_id=report.generation_batch_id,
@@ -241,7 +243,8 @@ def get_generation_status(db, user_id, report_id):
             phase="terminal",
             revision=1,
             updated_at=report.updated_at,
-            message="历史报告",
+            message=MESSAGES[code] if code else "历史报告",
+            error_code=code,
             legacy=True,
         )
     code = safe_code(job.error_code) if job.error_code else None
@@ -264,6 +267,7 @@ def get_generation_status(db, user_id, report_id):
             "cancelled": "报告已取消",
         }[job.status],
         cancel_requested=job.cancel_requested_at is not None,
+        failure_phase=getattr(job, "failure_phase", None),
     )
 
 
@@ -296,6 +300,9 @@ def delete_report_job(db, user_id, report_id):
             job and job.status in ("queued", "running")
         ):
             raise ReportJobError("active_report_delete_forbidden")
+        from app.db.models import ReportPdfArchive, ReportPdfAttempt
+        db.query(ReportPdfArchive).filter_by(report_id=report_id).with_for_update().first()
+        db.query(ReportPdfAttempt).filter_by(report_id=report_id).order_by(ReportPdfAttempt.id).with_for_update().all()
         db.delete(report)
         db.commit()
     except Exception:

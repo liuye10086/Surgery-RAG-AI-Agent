@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   listOperatorIndicatorCatalog: vi.fn(),
 }))
 vi.mock('vue-router',()=>({useRoute:()=>({query:{}}),useRouter:()=>({replace:vi.fn(),push:vi.fn()})}))
+vi.mock('@/api/report-history',()=>({listHistory:vi.fn(async()=>({items:[],has_more:false,next_cursor:null}))}))
 
 const validationIssueMap = vi.hoisted(() => vi.fn(() => ({ age: '旧会话校验错误' })))
 

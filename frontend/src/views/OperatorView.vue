@@ -1,11 +1,11 @@
 <template>
   <div class="operator-view">
     <OperatorSidebar
-      :reports="operatorStore.reports"
-      :total="operatorStore.total"
+      :reports="history.items"
+      :total="history.items.length + (history.hasMore ? 1 : 0)"
       :current-id="generation.reportId || operatorStore.currentReport?.id"
       :collapsed="sidebarCollapsed"
-      :loading="operatorStore.loading"
+      :loading="history.loading || history.loadingMore"
       :generating="generation.active"
       :active-view="activeView"
       @toggle="toggleSidebar"
@@ -31,7 +31,7 @@
       </div>
 
       <div class="operator-body">
-        <section v-if="reportReadingMode && generation.viewState !== 'completed' && generation.viewState !== 'idle'" class="generation-status" aria-live="polite" :aria-busy="generation.active">
+        <section v-if="reportReadingMode && !generation.report && generation.viewState !== 'idle'" class="generation-status" aria-live="polite" :aria-busy="generation.active">
           <h3>{{ generationTitle }}</h3>
           <p>{{ generation.message }}</p>
           <p v-if="generation.canCancel">刷新页面或返回病例不会取消生成。</p>
@@ -51,6 +51,8 @@
           @back="closeReport"
           @download="handleDownload"
         />
+
+        <ReportHistoryWorkspace v-else-if="activeView === 'history'" @select="handleSelect" @delete="handleDelete" />
 
         <!-- 统一病例工作区：病例库和进展预测共用同一份聚合草稿 -->
         <div v-else class="progression-view">
@@ -81,6 +83,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import ReportHistoryWorkspace from '@/components/report/ReportHistoryWorkspace.vue'
+import { useReportHistoryStore } from '@/stores/report-history'
 import { useReportGenerationStore } from '@/stores/report-generation'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { marked } from 'marked'
@@ -98,11 +102,13 @@ import { validationIssueMap } from '@/api/request'
 const authStore = useAuthStore()
 const operatorStore = useOperatorStore()
 const generation = useReportGenerationStore()
+const history = useReportHistoryStore()
 const router = useRouter(), route = useRoute()
-const generationTitle = computed(()=>({idle:'',submitting:'正在受理',queued:'报告已排队',running:'报告生成中',reconnecting:'正在恢复连接',loading_completed:'报告已生成，正在读取完整内容',completed:'报告已完成',load_failed:'暂未取得报告',failed:'报告生成失败',cancelled:'报告已取消'}[generation.viewState]))
+const generationTitle = computed(()=>({idle:'',submitting:'正在受理',queued:'报告已排队',running:'报告生成中',reconnecting:'正在恢复连接',loading_completed:'正在读取保存的报告资料',completed:'报告已完成',load_failed:'暂未取得报告',failed:'报告生成失败',cancelled:'报告已取消'}[generation.viewState]))
 
 const sidebarCollapsed = ref(localStorage.getItem('operator_sidebar_collapsed') === 'true')
-const activeView = ref<'progression' | 'cases'>('progression')
+const activeView = ref<'cases' | 'history' | 'report'>('cases')
+const reportReturnView = ref<'cases' | 'history'>('cases')
 const progressionDiseases = computed(() => operatorStore.diseases)
 const draftDiseaseCode = ref('')
 const activeDiseaseCode = computed(() => operatorStore.currentLongitudinalCase?.disease.code || draftDiseaseCode.value)
@@ -110,7 +116,7 @@ const activeIndicatorCatalog = computed(() => activeDiseaseCode.value ? operator
 const validationIssues = ref<Record<string, string>>({})
 
 const reportReadingMode = computed(() =>
-  activeView.value === 'progression'
+  activeView.value === 'report'
   && Boolean(generation.viewState !== 'idle' || operatorStore.currentReport),
 )
 
@@ -155,7 +161,7 @@ function renderMarkdown(md: string): string {
 }
 
 function loadMoreReports() {
-  return operatorStore.fetchReports(operatorStore.reports.length, 20, true)
+  return history.loadMore()
 }
 
 async function handleWorkspaceSave(payload: LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload) {
@@ -176,6 +182,7 @@ async function handleWorkspaceSave(payload: LongitudinalCaseCreatePayload | Long
 
 function startNewLongitudinalCase() {
   closeReport()
+  activeView.value='cases'
   operatorStore.startNewLongitudinalCase()
   draftDiseaseCode.value = ''
   validationIssues.value = {}
@@ -204,7 +211,7 @@ async function handleDiseaseChange(code: string) {
 
 function generateCurrentReport() {
   const id = operatorStore.currentLongitudinalCase?.id
-  if (id) { activeView.value = 'progression'; void generation.submit(id) }
+  if (id) { reportReturnView.value='cases'; activeView.value = 'report'; void generation.submit(id) }
 }
 
 async function handleDownload() {
@@ -220,15 +227,17 @@ async function handleDownload() {
 
 async function handleSelect(id: number) {
   // 从病例库选择历史报告时，切回纵向报告视图
-  activeView.value = 'progression'
+  if(activeView.value !== 'report') reportReturnView.value=activeView.value
+  activeView.value = 'report'
   operatorStore.clearCurrent()
   await generation.observe(id)
 }
 
-function handleNavigate(view:'progression'|'cases') {
+function handleNavigate(view:'cases'|'history'|'report') {
   closeReport();activeView.value=view
 }
 function closeReport() {
+  activeView.value=reportReturnView.value
   generation.detach()
   operatorStore.clearCurrent()
   const query = {...route.query}; delete query.reportId
@@ -242,11 +251,14 @@ async function handleDelete(id: number) {
       cancelButtonText: '取消',
       type: 'warning',
     })
-    await operatorStore.removeReport(id)
+    history.invalidate()
+    const result = await operatorStore.removeReport(id)
+    history.remove(id)
     if (generation.reportId===id) closeReport()
-    ElMessage.success('报告已删除')
-  } catch {
-    // 用户取消
+    if(result?.cleanup_state==='pending') ElMessage.info('报告已删除，文件清理中')
+    else ElMessage.success('报告已删除')
+  } catch (error) {
+    if(error !== 'cancel' && error !== 'close') ElMessage.error((error as Error).message || '删除失败')
   }
 }
 
@@ -255,16 +267,17 @@ function retryReport() {
   else if (generation.pendingCaseId) void generation.submit(generation.pendingCaseId)
 }
 watch(()=>generation.reportId,id=>{
-  if (id) void operatorStore.fetchReports()
+  if (id) {activeView.value='report';history.updatesAvailable=true}
   if (id && String(route.query.reportId || '') !== String(id)) void router.replace({query:{...route.query,reportId:String(id)}})
 })
+watch(()=>operatorStore.currentReport,report=>{if(report)activeView.value='report'},{immediate:true})
 watch(()=>route.query.reportId,value=>{
   const id=Number(value)
   if (typeof value==='string' && /^[1-9]\d*$/.test(value) && Number.isSafeInteger(id) && generation.reportId!==id) void generation.observe(id)
   else if (value===undefined && generation.reportId) generation.detach()
 }, {immediate:true})
 watch(()=>generation.state?.status,status=>{
-  if (status && ['completed','failed','cancelled'].includes(status)) void operatorStore.fetchReports()
+  if (status && ['completed','failed','cancelled'].includes(status)) history.updatesAvailable=true
 })
 watch(()=>authStore.token,token=>{if (!token) void router.replace('/login')})
 onBeforeUnmount(()=>{
@@ -276,7 +289,7 @@ onMounted(async () => {
   window.addEventListener('online',generation.refreshConnection)
   window.addEventListener('focus',generation.refreshConnection)
   if (!route.query.reportId) generation.restorePending()
-  operatorStore.fetchReports()
+  void history.refresh()
   await Promise.all([
     operatorStore.fetchDiseases(),
     operatorStore.fetchLongitudinalCases(),

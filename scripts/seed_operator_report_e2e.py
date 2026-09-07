@@ -39,7 +39,7 @@ def seed(session_factory):
         require_test_database(str(db.get_bind().url))
         db.execute(
             text(
-                "TRUNCATE users, diseases, standard_documents, reference_standards, standard_indicators RESTART IDENTITY CASCADE"
+                "TRUNCATE report_file_cleanup_tasks, report_deletion_tombstones, users, diseases, standard_documents, reference_standards, standard_indicators RESTART IDENTITY CASCADE"
             )
         )
         db.add_all(

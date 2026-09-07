@@ -1,0 +1,11 @@
+[Unit]
+Description=Surgery durable PDF deletion cleanup timer
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=15s
+AccuracySec=1s
+Unit=surgery-report-file-cleanup.service
+
+[Install]
+WantedBy=timers.target

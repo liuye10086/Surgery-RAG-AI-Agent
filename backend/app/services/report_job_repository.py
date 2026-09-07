@@ -123,6 +123,7 @@ def claim_next(db, owner):
             return None
         job.status = "running"
         job.phase = "model_loading"
+        job.last_execution_phase = "model_loading"
         job.started_at = now
         job.updated_at = now
         job.heartbeat_at = now
@@ -140,6 +141,9 @@ def claim_next(db, owner):
             lease_owner=owner,
             run_deadline=job.run_deadline,
         )
+        from app.services.report_generation_audit import append_locked_event
+        from app.schemas.report_generation_audit import GenerationAuditEvent
+        append_locked_event(db, job, claim.batch_id, GenerationAuditEvent(kind="phase_entered", phase="model_loading"))
         db.commit()
         return claim
     except Exception:
@@ -176,7 +180,16 @@ def update_phase(db, claim, phase):
             db.rollback()
             return False
         if job.phase != phase:
+            report = _report_lock(db, claim.report_id)
+            if (not report or report.generation_batch_id != str(claim.batch_id)
+                    or not _valid(job, claim, db_now(db))):
+                db.rollback()
+                return False
+            from app.services.report_generation_audit import append_locked_event
+            from app.schemas.report_generation_audit import GenerationAuditEvent
+            append_locked_event(db, job, claim.batch_id, GenerationAuditEvent(kind="phase_entered", phase=phase))
             job.phase = phase
+            job.last_execution_phase = phase
             job.revision += 1
             job.updated_at = now
         db.commit()
@@ -187,6 +200,11 @@ def update_phase(db, claim, phase):
 
 
 def _terminal(job, report, status, code, now):
+    last = getattr(job, "last_execution_phase", None)
+    if job.phase in PHASES[:-1]:
+        last = job.phase
+    job.last_execution_phase = "persistence" if status == "completed" else last
+    job.failure_phase = None if status == "completed" else (last or "unknown")
     job.status = status
     job.phase = "terminal"
     job.error_code = safe_code(code) if code is not None else None
@@ -198,8 +216,19 @@ def _terminal(job, report, status, code, now):
     job.lease_expires_at = None
     report.status = status
     report.updated_at = now
-    report.error_stage = None if status == "completed" else "generation"
+    report.error_stage = job.failure_phase
     report.error_message = None if status == "completed" else job.error_code
+    from sqlalchemy import inspect
+    from sqlalchemy.orm import object_session
+    if inspect(job, raiseerr=False) is not None:
+        db = object_session(job)
+        if db is not None:
+            from app.services.report_generation_audit import append_locked_event
+            from app.schemas.report_generation_audit import GenerationAuditEvent
+            append_locked_event(db, job, report.generation_batch_id, GenerationAuditEvent(
+                kind="terminal", phase="terminal", reason_code=job.error_code,
+                result_state="available" if status == "completed" else "unavailable",
+            ))
 
 
 def finish_job(db, claim, status, code):

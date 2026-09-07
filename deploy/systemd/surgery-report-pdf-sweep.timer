@@ -1,0 +1,11 @@
+[Unit]
+Description=Surgery PDF deadline sweep timer
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=15s
+AccuracySec=1s
+Unit=surgery-report-pdf-sweep.service
+
+[Install]
+WantedBy=timers.target

@@ -7,6 +7,7 @@ import time
 import threading
 import json
 import urllib.request
+from uuid import uuid4
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +19,11 @@ def main():
 
     url = os.environ.get("TEST_DATABASE_URL", "")
     require_test_database(url)
+    manifest = os.environ.get("REPORT_TEST_RENDERER_MANIFEST", "")
+    if not Path(manifest).is_file():
+        raise RuntimeError("explicit_built_renderer_manifest_required")
+    archive_root = ROOT / "outputs/operator-report-archive-verification" / ("e2e-"+str(uuid4()))
+    archive_root.mkdir(parents=True)
     env = {
         **os.environ,
         "DATABASE_URL": url,
@@ -25,6 +31,11 @@ def main():
         "PYTHONUTF8": "1",
         "OPENAI_API_KEY": "test-only-not-a-real-key",
         "DEEPSEEK_API_KEY": "test-only-not-a-real-key",
+        "REPORT_HISTORY_CURSOR_SECRET": "isolated-e2e-history-cursor-secret-32-bytes",
+        "REPORT_PDF_ENABLED": "true",
+        "REPORT_PDF_ACCEPTING": "true",
+        "REPORT_PDF_RENDERER_MANIFEST": manifest,
+        "REPORT_ARCHIVE_ROOT": str(archive_root),
         "REPORT_JOBS_ENABLED": "true",
         "REPORT_JOBS_ACCEPTING": "true",
         "REPORT_JOB_LEASE_SECONDS": "6",
@@ -36,7 +47,7 @@ def main():
     # Parent imports below must use exactly the same isolated settings.
     previous = dict(os.environ)
     os.environ.update(env)
-    processes = []
+    processes = {}
     logs = []
     output = ROOT / "outputs/operator-report-verification"
     output.mkdir(parents=True, exist_ok=True)
@@ -47,7 +58,7 @@ def main():
 
     def sample_memory():
         while not stopped.wait(0.25):
-            for name, process in zip(("api", "worker_tree", "frontend"), processes):
+            for name, process in list(processes.items()):
                 try:
                     parent = psutil.Process(process.pid)
                     size = parent.memory_info().rss
@@ -57,7 +68,7 @@ def main():
                         except psutil.NoSuchProcess:
                             pass
                     memory[name + "_peak_mib"] = max(
-                        memory[name + "_peak_mib"], round(size / 1024**2, 1)
+                        memory.get(name + "_peak_mib", 0), round(size / 1024**2, 1)
                     )
                 except psutil.NoSuchProcess:
                     pass
@@ -102,6 +113,8 @@ def main():
                 [sys.executable, "-m", "app.workers.report_worker"],
                 ROOT / "backend",
             ),
+            ("pdf_worker", [sys.executable, "-m", "app.workers.report_pdf_worker"], ROOT / "backend"),
+            ("cleanup", [sys.executable, "scripts/manage_report_pdf_archives.py", "cleanup", "--sweep"], ROOT),
             (
                 "frontend",
                 [
@@ -126,13 +139,13 @@ def main():
                 stderr=log,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
             )
-            processes.append(process)
+            processes[name] = process
             if name == "worker":
                 env["E2E_WORKER_PID"] = str(process.pid)
         for endpoint in ("http://127.0.0.1:18060/health", "http://127.0.0.1:15173"):
             deadline = time.monotonic() + 60
             while True:
-                if any(p.poll() is not None for p in processes):
+                if any(p.poll() is not None for p in processes.values()):
                     raise RuntimeError("test_service_exited")
                 try:
                     with urllib.request.urlopen(endpoint, timeout=2) as response:
@@ -149,17 +162,21 @@ def main():
             "pytest",
             "backend/tests/e2e/test_operator_case_workspace.py",
             "backend/tests/e2e/test_operator_report_generation.py",
+            "backend/tests/e2e/test_operator_history_pdf_archive.py",
             "-q",
             "--tb=short",
         ]
-        return subprocess.run(command, cwd=ROOT, env=env).returncode
+        result = subprocess.run(command, cwd=ROOT, env=env).returncode
+        if result == 0:
+            result = subprocess.run([sys.executable, "scripts/verify_operator_report_pdf.py", "--output-dir", str(ROOT / "outputs/operator-history-pdf/pdf")], cwd=ROOT, env=env).returncode
+        return result
     finally:
         stopped.set()
         monitor.join(2)
         (output / "memory.json").write_text(
             json.dumps(memory, sort_keys=True), encoding="utf-8"
         )
-        for process in reversed(processes):
+        for process in reversed(list(processes.values())):
             try:
                 parent = psutil.Process(process.pid)
                 children = parent.children(recursive=True)

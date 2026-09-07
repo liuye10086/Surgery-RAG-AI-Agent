@@ -699,7 +699,8 @@ def _argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Run read-only schema and integrity checks against the configured "
-            "database. The checker always rolls back its transaction."
+            "database. The checker always rolls back its transaction. "
+            "For report archives also run check_operator_report_archives_readonly.py."
         )
     )
     parser.add_argument("--phase", choices=("preflight", "postflight"), required=True)

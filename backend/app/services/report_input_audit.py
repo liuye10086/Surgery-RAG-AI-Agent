@@ -54,17 +54,33 @@ def describe_fields(contract, values: dict) -> list[InputFieldAudit]:
 
 
 class InputAuditCollector:
-    def __init__(self):
+    def __init__(self, on_event=None):
         self.audits: dict[str, InputAudit] = {}
+        self.on_event = on_event
+
+    def _emit(self, kind, task, result_state=None):
+        if self.on_event is not None:
+            from app.schemas.report_generation_audit import GenerationAuditEvent
+            self.on_event(GenerationAuditEvent(
+                kind=kind, phase="prediction", task=task,
+                input_audit=self.audits.get(task), result_state=result_state,
+            ).model_dump(mode="json"))
 
     def prepared(self, task, audit):
         self.audits[task] = audit
+        self._emit("input_prepared", task)
 
     def invoking(self, task):
         audit = self.audits[task]
         self.audits[task] = InputAudit.model_validate(
             {**audit.model_dump(), "model_invoked": True}
         )
+        self._emit("invocation_started", task)
+
+    def finished(self, task, available, code=None):
+        if code and not available:
+            self.failed(task, code)
+        self._emit("task_finished", task, "available" if available else "unavailable")
 
     def failed(self, task, code):
         if task in self.audits:
@@ -159,7 +175,7 @@ class InputAuditCollector:
         return runs
 
 
-def run_audited_prediction(snapshot, adapter, suite, *, visits=None, minimum_visits=3):
+def run_audited_prediction(snapshot, adapter, suite, *, visits=None, minimum_visits=3, on_event=None):
     from app.services.longitudinal_prediction import (
         run_longitudinal_prediction,
         prediction_result_to_dict,
@@ -170,7 +186,7 @@ def run_audited_prediction(snapshot, adapter, suite, *, visits=None, minimum_vis
     visit_rows = snapshot.get("visits") if visits is None else visits
     if visit_rows is None:
         raise ValueError("audit_visits_missing")
-    collector = InputAuditCollector()
+    collector = InputAuditCollector(on_event=on_event)
     prediction = prediction_result_to_dict(
         run_longitudinal_prediction(
             snapshot,

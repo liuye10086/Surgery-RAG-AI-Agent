@@ -62,7 +62,11 @@ def _saved_report(content="生成时保存的完整正文"):
 
 def _db_returning(report):
     db = MagicMock()
+    db.execute.return_value.scalar_one_or_none.return_value = 0
     db.query.return_value.filter.return_value.first.return_value = report
+    # Saved detail uses owned SQL mappings.
+    from itertools import cycle
+    db.execute.return_value.mappings.return_value.first.side_effect = cycle([vars(report).copy(), None])
     return db
 
 
@@ -90,24 +94,14 @@ def test_history_detail_returns_saved_content_after_case_changes(monkeypatch):
     assert after.input_snapshot["patient_label"] == "生成时标签"
 
 
-def test_pdf_download_uses_saved_content_verbatim():
+def test_pdf_source_uses_saved_content_verbatim():
+    from app.services.report_read_service import build_pdf_source
     report = _saved_report("网页、历史和 PDF 共用的正文")
-    db = _db_returning(report)
-
-    with patch("app.api.operator.generate_pdf", return_value=b"%PDF-test") as generate:
-        response = download_report_pdf(
-            17,
-            db=db,
-            current_user=SimpleNamespace(id=5),
-        )
-
-    generate.assert_called_once_with(
-        "网页、历史和 PDF 共用的正文",
-        "报告-17",
-        report.prediction_result,
-    )
-    assert response.media_type == "application/pdf"
-    assert report.download_count == 1
+    source = build_pdf_source(get_report(17, db=_db_returning(report), current_user=SimpleNamespace(id=5)))
+    assert source.content == report.content
+    assert source.title == "报告-17"
+    assert source.prediction_result == report.prediction_result
+    assert report.download_count == 0
 
 
 def test_pdf_download_rejects_report_fingerprint_mismatch():
@@ -132,7 +126,7 @@ def test_pdf_download_rejects_report_fingerprint_mismatch():
             download_report_pdf(17, db=db, current_user=SimpleNamespace(id=5))
 
     assert raised.value.status_code == 409
-    assert raised.value.detail["code"] == "report_integrity_failed"
+    assert raised.value.detail["code"] == "report_not_exportable"
     generate.assert_not_called()
 
 

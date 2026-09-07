@@ -16,6 +16,12 @@ from app.services.report_generation_errors import safe_code
 
 def execute_report(input_payload, send_message):
     phase = "model_loading"
+    audit_sequence = 0
+
+    def send_audit(event):
+        nonlocal audit_sequence
+        audit_sequence += 1
+        send_message({"kind": "audit", "phase": phase, "child_sequence": audit_sequence, "audit": event})
     try:
         snapshot = input_payload["snapshot"]
         context = ReportGenerationContext.model_validate(input_payload["context"])
@@ -35,12 +41,14 @@ def execute_report(input_payload, send_message):
             DISEASE_CAPABILITIES[context.disease_code].adapter,
             suite,
             minimum_visits=context.minimum_visits,
+            on_event=send_audit,
         )
         phase = "standard_evidence"
         send_message({"kind": "phase", "phase": phase})
         from app.db.session import SessionLocal
 
         evidence = build_pinned_evidence(snapshot, context, SessionLocal)
+        send_audit({"kind": "evidence_resolved", "phase": phase, "result_state": "available"})
         from app.services.longitudinal_signal_interpreter import (
             attach_signal_interpretation,
         )

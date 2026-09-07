@@ -111,14 +111,9 @@ def _verify_report_owner(report: AIReport, current_user: User) -> None:
 
 
 def _safe_report_title(report: AIReport) -> str:
-    anonymous_code = (
-        getattr(report, "anonymous_case_code", None)
-        or getattr(getattr(report, "operator_case", None), "anonymous_case_code", None)
-        or (getattr(report, "input_snapshot", None) or {}).get("anonymous_case_code")
-    )
-    return (
-        f"{anonymous_code}纵向进展预测报告" if anonymous_code else f"报告-{report.id}"
-    )
+    from app.services.report_saved_identity import saved_report_identity
+
+    return saved_report_identity(report.id, getattr(report, "input_snapshot", None)).title
 
 
 # ---------------------------------------------------------------------------
@@ -378,77 +373,9 @@ def list_reports(
     current_user: User = Depends(require_ai_operator),
 ):
     """列出当前用户创建的报告，按创建时间倒序，可按 analysis_type 过滤。"""
-    q = db.query(AIReport).filter(AIReport.user_id == current_user.id)
-    if analysis_type is not None:
-        q = q.filter(AIReport.analysis_type == analysis_type)
-    total = q.count()
-    reports = q.order_by(AIReport.created_at.desc()).offset(skip).limit(limit).all()
+    from app.services.report_history_query import read_offset_reports
+    return read_offset_reports(db, current_user.id, skip=skip, limit=limit, analysis_type=analysis_type)
 
-    def _summary(report: AIReport) -> ReportListItem:
-        snapshot = (
-            report.input_snapshot if isinstance(report.input_snapshot, dict) else {}
-        )
-        prediction = (
-            report.prediction_result
-            if isinstance(report.prediction_result, dict)
-            else {}
-        )
-        disease_name = (
-            snapshot.get("disease")
-            if isinstance(snapshot.get("disease"), str)
-            else None
-        )
-        baseline_stage = (
-            snapshot.get("baseline_stage")
-            if isinstance(snapshot.get("baseline_stage"), str)
-            else None
-        )
-        visits = (
-            snapshot.get("visits") if isinstance(snapshot.get("visits"), list) else []
-        )
-        release_set = (
-            prediction.get("release_set")
-            if isinstance(prediction.get("release_set"), dict)
-            else {}
-        )
-        version = release_set.get("release_set_id") or release_set.get(
-            "data_release_id"
-        )
-        error_stage = getattr(report, "error_stage", None)
-        if error_stage is None:
-            if report.status == "generating":
-                error_stage = "generating"
-            elif report.status == "failed":
-                error_stage = "failed"
-            elif report.status == "cancelled":
-                error_stage = "cancelled"
-        return ReportListItem(
-            id=report.id,
-            user_id=report.user_id,
-            title=_safe_report_title(report),
-            query=_safe_report_title(report),
-            department_ids=report.department_ids or [],
-            status=report.status,
-            error_message=report.error_message,
-            download_count=report.download_count or 0,
-            analysis_type=report.analysis_type,
-            disease_id=report.disease_id,
-            operator_case_id=report.operator_case_id,
-            anonymous_case_code=getattr(report, "anonymous_case_code", None),
-            indicators=report.indicators or [],
-            disease_name=disease_name,
-            baseline_stage=baseline_stage,
-            visit_count=len(visits) if visits else None,
-            model_version_summary=str(version) if version else None,
-            error_stage=error_stage,
-            input_snapshot_sha256=getattr(report, "input_snapshot_sha256", None),
-            generation_batch_id=getattr(report, "generation_batch_id", None),
-            generation_fingerprint=getattr(report, "generation_fingerprint", None),
-            created_at=report.created_at,
-            updated_at=report.updated_at,
-        )
-
-    return ReportListOut(reports=[_summary(r) for r in reports], total=total)
 
 
 # ---------------------------------------------------------------------------
@@ -456,38 +383,18 @@ def list_reports(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/reports/{report_id}", response_model=ReportOut)
+from app.schemas.report_read_models import ReportReadDetail
+from app.services.report_read_service import read_owned_report
+
+
+@router.get("/reports/{report_id}", response_model=ReportReadDetail)
 def get_report(
     report_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_operator),
 ):
-    """获取单个报告详情（含完整 content）。"""
-    report = db.query(AIReport).filter(AIReport.id == report_id).first()
-    if not report:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="报告不存在")
-    _verify_report_owner(report, current_user)
-    result = ReportOut.model_validate(report)
-    verification = verify_report_integrity(
-        report.input_snapshot,
-        getattr(report, "input_snapshot_sha256", None),
-        getattr(report, "generation_fingerprint", None),
-        report.prediction_result,
-        report.content,
-        getattr(report, "evidence_snapshot", None),
-        getattr(report, "evidence_snapshot_sha256", None),
-        report_document=getattr(report, "report_document", None),
-        report_document_sha256=getattr(report, "report_document_sha256", None),
-        saved_sources=getattr(report, "sources", None),
-        generation_fingerprint_version=getattr(
-            report, "generation_fingerprint_version", None
-        ),
-    )
-    result.integrity_status = verification.status
-    result.integrity_reason_code = verification.reason_code
-    result.title = _safe_report_title(report)
-    result.query = _safe_report_title(report)
-    return result
+    """读取通过完整性校验及隐私投影的保存报告。"""
+    return read_owned_report(db, current_user.id, report_id)
 
 
 # ---------------------------------------------------------------------------
@@ -502,17 +409,21 @@ def delete_report(
     current_user: User = Depends(require_ai_operator),
 ):
     """删除报告（仅创建者可删除）。"""
-    from app.services.report_generation_service import delete_report_job
+    from app.services.report_archive_cleanup import delete_owned_report
+    from app.core.config import settings
+    from fastapi.responses import JSONResponse, Response
     from app.services.report_generation_errors import ReportJobError
     from app.api.operator_report_jobs import http_error
 
     user_id = current_user.id
     db.rollback()
     try:
-        delete_report_job(db, user_id, report_id)
+        result = delete_owned_report(db, user_id, report_id, settings.REPORT_ARCHIVE_ROOT)
     except ReportJobError as exc:
         raise http_error(exc) from exc
-    return None
+    if result.cleanup_state == 'pending':
+        return JSONResponse(status_code=202,content={'deleted':True,'cleanup_state':'pending','message':'报告已删除，文件清理中'})
+    return Response(status_code=204)
 
 
 # ---------------------------------------------------------------------------
@@ -523,120 +434,27 @@ def delete_report(
 @router.get("/reports/{report_id}/download")
 def download_report_pdf(
     report_id: int,
+    range_header: str | None = Header(None, alias="Range"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_operator),
 ):
-    """下载报告的 PDF 版本。
-
-    仅 completed 状态的报告可下载。
-    每次下载自增 download_count。
-    """
-    report = db.query(AIReport).filter(AIReport.id == report_id).first()
-    if not report:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="报告不存在")
-    _verify_report_owner(report, current_user)
-
-    if report.status != "completed":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"报告状态为 '{report.status}'，仅已完成报告可下载",
-        )
-
-    if not report.content:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="报告内容为空，无法生成 PDF",
-        )
-
-    integrity = verify_report_integrity(
-        getattr(report, "input_snapshot", None),
-        getattr(report, "input_snapshot_sha256", None),
-        getattr(report, "generation_fingerprint", None),
-        getattr(report, "prediction_result", None),
-        report.content,
-        getattr(report, "evidence_snapshot", None),
-        getattr(report, "evidence_snapshot_sha256", None),
-        report_document=getattr(report, "report_document", None),
-        report_document_sha256=getattr(report, "report_document_sha256", None),
-        saved_sources=getattr(report, "sources", None),
-        generation_fingerprint_version=getattr(
-            report, "generation_fingerprint_version", None
-        ),
-    )
-    if integrity.status == "invalid":
-        logger.warning(
-            "Report integrity validation failed for report_id=%s reason=%s",
-            report_id,
-            integrity.reason_code,
-        )
-        raise _operator_http_error(
-            409,
-            "report_integrity_failed",
-            "报告完整性校验失败，已停止导出",
-        )
-
-    anonymous_code = (
-        getattr(report, "anonymous_case_code", None)
-        or getattr(getattr(report, "operator_case", None), "anonymous_case_code", None)
-        or (getattr(report, "input_snapshot", None) or {}).get("anonymous_case_code")
-    )
-    # 新报告使用匿名病例编号；历史报告没有编号时只使用固定报告编号，
-    # 避免把旧 title/query 中可能存在的身份信息带入下载文件名或 PDF 元数据。
-    safe_title = _safe_report_title(report)
-    # 历史报告的正文与既有 PDF 内容保持只读兼容；文件名单独使用安全标题。
-    pdf_title = safe_title
+    """交付已归档且通过校验的原件；不在 HTTP 请求中渲染。"""
+    from app.core.config import settings
+    from app.services.report_archive_storage import ArchiveStorage
+    from app.services.report_pdf_delivery import prepare_delivery, delivery_chunks
+    from app.services.report_pdf_errors import PdfError
+    from app.api.operator_report_archives import pdf_http_error
+    from starlette.background import BackgroundTask
 
     try:
-        saved_evidence = getattr(report, "evidence_snapshot", None)
-        saved_document = getattr(report, "report_document", None)
-        if saved_document is not None:
-            pdf_bytes = generate_pdf(
-                report.content,
-                pdf_title,
-                report.prediction_result,
-                saved_evidence,
-                report_document=saved_document,
-            )
-        elif saved_evidence is None:
-            pdf_bytes = generate_pdf(
-                report.content, pdf_title, report.prediction_result
-            )
-        else:
-            pdf_bytes = generate_pdf(
-                report.content, pdf_title, report.prediction_result, saved_evidence
-            )
-    except ValueError:
-        logger.warning(
-            "Evidence integrity validation failed for report_id=%s", report_id
-        )
-        raise _operator_http_error(
-            409,
-            "evidence_integrity_failed",
-            "报告证据完整性校验失败，已停止导出",
-        )
-    except RuntimeError:
-        logger.warning("PDF generation failed for report_id=%s", report_id)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="PDF 生成暂时失败，请稍后重试",
-        )
-
-    # 更新下载计数
-    report.download_count = (report.download_count or 0) + 1
-    db.commit()
-
-    # 构建安全 Content-Disposition（RFC 5987：ASCII fallback + UTF-8 编码文件名）
-    safe_filename = f"report-{report_id}.pdf"
-    encoded_title = urllib.parse.quote(f"{safe_title}.pdf", safe="")
-    content_disposition = (
-        f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{encoded_title}"
-    )
-
-    return StreamingResponse(
-        iter([pdf_bytes]),
-        media_type="application/pdf",
-        headers={"Content-Disposition": content_disposition},
-    )
+        delivery = prepare_delivery(db, current_user.id, report_id, range_requested=isinstance(range_header, str))
+    except PdfError as error:
+        raise pdf_http_error(error)
+    disposition = f"attachment; filename=\"report-{report_id}.pdf\"; filename*=UTF-8''{urllib.parse.quote(delivery.filename, safe='')}"
+    return StreamingResponse(delivery_chunks(delivery), media_type="application/pdf",
+        headers={"Content-Disposition": disposition, "Content-Length": str(delivery.size_bytes),
+                 "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Accept-Ranges": "none"},
+        background=BackgroundTask(delivery.file.close))
 
 
 # ---------------------------------------------------------------------------

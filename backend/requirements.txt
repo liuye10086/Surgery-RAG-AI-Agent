@@ -31,3 +31,7 @@ bleach
 Jinja2
 scikit-learn==1.9.0
 joblib==1.5.3
+
+# Controlled PDF renderer build and process acceptance
+fonttools
+psutil

@@ -31,7 +31,7 @@ def test_real_page_generate_refresh_history_pdf(
         'localStorage.setItem("token",' + json.dumps(operator_tokens["a"]) + ")"
     )
     page.goto("/operator")
-    page.get_by_text("历史报告", exact=True).first.click()
+    page.get_by_role("button", name="我的病例", exact=True).click()
     page.locator(".case-list__item").filter(
         has_text=case["anonymous_case_code"]
     ).click()
@@ -44,7 +44,8 @@ def test_real_page_generate_refresh_history_pdf(
     expect(page).to_have_url(f"http://127.0.0.1:15173/operator?reportId={report_id}")
     page.reload()  # SSE closes; the accepted task remains durable.
     expect(page.locator("#section-11")).to_be_visible(timeout=60000)
-    expect(page.get_by_role("button", name="下载 PDF")).to_be_enabled()
+    page.get_by_role("button", name="准备 PDF", exact=True).click()
+    expect(page.get_by_role("button", name="下载 PDF")).to_be_enabled(timeout=150000)
     page.screenshot(path=str(OUTPUT / f"{disease}-report.png"))
     detail = page.request.get(
         f"/api/v1/operator/reports/{report_id}", headers=headers(operator_tokens)
@@ -55,8 +56,17 @@ def test_real_page_generate_refresh_history_pdf(
     with page.expect_download() as download:
         page.get_by_role("button", name="下载 PDF").click()
     download.value.save_as(str(OUTPUT / f"{disease}-browser.pdf"))
-    assert (OUTPUT / f"{disease}-browser.pdf").read_bytes().startswith(b"%PDF")
-    page.get_by_role("button", name="返回病例", exact=True).click()
+    original = (OUTPUT / f"{disease}-browser.pdf").read_bytes()
+    assert original.startswith(b"%PDF")
+    posts=[]
+    page.on('request',lambda request:posts.append(request.url) if request.method=='POST' else None)
+    page.reload()
+    with page.expect_download() as again:
+        page.get_by_role('button',name='下载 PDF',exact=True).click()
+    assert Path(again.value.path()).read_bytes()==original
+    assert not posts
+
+    page.get_by_role("button", name="返回", exact=True).click()
     page.goto(f"/operator?reportId={report_id}")
     expect(page.locator("#section-11")).to_be_visible(timeout=15000)
     forbidden = page.request.get(

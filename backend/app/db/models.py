@@ -594,7 +594,7 @@ class OperatorIdempotencyKey(Base):
             name="uq_operator_idempotency_user_scope_key",
         ),
         CheckConstraint(
-            "(scope = 'create_longitudinal_case' AND resource_type = 'operator_case') OR (scope = 'create_longitudinal_report' AND resource_type = 'ai_report')",
+            "(scope = 'create_longitudinal_case' AND resource_type = 'operator_case') OR (scope = 'create_longitudinal_report' AND resource_type = 'ai_report') OR (scope IN ('prepare_report_pdf','retry_report_pdf') AND resource_type='report_pdf_attempt')",
             name="ck_operator_idempotency_keys_scope_resource",
         ),
         CheckConstraint(
@@ -1032,6 +1032,9 @@ class StandardChangeLog(Base):
 class ReportGenerationJob(Base):
     __tablename__ = "report_generation_jobs"
     __table_args__ = (
+        CheckConstraint("audit_event_count BETWEEN 0 AND 256 AND audit_bytes BETWEEN 0 AND 8388608", name="ck_report_jobs_audit_limits"),
+        CheckConstraint("last_execution_phase IS NULL OR last_execution_phase IN ('queued','model_loading','prediction','standard_evidence','rendering','persistence')", name="ck_report_jobs_last_phase"),
+        CheckConstraint("failure_phase IS NULL OR failure_phase IN ('queued','model_loading','prediction','standard_evidence','rendering','persistence','unknown')", name="ck_report_jobs_failure_phase"),
         CheckConstraint(
             "status IN ('queued','running','completed','failed','cancelled')",
             name="ck_report_jobs_status",
@@ -1086,6 +1089,10 @@ class ReportGenerationJob(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     source_case_id = Column(Integer, nullable=False)
+    last_execution_phase = Column(String(24))
+    failure_phase = Column(String(24))
+    audit_event_count = Column(Integer, nullable=False, default=0, server_default="0")
+    audit_bytes = Column(BigInteger, nullable=False, default=0, server_default="0")
     generation_context = Column(JSONB, nullable=False)
     context_sha256 = Column(String(64), nullable=False)
     status = Column(
@@ -1111,6 +1118,26 @@ class ReportGenerationJob(Base):
     lease_token = Column(UUID(as_uuid=True))
     cancel_requested_at = Column(DateTime(timezone=True))
     error_code = Column(String(120))
+
+
+class ReportGenerationAuditRecord(Base):
+    __tablename__ = "report_generation_audit_events"
+    __table_args__ = (
+        CheckConstraint("event_seq BETWEEN 1 AND 256"),
+        CheckConstraint("event_kind IN ('phase_entered','input_prepared','invocation_started','task_finished','evidence_resolved','terminal')"),
+        CheckConstraint("phase IN ('queued','model_loading','prediction','standard_evidence','rendering','persistence','terminal','unknown')"),
+        CheckConstraint("jsonb_typeof(payload)='object' AND octet_length(payload::text)<=262144"),
+        CheckConstraint("payload_bytes BETWEEN 1 AND 262144"),
+    )
+    report_id = Column(Integer, ForeignKey("report_generation_jobs.report_id", ondelete="CASCADE"), primary_key=True)
+    event_seq = Column(Integer, primary_key=True)
+    generation_batch_id = Column(UUID(as_uuid=True), nullable=False)
+    event_kind = Column(String(24), nullable=False)
+    phase = Column(String(24), nullable=False)
+    task = Column(String(160))
+    payload = Column(JSONB, nullable=False)
+    payload_bytes = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.clock_timestamp())
 
 
 class AIReport(Base):
@@ -1228,8 +1255,9 @@ class AIReport(Base):
 
     @property
     def anonymous_case_code(self):
-        case = getattr(self, "operator_case", None)
-        return getattr(case, "anonymous_case_code", None)
+        from app.services.report_saved_identity import saved_report_identity
+
+        return saved_report_identity(self.id, self.input_snapshot).anonymous_case_code
 
 
 class AuditLog(Base):
@@ -1255,3 +1283,5 @@ class AuditLog(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="audit_logs")
+
+from app.db.report_pdf_models import (ReportPdfArchive, ReportPdfAttempt, ReportPdfDelivery, ReportFileCleanupTask, ReportDeletionTombstone)

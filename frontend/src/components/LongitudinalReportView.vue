@@ -7,12 +7,17 @@
           <span class="report-meta">{{ report ? formatTime(report.created_at) : '正在生成' }}</span>
         </div>
         <div class="report-head-actions">
-          <el-button :icon="ArrowLeft" @click="$emit('back')">返回病例</el-button>
-          <el-button v-if="report?.status === 'completed' && !invalid" :icon="Download" type="primary" @click="$emit('download')">下载 PDF</el-button>
+          <el-button :icon="ArrowLeft" @click="$emit('back')">返回</el-button>
+          <ReportArchiveActions v-if="report?.status === 'completed' && !invalid" :report-id="report.id" />
         </div>
       </div>
 
       <p v-if="invalid" role="alert">报告完整性校验失败，已停止展示内容与导出。</p>
+      <template v-else-if="report && report.status !== 'completed'">
+        <p role="status">{{ report.status==='cancelled'?'报告生成已取消':'报告生成失败' }}；以下为已保存的资料和已确认审计记录。</p>
+        <LegacyReportSnapshot :snapshot="report.input_snapshot" />
+        <ReportGenerationAudit :audit="report.generation_audit" />
+      </template>
       <template v-else>
       <p v-if="report?.integrity_status === 'unverifiable'" role="status">历史资料未完整保存，无法验证完整性。</p>
       <section v-if="document" class="summary-block" aria-label="报告摘要">
@@ -27,7 +32,7 @@
       <section v-else class="summary-block" aria-label="报告摘要">
         <h4>报告摘要</h4>
         <div class="summary-grid">
-          <div><span>数据够不够</span><strong class="ok">{{ visitCount >= 3 ? '够用' : '有限' }}</strong><small>{{ visitCount }} 次有效访视</small></div>
+          <div><span>保存的访视记录</span><strong>{{ visitCount }} 次</strong><small>历史报告未记录完整输入审计</small></div>
           <div><span>模型是否可用</span><strong :class="outcomeAvailable ? 'ok' : 'warn'">{{ outcomeAvailable ? '可用' : '暂不可用' }}</strong><small>{{ outcomeAvailable ? '可提供 365 天风险结果' : '未计算未来风险分数' }}</small></div>
           <div><span>实际看到了哪些信号</span><strong>{{ signalCount }} 个</strong><small>{{ signalCount ? '来自结构化关键进展信号' : '当前没有足够的关键信号' }}</small></div>
         </div>
@@ -55,17 +60,8 @@
         </div>
       </section>
 
-      <section v-if="!document" class="snapshot-block" aria-label="生成时输入快照">
-        <h4>生成时输入快照</h4>
-        <p class="snapshot-note">历史报告只展示生成时保存的资料，不会自动按当前模型重新计算。</p>
-        <div v-if="snapshotAvailable" class="summary-grid">
-          <div><span>病例编号</span><strong>{{ snapshot.anonymous_case_code || '旧病例未设置匿名编号' }}</strong></div>
-          <div><span>疾病</span><strong>{{ snapshot.disease || '未记录' }}</strong></div>
-          <div><span>基线阶段</span><strong>{{ snapshot.baseline_stage || '未记录' }}</strong></div>
-          <div><span>访视次数</span><strong>{{ Array.isArray(snapshot.visits) ? snapshot.visits.length : '未记录' }}</strong></div>
-        </div>
-        <p v-else class="snapshot-missing">历史资料未完整保存。</p>
-      </section>
+      <LegacyReportSnapshot v-if="!document" :snapshot="report?.input_snapshot || null" />
+      <ReportGenerationAudit v-if="report?.generation_audit" :audit="report.generation_audit" />
 
       <div class="markdown-body" v-html="renderedContentParts.before" />
       <LongitudinalEvidenceSection v-if="evidence && !document" :evidence="evidence" />
@@ -79,7 +75,10 @@
 import {legacyChartPoints} from '@/utils/report-chart'
 import { computed } from 'vue'
 import ReportDocumentCharts from '@/components/report/ReportDocumentCharts.vue'
-import { ArrowLeft, Download } from '@element-plus/icons-vue'
+import ReportGenerationAudit from '@/components/report/ReportGenerationAudit.vue'
+import LegacyReportSnapshot from '@/components/report/LegacyReportSnapshot.vue'
+import ReportArchiveActions from '@/components/report/ReportArchiveActions.vue'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import type { EvidenceBundleV1, LongitudinalPrediction, ReportDetail } from '@/api/operator'
 import LongitudinalEvidenceSection from '@/components/LongitudinalEvidenceSection.vue'
 
@@ -103,8 +102,6 @@ const signalCount = computed(() => {
   return Number(signals?.summary?.signal_count || signals?.signals?.length || 0)
 })
 const outcomeAvailable = computed(() => prediction.value && 'model_status' in prediction.value && prediction.value.model_status.outcome.status === 'available')
-const snapshot = computed(() => props.report?.input_snapshot || {})
-const snapshotAvailable = computed(() => Object.keys(snapshot.value).length > 0)
 const evidence = computed<EvidenceBundleV1 | null>(() => props.report?.evidence_snapshot || props.evidenceSnapshot || null)
 const renderedContentParts = computed(() => {
   if (document.value || !evidence.value || typeof DOMParser === 'undefined') return { before: props.renderedContent, after: '' }

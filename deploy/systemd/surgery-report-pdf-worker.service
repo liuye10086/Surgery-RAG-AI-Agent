@@ -1,0 +1,21 @@
+[Unit]
+Description=Surgery PDF archive worker
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=surgery
+Group=surgery
+WorkingDirectory=/opt/surgery-rag/backend
+EnvironmentFile=/opt/surgery-rag/backend/.env
+ExecStart=/opt/surgery-rag/backend/venv/bin/python -m app.workers.report_pdf_worker
+TimeoutStopSec=15
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

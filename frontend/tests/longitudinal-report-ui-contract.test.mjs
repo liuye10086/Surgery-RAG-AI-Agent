@@ -10,7 +10,8 @@ const apiPath = new URL('../src/api/operator.ts', import.meta.url)
 
 test('longitudinal report has three summary answers and eleven sections', async () => {
   const view = await readFile(viewPath, 'utf8')
-  assert.match(view, /数据够不够/)
+  assert.match(view, /保存的访视记录/)
+  assert.doesNotMatch(view, /visitCount\s*>=\s*3|['"]够用['"]/)
   assert.match(view, /模型是否可用/)
   assert.match(view, /实际看到了哪些信号/)
   for (const title of ['报告摘要', '病例与预测范围', '数据质量与适用性', '已观察到的纵向变化', '未来 365 天进展风险', '阶段模型和下一次随访趋势的可用状态', '关键进展信号', '参考标准和相似病例', '不确定性与局限性', '人工复核重点', '模型和数据技术附录']) {
@@ -37,7 +38,7 @@ test('report opens as a dedicated reading view with a return action', async () =
   assert.match(operatorView, /v-else-if="reportReadingMode"/)
   assert.match(operatorView, /const reportReadingMode = computed/)
   assert.match(operatorView, /@back="closeReport"/)
-  assert.match(view, /返回病例/)
+  assert.match(view, /返回<\/el-button>/)
   assert.match(view, /ArrowLeft/)
 })
 
@@ -80,8 +81,10 @@ test('history list supports saved snapshot summaries and load more', async () =>
   assert.match(api, /input_snapshot/)
   assert.match(store, /append/)
   assert.match(sidebar, /加载更多/)
-  assert.match(view, /生成时输入快照/)
-  assert.match(view, /不会自动按当前模型重新计算/)
+  assert.match(view, /LegacyReportSnapshot/)
+  const snapshot = await readFile(new URL('../src/components/report/LegacyReportSnapshot.vue', import.meta.url), 'utf8')
+  assert.match(snapshot, /生成时输入快照/)
+  assert.match(snapshot, /报告生成时的保存记录/)
 })
 
 test('report API carries integrity and generation state fields', async () => {

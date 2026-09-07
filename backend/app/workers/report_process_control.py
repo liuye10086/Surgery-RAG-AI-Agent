@@ -3,6 +3,7 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
+import hashlib
 import multiprocessing
 import os
 import time
@@ -27,6 +28,7 @@ class ExecutionOutcome:
     publication: Publication | None
     code: str | None
     child_alive: bool
+    phase: str | None = None
 
 
 class _WindowsJob:
@@ -165,6 +167,17 @@ def _child_entry(target, payload, connection, gate, parent_pid):
 
 def _message(raw):
     value = json.loads(raw)
+    if isinstance(value, dict) and value.get("kind") == "audit":
+        from app.schemas.report_generation_audit import GenerationAuditEvent
+        from app.services.report_generation_audit import encode_audit_event
+        if (len(raw) > 262144 or set(value) != {"kind", "phase", "child_sequence", "audit"}
+                or type(value["child_sequence"]) is not int or not 1 <= value["child_sequence"] <= 255):
+            raise ValueError("execution_protocol_invalid")
+        audit = GenerationAuditEvent.model_validate(value["audit"])
+        if audit.phase != value["phase"] or audit.kind in ("terminal", "phase_entered"):
+            raise ValueError("execution_protocol_invalid")
+        value["audit"], _ = encode_audit_event(audit)
+        return value
     if (
         not isinstance(value, dict)
         or set(value) - {"kind", "phase", "publication", "code"}
@@ -193,7 +206,7 @@ def _message(raw):
 
 
 def supervise_execution(
-    target, payload, *, maximum_seconds, lease_check, on_phase, phase_limits
+    target, payload, *, maximum_seconds, lease_check, on_phase, phase_limits, on_audit=None
 ):
     ctx = multiprocessing.get_context("spawn")
     receive, send = ctx.Pipe(duplex=False)
@@ -205,6 +218,7 @@ def supervise_execution(
     )
     publication = None
     code = None
+    audit_sequences = {}
     started = time.monotonic()
     phase_started = started
     phase = "model_loading"
@@ -269,13 +283,38 @@ def supervise_execution(
                     except (ValueError, TypeError, OSError, EOFError):
                         code = "execution_protocol_invalid"
                         break
-                    if message["kind"] == "error":
-                        code = message["code"]
-                        break
                     next_phase = message["phase"]
+                    if next_phase not in PHASES:
+                        code = "execution_protocol_invalid"
+                        break
                     if PHASES.index(next_phase) < PHASES.index(phase):
                         code = "execution_protocol_invalid"
                         break
+                    if message["kind"] == "audit":
+                        if next_phase != phase:
+                            code = "execution_protocol_invalid"
+                            break
+                        sequence = message["child_sequence"]
+                        digest = hashlib.sha256(json.dumps(message["audit"], sort_keys=True).encode()).hexdigest()
+                        if sequence in audit_sequences:
+                            if audit_sequences[sequence] != digest:
+                                code = "execution_protocol_invalid"
+                                break
+                            continue
+                        if sequence != len(audit_sequences) + 1:
+                            code = "execution_protocol_invalid"
+                            break
+                        if on_audit is not None:
+                            try:
+                                accepted = on_audit(message["audit"])
+                            except ValueError:
+                                code = "execution_protocol_invalid"
+                                break
+                            if accepted is False:
+                                code = "lease_lost"
+                                break
+                        audit_sequences[sequence] = digest
+                        continue
                     if next_phase != phase:
                         if on_phase(next_phase) is False:
                             code = "lease_lost"
@@ -285,6 +324,9 @@ def supervise_execution(
                         phase_deadline = phase_started + phase_limits.get(
                             phase, maximum_seconds
                         )
+                    if message["kind"] == "error":
+                        code = message["code"]
+                        break
                     if message["kind"] == "publication":
                         try:
                             publication = Publication.model_validate(
@@ -308,4 +350,4 @@ def supervise_execution(
         code = watchdog_expired[0]
     alive = process.is_alive() if process.pid is not None else False
     process.close()
-    return ExecutionOutcome(publication, code, alive)
+    return ExecutionOutcome(publication, code, alive, phase)

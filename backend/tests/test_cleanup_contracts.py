@@ -154,6 +154,7 @@ class CleanupContractTests(unittest.TestCase):
                 "2026-09-04-operator-e2e-defect-remediation-design.md",
                 "2026-09-04-operator-standard-reference-evidence-design.md",
                 "2026-09-07-operator-complete-report-audit-design.md",
+                "2026-09-07-operator-report-history-pdf-archive-design.md",
             },
         )
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from urllib.parse import urlparse
 from pathlib import Path
 
 import pytest
@@ -12,8 +13,10 @@ from sqlalchemy.orm import sessionmaker
 
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
-if TEST_DATABASE_URL and not TEST_DATABASE_URL.rsplit("/", 1)[-1].endswith("_test"):
-    raise RuntimeError("TEST_DATABASE_URL must target a database ending in _test")
+if TEST_DATABASE_URL:
+    target = urlparse(TEST_DATABASE_URL)
+    if target.hostname not in ("localhost", "127.0.0.1", "::1") or not target.path.endswith("_test"):
+        raise RuntimeError("TEST_DATABASE_URL must target a local database ending in _test")
 
 pytestmark = pytest.mark.integration
 
@@ -43,6 +46,9 @@ def db(integration_engine):
     Session = sessionmaker(bind=integration_engine, future=True)
     session = Session()
     tables = (
+        "report_pdf_deliveries", "report_pdf_attempts", "report_pdf_archives",
+        "report_file_cleanup_tasks", "report_deletion_tombstones",
+        "report_generation_audit_events",
         "report_generation_jobs",
         "operator_idempotency_keys",
         "operator_case_change_logs",

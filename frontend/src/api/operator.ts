@@ -65,7 +65,7 @@ export interface ReferenceRange {
   category: string | null
 }
 
-export interface ReportListItem {
+export interface ReportIdentityMeta {
   id: number
   user_id: number
   title: string | null
@@ -79,10 +79,6 @@ export interface ReportListItem {
   operator_case_id: number | null
   anonymous_case_code: string | null
   indicators: Record<string, unknown>[]
-  disease_name: string | null
-  baseline_stage: string | null
-  visit_count: number | null
-  model_version_summary: string | null
     error_stage: string | null
     input_snapshot_sha256: string | null
     generation_batch_id: string | null
@@ -91,7 +87,29 @@ export interface ReportListItem {
   updated_at: string
 }
 
-export interface ReportDetail extends ReportListItem {
+export interface ReportListItem extends ReportIdentityMeta {
+  disease_name: string | null
+  baseline_stage: string | null
+  visit_count: number | null
+  model_version_summary: string | null
+}
+
+export interface GenerationAuditSummary {
+  schema_version: 'generation_audit.v1'
+  last_execution_phase: string|null
+  failure_phase: string|null
+  error_code: string|null
+  event_count: number
+  note: string
+  events: Array<{kind:string;phase:string;task:string|null;result_state:string|null;input_audit:{model_invoked:boolean;fields:Array<{name:string;state:string}>}|null}>
+}
+
+export interface ReportDetail extends ReportIdentityMeta {
+  publication_status?: 'published'|'not_published'|'invalid'
+  snapshot_integrity?: 'valid'|'invalid'|'unverifiable'
+  context_integrity?: 'valid'|'invalid'|'unverifiable'
+  generation_context?: Record<string,unknown>|null
+  generation_audit?: GenerationAuditSummary|null
   report_document?: ReportDocumentV1 | null
   report_document_sha256?: string | null
   generation_fingerprint_version?: string | null
@@ -502,30 +520,15 @@ export function getReport(reportId: number): Promise<ReportDetail> {
   return request.get(`/v1/operator/reports/${reportId}`)
 }
 
-export function deleteReport(reportId: number): Promise<void> {
+export interface DeleteReportResult {deleted:true;cleanup_state:'complete'|'pending';message?:string}
+
+export function deleteReport(reportId: number): Promise<void | DeleteReportResult> {
   return request.delete(`/v1/operator/reports/${reportId}`)
 }
 
-export async function downloadReport(reportId: number, filename?: string): Promise<void> {
-  const token = localStorage.getItem('token')
-  const response = await fetch(`/api/v1/operator/reports/${reportId}/download`, {
-    headers: {
-      Authorization: token ? `Bearer ${token}` : '',
-    },
-  })
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}))
-    throw new Error(data.detail || `下载失败 (${response.status})`)
-  }
-  const blob = await response.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename || `report-${reportId}.pdf`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+export async function downloadReport(reportId: number, _filename?: string): Promise<void> {
+  const {downloadOriginal}=await import('./report-archive')
+  await downloadOriginal(reportId)
 }
 
 function parseOperatorSSE(raw: string, callbacks: PredictionStreamCallbacks) {

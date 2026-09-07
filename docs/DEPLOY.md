@@ -872,3 +872,8 @@ free -h
 ## 完整预测报告独立 worker
 
 第 6 项报告生成的迁移、独立 worker / sweep timer、只读门禁、发布开关和保留数据回滚流程，见 [完整预测报告发布与恢复](OPERATOR_REPORT_OPERATIONS.md)。上线前必须完成其中的双病种与故障恢复验收。
+
+
+## 报告历史 / PDF 永久归档升级门禁（0025 / 0026）
+
+按照 [操作者报告运维手册](OPERATOR_REPORT_OPERATIONS.md#第-79-项保存历史与永久-pdf-原件0025--0026) 的归档发布、字体制品、独立 sweep/cleanup、备份删除事实重放及回滚流程执行。`REPORT_PDF_ENABLED` / `REPORT_PDF_ACCEPTING` 默认关闭；目标 Linux 固定 renderer、私有持久卷、服务健康、只读 postflight、真实恢复演练和全服务容量验证全部通过后才开放。已有原件下载不得回退到同步重新渲染。本机隔离验收不代表已部署生产。

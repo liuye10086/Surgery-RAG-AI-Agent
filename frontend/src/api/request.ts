@@ -88,7 +88,7 @@ export function parseRetryAfter(value: unknown): number | undefined {
   return Number.isFinite(seconds) && seconds >= 0 ? Math.ceil(seconds) : undefined
 }
 
-function normalizeApiError(error: any): ApiRequestError {
+export function normalizeApiError(error: any): ApiRequestError {
   const retryAfterSeconds = parseRetryAfter(error?.response?.headers?.['retry-after'])
   const status = typeof error?.response?.status === 'number' ? error.response.status : undefined
   const detail = error?.response?.data?.detail

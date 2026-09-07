@@ -348,10 +348,11 @@ def test_pdf_failure_returns_safe_message_without_local_details():
     db.query.return_value.filter.return_value.first.return_value = report
     secret = r"C:\private\chromium.exe Traceback password"
 
-    with patch("app.api.operator.generate_pdf", side_effect=RuntimeError(secret)):
+    from app.services.report_pdf_errors import PdfError
+    with patch("app.services.report_pdf_delivery.prepare_delivery", side_effect=PdfError("pdf_storage_unavailable")):
         with pytest.raises(HTTPException) as raised:
             download_report_pdf(21, db=db, current_user=SimpleNamespace(id=5))
 
-    assert raised.value.status_code == 500
-    assert raised.value.detail == "PDF 生成暂时失败，请稍后重试"
-    assert secret not in raised.value.detail
+    assert raised.value.status_code == 503
+    assert raised.value.detail["code"] == "pdf_storage_unavailable"
+    assert secret not in str(raised.value.detail)

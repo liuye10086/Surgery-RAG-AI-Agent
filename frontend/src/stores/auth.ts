@@ -22,7 +22,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function clearAuth() {
-    for (const key of Object.keys(sessionStorage)) if (key.startsWith('operator-report-request:')) sessionStorage.removeItem(key)
+    for (const key of Object.keys(sessionStorage)) if ((key.startsWith('operator-report-request:') || key.startsWith('operator-pdf-request:'))) sessionStorage.removeItem(key)
     token.value = null
     user.value = null
     localStorage.removeItem('token')

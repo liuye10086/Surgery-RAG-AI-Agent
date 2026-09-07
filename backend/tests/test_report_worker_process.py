@@ -11,6 +11,36 @@ def bad_target(payload, send_message):
     send_message({"kind": "publication", "phase": "prediction", "code": "private"})
 
 
+def failed_standard_target(payload, send_message):
+    send_message({"kind": "phase", "phase": "standard_evidence"})
+    send_message({"kind": "error", "phase": "standard_evidence", "code": "standard_query_failed"})
+
+
+def audit_target(payload, send_message):
+    send_message({"kind": "phase", "phase": "prediction"})
+    message = {"kind": "audit", "phase": "prediction", "child_sequence": 1,
+               "audit": {"kind": "input_prepared", "phase": "prediction", "task": "test_task"}}
+    send_message(message)
+    send_message(message)
+    send_message({"kind": "error", "phase": "prediction", "code": "prediction_failed"})
+
+
+def test_error_phase_is_preserved():
+    result = supervise_execution(failed_standard_target, {}, maximum_seconds=10,
+                                 lease_check=lambda: True, on_phase=lambda _: True, phase_limits={})
+    assert result.phase == "standard_evidence"
+    assert result.code == "standard_query_failed"
+
+
+def test_duplicate_child_audit_is_acknowledged_once():
+    events = []
+    result = supervise_execution(audit_target, {}, maximum_seconds=10,
+                                 lease_check=lambda: True, on_phase=lambda _: True, phase_limits={},
+                                 on_audit=lambda event: events.append(event) or True)
+    assert result.code == "prediction_failed"
+    assert len(events) == 1
+
+
 def test_timeout_terminates_real_child():
     result = supervise_execution(
         blocked_target,

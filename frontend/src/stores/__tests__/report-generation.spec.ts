@@ -6,6 +6,14 @@ import {getReport} from '@/api/operator'
 vi.mock('@/api/report-generation',()=>({getGenerationStatus:vi.fn(),cancelReportJob:vi.fn(),submitReportJob:vi.fn(),subscribeReportJob:vi.fn(()=>vi.fn())}))
 vi.mock('@/api/operator',()=>({getReport:vi.fn()}))
 describe('report generation state',()=>{
+  it.each(['failed','cancelled'])('reads saved detail for %s without starting another job',async(status)=>{
+    vi.mocked(getGenerationStatus).mockResolvedValue({report_id:7,batch_id:'batch',revision:4,status,phase:'terminal'} as never)
+    vi.mocked(getReport).mockResolvedValue({id:7,generation_batch_id:'batch',status,publication_status:'not_published'} as never)
+    const store=useReportGenerationStore();await store.observe(7)
+    expect(getReport).toHaveBeenCalledWith(7)
+    expect(store.report?.status).toBe(status)
+    expect(submitReportJob).not.toHaveBeenCalled()
+  })
   it('honors Retry-After even when the window regains focus',async()=>{
     vi.useFakeTimers()
     vi.mocked(getGenerationStatus).mockRejectedValue({status:429,retryAfterSeconds:30})

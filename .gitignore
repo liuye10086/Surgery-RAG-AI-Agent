@@ -73,3 +73,6 @@ Thumbs.db
 
 .local-test-tools/
 /outputs/operator-report-verification/
+
+/outputs/operator-report-archive-verification/
+/outputs/operator-history-pdf/

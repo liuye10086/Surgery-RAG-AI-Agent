@@ -36,6 +36,18 @@ from app.services.source_access import user_can_access_document
 app = FastAPI(title="Surgery RAG Agent")
 app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
 
+
+@app.middleware("http")
+async def private_report_responses(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if any(path == prefix or path.startswith(prefix + "/") for prefix in (
+        "/api/v1/operator/reports", "/api/v1/operator/report-history",
+    )):
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # TODO: 生产环境收窄为前端域名
@@ -56,6 +68,10 @@ app.include_router(operator.router, prefix="/api/v1")
 from app.api import operator_report_jobs
 
 app.include_router(operator_report_jobs.router, prefix="/api/v1")
+from app.api import operator_report_history
+app.include_router(operator_report_history.router, prefix="/api/v1")
+from app.api import operator_report_archives
+app.include_router(operator_report_archives.router, prefix="/api/v1")
 
 
 @app.on_event("startup")

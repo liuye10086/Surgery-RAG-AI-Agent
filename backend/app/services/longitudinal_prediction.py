@@ -542,15 +542,22 @@ def _run_suite_prediction(
         outcome_result = OutcomeInferenceResult(_routing_status(route))
         outcome_status = outcome_result.status
         outcome_feature_names = None
+    if audit_collector is not None and outcome_status.task:
+        audit_collector.finished(outcome_status.task, outcome_status.status == "available", outcome_status.reason_code)
     stage_projection, stage_status = _run_suite_stage(
         suite.stage, case, visits, adapter, audit_collector=audit_collector
     )
-    trend_predictions = [
-        _run_suite_trend(
+    if audit_collector is not None and stage_status.task:
+        audit_collector.finished(stage_status.task, stage_status.status == "available", stage_status.reason_code)
+    trend_predictions = []
+    for indicator, entry in sorted(suite.trends.items()):
+        trend = _run_suite_trend(
             indicator, entry, case, visits, observation, audit_collector=audit_collector
         )
-        for indicator, entry in sorted(suite.trends.items())
-    ]
+        trend_predictions.append(trend)
+        trend_runtime = trend["model_status"]
+        if audit_collector is not None and trend_runtime.task:
+            audit_collector.finished(trend_runtime.task, trend_runtime.status == "available", trend_runtime.reason_code)
     available_trends = [
         item["model_status"]
         for item in trend_predictions

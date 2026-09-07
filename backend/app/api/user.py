@@ -133,7 +133,13 @@ def delete_account(
             detail="密码错误",
         )
 
-    logger.warning("Deleting account for user %s (id=%d)", user.username, user.id)
+    logger.warning("Deleting account id=%d", user.id)
+    from app.db.models import AIReport, ReportPdfAttempt
+    from app.services.report_archive_cleanup import cleanup_deleted_report
+    from app.core.config import settings
+    # Bound synchronous cleanup to one report; database cascades enqueue every
+    # remaining object for the independent cleanup worker.
+    pdf_report = db.query(AIReport.id).join(ReportPdfAttempt, ReportPdfAttempt.report_id == AIReport.id).filter(AIReport.user_id == user.id).first()
 
     # 审计日志可用于统计稳定性，但销户后不得继续保存可识别的病情文本。
     audit_logs = db.query(AuditLog).filter(AuditLog.user_id == user.id).all()
@@ -146,5 +152,8 @@ def delete_account(
 
     db.delete(user)
     db.commit()
+
+    if pdf_report:
+        cleanup_deleted_report(db, pdf_report[0], settings.REPORT_ARCHIVE_ROOT)
 
     return None

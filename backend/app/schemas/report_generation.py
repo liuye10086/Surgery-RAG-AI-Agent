@@ -28,6 +28,7 @@ class GenerationStatus(BaseModel):
     message: str
     cancel_requested: bool = False
     legacy: bool = False
+    failure_phase: str | None = None
 
     @model_validator(mode="after")
     def valid_identity(self):
