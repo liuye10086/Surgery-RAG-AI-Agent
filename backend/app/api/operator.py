@@ -36,7 +36,10 @@ from app.schemas.operator_case_workspace import (
     OperatorCaseReportReadiness,
     OperatorCaseSave,
 )
-from app.schemas.operator_case_status import OperatorCaseStatus, OperatorCaseStatusChangeRequest
+from app.schemas.operator_case_status import (
+    OperatorCaseStatus,
+    OperatorCaseStatusChangeRequest,
+)
 from app.schemas.operator_indicator_catalog import OperatorIndicatorCatalogOut
 from app.services.pdf_generator import generate_pdf
 from app.services.longitudinal_case_service import (
@@ -93,6 +96,8 @@ from app.services.operator_case_readiness import evaluate_operator_case_readines
 from app.services.evidence_bundle import EvidenceBuildError, preflight_evidence_versions
 
 logger = logging.getLogger(__name__)
+from app.api.deps import oauth2_scheme
+
 router = APIRouter(prefix="/operator", tags=["operator"])
 
 
@@ -111,7 +116,9 @@ def _safe_report_title(report: AIReport) -> str:
         or getattr(getattr(report, "operator_case", None), "anonymous_case_code", None)
         or (getattr(report, "input_snapshot", None) or {}).get("anonymous_case_code")
     )
-    return f"{anonymous_code}纵向进展预测报告" if anonymous_code else f"报告-{report.id}"
+    return (
+        f"{anonymous_code}纵向进展预测报告" if anonymous_code else f"报告-{report.id}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -342,91 +349,18 @@ async def create_longitudinal_report(
     request: LongitudinalReportRequest | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_operator),
+    idempotency_key: str | None = Header(default=None),
+    token: str = Depends(oauth2_scheme),
 ):
-    try:
-        case = get_operator_case(db, current_user.id, case_id)
-    except (CaseNotFoundError, DiseaseCatalogError) as exc:
-        raise _longitudinal_error(exc) from exc
-    try:
-        db.refresh(case, with_for_update=True)
-    except (TypeError, AttributeError):
-        pass
-    readiness = evaluate_operator_case_readiness(case)
-    if not readiness.ready:
-        blocker = readiness.blockers[0] if readiness.blockers else None
-        code = blocker.code if blocker else "report_not_ready"
-        message = blocker.message if blocker else "病例尚未满足报告生成条件"
-        service_blocked = any(
-            item.code in {"model_unavailable", "indicator_catalog_unavailable"}
-            for item in readiness.blockers
-        )
-        raise _operator_http_error(
-            503 if service_blocked else 409,
-            code,
-            message,
-        )
-    try:
-        disease = require_enabled_case_disease(case)
-        adapter = DISEASE_CAPABILITIES[disease.code].adapter
-    except DiseaseCatalogError as exc:
-        raise _disease_http_error(exc) from exc
-    options = (request or LongitudinalReportRequest()).model_options
-    try:
-        snapshot = build_input_snapshot(case, case.visits, options)
-    except (
-        OperatorCaseValidationError,
-        IndicatorValidationError,
-        IndicatorCatalogUnavailableError,
-    ) as exc:
-        raise _longitudinal_error(exc) from exc
-    visits = snapshot["visits"]
-    batch_id = str(uuid.uuid4())
-    snapshot["generation_batch_id"] = batch_id
-    snapshot_hash = compute_input_snapshot_sha256(snapshot)
-    snapshot["input_snapshot_sha256"] = snapshot_hash
-    anonymous_code = getattr(case, "anonymous_case_code", None) or "旧病例未设置匿名编号"
-    report = AIReport(user_id=current_user.id, operator_case_id=case.id, disease_id=case.disease_id, query=anonymous_code, title=f"{anonymous_code}纵向进展预测报告", indicators=[], analysis_type="longitudinal_predictive", status="generating", input_snapshot=snapshot)
-    report.input_snapshot_sha256 = snapshot_hash
-    report.generation_batch_id = batch_id
-    db.add(report)
-    db.commit()
-    db.refresh(report)
-    # Capture before evidence preflight closes its short read transaction;
-    # accessing an expired ORM row afterward would reopen a transaction across
-    # model loading.
-    report_id = report.id
-    try:
-        evidence_token = preflight_evidence_versions(
-            db, disease_id=case.disease_id, disease_code=disease.code
-        )
-    except EvidenceBuildError as exc:
-        report.status = "failed"
-        report.error_message = exc.code
-        report.error_stage = "standard_evidence"
-        db.commit()
-        raise _operator_http_error(
-            503,
-            exc.code,
-            "正式标准或参考数据版本暂时不可用，请稍后重试",
-        ) from exc
-    try:
-        model_registry = load_active_model_registry(adapter.dataset)
-    except Exception:
-        report.status = "failed"
-        report.error_message = "longitudinal_prediction_failed"
-        report.error_stage = "model_loading"
-        db.commit()
-        raise _operator_http_error(
-            503,
-            "model_unavailable",
-            "模型暂时不可用，请稍后重试",
-        )
-    return StreamingResponse(
-        generate_longitudinal_report(
-            db, report_id, snapshot, snapshot["visits"], adapter,
-            model_registry=model_registry, evidence_token=evidence_token,
-        ),
-        media_type="text/event-stream",
+    from app.api.operator_report_jobs import legacy_submit
+
+    return legacy_submit(
+        case_id,
+        (request or LongitudinalReportRequest()).model_dump(),
+        db,
+        current_user,
+        idempotency_key,
+        token,
     )
 
 
@@ -448,20 +382,38 @@ def list_reports(
     if analysis_type is not None:
         q = q.filter(AIReport.analysis_type == analysis_type)
     total = q.count()
-    reports = (
-        q.order_by(AIReport.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+    reports = q.order_by(AIReport.created_at.desc()).offset(skip).limit(limit).all()
+
     def _summary(report: AIReport) -> ReportListItem:
-        snapshot = report.input_snapshot if isinstance(report.input_snapshot, dict) else {}
-        prediction = report.prediction_result if isinstance(report.prediction_result, dict) else {}
-        disease_name = snapshot.get("disease") if isinstance(snapshot.get("disease"), str) else None
-        baseline_stage = snapshot.get("baseline_stage") if isinstance(snapshot.get("baseline_stage"), str) else None
-        visits = snapshot.get("visits") if isinstance(snapshot.get("visits"), list) else []
-        release_set = prediction.get("release_set") if isinstance(prediction.get("release_set"), dict) else {}
-        version = release_set.get("release_set_id") or release_set.get("data_release_id")
+        snapshot = (
+            report.input_snapshot if isinstance(report.input_snapshot, dict) else {}
+        )
+        prediction = (
+            report.prediction_result
+            if isinstance(report.prediction_result, dict)
+            else {}
+        )
+        disease_name = (
+            snapshot.get("disease")
+            if isinstance(snapshot.get("disease"), str)
+            else None
+        )
+        baseline_stage = (
+            snapshot.get("baseline_stage")
+            if isinstance(snapshot.get("baseline_stage"), str)
+            else None
+        )
+        visits = (
+            snapshot.get("visits") if isinstance(snapshot.get("visits"), list) else []
+        )
+        release_set = (
+            prediction.get("release_set")
+            if isinstance(prediction.get("release_set"), dict)
+            else {}
+        )
+        version = release_set.get("release_set_id") or release_set.get(
+            "data_release_id"
+        )
         error_stage = getattr(report, "error_stage", None)
         if error_stage is None:
             if report.status == "generating":
@@ -513,9 +465,7 @@ def get_report(
     """获取单个报告详情（含完整 content）。"""
     report = db.query(AIReport).filter(AIReport.id == report_id).first()
     if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="报告不存在"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="报告不存在")
     _verify_report_owner(report, current_user)
     result = ReportOut.model_validate(report)
     verification = verify_report_integrity(
@@ -526,6 +476,12 @@ def get_report(
         report.content,
         getattr(report, "evidence_snapshot", None),
         getattr(report, "evidence_snapshot_sha256", None),
+        report_document=getattr(report, "report_document", None),
+        report_document_sha256=getattr(report, "report_document_sha256", None),
+        saved_sources=getattr(report, "sources", None),
+        generation_fingerprint_version=getattr(
+            report, "generation_fingerprint_version", None
+        ),
     )
     result.integrity_status = verification.status
     result.integrity_reason_code = verification.reason_code
@@ -546,14 +502,16 @@ def delete_report(
     current_user: User = Depends(require_ai_operator),
 ):
     """删除报告（仅创建者可删除）。"""
-    report = db.query(AIReport).filter(AIReport.id == report_id).first()
-    if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="报告不存在"
-        )
-    _verify_report_owner(report, current_user)
-    db.delete(report)
-    db.commit()
+    from app.services.report_generation_service import delete_report_job
+    from app.services.report_generation_errors import ReportJobError
+    from app.api.operator_report_jobs import http_error
+
+    user_id = current_user.id
+    db.rollback()
+    try:
+        delete_report_job(db, user_id, report_id)
+    except ReportJobError as exc:
+        raise http_error(exc) from exc
     return None
 
 
@@ -575,9 +533,7 @@ def download_report_pdf(
     """
     report = db.query(AIReport).filter(AIReport.id == report_id).first()
     if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="报告不存在"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="报告不存在")
     _verify_report_owner(report, current_user)
 
     if report.status != "completed":
@@ -600,6 +556,12 @@ def download_report_pdf(
         report.content,
         getattr(report, "evidence_snapshot", None),
         getattr(report, "evidence_snapshot_sha256", None),
+        report_document=getattr(report, "report_document", None),
+        report_document_sha256=getattr(report, "report_document_sha256", None),
+        saved_sources=getattr(report, "sources", None),
+        generation_fingerprint_version=getattr(
+            report, "generation_fingerprint_version", None
+        ),
     )
     if integrity.status == "invalid":
         logger.warning(
@@ -626,12 +588,27 @@ def download_report_pdf(
 
     try:
         saved_evidence = getattr(report, "evidence_snapshot", None)
-        if saved_evidence is None:
-            pdf_bytes = generate_pdf(report.content, pdf_title, report.prediction_result)
+        saved_document = getattr(report, "report_document", None)
+        if saved_document is not None:
+            pdf_bytes = generate_pdf(
+                report.content,
+                pdf_title,
+                report.prediction_result,
+                saved_evidence,
+                report_document=saved_document,
+            )
+        elif saved_evidence is None:
+            pdf_bytes = generate_pdf(
+                report.content, pdf_title, report.prediction_result
+            )
         else:
-            pdf_bytes = generate_pdf(report.content, pdf_title, report.prediction_result, saved_evidence)
+            pdf_bytes = generate_pdf(
+                report.content, pdf_title, report.prediction_result, saved_evidence
+            )
     except ValueError:
-        logger.warning("Evidence integrity validation failed for report_id=%s", report_id)
+        logger.warning(
+            "Evidence integrity validation failed for report_id=%s", report_id
+        )
         raise _operator_http_error(
             409,
             "evidence_integrity_failed",
@@ -652,8 +629,7 @@ def download_report_pdf(
     safe_filename = f"report-{report_id}.pdf"
     encoded_title = urllib.parse.quote(f"{safe_title}.pdf", safe="")
     content_disposition = (
-        f'attachment; filename="{safe_filename}"; '
-        f"filename*=UTF-8''{encoded_title}"
+        f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{encoded_title}"
     )
 
     return StreamingResponse(

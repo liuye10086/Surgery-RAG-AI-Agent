@@ -28,10 +28,12 @@ def valid_case_payload(**overrides):
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
     from app.api.deps import get_db, require_ai_operator
     from app.main import app
 
+    # This boundary test supplies no database; unrelated startup services must not run.
+    monkeypatch.setattr(app.router, "on_startup", [])
     previous_overrides = dict(app.dependency_overrides)
     app.dependency_overrides[get_db] = lambda: SimpleNamespace()
     app.dependency_overrides[require_ai_operator] = lambda: SimpleNamespace(id=1)
@@ -112,7 +114,8 @@ def test_request_validation_error_never_echoes_free_text_input(client):
                 "visits": [
                     {
                         "visit_date": "2026-01-01",
-                        "indicators": [{"name": "ALT", "value": 42, "unit": "U/L"}] * 31,
+                        "indicators": [{"name": "ALT", "value": 42, "unit": "U/L"}]
+                        * 31,
                     }
                 ]
             },
@@ -177,17 +180,86 @@ def test_extra_field_never_reflects_caller_supplied_key(client):
 @pytest.mark.parametrize(
     ("item", "expected"),
     [
-        ({"type": "missing", "loc": ("body", "age")}, {"code": "missing", "field": "age", "message": "此字段为必填项"}),
-        ({"type": "int_parsing", "loc": ("body", "age")}, {"code": "int_parsing", "field": "age", "message": "必须为整数"}),
-        ({"type": "greater_than_equal", "loc": ("body", "age"), "ctx": {"ge": 0}}, {"code": "greater_than_equal", "field": "age", "message": "必须大于或等于 0"}),
-        ({"type": "string_too_long", "loc": ("body", "notes"), "ctx": {"max_length": 5000}}, {"code": "string_too_long", "field": "notes", "message": "长度不能超过 5000 个字符"}),
-        ({"type": "literal_error", "loc": ("body", "sex"), "ctx": {"expected": "'male' or 'female'"}}, {"code": "literal_error", "field": "sex", "message": "请选择有效选项"}),
-        ({"type": "string_too_short", "loc": ("body", "baseline_stage"), "ctx": {"min_length": 1}}, {"code": "string_too_short", "field": "baseline_stage", "message": "长度不能少于 1 个字符"}),
-        ({"type": "too_short", "loc": ("body", "visits"), "ctx": {"field_type": "List", "min_length": 1, "actual_length": 0}}, {"code": "too_short", "field": "visits", "message": "至少需要 1 项"}),
-        ({"type": "too_long", "loc": ("body", "visits"), "ctx": {"field_type": "List", "max_length": 10, "actual_length": 11}}, {"code": "too_long", "field": "visits", "message": "不能超过 10 项"}),
-        ({"type": "extra_forbidden", "loc": ("body", "PRIVATE_EXTRA_KEY_9F33")}, {"code": "extra_forbidden", "message": "不允许包含未定义字段"}),
-        ({"type": "missing", "loc": ("body", "PRIVATE_EXTRA_KEY_9F33")}, {"code": "missing", "message": "此字段为必填项"}),
-        ({"type": "unknown_validation_type", "loc": ("body", "visits", 0)}, {"code": "unknown_validation_type", "field": "visits.0", "message": "输入内容格式不正确"}),
+        (
+            {"type": "missing", "loc": ("body", "age")},
+            {"code": "missing", "field": "age", "message": "此字段为必填项"},
+        ),
+        (
+            {"type": "int_parsing", "loc": ("body", "age")},
+            {"code": "int_parsing", "field": "age", "message": "必须为整数"},
+        ),
+        (
+            {"type": "greater_than_equal", "loc": ("body", "age"), "ctx": {"ge": 0}},
+            {
+                "code": "greater_than_equal",
+                "field": "age",
+                "message": "必须大于或等于 0",
+            },
+        ),
+        (
+            {
+                "type": "string_too_long",
+                "loc": ("body", "notes"),
+                "ctx": {"max_length": 5000},
+            },
+            {
+                "code": "string_too_long",
+                "field": "notes",
+                "message": "长度不能超过 5000 个字符",
+            },
+        ),
+        (
+            {
+                "type": "literal_error",
+                "loc": ("body", "sex"),
+                "ctx": {"expected": "'male' or 'female'"},
+            },
+            {"code": "literal_error", "field": "sex", "message": "请选择有效选项"},
+        ),
+        (
+            {
+                "type": "string_too_short",
+                "loc": ("body", "baseline_stage"),
+                "ctx": {"min_length": 1},
+            },
+            {
+                "code": "string_too_short",
+                "field": "baseline_stage",
+                "message": "长度不能少于 1 个字符",
+            },
+        ),
+        (
+            {
+                "type": "too_short",
+                "loc": ("body", "visits"),
+                "ctx": {"field_type": "List", "min_length": 1, "actual_length": 0},
+            },
+            {"code": "too_short", "field": "visits", "message": "至少需要 1 项"},
+        ),
+        (
+            {
+                "type": "too_long",
+                "loc": ("body", "visits"),
+                "ctx": {"field_type": "List", "max_length": 10, "actual_length": 11},
+            },
+            {"code": "too_long", "field": "visits", "message": "不能超过 10 项"},
+        ),
+        (
+            {"type": "extra_forbidden", "loc": ("body", "PRIVATE_EXTRA_KEY_9F33")},
+            {"code": "extra_forbidden", "message": "不允许包含未定义字段"},
+        ),
+        (
+            {"type": "missing", "loc": ("body", "PRIVATE_EXTRA_KEY_9F33")},
+            {"code": "missing", "message": "此字段为必填项"},
+        ),
+        (
+            {"type": "unknown_validation_type", "loc": ("body", "visits", 0)},
+            {
+                "code": "unknown_validation_type",
+                "field": "visits.0",
+                "message": "输入内容格式不正确",
+            },
+        ),
     ],
 )
 def test_localize_validation_issue_returns_safe_chinese_issue(item, expected):

@@ -12,7 +12,17 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from app.api import admin, admin_diseases, admin_standard_documents, admin_standards, auth, chat, files, operator, user
+from app.api import (
+    admin,
+    admin_diseases,
+    admin_standard_documents,
+    admin_standards,
+    auth,
+    chat,
+    files,
+    operator,
+    user,
+)
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.validation_errors import request_validation_exception_handler
@@ -43,6 +53,9 @@ app.include_router(admin_standards.router, prefix="/api/v1")
 app.include_router(user.router, prefix="/api/v1")
 app.include_router(files.router, prefix="/api/v1")
 app.include_router(operator.router, prefix="/api/v1")
+from app.api import operator_report_jobs
+
+app.include_router(operator_report_jobs.router, prefix="/api/v1")
 
 
 @app.on_event("startup")

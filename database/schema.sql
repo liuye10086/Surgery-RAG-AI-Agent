@@ -191,10 +191,8 @@ CREATE TABLE IF NOT EXISTS operator_idempotency_keys (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_operator_idempotency_user_scope_key
         UNIQUE (user_id, scope, idempotency_key),
-    CONSTRAINT ck_operator_idempotency_keys_scope
-        CHECK (scope = 'create_longitudinal_case'),
-    CONSTRAINT ck_operator_idempotency_keys_resource_type
-        CHECK (resource_type = 'operator_case'),
+    CONSTRAINT ck_operator_idempotency_keys_scope_resource
+        CHECK ((scope = 'create_longitudinal_case' AND resource_type = 'operator_case') OR (scope = 'create_longitudinal_report' AND resource_type = 'ai_report')),
     CONSTRAINT ck_operator_idempotency_keys_request_sha256
         CHECK (length(request_sha256) = 64)
 );
@@ -247,6 +245,14 @@ CREATE TABLE IF NOT EXISTS ai_reports (
     reference_case_status VARCHAR(40),
     generation_batch_id VARCHAR(36),
     generation_fingerprint VARCHAR(64),
+    report_document JSONB,
+    report_document_sha256 VARCHAR(64),
+    generation_fingerprint_version VARCHAR(8),
+    CONSTRAINT ck_ai_reports_document_object CHECK (report_document IS NULL OR jsonb_typeof(report_document) = 'object'),
+    CONSTRAINT ck_ai_reports_document_sha256 CHECK (report_document_sha256 IS NULL OR report_document_sha256 ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT ck_ai_reports_fingerprint_version CHECK (generation_fingerprint_version IS NULL OR generation_fingerprint_version IN ('v1', 'v2')),
+    CONSTRAINT ck_ai_reports_v2_publication CHECK (generation_fingerprint_version IS DISTINCT FROM 'v2' OR (report_document IS NOT NULL AND report_document_sha256 IS NOT NULL AND generation_fingerprint IS NOT NULL AND status = 'completed')),
+
     error_stage VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -635,3 +641,42 @@ WHERE is_current_projection IS TRUE;
 --    启动时由 ensure_vectorstore_tables() 在 langchain_pg_embedding.document 列上
 --    创建 pg_trgm GIN 索引（idx_langchain_embedding_document_trgm），
 --    同时清理旧版 tsvector 索引。
+
+-- Durable report generation (0024).
+CREATE TABLE IF NOT EXISTS report_generation_jobs (
+    report_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    source_case_id INTEGER NOT NULL,
+    generation_context JSONB NOT NULL,
+    context_sha256 VARCHAR(64) NOT NULL,
+    status VARCHAR(12) DEFAULT 'queued' NOT NULL,
+    phase VARCHAR(24) DEFAULT 'queued' NOT NULL,
+    revision BIGINT DEFAULT '1' NOT NULL,
+    queued_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    queue_deadline TIMESTAMP WITH TIME ZONE NOT NULL,
+    started_at TIMESTAMP WITH TIME ZONE,
+    finished_at TIMESTAMP WITH TIME ZONE,
+    heartbeat_at TIMESTAMP WITH TIME ZONE,
+    lease_expires_at TIMESTAMP WITH TIME ZONE,
+    run_deadline TIMESTAMP WITH TIME ZONE,
+    lease_owner VARCHAR(160),
+    lease_token UUID,
+    cancel_requested_at TIMESTAMP WITH TIME ZONE,
+    error_code VARCHAR(120),
+    PRIMARY KEY (report_id),
+    CONSTRAINT ck_report_jobs_status CHECK (status IN ('queued','running','completed','failed','cancelled')),
+    CONSTRAINT ck_report_jobs_phase CHECK (phase IN ('queued','model_loading','prediction','standard_evidence','rendering','persistence','terminal')),
+    CONSTRAINT ck_report_jobs_revision CHECK (revision >= 1),
+    CONSTRAINT ck_report_jobs_context CHECK (jsonb_typeof(generation_context) = 'object'),
+    CONSTRAINT ck_report_jobs_context_hash CHECK (context_sha256 ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT ck_report_jobs_running CHECK (status != 'running' OR (lease_owner IS NOT NULL AND lease_token IS NOT NULL AND started_at IS NOT NULL AND lease_expires_at IS NOT NULL AND run_deadline IS NOT NULL AND phase NOT IN ('queued','terminal'))),
+    CONSTRAINT ck_report_jobs_terminal CHECK (status NOT IN ('completed','failed','cancelled') OR (finished_at IS NOT NULL AND phase = 'terminal')),
+    CONSTRAINT ck_report_jobs_queued CHECK (status != 'queued' OR (started_at IS NULL AND phase = 'queued')),
+    FOREIGN KEY(report_id) REFERENCES ai_reports (id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS ix_report_jobs_queued ON report_generation_jobs (queued_at, report_id) WHERE status = 'queued';
+CREATE INDEX IF NOT EXISTS ix_report_jobs_running_lease ON report_generation_jobs (lease_expires_at) WHERE status = 'running';
+CREATE INDEX IF NOT EXISTS ix_report_jobs_user_status ON report_generation_jobs (user_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_report_jobs_active_case ON report_generation_jobs (user_id, source_case_id) WHERE status IN ('queued','running');

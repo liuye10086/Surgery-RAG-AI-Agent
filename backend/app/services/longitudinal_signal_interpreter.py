@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+MINIMUM_SIGNAL_OBSERVATIONS = 3
+
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
@@ -411,22 +413,34 @@ def interpret_observation_signals(
                     invalid[canonical].append(reason)
                 continue
             unit = str(indicator.get("unit") or "").strip() or None
-            visit_context = visit.get("visit_context") if isinstance(visit.get("visit_context"), Mapping) else {}
+            visit_context = (
+                visit.get("visit_context")
+                if isinstance(visit.get("visit_context"), Mapping)
+                else {}
+            )
             context_signature = tuple(
                 str(visit_context.get(key)).strip().casefold()
-                if visit_context.get(key) not in (None, "") else None
+                if visit_context.get(key) not in (None, "")
+                else None
                 for key in (
-                    "assay_platform", "method", "specimen", "scale_version",
-                    "assessment_language", "education_years", "education_adjusted",
+                    "assay_platform",
+                    "method",
+                    "specimen",
+                    "scale_version",
+                    "assessment_language",
+                    "education_years",
+                    "education_adjusted",
                 )
             )
-            observations[canonical].append((visit_date, value, unit, raw_name.lower(), context_signature))
+            observations[canonical].append(
+                (visit_date, value, unit, raw_name.lower(), context_signature)
+            )
 
     signals: list[LongitudinalSignal] = []
     omitted: list[dict[str, Any]] = []
     for canonical in config:
         entries = observations.get(canonical, [])
-        if len(entries) < 3:
+        if len(entries) < MINIMUM_SIGNAL_OBSERVATIONS:
             if entries or canonical in invalid:
                 omitted.append(
                     {
@@ -441,11 +455,16 @@ def interpret_observation_signals(
             continue
 
         if len({entry[4] for entry in entries}) > 1:
-            omitted.append({
-                "indicator": canonical,
-                "reason_codes": [*invalid.get(canonical, []), "measurement_context_changed"],
-                "observation_count": len(entries),
-            })
+            omitted.append(
+                {
+                    "indicator": canonical,
+                    "reason_codes": [
+                        *invalid.get(canonical, []),
+                        "measurement_context_changed",
+                    ],
+                    "observation_count": len(entries),
+                }
+            )
             continue
 
         values = [entry[1] for entry in entries]
@@ -523,7 +542,8 @@ def interpret_observation_signals(
                 model_feature_names=model_features,
                 model_contribution_status=(
                     "not_supported"
-                    if outcome_status is not None and outcome_status.status == "available"
+                    if outcome_status is not None
+                    and outcome_status.status == "available"
                     else "unavailable"
                 ),
                 provenance={
@@ -542,7 +562,7 @@ def interpret_observation_signals(
         summary={
             "signal_count": len(signals),
             "omitted_count": len(omitted),
-            "minimum_observations": 3,
+            "minimum_observations": MINIMUM_SIGNAL_OBSERVATIONS,
             "summary_code": (
                 "signals_available" if signals else "insufficient_key_signals"
             ),
@@ -556,7 +576,9 @@ def attach_signal_interpretation(prediction, visits, standard):
         return prediction
     standard_sources = []
     for rule in getattr(standard, "rules", ()) or ():
-        payload = rule.model_dump(mode="json") if hasattr(rule, "model_dump") else dict(rule)
+        payload = (
+            rule.model_dump(mode="json") if hasattr(rule, "model_dump") else dict(rule)
+        )
         payload.update(
             source_type=(
                 "reference_range"
@@ -565,14 +587,20 @@ def attach_signal_interpretation(prediction, visits, standard):
                 else "standard_evidence"
             ),
             standard_rule_id=payload.get("rule_id"),
-            standard_version_id=getattr(getattr(standard, "version", None), "version_id", None),
+            standard_version_id=getattr(
+                getattr(standard, "version", None), "version_id", None
+            ),
         )
         standard_sources.append(payload)
     outcome_status = getattr(getattr(prediction, "model_status", None), "outcome", None)
-    feature_names = (getattr(prediction, "evidence", None) or {}).get("outcome_feature_names", [])
+    feature_names = (getattr(prediction, "evidence", None) or {}).get(
+        "outcome_feature_names", []
+    )
     interpreted = interpret_observation_signals(
-        dataset=prediction.disease["dataset"], visits=visits,
-        standard_sources=standard_sources, outcome_status=outcome_status,
+        dataset=prediction.disease["dataset"],
+        visits=visits,
+        standard_sources=standard_sources,
+        outcome_status=outcome_status,
         feature_names=feature_names,
     )
     return prediction.model_copy(update={"progression_signals": interpreted})

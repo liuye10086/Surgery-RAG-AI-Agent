@@ -1,3 +1,4 @@
+import { useReportGenerationStore } from '@/stores/report-generation'
 import { defineStore } from 'pinia'
 import { readonly, ref } from 'vue'
 import {
@@ -10,7 +11,6 @@ import {
   deleteLongitudinalCase,
   updateLongitudinalCaseStatus,
   getLongitudinalCaseReportReadiness,
-  generateLongitudinalReportStream,
   listDiseases,
   listOperatorIndicatorCatalog,
   type ReportListItem,
@@ -228,22 +228,7 @@ export const useOperatorStore = defineStore('operator', () => {
   }
 
   function generateLongitudinalReport(caseId: number) {
-    const revision = caseSessionRevision.value
-    if (!isCurrentCaseSession(revision, caseId)) return
-    generating.value = true
-    longitudinalPrediction.value = null
-    longitudinalEvidence.value = null
-    longitudinalReportContent.value = ''
-    cancelFn = generateLongitudinalReportStream(caseId, {
-      onStage: (stage, message) => { if (isCurrentCaseSession(revision, caseId)) { currentStage.value = stage; stageMessage.value = message } },
-      onPrediction: (prediction) => { if (isCurrentCaseSession(revision, caseId)) longitudinalPrediction.value = prediction },
-      onEvidence: (evidence) => { if (isCurrentCaseSession(revision, caseId)) longitudinalEvidence.value = evidence },
-      onDelta: (content) => { if (isCurrentCaseSession(revision, caseId)) longitudinalReportContent.value += content },
-      onSources: (sources) => { if (isCurrentCaseSession(revision, caseId)) currentSources.value = sources },
-      onDone: (id) => { if (isCurrentCaseSession(revision, caseId)) { generating.value = false; fetchReports(); fetchReport(id, revision) } },
-      onError: () => { if (isCurrentCaseSession(revision, caseId)) { generating.value = false; currentStage.value = 'error'; fetchReports() } },
-    })
-    return cancelFn
+    return useReportGenerationStore().submit(caseId)
   }
 
   function clearCurrent() {

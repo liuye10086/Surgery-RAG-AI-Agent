@@ -57,6 +57,7 @@ dist-ssr/
 
 # Local Git worktrees
 /.worktrees/
+/.local-test-postgres/
 
 # OS
 .DS_Store
@@ -69,3 +70,6 @@ Thumbs.db
 
 # Reproducible ML model artifacts (metadata remains trackable)
 /backend/app/ml_models/*.joblib
+
+.local-test-tools/
+/outputs/operator-report-verification/

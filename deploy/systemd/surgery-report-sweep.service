@@ -1,0 +1,16 @@
+[Unit]
+Description=Converge expired Surgery RAG report jobs
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=surgery
+Group=surgery
+WorkingDirectory=/opt/surgery-rag/backend
+EnvironmentFile=/opt/surgery-rag/backend/.env
+ExecStart=/opt/surgery-rag/backend/venv/bin/python -m app.workers.report_worker --sweep-only
+TimeoutStartSec=15
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=true
+MemoryMax=512M

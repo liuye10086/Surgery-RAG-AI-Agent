@@ -21,7 +21,9 @@ pytestmark = pytest.mark.integration
 @pytest.fixture(scope="session")
 def integration_engine():
     if not TEST_DATABASE_URL:
-        pytest.skip("TEST_DATABASE_URL is not set; real PostgreSQL integration is opt-in")
+        pytest.skip(
+            "TEST_DATABASE_URL is not set; real PostgreSQL integration is opt-in"
+        )
     engine = create_engine(TEST_DATABASE_URL, future=True)
     with engine.connect() as connection:
         connection.execute(text("SELECT 1"))
@@ -41,6 +43,7 @@ def db(integration_engine):
     Session = sessionmaker(bind=integration_engine, future=True)
     session = Session()
     tables = (
+        "report_generation_jobs",
         "operator_idempotency_keys",
         "operator_case_change_logs",
         "ai_reports",
@@ -50,7 +53,9 @@ def db(integration_engine):
         "users",
     )
     try:
-        session.execute(text("TRUNCATE " + ", ".join(tables) + " RESTART IDENTITY CASCADE"))
+        session.execute(
+            text("TRUNCATE " + ", ".join(tables) + " RESTART IDENTITY CASCADE")
+        )
         session.execute(
             text(
                 "INSERT INTO users (username, email, hashed_password, role) "
@@ -94,3 +99,45 @@ def client(db):
 
     yield for_user
     app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def queued_report(db):
+    from uuid import uuid4
+    from datetime import timedelta
+    from app.db.models import AIReport, ReportGenerationJob
+    from app.services.report_job_repository import db_now, context_hash
+    from app.services.report_integrity import compute_input_snapshot_sha256
+    from backend.tests.report_document_fixtures import context_payload, snapshot_payload
+
+    snapshot = snapshot_payload()
+    snapshot["generation_batch_id"] = str(uuid4())
+    context = context_payload()
+    from app.schemas.report_document import ReportGenerationContext
+
+    context = ReportGenerationContext.model_validate(context).model_dump(mode="json")
+    report = AIReport(
+        user_id=1,
+        disease_id=1,
+        query="匿名测试报告",
+        status="generating",
+        analysis_type="predictive",
+        input_snapshot=snapshot,
+        input_snapshot_sha256=compute_input_snapshot_sha256(snapshot),
+        generation_batch_id=snapshot["generation_batch_id"],
+    )
+    db.add(report)
+    db.flush()
+    db.add(
+        ReportGenerationJob(
+            report_id=report.id,
+            user_id=1,
+            source_case_id=1,
+            generation_context=context,
+            context_sha256=context_hash(context),
+            queue_deadline=db_now(db) + timedelta(seconds=600),
+        )
+    )
+    report_id = report.id
+    db.commit()
+    return report_id

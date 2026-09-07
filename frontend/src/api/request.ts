@@ -43,15 +43,19 @@ export interface ApiValidationIssue {
 }
 
 export class ApiRequestError extends Error {
+  readonly retryAfterSeconds?: number
   readonly code: string
+  readonly reportId?: number
   readonly field?: string
   readonly issues: ApiValidationIssue[]
   readonly status?: number
   readonly response?: { status?: number; data: { detail: string } }
 
-  constructor(options: { code: string; message: string; field?: string; issues?: ApiValidationIssue[]; status?: number }) {
+  constructor(options: { retryAfterSeconds?: number; reportId?: number; code: string; message: string; field?: string; issues?: ApiValidationIssue[]; status?: number }) {
     super(options.message)
     this.name = 'ApiRequestError'
+    this.retryAfterSeconds = options.retryAfterSeconds
+    this.reportId = options.reportId
     this.code = options.code
     this.field = options.field
     this.issues = options.issues || []
@@ -78,12 +82,21 @@ function normalizeIssue(value: any): ApiValidationIssue | null {
   }
 }
 
+export function parseRetryAfter(value: unknown): number | undefined {
+  if (typeof value !== 'string' && typeof value !== 'number') return undefined
+  const seconds = /^\d+$/.test(String(value)) ? Number(value) : (Date.parse(String(value)) - Date.now()) / 1000
+  return Number.isFinite(seconds) && seconds >= 0 ? Math.ceil(seconds) : undefined
+}
+
 function normalizeApiError(error: any): ApiRequestError {
+  const retryAfterSeconds = parseRetryAfter(error?.response?.headers?.['retry-after'])
   const status = typeof error?.response?.status === 'number' ? error.response.status : undefined
   const detail = error?.response?.data?.detail
   if (detail && !Array.isArray(detail) && typeof detail === 'object') {
     const issues = Array.isArray(detail.issues) ? detail.issues.map(normalizeIssue).filter(Boolean) as ApiValidationIssue[] : []
     return new ApiRequestError({
+      reportId: Number.isSafeInteger(detail.report_id) ? detail.report_id : undefined,
+      retryAfterSeconds,
       code: typeof detail.code === 'string' ? detail.code : 'request_failed',
       message: typeof detail.message === 'string' ? detail.message : formatErrorDetail(detail),
       field: typeof detail.field === 'string' ? detail.field : undefined,
@@ -95,6 +108,7 @@ function normalizeApiError(error: any): ApiRequestError {
     const issues = detail.map(normalizeIssue).filter(Boolean) as ApiValidationIssue[]
     return new ApiRequestError({
       code: 'validation_error',
+      retryAfterSeconds,
       message: issues.map((issue) => issue.message).join('；') || '输入数据无效',
       field: issues[0]?.field,
       issues,
@@ -103,6 +117,7 @@ function normalizeApiError(error: any): ApiRequestError {
   }
   return new ApiRequestError({
     code: status ? `http_${status}` : 'network_error',
+    retryAfterSeconds,
     message: formatErrorDetail(detail) || (status ? '请求失败' : '网络连接失败'),
     status,
   })

@@ -1,4 +1,5 @@
 """Operator disease catalog, reference cases, reports, and router tests."""
+
 import asyncio
 import unittest
 from datetime import date
@@ -35,6 +36,7 @@ def _blocked_readiness(code, message):
 class CaseRecordSchemaTests(unittest.TestCase):
     def test_case_record_requires_indicators(self):
         from pydantic import ValidationError
+
         with self.assertRaises(ValidationError):
             CaseRecordIn(disease_id=1, indicators=[])
 
@@ -93,30 +95,46 @@ class OperatorRouterEndpointTests(unittest.TestCase):
         from app.api.operator import router
 
         paths = {r.path for r in router.routes}
-        self.assertTrue({
-            "/operator/diseases",
-            "/operator/reference-ranges",
-            "/operator/documents",
-            "/operator/longitudinal-cases",
-            "/operator/reports",
-        }.issubset(paths))
+        self.assertTrue(
+            {
+                "/operator/diseases",
+                "/operator/reference-ranges",
+                "/operator/documents",
+                "/operator/longitudinal-cases",
+                "/operator/reports",
+            }.issubset(paths)
+        )
         self.assertNotIn("/operator/cases", paths)
         self.assertNotIn("/operator/progression-predictions", paths)
         self.assertNotIn("/operator/reference-ranges/sync", paths)
 
+
 class ReportSchemaContractTests(unittest.TestCase):
     def test_report_out_has_predictive_fields(self):
         from app.schemas.operator import ReportOut
+
         fields = ReportOut.model_fields
         self.assertTrue(
-            {"analysis_type", "disease_id", "indicators", "prediction_result"}.issubset(fields)
+            {"analysis_type", "disease_id", "indicators", "prediction_result"}.issubset(
+                fields
+            )
         )
 
     def test_report_list_item_has_predictive_fields(self):
         from app.schemas.operator import ReportListItem
+
         fields = ReportListItem.model_fields
         self.assertTrue(
-            {"analysis_type", "disease_id", "indicators", "disease_name", "baseline_stage", "visit_count", "model_version_summary", "error_stage"}.issubset(fields)
+            {
+                "analysis_type",
+                "disease_id",
+                "indicators",
+                "disease_name",
+                "baseline_stage",
+                "visit_count",
+                "model_version_summary",
+                "error_stage",
+            }.issubset(fields)
         )
         self.assertNotIn("prediction_result", fields)
 
@@ -142,293 +160,60 @@ class TestReportStateMachine(unittest.TestCase):
 
     def test_longitudinal_report_uses_terminal_statuses(self):
         """纵向报告沿用 generating/completed 终态，不依赖单时点生成器。"""
-        r = MagicMock(); r.status = "generating"
+        r = MagicMock()
+        r.status = "generating"
         r.status = "completed"
         self.assertEqual(r.status, "completed")
 
-    def test_longitudinal_report_loads_one_active_disease_release_set(self):
-        import inspect
-
+    def test_legacy_route_delegates_all_admission_to_durable_jobs(self):
         from app.api.operator import create_longitudinal_report
 
-        source = inspect.getsource(create_longitudinal_report)
-        self.assertIn("load_active_model_registry(adapter.dataset)", source)
-        self.assertNotIn("load_model_registry(adapter.dataset)", source)
-
-    def test_longitudinal_report_routes_by_disease_code_after_display_name_change(self):
-        from app.api.operator import create_longitudinal_report
-        from app.services.disease_catalog import DISEASE_CAPABILITIES
-
-        case = SimpleNamespace(
-            id=3,
-            user_id=7,
-            disease_id=11,
-            patient_label="case-A",
-            age=65,
-            sex="female",
-            baseline_stage="S1",
-            notes=None,
-            disease=SimpleNamespace(
-                id=11,
-                code="fatty_liver",
-                name="脂肪肝新名称",
-                operator_enabled=True,
-            ),
-            visits=[
-                SimpleNamespace(
-                    id=1,
-                    visit_date=date(2024, 1, 1),
-                    indicators=[{"name": "ALT", "value": 42, "unit": "U/L"}],
-                    notes=None,
-                )
-            ],
-        )
         db = MagicMock()
-        captured = {}
-
-        def fake_generate(*args, **kwargs):
-            captured["adapter"] = args[4]
-            captured["snapshot"] = args[2]
-            captured["visits"] = args[3]
-            return iter([b""])
-
-        with patch("app.api.operator.get_operator_case", return_value=case), patch(
-            "app.api.operator.evaluate_operator_case_readiness",
-            return_value=_ready_readiness(),
-        ), patch(
-            "app.api.operator.preflight_evidence_versions",
-            return_value=MagicMock(name="evidence_version_token"),
-        ), patch(
-            "app.api.operator.load_active_model_registry", return_value={}
-        ), patch(
-            "app.api.operator.generate_longitudinal_report", side_effect=fake_generate
+        user = SimpleNamespace(id=7)
+        with (
+            patch(
+                "app.api.operator_report_jobs.legacy_submit", return_value="stream"
+            ) as submit,
+            patch("app.api.operator.generate_longitudinal_report") as old_generator,
         ):
-            asyncio.run(
+            response = asyncio.run(
                 create_longitudinal_report(
-                    case_id=3,
-                    request=None,
-                    db=db,
-                    current_user=SimpleNamespace(id=7),
+                    3, None, db, user, idempotency_key=None, token="test-token"
                 )
             )
-
-        self.assertIs(
-            captured["adapter"],
-            DISEASE_CAPABILITIES["fatty_liver"].adapter,
+        self.assertEqual(response, "stream")
+        submit.assert_called_once_with(
+            3, {"model_options": {}}, db, user, None, "test-token"
         )
-        self.assertEqual(captured["snapshot"]["visits"], captured["visits"])
-        db.add.assert_called_once()
-        created_report = db.add.call_args.args[0]
-        self.assertEqual(
-            captured["snapshot"]["generation_batch_id"],
-            created_report.generation_batch_id,
-        )
-
-    def test_model_loading_failure_converges_report_to_failed(self):
-        from app.api.operator import create_longitudinal_report
-
-        case = SimpleNamespace(
-            id=3,
-            user_id=7,
-            disease_id=11,
-            patient_label="case-A",
-            age=65,
-            sex="female",
-            baseline_stage="S1",
-            notes=None,
-            anonymous_case_code="CASE-ABCD-1234",
-            disease=SimpleNamespace(
-                id=11,
-                code="fatty_liver",
-                name="鑴傝偑鑲?",
-                operator_enabled=True,
-            ),
-            visits=[
-                SimpleNamespace(
-                    id=1,
-                    visit_date=date(2024, 1, 1),
-                    indicators=[{"name": "ALT", "value": 42, "unit": "U/L"}],
-                    notes=None,
-                )
-            ],
-        )
-        db = MagicMock()
-        created_reports = []
-        db.add.side_effect = created_reports.append
-
-        with patch("app.api.operator.get_operator_case", return_value=case), patch(
-            "app.api.operator.evaluate_operator_case_readiness",
-            return_value=_ready_readiness(),
-        ), patch(
-            "app.api.operator.preflight_evidence_versions",
-            return_value=MagicMock(name="evidence_version_token"),
-        ), patch(
-            "app.api.operator.load_active_model_registry", side_effect=RuntimeError("secret path")
-        ):
-            with self.assertRaises(HTTPException) as error:
-                asyncio.run(
-                    create_longitudinal_report(
-                        case_id=3,
-                        request=None,
-                        db=db,
-                        current_user=SimpleNamespace(id=7),
-                    )
-                )
-
-        self.assertEqual(error.exception.status_code, 503)
-        self.assertEqual(
-            error.exception.detail,
-            {
-                "code": "model_unavailable",
-                "message": "模型暂时不可用，请稍后重试",
-            },
-        )
-        self.assertEqual(created_reports[0].status, "failed")
-        self.assertEqual(created_reports[0].error_stage, "model_loading")
-        self.assertNotIn("secret path", str(error.exception.detail))
-
-    def test_standard_preflight_failure_stops_before_model_loading(self):
-        from app.api.operator import create_longitudinal_report
-        from app.services.evidence_bundle import EvidenceBuildError
-
-        case = SimpleNamespace(
-            id=3,
-            user_id=7,
-            disease_id=11,
-            patient_label="case-A",
-            anonymous_case_code="CASE-ABCD-1234",
-            disease=SimpleNamespace(
-                id=11,
-                code="fatty_liver",
-                name="脂肪肝",
-                operator_enabled=True,
-            ),
-            visits=[],
-        )
-        snapshot = {
-            "disease_id": 11,
-            "disease_code": "fatty_liver",
-            "visits": [],
-            "input_snapshot_sha256": "a" * 64,
-        }
-        db = MagicMock()
-        created_reports = []
-        db.add.side_effect = created_reports.append
-
-        with patch("app.api.operator.get_operator_case", return_value=case), patch(
-            "app.api.operator.evaluate_operator_case_readiness",
-            return_value=_ready_readiness(),
-        ), patch(
-            "app.api.operator.build_input_snapshot", return_value=snapshot,
-        ), patch(
-            "app.api.operator.preflight_evidence_versions",
-            side_effect=EvidenceBuildError("standard_integrity_failed"),
-        ), patch(
-            "app.api.operator.load_active_model_registry"
-        ) as load_models:
-            with self.assertRaises(HTTPException) as error:
-                asyncio.run(create_longitudinal_report(
-                    case_id=3,
-                    request=None,
-                    db=db,
-                    current_user=SimpleNamespace(id=7),
-                ))
-
-        self.assertEqual(error.exception.detail["code"], "standard_integrity_failed")
-        load_models.assert_not_called()
-        self.assertEqual(created_reports[0].status, "failed")
-        self.assertEqual(created_reports[0].error_stage, "standard_evidence")
-
-    def test_disabled_disease_rejects_report_before_insert(self):
-        from app.api.operator import create_longitudinal_report
-
-        case = SimpleNamespace(
-            id=3,
-            user_id=7,
-            disease_id=11,
-            patient_label="case-A",
-            age=65,
-            disease=SimpleNamespace(
-                id=11,
-                code="fatty_liver",
-                name="脂肪肝",
-                operator_enabled=False,
-            ),
-            visits=[],
-        )
-        db = MagicMock()
-
-        with patch("app.api.operator.get_operator_case", return_value=case), patch(
-            "app.api.operator.evaluate_operator_case_readiness",
-            return_value=_blocked_readiness(
-                "disease_disabled",
-                "疾病已停用或未开放，病例当前只读",
-            ),
-        ):
-            with self.assertRaises(HTTPException) as error:
-                asyncio.run(
-                    create_longitudinal_report(
-                        case_id=3,
-                        request=None,
-                        db=db,
-                        current_user=SimpleNamespace(id=7),
-                    )
-                )
-
-        self.assertEqual(error.exception.status_code, 409)
-        self.assertEqual(
-            error.exception.detail,
-            {
-                "code": "disease_disabled",
-                "message": "疾病已停用或未开放，病例当前只读",
-            },
-        )
+        old_generator.assert_not_called()
         db.add.assert_not_called()
-        db.commit.assert_not_called()
 
-    def test_disabled_report_guard_precedes_legacy_age_validation(self):
-        from app.api.operator import create_longitudinal_report
+    def test_legacy_adapter_propagates_safe_admission_errors(self):
+        from app.api.operator_report_jobs import legacy_submit
+        from app.services.report_generation_errors import ReportJobError
 
-        case = SimpleNamespace(
-            age=None,
-            disease=SimpleNamespace(
-                id=11,
-                code="fatty_liver",
-                name="脂肪肝",
-                operator_enabled=False,
-            ),
-            visits=[],
-        )
-
-        with patch("app.api.operator.get_operator_case", return_value=case), patch(
-            "app.api.operator.evaluate_operator_case_readiness",
-            return_value=_blocked_readiness(
-                "disease_disabled",
-                "疾病已停用或未开放，病例当前只读",
-            ),
+        for code in (
+            "report_not_ready",
+            "model_unavailable",
+            "standard_integrity_failed",
         ):
-            with self.assertRaises(HTTPException) as error:
-                asyncio.run(
-                    create_longitudinal_report(
-                        case_id=3,
-                        request=None,
-                        db=MagicMock(),
-                        current_user=SimpleNamespace(id=7),
-                    )
-                )
-
-        self.assertEqual(error.exception.status_code, 409)
-        self.assertEqual(
-            error.exception.detail,
-            {
-                "code": "disease_disabled",
-                "message": "疾病已停用或未开放，病例当前只读",
-            },
-        )
+            with (
+                self.subTest(code=code),
+                patch(
+                    "app.api.operator_report_jobs.submit_report_job",
+                    side_effect=ReportJobError(code, 503),
+                ),
+            ):
+                db = MagicMock()
+                with self.assertRaises(HTTPException) as error:
+                    legacy_submit(3, {}, db, SimpleNamespace(id=7), None, "test-token")
+                self.assertEqual(error.exception.detail["code"], code)
+                db.add.assert_not_called()
 
     def test_download_count_increments(self):
         """PDF 下载后 download_count 自增（operator.py download 端点）。"""
         from app.db.models import AIReport
+
         report = MagicMock(spec=AIReport)
         report.download_count = 0
         report.download_count = (report.download_count or 0) + 1
@@ -448,17 +233,20 @@ class TestMainAppRegistration(unittest.TestCase):
         """
         import importlib
         import app.main as main_mod
+
         importlib.reload(main_mod)
 
         from app.api.operator import router as operator_router
 
         app = main_mod.app
         flat_paths = [
-            r.path for r in app.routes
+            r.path
+            for r in app.routes
             if getattr(r, "path", None) and "/operator" in r.path
         ]
         included = [
-            r for r in app.routes
+            r
+            for r in app.routes
             if getattr(r, "original_router", None) is operator_router
             or (
                 getattr(r, "include_context", None) is not None

@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import model_validator
 import os
 
 
@@ -18,6 +19,50 @@ class Settings(BaseSettings):
     DEEPSEEK_REQUEST_TIMEOUT: int = 60
     STANDARD_EVIDENCE_QUERY_TIMEOUT_MS: int = 500
     REFERENCE_CASE_QUERY_TIMEOUT_MS: int = 750
+    REPORT_JOBS_ENABLED: bool = False
+    REPORT_JOBS_ACCEPTING: bool = False
+    REPORT_LEGACY_SSE_ENABLED: bool = True
+    REPORT_JOB_HEARTBEAT_SECONDS: int = 10
+    REPORT_JOB_LEASE_SECONDS: int = 45
+    REPORT_JOB_SWEEP_SECONDS: int = 15
+    REPORT_JOB_QUEUE_SECONDS: int = 600
+    REPORT_JOB_RUN_SECONDS: int = 300
+    REPORT_JOB_LOAD_SECONDS: int = 60
+    REPORT_JOB_PREDICTION_SECONDS: int = 120
+    REPORT_JOB_EVIDENCE_SECONDS: int = 30
+    REPORT_JOB_RENDER_SECONDS: int = 30
+    REPORT_JOB_PERSIST_SECONDS: int = 5
+    REPORT_JOB_CONCURRENCY: int = 1
+    REPORT_JOB_QUEUED_LIMIT: int = 20
+    REPORT_JOB_USER_ACTIVE_LIMIT: int = 2
+
+    @model_validator(mode="after")
+    def report_job_limits(self):
+        values = [
+            getattr(self, k)
+            for k in type(self).model_fields
+            if k.startswith("REPORT_JOB_")
+        ]
+        if any(value <= 0 for value in values):
+            raise ValueError("report_job_limits_must_be_positive")
+        if not self.REPORT_JOB_HEARTBEAT_SECONDS < self.REPORT_JOB_LEASE_SECONDS:
+            raise ValueError("report_job_heartbeat_must_precede_lease")
+        if self.REPORT_JOB_SWEEP_SECONDS > self.REPORT_JOB_LEASE_SECONDS:
+            raise ValueError("report_job_sweep_exceeds_lease")
+        if any(
+            value > self.REPORT_JOB_RUN_SECONDS
+            for value in [
+                self.REPORT_JOB_LOAD_SECONDS,
+                self.REPORT_JOB_PREDICTION_SECONDS,
+                self.REPORT_JOB_EVIDENCE_SECONDS,
+                self.REPORT_JOB_RENDER_SECONDS,
+                self.REPORT_JOB_PERSIST_SECONDS,
+            ]
+        ):
+            raise ValueError("report_job_phase_exceeds_run")
+        if self.REPORT_JOB_CONCURRENCY != 1:
+            raise ValueError("report_job_concurrency_requires_capacity_review")
+        return self
 
     # 文件上传配置（默认放到项目根目录的 uploads/，与代码分离）
     UPLOAD_DIR: str = os.path.join(_PROJECT_ROOT, "uploads")
@@ -42,18 +87,22 @@ class Settings(BaseSettings):
     # 检索配置（Milestone 3 使用）
     RETRIEVER_TOP_K_VECTOR: int = 10
     RETRIEVER_TOP_K_FULLTEXT: int = 10
-    RETRIEVER_FUSION_K: int = 30          # RRF 常数（降低以增强向量检索的高排名权重）
-    RETRIEVER_FINAL_TOP_K: int = 7        # 最终送入 LLM 的片段数（配合 k=30，7 段多兜底全文匹配）
-    RETRIEVER_SIMILARITY_THRESHOLD: float = 0.62  # 由 evaluation/rag_baseline_10.json 初步校准
+    RETRIEVER_FUSION_K: int = 30  # RRF 常数（降低以增强向量检索的高排名权重）
+    RETRIEVER_FINAL_TOP_K: int = (
+        7  # 最终送入 LLM 的片段数（配合 k=30，7 段多兜底全文匹配）
+    )
+    RETRIEVER_SIMILARITY_THRESHOLD: float = (
+        0.62  # 由 evaluation/rag_baseline_10.json 初步校准
+    )
     RETRIEVER_DUAL_MATCH_MARGIN: float = 0.08
     RETRIEVER_FULLTEXT_THRESHOLD: float = 0.12
-    CHAT_MEMORY_ROUNDS: int = 6           # 最近 N 轮对话
+    CHAT_MEMORY_ROUNDS: int = 6  # 最近 N 轮对话
 
     # 内容安全配置（M5）
-    INPUT_MAX_LENGTH: int = 2000              # 单条用户消息最大字符数
-    ENABLE_CONTENT_FILTER: bool = True         # 是否启用输入越狱/诱导检测
-    ENABLE_DANGER_SYMPTOM_CHECK: bool = True   # 是否启用危险症状关键词检测
-    ENABLE_OUTPUT_FILTER: bool = True          # 是否启用输出内容安全检测
+    INPUT_MAX_LENGTH: int = 2000  # 单条用户消息最大字符数
+    ENABLE_CONTENT_FILTER: bool = True  # 是否启用输入越狱/诱导检测
+    ENABLE_DANGER_SYMPTOM_CHECK: bool = True  # 是否启用危险症状关键词检测
+    ENABLE_OUTPUT_FILTER: bool = True  # 是否启用输出内容安全检测
 
     # 查询改写配置
     ENABLE_LLM_QUERY_REWRITE: bool = True

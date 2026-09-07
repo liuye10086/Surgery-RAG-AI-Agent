@@ -118,9 +118,7 @@ def _indicator_observations(
             if not name:
                 continue
             if name in visit_names:
-                raise ValueError(
-                    f"同一访视不能重复使用指标: {indicator.get('name')}"
-                )
+                raise ValueError(f"同一访视不能重复使用指标: {indicator.get('name')}")
             visit_names.add(name)
             raw[name].append(indicator)
             if value is not None:
@@ -148,9 +146,7 @@ def _time_slope(observations: list[tuple[int, float]]) -> float | None:
     denominator = sum((day - x_mean) ** 2 for day, _ in observations)
     if denominator == 0:
         return None
-    numerator = sum(
-        (day - x_mean) * (value - y_mean) for day, value in observations
-    )
+    numerator = sum((day - x_mean) * (value - y_mean) for day, value in observations)
     return numerator / denominator
 
 
@@ -292,9 +288,7 @@ def summarize_fixed_window_history(
     first_date = _visit_date(ordered[0]["visit_date"])
     last_date = _visit_date(ordered[-1]["visit_date"])
     previous_date = (
-        _visit_date(ordered[-2]["visit_date"])
-        if total_visits >= 2
-        else last_date
+        _visit_date(ordered[-2]["visit_date"]) if total_visits >= 2 else last_date
     )
 
     values_by_name: dict[str, list[tuple[int, float]]] = defaultdict(list)
@@ -309,16 +303,12 @@ def summarize_fixed_window_history(
             if not name:
                 continue
             if name in seen_names:
-                raise ValueError(
-                    f"同一访视不能重复使用指标: {indicator.get('name')}"
-                )
+                raise ValueError(f"同一访视不能重复使用指标: {indicator.get('name')}")
             seen_names.add(name)
             known_names.add(name)
             value = _as_finite_float(indicator.get("value"))
             if value is not None:
-                values_by_name[name].append(
-                    ((visit_date - first_date).days, value)
-                )
+                values_by_name[name].append(((visit_date - first_date).days, value))
 
     summaries: dict[str, dict[str, Any]] = {}
     for name in sorted(known_names):
@@ -334,9 +324,7 @@ def summarize_fixed_window_history(
             "mean": fmean(values),
             "delta": values[-1] - values[0],
             "time_slope_per_day": _time_slope(observations),
-            "recent_delta": (
-                values[-1] - values[-2] if len(values) >= 2 else None
-            ),
+            "recent_delta": (values[-1] - values[-2] if len(values) >= 2 else None),
             "rises_count": sum(first < second for first, second in pairwise(values)),
             "falls_count": sum(first > second for first, second in pairwise(values)),
             "n_observations": len(values),
@@ -394,13 +382,60 @@ def build_fixed_window_inference_features(
     case: dict[str, Any],
     visits: Iterable[dict[str, Any]],
     metadata: ArtifactMetadata,
+    *,
+    audit_collector=None,
 ):
     """Build one P0-04-compatible, metadata-ordered inference DataFrame."""
     import pandas as pd
 
     visit_rows = list(visits)
-    _reject_non_finite_inputs(visit_rows)
     contract = metadata.feature_contract
+    from app.schemas.report_document import InputAudit
+    from app.services.report_input_audit import describe_fields, fingerprint_input_row
+
+    def record(row, *, invalid_names=(), reason=None, complete=False):
+        if audit_collector is None:
+            return
+        fields = describe_fields(contract, row)
+        for field in fields:
+            if field.name in invalid_names:
+                field.state = "invalid"
+        audit_collector.prepared(
+            metadata.task,
+            InputAudit(
+                task=metadata.task,
+                fields=fields,
+                reason_code=reason,
+                numeric_imputation=contract.numeric_imputation,
+                categorical_imputation=contract.categorical_imputation,
+                frame_sha256=fingerprint_input_row(contract.feature_names, row)
+                if complete
+                else None,
+            ),
+        )
+
+    try:
+        _reject_non_finite_inputs(visit_rows)
+    except InferenceContractError as error:
+        invalid_indicators = set()
+        for visit in visit_rows:
+            for item in visit.get("indicators") or []:
+                if not isinstance(item, dict) or item.get("value") is None:
+                    continue
+                raw = item["value"]
+                try:
+                    valid = not isinstance(raw, bool) and isfinite(float(raw))
+                except (ValueError, TypeError):
+                    valid = False
+                if not valid:
+                    invalid_indicators.add(str(item.get("name", "")).lower())
+        names = [
+            name
+            for name in contract.feature_names
+            if name.split(".")[0].lower() in invalid_indicators
+        ]
+        record({}, invalid_names=names, reason=error.code)
+        raise
     if contract.input_container != "pandas_dataframe":
         raise InferenceContractError("input_container_mismatch")
     if not contract.feature_names or len(contract.feature_names) != len(
@@ -421,28 +456,35 @@ def build_fixed_window_inference_features(
             values[f"{indicator_name}.{statistic}"] = value
 
     row = {name: values.get(name) for name in contract.feature_names}
+    record(row)
     for name in contract.required_features:
         value = row.get(name)
         if value is None or (isinstance(value, float) and not isfinite(value)):
+            record(row, reason="required_feature_missing")
             raise InferenceContractError("required_feature_missing")
     allowed_missing = set(contract.allowed_missing_features)
     for name, value in row.items():
         if value is None:
             if name not in allowed_missing:
+                record(row, reason="required_feature_missing")
                 raise InferenceContractError("required_feature_missing")
             continue
         if name in contract.numeric_features:
             if isinstance(value, bool):
+                record(row, invalid_names=[name], reason="non_finite_feature")
                 raise InferenceContractError("non_finite_feature")
             try:
                 numeric = float(value)
             except (TypeError, ValueError) as exc:
+                record(row, invalid_names=[name], reason="non_finite_feature")
                 raise InferenceContractError("non_finite_feature") from exc
             if not isfinite(numeric):
+                record(row, invalid_names=[name], reason="non_finite_feature")
                 raise InferenceContractError("non_finite_feature")
             row[name] = numeric
 
     frame = pd.DataFrame([row], columns=contract.feature_names)
     if list(frame.columns) != contract.feature_names:
         raise InferenceContractError("feature_order_mismatch")
+    record(row, complete=True)
     return frame

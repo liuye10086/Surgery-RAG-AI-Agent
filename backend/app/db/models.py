@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     Column,
     CheckConstraint,
@@ -31,9 +32,13 @@ class User(Base):
     role = Column(String(50), nullable=False, default="user")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
+    sessions = relationship(
+        "Session", back_populates="user", cascade="all, delete-orphan"
+    )
     audit_logs = relationship("AuditLog", back_populates="user")
-    reports = relationship("AIReport", back_populates="user", cascade="all, delete-orphan")
+    reports = relationship(
+        "AIReport", back_populates="user", cascade="all, delete-orphan"
+    )
     operator_cases = relationship(
         "OperatorCase", back_populates="user", cascade="all, delete-orphan"
     )
@@ -65,13 +70,24 @@ class Document(Base):
     version = Column(Integer, default=1)
     active_generation = Column(Integer, nullable=False, default=1, server_default="1")
     is_current = Column(Boolean, default=True)
-    department_id = Column(Integer, ForeignKey("departments.id", ondelete="RESTRICT"), nullable=True)
-    access_scope = Column(String(20), nullable=False, default="chat", server_default="chat")
+    department_id = Column(
+        Integer, ForeignKey("departments.id", ondelete="RESTRICT"), nullable=True
+    )
+    access_scope = Column(
+        String(20), nullable=False, default="chat", server_default="chat"
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     department = relationship("Department", back_populates="documents")
-    chunks = relationship("Chunk", back_populates="document", cascade="all, delete-orphan", order_by="Chunk.chunk_index")
+    chunks = relationship(
+        "Chunk",
+        back_populates="document",
+        cascade="all, delete-orphan",
+        order_by="Chunk.chunk_index",
+    )
 
 
 class StandardDocument(Base):
@@ -99,7 +115,9 @@ class StandardDocument(Base):
             ondelete="SET NULL",
         ),
     )
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
     version = relationship(
         "ReferenceStandardVersion",
@@ -116,7 +134,9 @@ class Chunk(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(
+        Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+    )
     content = Column(Text, nullable=False)
     chunk_metadata = Column("metadata", JSONB, default=dict)
     page_number = Column(Integer)
@@ -133,10 +153,14 @@ class Session(Base):
     __table_args__ = (Index("ix_sessions_user_id", "user_id"),)
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     title = Column(String(500))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     user = relationship("User", back_populates="sessions")
     messages = relationship(
@@ -161,7 +185,9 @@ class Message(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    session_id = Column(Integer, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False)
+    session_id = Column(
+        Integer, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+    )
     role = Column(String(50), nullable=False)
     content = Column(Text, nullable=False)
     lc_message = Column(JSONB)
@@ -262,7 +288,9 @@ class OperatorCase(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     disease_id = Column(
         Integer,
         ForeignKey(
@@ -278,7 +306,9 @@ class OperatorCase(Base):
     age = Column(Integer, nullable=True)
     baseline_stage = Column(String(100))
     notes = Column(Text)
-    status = Column(String(50), nullable=False, default="active", server_default="active")
+    status = Column(
+        String(50), nullable=False, default="active", server_default="active"
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -330,8 +360,12 @@ class OperatorCaseVisit(Base):
     )
     visit_date = Column(Date, nullable=False)
     visit_index = Column(Integer, nullable=False)
-    indicators = Column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
-    visit_context = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    indicators = Column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    visit_context = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
     notes = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -356,9 +390,17 @@ class ReferenceCaseWindow(Base):
             name="ck_reference_case_windows_anonymous_code",
         ),
         CheckConstraint("horizon_days = 365", name="ck_reference_case_windows_horizon"),
-        CheckConstraint("age IS NULL OR age BETWEEN 0 AND 120", name="ck_reference_case_windows_age_range"),
-        CheckConstraint("sex IS NULL OR sex IN ('male', 'female')", name="ck_reference_case_windows_sex"),
-        CheckConstraint("visit_count >= 3", name="ck_reference_case_windows_min_visits"),
+        CheckConstraint(
+            "age IS NULL OR age BETWEEN 0 AND 120",
+            name="ck_reference_case_windows_age_range",
+        ),
+        CheckConstraint(
+            "sex IS NULL OR sex IN ('male', 'female')",
+            name="ck_reference_case_windows_sex",
+        ),
+        CheckConstraint(
+            "visit_count >= 3", name="ck_reference_case_windows_min_visits"
+        ),
         CheckConstraint("span_days >= 0", name="ck_reference_case_windows_min_span"),
         CheckConstraint(
             "outcome_status IN ('positive', 'negative', 'unknown', 'not_observed')",
@@ -368,10 +410,22 @@ class ReferenceCaseWindow(Base):
             "outcome_reliability IN ('low', 'medium', 'high')",
             name="ck_reference_case_windows_outcome_reliability",
         ),
-        CheckConstraint("eligibility_status IN ('eligible', 'excluded')", name="ck_reference_case_windows_eligibility_status"),
-        CheckConstraint("timeline_sha256 ~ '^[0-9a-f]{64}$'", name="ck_reference_case_windows_timeline_sha256"),
-        CheckConstraint("eligibility_config_hash ~ '^[0-9a-f]{64}$'", name="ck_reference_case_windows_eligibility_config_hash"),
-        CheckConstraint("data_content_sha256 ~ '^[0-9a-f]{64}$'", name="ck_reference_case_windows_data_content_sha256"),
+        CheckConstraint(
+            "eligibility_status IN ('eligible', 'excluded')",
+            name="ck_reference_case_windows_eligibility_status",
+        ),
+        CheckConstraint(
+            "timeline_sha256 ~ '^[0-9a-f]{64}$'",
+            name="ck_reference_case_windows_timeline_sha256",
+        ),
+        CheckConstraint(
+            "eligibility_config_hash ~ '^[0-9a-f]{64}$'",
+            name="ck_reference_case_windows_eligibility_config_hash",
+        ),
+        CheckConstraint(
+            "data_content_sha256 ~ '^[0-9a-f]{64}$'",
+            name="ck_reference_case_windows_data_content_sha256",
+        ),
         Index(
             "ix_reference_case_windows_pool_lookup",
             "disease_id",
@@ -389,7 +443,9 @@ class ReferenceCaseWindow(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="RESTRICT"), nullable=False)
+    disease_id = Column(
+        Integer, ForeignKey("diseases.id", ondelete="RESTRICT"), nullable=False
+    )
     logical_dataset = Column(String(50), nullable=False)
     dataset_release_id = Column(String(100), nullable=False)
     prediction_task = Column(String(120), nullable=False)
@@ -402,20 +458,38 @@ class ReferenceCaseWindow(Base):
     baseline_stage = Column(String(100), nullable=True)
     visit_count = Column(Integer, nullable=False)
     span_days = Column(Integer, nullable=False)
-    outcome_status = Column(String(30), nullable=False, default="unknown", server_default="unknown")
+    outcome_status = Column(
+        String(30), nullable=False, default="unknown", server_default="unknown"
+    )
     outcome_source = Column(String(100), nullable=False)
     outcome_reliability = Column(String(10), nullable=False)
-    is_synthetic = Column(Boolean, nullable=False, default=False, server_default="false")
-    eligibility_status = Column(String(20), nullable=False, default="eligible", server_default="eligible")
+    is_synthetic = Column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    eligibility_status = Column(
+        String(20), nullable=False, default="eligible", server_default="eligible"
+    )
     timeline_sha256 = Column(String(64), nullable=False)
     eligibility_config_hash = Column(String(64), nullable=False)
     data_content_sha256 = Column(String(64), nullable=False)
-    outcome_value = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
-    source_trace = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
-    feature_summary = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
-    measurement_context_summary = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
-    exclusion_reasons = Column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    outcome_value = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    source_trace = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    feature_summary = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    measurement_context_summary = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    exclusion_reasons = Column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
 
 class OperatorCaseStatusLog(Base):
@@ -425,21 +499,36 @@ class OperatorCaseStatusLog(Base):
             "from_status IN ('active', 'archived') AND to_status IN ('active', 'archived')",
             name="ck_operator_case_status_logs_values",
         ),
-        CheckConstraint("from_status <> to_status", name="ck_operator_case_status_logs_changed"),
-        CheckConstraint("length(btrim(reason)) BETWEEN 1 AND 500", name="ck_operator_case_status_logs_reason"),
-        Index("ix_operator_case_status_logs_case_time", "case_id_snapshot", "created_at"),
-        Index("ix_operator_case_status_logs_actor_time", "actor_id_snapshot", "created_at"),
+        CheckConstraint(
+            "from_status <> to_status", name="ck_operator_case_status_logs_changed"
+        ),
+        CheckConstraint(
+            "length(btrim(reason)) BETWEEN 1 AND 500",
+            name="ck_operator_case_status_logs_reason",
+        ),
+        Index(
+            "ix_operator_case_status_logs_case_time", "case_id_snapshot", "created_at"
+        ),
+        Index(
+            "ix_operator_case_status_logs_actor_time", "actor_id_snapshot", "created_at"
+        ),
     )
 
     id = Column(Integer, primary_key=True)
-    case_id = Column(Integer, ForeignKey("operator_cases.id", ondelete="SET NULL"), nullable=True)
+    case_id = Column(
+        Integer, ForeignKey("operator_cases.id", ondelete="SET NULL"), nullable=True
+    )
     case_id_snapshot = Column(Integer, nullable=False)
-    actor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    actor_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     actor_id_snapshot = Column(Integer, nullable=False)
     from_status = Column(String(50), nullable=False)
     to_status = Column(String(50), nullable=False)
     reason = Column(Text, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class OperatorCaseChangeLog(Base):
@@ -479,12 +568,18 @@ class OperatorCaseChangeLog(Base):
     )
     case_id_snapshot = Column(Integer, nullable=False)
     anonymous_case_code_snapshot = Column(String(14), nullable=True)
-    actor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    actor_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     actor_id_snapshot = Column(Integer, nullable=False)
     action = Column(String(32), nullable=False)
     reason = Column(Text, nullable=False)
-    changes = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    changes = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class OperatorIdempotencyKey(Base):
@@ -499,12 +594,8 @@ class OperatorIdempotencyKey(Base):
             name="uq_operator_idempotency_user_scope_key",
         ),
         CheckConstraint(
-            "scope = 'create_longitudinal_case'",
-            name="ck_operator_idempotency_keys_scope",
-        ),
-        CheckConstraint(
-            "resource_type = 'operator_case'",
-            name="ck_operator_idempotency_keys_resource_type",
+            "(scope = 'create_longitudinal_case' AND resource_type = 'operator_case') OR (scope = 'create_longitudinal_report' AND resource_type = 'ai_report')",
+            name="ck_operator_idempotency_keys_scope_resource",
         ),
         CheckConstraint(
             "length(request_sha256) = 64",
@@ -518,13 +609,17 @@ class OperatorIdempotencyKey(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     scope = Column(String(64), nullable=False)
     idempotency_key = Column(UUID(as_uuid=True), nullable=False)
     request_sha256 = Column(String(64), nullable=False)
     resource_type = Column(String(32), nullable=False)
     resource_id = Column(Integer, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class ReferenceRange(Base):
@@ -551,8 +646,12 @@ class ReferenceRange(Base):
     upper = Column(Float)
     # 边界开闭语义：<21 → upper=21, upper_inclusive=False；≤21 → True；
     # 区间 3.5-9.5 → 两端 True。见 Global Constraints「参考范围边界语义」。
-    lower_inclusive = Column(Boolean, nullable=False, default=True, server_default="true")
-    upper_inclusive = Column(Boolean, nullable=False, default=True, server_default="true")
+    lower_inclusive = Column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    upper_inclusive = Column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
     # 部分标准按性别分列（如脂肪肝 ALT 男性9-50/女性7-40）；None 表示通用范围，
     # 不区分性别。与 indicator_name 一起构成同一文档内的逻辑唯一键。
     sex = Column(String(10))
@@ -560,18 +659,34 @@ class ReferenceRange(Base):
     # 删除语义：参考标准文档删除时，其解析出的范围**级联删除**（CASCADE）。
     # 若用 SET NULL，文档删除后范围变孤儿仍参与预测，会基于已删除标准给出误导结果；
     # 级联后预测遇缺范围会明确报"缺少参考范围"提示操作者重新同步，行为更安全。
-    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True)
-    standard_id = Column(Integer, ForeignKey("reference_standards.id", ondelete="SET NULL"), nullable=True)
-    standard_version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="SET NULL"), nullable=True)
-    standard_rule_id = Column(Integer, ForeignKey("standard_rules.id", ondelete="SET NULL"), nullable=True)
+    document_id = Column(
+        Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True
+    )
+    standard_id = Column(
+        Integer,
+        ForeignKey("reference_standards.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    standard_version_id = Column(
+        Integer,
+        ForeignKey("reference_standard_versions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    standard_rule_id = Column(
+        Integer, ForeignKey("standard_rules.id", ondelete="SET NULL"), nullable=True
+    )
     applicability_hash = Column(String(64))
-    is_current_projection = Column(Boolean, nullable=False, default=False, server_default="false")
+    is_current_projection = Column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class ReferenceStandard(Base):
     __tablename__ = "reference_standards"
-    __table_args__ = (UniqueConstraint("disease_id", name="uq_reference_standards_disease"),)
+    __table_args__ = (
+        UniqueConstraint("disease_id", name="uq_reference_standards_disease"),
+    )
 
     id = Column(Integer, primary_key=True)
     disease_id = Column(
@@ -586,13 +701,23 @@ class ReferenceStandard(Base):
     )
     name = Column(String(200), nullable=False)
     description = Column(Text)
-    status = Column(String(50), nullable=False, default="active", server_default="active")
-    current_version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="SET NULL"), nullable=True)
+    status = Column(
+        String(50), nullable=False, default="active", server_default="active"
+    )
+    current_version_id = Column(
+        Integer,
+        ForeignKey("reference_standard_versions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     disease = relationship("Disease", back_populates="reference_standards")
-    current_version = relationship("ReferenceStandardVersion", foreign_keys=[current_version_id], post_update=True)
+    current_version = relationship(
+        "ReferenceStandardVersion", foreign_keys=[current_version_id], post_update=True
+    )
     versions = relationship(
         "ReferenceStandardVersion",
         back_populates="standard",
@@ -612,11 +737,17 @@ class ReferenceStandardVersion(Base):
             "standard_document_id",
             name="uq_reference_standard_versions_standard_document",
         ),
-        Index("ix_reference_standard_versions_standard_status", "standard_id", "status"),
+        Index(
+            "ix_reference_standard_versions_standard_status", "standard_id", "status"
+        ),
     )
 
     id = Column(Integer, primary_key=True)
-    standard_id = Column(Integer, ForeignKey("reference_standards.id", ondelete="CASCADE"), nullable=False)
+    standard_id = Column(
+        Integer,
+        ForeignKey("reference_standards.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     standard_document_id = Column(
         Integer,
         ForeignKey(
@@ -630,39 +761,67 @@ class ReferenceStandardVersion(Base):
     content_hash = Column(String(64), nullable=False)
     parser_version = Column(String(100), nullable=False)
     status = Column(String(50), nullable=False, default="draft", server_default="draft")
-    supersedes_version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="SET NULL"), nullable=True)
+    supersedes_version_id = Column(
+        Integer,
+        ForeignKey("reference_standard_versions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     effective_from = Column(DateTime(timezone=True))
     retired_at = Column(DateTime(timezone=True))
-    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    approved_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    approved_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     approved_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
-    standard = relationship("ReferenceStandard", back_populates="versions", foreign_keys=[standard_id])
+    standard = relationship(
+        "ReferenceStandard", back_populates="versions", foreign_keys=[standard_id]
+    )
     standard_document = relationship("StandardDocument", back_populates="version")
-    segments = relationship("StandardSegment", back_populates="version", cascade="all, delete-orphan")
-    rules = relationship("StandardRule", back_populates="version", cascade="all, delete-orphan")
-    candidates = relationship("StandardParseCandidate", back_populates="version", cascade="all, delete-orphan")
+    segments = relationship(
+        "StandardSegment", back_populates="version", cascade="all, delete-orphan"
+    )
+    rules = relationship(
+        "StandardRule", back_populates="version", cascade="all, delete-orphan"
+    )
+    candidates = relationship(
+        "StandardParseCandidate", back_populates="version", cascade="all, delete-orphan"
+    )
 
 
 class StandardIndicator(Base):
     __tablename__ = "standard_indicators"
-    __table_args__ = (UniqueConstraint("canonical_key", name="uq_standard_indicators_canonical_key"),)
+    __table_args__ = (
+        UniqueConstraint("canonical_key", name="uq_standard_indicators_canonical_key"),
+    )
 
     id = Column(Integer, primary_key=True)
     canonical_key = Column(String(200), nullable=False)
     name_en = Column(String(200), nullable=False)
     name_cn = Column(String(200))
-    aliases = Column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
+    aliases = Column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
     domain = Column(String(100))
     specimen_or_modality = Column(String(100))
-    data_type = Column(String(50), nullable=False, default="qualitative", server_default="qualitative")
+    data_type = Column(
+        String(50), nullable=False, default="qualitative", server_default="qualitative"
+    )
     scale_or_method = Column(String(200))
     default_unit = Column(String(50))
     clinical_dimension = Column(String(100))
-    allows_numeric_comparison = Column(Boolean, nullable=False, default=False, server_default="false")
-    abnormal_direction = Column(String(50), nullable=False, default="none", server_default="none")
+    allows_numeric_comparison = Column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    abnormal_direction = Column(
+        String(50), nullable=False, default="none", server_default="none"
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     rules = relationship("StandardRule", back_populates="indicator")
@@ -675,11 +834,20 @@ class StandardSegment(Base):
             "page_number IS NULL OR page_number > 0",
             name="ck_standard_segments_page_number_positive",
         ),
-        Index("ix_standard_segments_version_location", "version_id", "table_index", "row_index"),
+        Index(
+            "ix_standard_segments_version_location",
+            "version_id",
+            "table_index",
+            "row_index",
+        ),
     )
 
     id = Column(Integer, primary_key=True)
-    version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="CASCADE"), nullable=False)
+    version_id = Column(
+        Integer,
+        ForeignKey("reference_standard_versions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     section_title = Column(String(300))
     page_number = Column(Integer)
     paragraph_index = Column(Integer)
@@ -688,13 +856,21 @@ class StandardSegment(Base):
     column_index = Column(Integer)
     raw_text = Column(Text, nullable=False)
     segment_type = Column(String(50), nullable=False)
-    parse_status = Column(String(50), nullable=False, default="pending", server_default="pending")
-    review_status = Column(String(50), nullable=False, default="pending", server_default="pending")
-    source_metadata = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    parse_status = Column(
+        String(50), nullable=False, default="pending", server_default="pending"
+    )
+    review_status = Column(
+        String(50), nullable=False, default="pending", server_default="pending"
+    )
+    source_metadata = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     version = relationship("ReferenceStandardVersion", back_populates="segments")
-    candidates = relationship("StandardParseCandidate", back_populates="segment", cascade="all, delete-orphan")
+    candidates = relationship(
+        "StandardParseCandidate", back_populates="segment", cascade="all, delete-orphan"
+    )
     rules = relationship("StandardRule", back_populates="source_segment")
 
 
@@ -703,16 +879,26 @@ class StandardParseCandidate(Base):
     __table_args__ = (Index("ix_standard_parse_candidates_segment", "segment_id"),)
 
     id = Column(Integer, primary_key=True)
-    version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="CASCADE"), nullable=False)
-    segment_id = Column(Integer, ForeignKey("standard_segments.id", ondelete="CASCADE"), nullable=False)
+    version_id = Column(
+        Integer,
+        ForeignKey("reference_standard_versions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    segment_id = Column(
+        Integer, ForeignKey("standard_segments.id", ondelete="CASCADE"), nullable=False
+    )
     source_type = Column(String(50), nullable=False)
     parser_version = Column(String(100), nullable=False)
     model_name = Column(String(100))
     prompt_version = Column(String(100))
     raw_output = Column(Text)
-    candidate_json = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    candidate_json = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
     confidence = Column(Float)
-    status = Column(String(50), nullable=False, default="pending", server_default="pending")
+    status = Column(
+        String(50), nullable=False, default="pending", server_default="pending"
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     version = relationship("ReferenceStandardVersion", back_populates="candidates")
@@ -727,24 +913,45 @@ class StandardRule(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="CASCADE"), nullable=False)
-    indicator_id = Column(Integer, ForeignKey("standard_indicators.id", ondelete="SET NULL"), nullable=True)
-    source_segment_id = Column(Integer, ForeignKey("standard_segments.id", ondelete="SET NULL"), nullable=True)
+    version_id = Column(
+        Integer,
+        ForeignKey("reference_standard_versions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    indicator_id = Column(
+        Integer,
+        ForeignKey("standard_indicators.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    source_segment_id = Column(
+        Integer, ForeignKey("standard_segments.id", ondelete="SET NULL"), nullable=True
+    )
     rule_type = Column(String(50), nullable=False)
     comparator = Column(String(5))
     lower = Column(Float)
     upper = Column(Float)
-    lower_inclusive = Column(Boolean, nullable=False, default=True, server_default="true")
-    upper_inclusive = Column(Boolean, nullable=False, default=True, server_default="true")
+    lower_inclusive = Column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    upper_inclusive = Column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
     unit = Column(String(50))
     sex = Column(String(10))
     category = Column(String(100))
-    applicability = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    applicability = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
     target_state_type = Column(String(50), nullable=False)
     target_state_value = Column(String(200))
     clinical_dimension = Column(String(100))
     evidence_type = Column(String(100))
-    machine_actionability = Column(String(50), nullable=False, default="evidence-only", server_default="evidence-only")
+    machine_actionability = Column(
+        String(50),
+        nullable=False,
+        default="evidence-only",
+        server_default="evidence-only",
+    )
     interpretation = Column(Text)
     priority = Column(Integer, nullable=False, default=0, server_default="0")
     conflict_group = Column(String(100))
@@ -753,26 +960,42 @@ class StandardRule(Base):
     biomarker_state = Column(String(100))
     stage = Column(String(100))
     clinical_function = Column(Text)
-    conditions = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    conditions = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     version = relationship("ReferenceStandardVersion", back_populates="rules")
     indicator = relationship("StandardIndicator", back_populates="rules")
     source_segment = relationship("StandardSegment", back_populates="rules")
-    condition_nodes = relationship("StandardRuleCondition", back_populates="rule", cascade="all, delete-orphan")
+    condition_nodes = relationship(
+        "StandardRuleCondition", back_populates="rule", cascade="all, delete-orphan"
+    )
 
 
 class StandardRuleCondition(Base):
     __tablename__ = "standard_rule_conditions"
-    __table_args__ = (Index("ix_standard_rule_conditions_rule_parent", "rule_id", "parent_id"),)
+    __table_args__ = (
+        Index("ix_standard_rule_conditions_rule_parent", "rule_id", "parent_id"),
+    )
 
     id = Column(Integer, primary_key=True)
-    rule_id = Column(Integer, ForeignKey("standard_rules.id", ondelete="CASCADE"), nullable=False)
-    parent_id = Column(Integer, ForeignKey("standard_rule_conditions.id", ondelete="CASCADE"), nullable=True)
+    rule_id = Column(
+        Integer, ForeignKey("standard_rules.id", ondelete="CASCADE"), nullable=False
+    )
+    parent_id = Column(
+        Integer,
+        ForeignKey("standard_rule_conditions.id", ondelete="CASCADE"),
+        nullable=True,
+    )
     node_type = Column(String(50), nullable=False)
     position = Column(Integer, nullable=False, default=0, server_default="0")
-    payload = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    payload = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
 
     rule = relationship("StandardRule", back_populates="condition_nodes")
     children = relationship("StandardRuleCondition", cascade="all, delete-orphan")
@@ -780,23 +1003,135 @@ class StandardRuleCondition(Base):
 
 class StandardChangeLog(Base):
     __tablename__ = "standard_change_logs"
-    __table_args__ = (Index("ix_standard_change_logs_entity", "entity_type", "entity_id"),)
+    __table_args__ = (
+        Index("ix_standard_change_logs_entity", "entity_type", "entity_id"),
+    )
 
     id = Column(Integer, primary_key=True)
-    version_id = Column(Integer, ForeignKey("reference_standard_versions.id", ondelete="CASCADE"), nullable=False)
+    version_id = Column(
+        Integer,
+        ForeignKey("reference_standard_versions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     entity_type = Column(String(50), nullable=False)
     entity_id = Column(Integer, nullable=False)
     action = Column(String(50), nullable=False)
-    before_json = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
-    after_json = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    before_json = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    after_json = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
     reason = Column(Text, nullable=False)
-    actor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    actor_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReportGenerationJob(Base):
+    __tablename__ = "report_generation_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('queued','running','completed','failed','cancelled')",
+            name="ck_report_jobs_status",
+        ),
+        CheckConstraint(
+            "phase IN ('queued','model_loading','prediction','standard_evidence','rendering','persistence','terminal')",
+            name="ck_report_jobs_phase",
+        ),
+        CheckConstraint("revision >= 1", name="ck_report_jobs_revision"),
+        CheckConstraint(
+            "jsonb_typeof(generation_context) = 'object'", name="ck_report_jobs_context"
+        ),
+        CheckConstraint(
+            "context_sha256 ~ '^[0-9a-f]{64}$'", name="ck_report_jobs_context_hash"
+        ),
+        CheckConstraint(
+            "status != 'running' OR (lease_owner IS NOT NULL AND lease_token IS NOT NULL AND started_at IS NOT NULL AND lease_expires_at IS NOT NULL AND run_deadline IS NOT NULL AND phase NOT IN ('queued','terminal'))",
+            name="ck_report_jobs_running",
+        ),
+        CheckConstraint(
+            "status NOT IN ('completed','failed','cancelled') OR (finished_at IS NOT NULL AND phase = 'terminal')",
+            name="ck_report_jobs_terminal",
+        ),
+        CheckConstraint(
+            "status != 'queued' OR (started_at IS NULL AND phase = 'queued')",
+            name="ck_report_jobs_queued",
+        ),
+        Index(
+            "uq_report_jobs_active_case",
+            "user_id",
+            "source_case_id",
+            unique=True,
+            postgresql_where=text("status IN ('queued','running')"),
+        ),
+        Index(
+            "ix_report_jobs_queued",
+            "queued_at",
+            "report_id",
+            postgresql_where=text("status = 'queued'"),
+        ),
+        Index(
+            "ix_report_jobs_running_lease",
+            "lease_expires_at",
+            postgresql_where=text("status = 'running'"),
+        ),
+        Index("ix_report_jobs_user_status", "user_id", "status"),
+    )
+    report_id = Column(
+        Integer, ForeignKey("ai_reports.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    source_case_id = Column(Integer, nullable=False)
+    generation_context = Column(JSONB, nullable=False)
+    context_sha256 = Column(String(64), nullable=False)
+    status = Column(
+        String(12), nullable=False, server_default="queued", default="queued"
+    )
+    phase = Column(
+        String(24), nullable=False, server_default="queued", default="queued"
+    )
+    revision = Column(BigInteger, nullable=False, server_default="1", default=1)
+    queued_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    queue_deadline = Column(DateTime(timezone=True), nullable=False)
+    started_at = Column(DateTime(timezone=True))
+    finished_at = Column(DateTime(timezone=True))
+    heartbeat_at = Column(DateTime(timezone=True))
+    lease_expires_at = Column(DateTime(timezone=True))
+    run_deadline = Column(DateTime(timezone=True))
+    lease_owner = Column(String(160))
+    lease_token = Column(UUID(as_uuid=True))
+    cancel_requested_at = Column(DateTime(timezone=True))
+    error_code = Column(String(120))
 
 
 class AIReport(Base):
     __tablename__ = "ai_reports"
     __table_args__ = (
+        CheckConstraint(
+            "report_document IS NULL OR jsonb_typeof(report_document) = 'object'",
+            name="ck_ai_reports_document_object",
+        ),
+        CheckConstraint(
+            "report_document_sha256 IS NULL OR report_document_sha256 ~ '^[0-9a-f]{64}$'",
+            name="ck_ai_reports_document_sha256",
+        ),
+        CheckConstraint(
+            "generation_fingerprint_version IS NULL OR generation_fingerprint_version IN ('v1', 'v2')",
+            name="ck_ai_reports_fingerprint_version",
+        ),
+        CheckConstraint(
+            "generation_fingerprint_version IS DISTINCT FROM 'v2' OR (report_document IS NOT NULL AND report_document_sha256 IS NOT NULL AND generation_fingerprint IS NOT NULL AND status = 'completed')",
+            name="ck_ai_reports_v2_publication",
+        ),
         CheckConstraint(
             "evidence_snapshot_sha256 IS NULL OR evidence_snapshot_sha256 ~ '^[0-9a-f]{64}$'",
             name="ck_ai_reports_evidence_snapshot_sha256",
@@ -825,15 +1160,28 @@ class AIReport(Base):
     )
     title = Column(String(500))
     query = Column(Text, nullable=False)
-    department_ids = Column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
+    department_ids = Column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
     content = Column(Text, nullable=False, default="", server_default=text("''"))
-    sources = Column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
-    retrieval_meta = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
-    status = Column(String(50), nullable=False, default="generating", server_default="generating")
+    sources = Column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    retrieval_meta = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    status = Column(
+        String(50), nullable=False, default="generating", server_default="generating"
+    )
     error_message = Column(Text)
     download_count = Column(Integer, nullable=False, default=0, server_default="0")
     # 预测分析新列（旧数据兼容：全部 nullable/default，旧报告以 analysis_type='retrospective' 标记）
-    analysis_type = Column(String(50), nullable=False, default="retrospective", server_default="retrospective")
+    analysis_type = Column(
+        String(50),
+        nullable=False,
+        default="retrospective",
+        server_default="retrospective",
+    )
     disease_id = Column(
         Integer,
         ForeignKey(
@@ -861,10 +1209,18 @@ class AIReport(Base):
     reference_case_status = Column(String(40), nullable=True)
     generation_batch_id = Column(String(36), nullable=True)
     generation_fingerprint = Column(String(64), nullable=True)
+    report_document = Column(JSONB, nullable=True)
+    report_document_sha256 = Column(String(64), nullable=True)
+    generation_fingerprint_version = Column(String(8), nullable=True)
     error_stage = Column(String(50), nullable=True)
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
     updated_at = Column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
     )
 
     user = relationship("User", back_populates="reports")
@@ -884,8 +1240,12 @@ class AuditLog(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    session_id = Column(Integer, ForeignKey("sessions.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    session_id = Column(
+        Integer, ForeignKey("sessions.id", ondelete="SET NULL"), nullable=True
+    )
     request_body = Column(JSONB)
     retrieved_chunk_ids = Column(JSONB, default=list)
     response_text = Column(Text)

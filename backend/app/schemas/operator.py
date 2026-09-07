@@ -36,6 +36,9 @@ class ReportOut(BaseModel):
     reference_case_status: Optional[str] = None
     generation_batch_id: Optional[str] = None
     generation_fingerprint: Optional[str] = None
+    report_document: dict | None = None
+    report_document_sha256: Optional[str] = None
+    generation_fingerprint_version: Optional[str] = None
     error_stage: Optional[str] = None
     integrity_status: Optional[str] = None
     integrity_reason_code: Optional[str] = None

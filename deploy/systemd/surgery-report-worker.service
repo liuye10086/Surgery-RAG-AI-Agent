@@ -1,0 +1,22 @@
+[Unit]
+Description=Surgery RAG report worker
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=surgery
+Group=surgery
+WorkingDirectory=/opt/surgery-rag/backend
+EnvironmentFile=/opt/surgery-rag/backend/.env
+ExecStart=/opt/surgery-rag/backend/venv/bin/python -m app.workers.report_worker
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=true
+MemoryHigh=1536M
+MemoryMax=2048M
+
+[Install]
+WantedBy=multi-user.target

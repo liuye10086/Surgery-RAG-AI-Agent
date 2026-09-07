@@ -86,7 +86,12 @@ def test_case_schema_requires_stage_and_validates_sex():
 def test_case_age_is_required_strict_integer_and_bounded():
     from app.schemas.longitudinal_case import OperatorCaseCreate
 
-    valid = {"disease_id": 11, "sex": "female", "baseline_stage": "pre_cirrhosis", "visits": [_create_visit_payload()]}
+    valid = {
+        "disease_id": 11,
+        "sex": "female",
+        "baseline_stage": "pre_cirrhosis",
+        "visits": [_create_visit_payload()],
+    }
     assert OperatorCaseCreate(age=0, **valid).age == 0
     assert OperatorCaseCreate(age=120, **valid).age == 120
     for age in (-1, 121, 1.5, 65.0, "65", None):
@@ -137,7 +142,9 @@ def test_case_schema_trims_baseline_stage_and_rejects_legacy_label():
     )
     assert canonical.baseline_stage == "pre_cirrhosis"
     with pytest.raises(ValidationError):
-        OperatorCaseCreate.model_validate({**canonical.model_dump(), "patient_label": "case-B"})
+        OperatorCaseCreate.model_validate(
+            {**canonical.model_dump(), "patient_label": "case-B"}
+        )
 
 
 def test_snapshot_contains_sorted_visits_without_user_identity():
@@ -145,7 +152,9 @@ def test_snapshot_contains_sorted_visits_without_user_identity():
 
     case = _case(age=0)
     case.user = SimpleNamespace(id=7, real_name="should-not-copy")
-    snapshot = build_input_snapshot(case, [_visit("2024-06-01", 2), _visit("2024-01-01")])
+    snapshot = build_input_snapshot(
+        case, [_visit("2024-06-01", 2), _visit("2024-01-01")]
+    )
 
     assert [v["visit_date"] for v in snapshot["visits"]] == [
         "2024-01-01",
@@ -304,8 +313,25 @@ def test_create_operator_case_rejects_disabled_disease():
     db.add.assert_not_called()
 
 
+def _submit_test_case(db):
+    from contextlib import contextmanager
+    from uuid import uuid4
+    from app.services import report_generation_service as service
+
+    @contextmanager
+    def factory():
+        yield db
+
+    with (
+        patch.object(service, "_replay", return_value=None),
+        patch.object(service.settings, "REPORT_JOBS_ENABLED", True),
+        patch.object(service.settings, "REPORT_JOBS_ACCEPTING", True),
+    ):
+        return service.submit_report_job(7, 3, str(uuid4()), {}, factory, ".")
+
+
 def test_report_generation_rejects_legacy_case_without_age_before_insert():
-    from app.api.operator import create_longitudinal_report
+    from app.services.report_generation_service import ReportJobError
 
     db = MagicMock()
     legacy_case = SimpleNamespace(
@@ -322,28 +348,21 @@ def test_report_generation_rejects_legacy_case_without_age_before_insert():
         visits=[],
     )
     with patch(
-        "app.api.operator.get_operator_case",
+        "app.services.report_generation_service.get_operator_case",
         return_value=legacy_case,
     ):
-        with pytest.raises(HTTPException) as error:
-            asyncio.run(
-                create_longitudinal_report(
-                    case_id=3,
-                    request=None,
-                    db=db,
-                    current_user=SimpleNamespace(id=7),
-                )
-            )
+        with pytest.raises(ReportJobError) as error:
+            _submit_test_case(db)
 
     assert error.value.status_code == 409
-    assert error.value.detail["code"] == "case_incomplete"
-    assert "年龄" in error.value.detail["message"]
+    assert error.value.code == "case_incomplete"
+    assert "年龄" in error.value.message
     db.add.assert_not_called()
     db.commit.assert_not_called()
 
 
 def test_report_generation_rejects_archived_case_before_insert():
-    from app.api.operator import create_longitudinal_report
+    from app.services.report_generation_service import ReportJobError
 
     db = MagicMock()
     archived = SimpleNamespace(
@@ -353,16 +372,19 @@ def test_report_generation_rejects_archived_case_before_insert():
         disease=SimpleNamespace(code="fatty_liver", operator_enabled=True),
         visits=[],
     )
-    with patch("app.api.operator.get_operator_case", return_value=archived):
-        with pytest.raises(HTTPException) as error:
-            asyncio.run(create_longitudinal_report(3, None, db, SimpleNamespace(id=7)))
+    with patch(
+        "app.services.report_generation_service.get_operator_case",
+        return_value=archived,
+    ):
+        with pytest.raises(ReportJobError) as error:
+            _submit_test_case(db)
     assert error.value.status_code == 409
     db.add.assert_not_called()
     db.commit.assert_not_called()
 
 
 def test_report_generation_rejects_invalid_historical_indicator_without_rewriting_it():
-    from app.api.operator import create_longitudinal_report
+    from app.services.report_generation_service import ReportJobError
 
     db = MagicMock()
     raw_indicators = [{"name": "MMSE", "value": 20, "unit": "分"}]
@@ -388,13 +410,16 @@ def test_report_generation_rejects_invalid_historical_indicator_without_rewritin
             )
         ],
     )
-    with patch("app.api.operator.get_operator_case", return_value=legacy_case):
-        with pytest.raises(HTTPException) as error:
-            asyncio.run(create_longitudinal_report(3, None, db, SimpleNamespace(id=7)))
+    with patch(
+        "app.services.report_generation_service.get_operator_case",
+        return_value=legacy_case,
+    ):
+        with pytest.raises(ReportJobError) as error:
+            _submit_test_case(db)
 
     assert error.value.status_code == 409
-    assert error.value.detail["code"] == "invalid_timeline"
-    assert "属于疾病 ad" in error.value.detail["message"]
+    assert error.value.code == "invalid_timeline"
+    assert "记录无效" in error.value.message
     assert raw_indicators == [{"name": "MMSE", "value": 20, "unit": "分"}]
     db.add.assert_not_called()
     db.commit.assert_not_called()
@@ -402,7 +427,11 @@ def test_report_generation_rejects_invalid_historical_indicator_without_rewritin
 
 @pytest.mark.parametrize("operation", ["create", "add", "update", "replace"])
 def test_all_visit_write_paths_reject_cross_disease_indicator(operation):
-    from app.schemas.longitudinal_case import OperatorCaseCreate, VisitCreate, VisitUpdate
+    from app.schemas.longitudinal_case import (
+        OperatorCaseCreate,
+        VisitCreate,
+        VisitUpdate,
+    )
     from app.services.indicator_validation import IndicatorValidationError
     from app.services import longitudinal_case_service as service
 
@@ -435,7 +464,11 @@ def test_all_visit_write_paths_reject_cross_disease_indicator(operation):
         call = lambda: service.replace_visits(db, 7, 3, [payload])
 
     with patch.object(service, "get_operator_case_for_write", return_value=case):
-        with patch.object(service, "_owned_visit_query", return_value=(case, _visit("2024-01-01", visit_id=9))):
+        with patch.object(
+            service,
+            "_owned_visit_query",
+            return_value=(case, _visit("2024-01-01", visit_id=9)),
+        ):
             with pytest.raises(IndicatorValidationError, match="属于疾病 ad"):
                 call()
 
@@ -449,14 +482,22 @@ def test_add_visit_rejects_case_owned_by_another_user():
     db = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = None
     with pytest.raises(CaseNotFoundError):
-        add_visit(db, user_id=99, case_id=3, payload=VisitCreate(
-            visit_date="2024-01-01",
-            indicators=[{"name": "ALT", "value": 42, "unit": "U/L"}],
-        ))
+        add_visit(
+            db,
+            user_id=99,
+            case_id=3,
+            payload=VisitCreate(
+                visit_date="2024-01-01",
+                indicators=[{"name": "ALT", "value": 42, "unit": "U/L"}],
+            ),
+        )
 
 
 def test_add_visit_rejects_duplicate_date():
-    from app.services.longitudinal_case_service import DuplicateVisitDateError, add_visit
+    from app.services.longitudinal_case_service import (
+        DuplicateVisitDateError,
+        add_visit,
+    )
     from app.schemas.longitudinal_case import VisitCreate
 
     case = _case()
@@ -465,10 +506,15 @@ def test_add_visit_rejects_duplicate_date():
     # First owner lookup, then duplicate-date lookup.
     db.query.return_value.filter.return_value.first.side_effect = [case, existing]
     with pytest.raises(DuplicateVisitDateError):
-        add_visit(db, user_id=7, case_id=3, payload=VisitCreate(
-            visit_date="2024-01-01",
-            indicators=[{"name": "ALT", "value": 42, "unit": "U/L"}],
-        ))
+        add_visit(
+            db,
+            user_id=7,
+            case_id=3,
+            payload=VisitCreate(
+                visit_date="2024-01-01",
+                indicators=[{"name": "ALT", "value": 42, "unit": "U/L"}],
+            ),
+        )
 
 
 def test_add_visit_reindexes_when_new_visit_is_earliest():
@@ -476,17 +522,34 @@ def test_add_visit_reindexes_when_new_visit_is_earliest():
     from app.services.longitudinal_case_service import add_visit
 
     case = _case()
-    existing = [_visit("2024-01-01", visit_index=1, visit_id=9), _visit("2024-03-01", visit_index=2, visit_id=10)]
+    existing = [
+        _visit("2024-01-01", visit_index=1, visit_id=9),
+        _visit("2024-03-01", visit_index=2, visit_id=10),
+    ]
     case.visits = existing
     db = MagicMock()
-    db.query.return_value.filter.return_value.order_by.return_value.all.return_value = existing
+    db.query.return_value.filter.return_value.order_by.return_value.all.return_value = (
+        existing
+    )
     db.query.return_value.filter.return_value.first.return_value = None
 
-    with patch.object(__import__("app.services.longitudinal_case_service", fromlist=["get_operator_case_for_write"]), "get_operator_case_for_write", return_value=case):
-        created = add_visit(db, user_id=7, case_id=3, payload=VisitCreate(
-            visit_date="2023-12-01",
-            indicators=[{"name": "ALT", "value": 42, "unit": "U/L"}],
-        ))
+    with patch.object(
+        __import__(
+            "app.services.longitudinal_case_service",
+            fromlist=["get_operator_case_for_write"],
+        ),
+        "get_operator_case_for_write",
+        return_value=case,
+    ):
+        created = add_visit(
+            db,
+            user_id=7,
+            case_id=3,
+            payload=VisitCreate(
+                visit_date="2023-12-01",
+                indicators=[{"name": "ALT", "value": 42, "unit": "U/L"}],
+            ),
+        )
 
     assert [item.visit_index for item in existing] == [2, 3]
     assert created.visit_index == 1
@@ -497,10 +560,15 @@ def test_update_visit_reindexes_after_date_change():
     from app.services import longitudinal_case_service as service
 
     case = _case()
-    existing = [_visit("2024-01-01", visit_index=1, visit_id=9), _visit("2024-03-01", visit_index=2, visit_id=10)]
+    existing = [
+        _visit("2024-01-01", visit_index=1, visit_id=9),
+        _visit("2024-03-01", visit_index=2, visit_id=10),
+    ]
     case.visits = existing
     db = MagicMock()
-    db.query.return_value.filter.return_value.order_by.return_value.all.return_value = existing
+    db.query.return_value.filter.return_value.order_by.return_value.all.return_value = (
+        existing
+    )
 
     with patch.object(service, "_owned_visit_query", return_value=(case, existing[0])):
         updated = service.update_visit(
@@ -616,7 +684,9 @@ def test_case_list_is_owner_scoped_then_filtered_and_paginated():
 def test_longitudinal_crud_routes_are_registered_and_protected():
     from app.api.operator import router
 
-    paths = {(route.path, tuple(sorted(route.methods or ()))) for route in router.routes}
+    paths = {
+        (route.path, tuple(sorted(route.methods or ()))) for route in router.routes
+    }
     assert ("/operator/longitudinal-cases", ("POST",)) in paths
     assert ("/operator/longitudinal-cases", ("GET",)) in paths
     assert ("/operator/longitudinal-cases/{case_id}/status", ("PUT",)) in paths

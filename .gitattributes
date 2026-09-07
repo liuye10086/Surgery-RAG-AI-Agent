@@ -1,0 +1,4 @@
+# Versioned model/data/standard identities hash exact bytes on every platform.
+backend/app/ml_models/** -text whitespace=cr-at-eol
+standard_manifests/** -text whitespace=cr-at-eol
+deploy/systemd/* text eol=lf

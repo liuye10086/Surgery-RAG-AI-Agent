@@ -394,3 +394,8 @@ curl https://surgery.geneyoung.top/health
 5. 之后在本地修复问题，重新提交并推送，再按第 5 节更新。
 
 注意：如果已经执行了数据库迁移，回退代码前要先确认迁移是否兼容旧代码，不要盲目降级数据库。
+
+
+## 完整预测报告独立 worker
+
+第 6 项报告生成的迁移、独立 worker / sweep timer、只读门禁、发布开关和保留数据回滚流程，见 [完整预测报告发布与恢复](OPERATOR_REPORT_OPERATIONS.md)。上线前必须完成其中的双病种与故障恢复验收。

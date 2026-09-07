@@ -3,17 +3,17 @@
     <OperatorSidebar
       :reports="operatorStore.reports"
       :total="operatorStore.total"
-      :current-id="operatorStore.currentReport?.id"
+      :current-id="generation.reportId || operatorStore.currentReport?.id"
       :collapsed="sidebarCollapsed"
       :loading="operatorStore.loading"
-      :generating="operatorStore.generating"
+      :generating="generation.active"
       :active-view="activeView"
       @toggle="toggleSidebar"
       @select="handleSelect"
       @new-longitudinal-case="startNewLongitudinalCase"
       @delete="handleDelete"
       @load-more="loadMoreReports"
-      @navigate="activeView = $event"
+      @navigate="handleNavigate"
     />
 
     <div class="operator-main">
@@ -31,13 +31,23 @@
       </div>
 
       <div class="operator-body">
+        <section v-if="reportReadingMode && generation.viewState !== 'completed' && generation.viewState !== 'idle'" class="generation-status" aria-live="polite" :aria-busy="generation.active">
+          <h3>{{ generationTitle }}</h3>
+          <p>{{ generation.message }}</p>
+          <p v-if="generation.canCancel">刷新页面或返回病例不会取消生成。</p>
+          <div class="generation-actions">
+            <el-button @click="closeReport">返回病例</el-button>
+            <el-button v-if="generation.canCancel" type="danger" plain @click="generation.cancel()">取消生成</el-button>
+            <el-button v-if="generation.viewState === 'load_failed'" @click="retryReport">重试读取或受理</el-button>
+          </div>
+        </section>
         <LongitudinalReportView
-          v-if="reportReadingMode"
-          :report="operatorStore.currentReport"
+          v-else-if="reportReadingMode"
+          :report="generation.report || operatorStore.currentReport"
           :prediction-result="operatorStore.longitudinalPrediction"
           :evidence-snapshot="operatorStore.longitudinalEvidence"
-          :rendered-content="renderMarkdown(operatorStore.generating ? operatorStore.longitudinalReportContent : operatorStore.currentReport?.content || '')"
-          :generating="operatorStore.generating"
+          :rendered-content="renderMarkdown((generation.report || operatorStore.currentReport)?.content || '')"
+          :generating="generation.active"
           @back="closeReport"
           @download="handleDownload"
         />
@@ -53,7 +63,7 @@
               :validation-issues="validationIssues"
               :readiness="operatorStore.readiness"
               :saving="operatorStore.saving"
-              :report-generating="operatorStore.generating"
+              :report-generating="generation.active"
               @save="handleWorkspaceSave"
               @disease-change="handleDiseaseChange"
               @edit="validationIssues = {}"
@@ -69,7 +79,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { useReportGenerationStore } from '@/stores/report-generation'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -85,6 +97,9 @@ import { validationIssueMap } from '@/api/request'
 
 const authStore = useAuthStore()
 const operatorStore = useOperatorStore()
+const generation = useReportGenerationStore()
+const router = useRouter(), route = useRoute()
+const generationTitle = computed(()=>({idle:'',submitting:'正在受理',queued:'报告已排队',running:'报告生成中',reconnecting:'正在恢复连接',loading_completed:'报告已生成，正在读取完整内容',completed:'报告已完成',load_failed:'暂未取得报告',failed:'报告生成失败',cancelled:'报告已取消'}[generation.viewState]))
 
 const sidebarCollapsed = ref(localStorage.getItem('operator_sidebar_collapsed') === 'true')
 const activeView = ref<'progression' | 'cases'>('progression')
@@ -96,7 +111,7 @@ const validationIssues = ref<Record<string, string>>({})
 
 const reportReadingMode = computed(() =>
   activeView.value === 'progression'
-  && Boolean(operatorStore.generating || operatorStore.currentReport),
+  && Boolean(generation.viewState !== 'idle' || operatorStore.currentReport),
 )
 
 const REPORT_SECTIONS = [
@@ -160,12 +175,14 @@ async function handleWorkspaceSave(payload: LongitudinalCaseCreatePayload | Long
 }
 
 function startNewLongitudinalCase() {
+  closeReport()
   operatorStore.startNewLongitudinalCase()
   draftDiseaseCode.value = ''
   validationIssues.value = {}
 }
 
 async function selectLongitudinalCase(item: any) {
+  closeReport()
   const sessionRevision = operatorStore.selectLongitudinalCase(item)
   draftDiseaseCode.value = ''
   validationIssues.value = {}
@@ -187,14 +204,15 @@ async function handleDiseaseChange(code: string) {
 
 function generateCurrentReport() {
   const id = operatorStore.currentLongitudinalCase?.id
-  if (id) operatorStore.generateLongitudinalReport(id)
+  if (id) { activeView.value = 'progression'; void generation.submit(id) }
 }
 
 async function handleDownload() {
-  if (!operatorStore.currentReport) return
+  const report = generation.report || operatorStore.currentReport
+  if (!report) return
   try {
-    const filename = `${operatorStore.currentReport.anonymous_case_code || `report-${operatorStore.currentReport.id}`}.pdf`
-    await downloadReport(operatorStore.currentReport.id, filename)
+    const filename = `${report.anonymous_case_code || `report-${report.id}`}.pdf`
+    await downloadReport(report.id, filename)
   } catch (e: any) {
     ElMessage.error(e.message || '下载失败')
   }
@@ -203,12 +221,18 @@ async function handleDownload() {
 async function handleSelect(id: number) {
   // 从病例库选择历史报告时，切回纵向报告视图
   activeView.value = 'progression'
-  await operatorStore.loadSavedReport(id)
+  operatorStore.clearCurrent()
+  await generation.observe(id)
 }
 
+function handleNavigate(view:'progression'|'cases') {
+  closeReport();activeView.value=view
+}
 function closeReport() {
-  if (operatorStore.generating) operatorStore.cancelGeneration()
+  generation.detach()
   operatorStore.clearCurrent()
+  const query = {...route.query}; delete query.reportId
+  void router.replace({query})
 }
 
 async function handleDelete(id: number) {
@@ -219,13 +243,39 @@ async function handleDelete(id: number) {
       type: 'warning',
     })
     await operatorStore.removeReport(id)
+    if (generation.reportId===id) closeReport()
     ElMessage.success('报告已删除')
   } catch {
     // 用户取消
   }
 }
 
+function retryReport() {
+  if (generation.reportId) void generation.retryDetail()
+  else if (generation.pendingCaseId) void generation.submit(generation.pendingCaseId)
+}
+watch(()=>generation.reportId,id=>{
+  if (id) void operatorStore.fetchReports()
+  if (id && String(route.query.reportId || '') !== String(id)) void router.replace({query:{...route.query,reportId:String(id)}})
+})
+watch(()=>route.query.reportId,value=>{
+  const id=Number(value)
+  if (typeof value==='string' && /^[1-9]\d*$/.test(value) && Number.isSafeInteger(id) && generation.reportId!==id) void generation.observe(id)
+  else if (value===undefined && generation.reportId) generation.detach()
+}, {immediate:true})
+watch(()=>generation.state?.status,status=>{
+  if (status && ['completed','failed','cancelled'].includes(status)) void operatorStore.fetchReports()
+})
+watch(()=>authStore.token,token=>{if (!token) void router.replace('/login')})
+onBeforeUnmount(()=>{
+  window.removeEventListener('online',generation.refreshConnection)
+  window.removeEventListener('focus',generation.refreshConnection)
+  generation.detach()
+})
 onMounted(async () => {
+  window.addEventListener('online',generation.refreshConnection)
+  window.addEventListener('focus',generation.refreshConnection)
+  if (!route.query.reportId) generation.restorePending()
   operatorStore.fetchReports()
   await Promise.all([
     operatorStore.fetchDiseases(),
@@ -242,6 +292,9 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.generation-status { width:min(100%,var(--content-max-width)); margin:var(--space-6) auto; padding:var(--space-6); color:var(--text-primary); background:var(--bg-surface); border:1px solid var(--border-default); border-radius:var(--radius-card); }
+.generation-actions { display:flex; flex-wrap:wrap; gap:var(--space-3); }
+.generation-actions :deep(button) { min-height:44px; border-radius:var(--radius-pill); }
 .operator-view {
   display: flex;
   height: 100vh;

@@ -202,32 +202,14 @@ describe('operator case workspace store', () => {
     expect(store.currentStage).toBe('new-case')
   })
 
-  it('ignores stale report stream callbacks after a new case session starts', async () => {
+  it('delegates generation to durable job state instead of the old stream', async () => {
     const { useOperatorStore } = await import('../operator')
-    let callbacks!: Record<string, (...args: any[]) => void>
-    api.generateLongitudinalReportStream.mockImplementation((_caseId: number, value: Record<string, (...args: any[]) => void>) => {
-      callbacks = value
-      return vi.fn()
-    })
+    const { useReportGenerationStore } = await import('../report-generation')
+    const generation = useReportGenerationStore()
+    const submit = vi.spyOn(generation,'submit').mockResolvedValue()
     const store = useOperatorStore()
-    store.selectLongitudinalCase({ id: 3, status: 'active' } as any)
-    store.generateLongitudinalReport(3)
-    store.startNewLongitudinalCase()
-
-    callbacks.onStage('predicting', '旧阶段')
-    callbacks.onPrediction({ summary: '旧预测' })
-    callbacks.onEvidence({ evidence: ['旧证据'] })
-    callbacks.onDelta('旧流内容')
-    callbacks.onSources([{ title: '旧来源' }])
-    callbacks.onDone(8)
-    callbacks.onError()
-
-    expect(store.currentStage).toBe('')
-    expect(store.longitudinalPrediction).toBeNull()
-    expect(store.longitudinalEvidence).toBeNull()
-    expect(store.longitudinalReportContent).toBe('')
-    expect(store.currentSources).toEqual([])
-    expect(store.currentReport).toBeNull()
-    expect(api.getReport).not.toHaveBeenCalled()
+    await store.generateLongitudinalReport(3)
+    expect(submit).toHaveBeenCalledWith(3)
+    expect(api.generateLongitudinalReportStream).not.toHaveBeenCalled()
   })
 })

@@ -1,4 +1,5 @@
 import request from './request'
+import type { ReportDocumentV1 } from '@/types/report-document'
 
 // ===== 预测分析类型 =====
 export interface IndicatorInput {
@@ -91,6 +92,11 @@ export interface ReportListItem {
 }
 
 export interface ReportDetail extends ReportListItem {
+  report_document?: ReportDocumentV1 | null
+  report_document_sha256?: string | null
+  generation_fingerprint_version?: string | null
+  integrity_status?: 'valid' | 'invalid' | 'unverifiable' | null
+  integrity_reason_code?: string | null
   content: string
   sources: LegacyEvidenceSource[]
   retrieval_meta: Record<string, unknown>

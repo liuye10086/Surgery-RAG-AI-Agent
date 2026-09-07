@@ -47,24 +47,22 @@ def test_report_readiness_route_is_registered_and_operator_protected():
 
 
 def test_report_creation_rechecks_readiness_before_inserting_report():
-    from app.api.operator import create_longitudinal_report
+    from backend.tests.test_longitudinal_case_service import _submit_test_case
+    from app.services.report_generation_service import ReportJobError
 
     db = MagicMock()
-    case = SimpleNamespace(id=3, status="active")
-    with patch("app.api.operator.get_operator_case", return_value=case), patch(
-        "app.api.operator.evaluate_operator_case_readiness",
-        return_value=_blocked_readiness(),
+    with (
+        patch(
+            "app.services.report_generation_service.get_operator_case",
+            return_value=SimpleNamespace(id=3, status="active"),
+        ),
+        patch(
+            "app.services.report_generation_service.evaluate_operator_case_readiness",
+            return_value=_blocked_readiness(),
+        ),
     ):
-        with pytest.raises(HTTPException) as caught:
-            asyncio.run(
-                create_longitudinal_report(
-                    3,
-                    None,
-                    db,
-                    SimpleNamespace(id=7),
-                )
-            )
-
+        with pytest.raises(ReportJobError) as caught:
+            _submit_test_case(db)
     assert caught.value.status_code == 409
     db.add.assert_not_called()
     db.commit.assert_not_called()
@@ -113,7 +111,10 @@ def test_router_exposes_one_case_mutation_boundary_and_no_reference_case_crud():
     assert ("/operator/longitudinal-cases", frozenset({"GET"})) in paths
     assert ("/operator/longitudinal-cases/{case_id}", frozenset({"PUT"})) in paths
     assert ("/operator/longitudinal-cases/{case_id}", frozenset({"DELETE"})) in paths
-    assert not any(path == "/operator/cases" or path.startswith("/operator/cases/") for path, _ in paths)
+    assert not any(
+        path == "/operator/cases" or path.startswith("/operator/cases/")
+        for path, _ in paths
+    )
     assert not any("/visits" in path for path, _ in paths)
 
 
@@ -203,7 +204,9 @@ def test_list_returns_total_and_page_metadata_and_passes_search_filters():
         )
     ]
     db = MagicMock()
-    with patch("app.api.operator.list_operator_cases", return_value=(cases, 21)) as query:
+    with patch(
+        "app.api.operator.list_operator_cases", return_value=(cases, 21)
+    ) as query:
         result = list_longitudinal_cases(
             q="CASE-23",
             disease_id=11,

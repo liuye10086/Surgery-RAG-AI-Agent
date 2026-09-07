@@ -33,13 +33,39 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 ALLOWED_TAGS = {
-    "h1", "h2", "h3", "h4", "h5", "h6",
-    "p", "ul", "ol", "li",
-    "table", "thead", "tbody", "tr", "th", "td",
-    "strong", "em", "code", "pre",
-    "blockquote", "hr", "br",
-    "sup", "sub", "a", "span", "div",
-    "svg", "line", "polyline", "circle", "text",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "p",
+    "ul",
+    "ol",
+    "li",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
+    "strong",
+    "em",
+    "code",
+    "pre",
+    "blockquote",
+    "hr",
+    "br",
+    "sup",
+    "sub",
+    "a",
+    "span",
+    "div",
+    "svg",
+    "line",
+    "polyline",
+    "circle",
+    "text",
 }
 
 ALLOWED_ATTRS = {
@@ -105,48 +131,65 @@ class _CriticalSectionBlocksTreeprocessor(Treeprocessor):
         return root
 
 
-def _persisted_observation_charts(
-    prediction_result: dict[str, Any] | None,
-) -> list[dict[str, Any]]:
-    indicators = ((prediction_result or {}).get("observation") or {}).get("indicators") or {}
-    charts: list[dict[str, Any]] = []
+def _chart(name, unit, points):
+    from app.services.report_document_builder import calendar_positions
+
+    values = [point["value"] for point in points]
+    positions = calendar_positions([point["visit_date"] for point in points])
+    low = min(values)
+    span = max(values) - low or 1.0
+    dots = [
+        {"x": 42 + position * 360, "y": 116 - (point["value"] - low) / span * 96}
+        for point, position in zip(points, positions)
+    ]
+    return {
+        "name": name,
+        "unit": unit,
+        "count": len(points),
+        "dots": dots,
+        "first_date": points[0]["visit_date"],
+        "last_date": points[-1]["visit_date"],
+        "points": " ".join(f"{point['x']:.2f},{point['y']:.2f}" for point in dots),
+    }
+
+
+def _document_observation_charts(report_document):
+    from app.schemas.report_document import ReportDocument
+
+    document = ReportDocument.model_validate(report_document)
+    return [
+        _chart(
+            chart.label, chart.unit, [p.model_dump(mode="json") for p in chart.points]
+        )
+        for chart in document.charts
+    ]
+
+
+def _persisted_observation_charts(prediction_result):
+    from datetime import date
+
+    charts = []
+    indicators = ((prediction_result or {}).get("observation") or {}).get(
+        "indicators"
+    ) or {}
     for name, item in indicators.items():
         if not isinstance(item, dict) or item.get("unit_state") != "consistent":
             continue
-        raw_series = item.get("series") or []
-        if not isinstance(raw_series, list) or len(raw_series) < 3:
-            continue
-        values = []
-        for entry in raw_series:
-            value = entry.get("value") if isinstance(entry, dict) else None
-            if isinstance(value, bool):
+        points = []
+        for row in item.get("series") or []:
+            if (
+                not isinstance(row, dict)
+                or type(row.get("value")) not in (int, float)
+                or not math.isfinite(row["value"])
+            ):
                 continue
             try:
-                number = float(value)
-            except (TypeError, ValueError):
+                day = date.fromisoformat(row["visit_date"]).isoformat()
+            except (KeyError, ValueError, TypeError):
                 continue
-            if math.isfinite(number):
-                values.append(number)
-        if len(values) < 3:
-            continue
-        minimum = min(values)
-        span = max(values) - minimum or 1.0
-        dots = [
-            {
-                "x": 42 + (index * 360) / max(len(values) - 1, 1),
-                "y": 116 - ((value - minimum) / span) * 96,
-            }
-            for index, value in enumerate(values)
-        ]
-        charts.append(
-            {
-                "name": str(name),
-                "unit": item.get("unit") or "单位未提供",
-                "count": len(values),
-                "dots": dots,
-                "points": " ".join(f"{point['x']:.2f},{point['y']:.2f}" for point in dots),
-            }
-        )
+            points.append({"visit_date": day, "value": row["value"]})
+        if len(points) >= 3:
+            charts.append(_chart(name, item.get("unit") or "单位未提供", points))
     return charts
 
 
@@ -166,8 +209,12 @@ class _ObservedChartsTreeprocessor(Treeprocessor):
             title = etree.SubElement(block, "h3")
             title.text = "已观察到的变化图（不是模型预测）"
             for chart in self.charts:
-                chart_block = etree.SubElement(block, "div", {"class": "observed-chart-print"})
-                label = etree.SubElement(chart_block, "div", {"class": "chart-title-print"})
+                chart_block = etree.SubElement(
+                    block, "div", {"class": "observed-chart-print"}
+                )
+                label = etree.SubElement(
+                    chart_block, "div", {"class": "chart-title-print"}
+                )
                 strong = etree.SubElement(label, "strong")
                 strong.text = chart["name"]
                 detail = etree.SubElement(label, "span")
@@ -181,28 +228,42 @@ class _ObservedChartsTreeprocessor(Treeprocessor):
                         "aria-label": f"{chart['name']} 已观察值趋势图",
                     },
                 )
-                etree.SubElement(svg, "line", {"x1": "36", "y1": "12", "x2": "36", "y2": "124"})
-                etree.SubElement(svg, "line", {"x1": "36", "y1": "124", "x2": "410", "y2": "124"})
+                etree.SubElement(
+                    svg, "line", {"x1": "36", "y1": "12", "x2": "36", "y2": "124"}
+                )
+                etree.SubElement(
+                    svg, "line", {"x1": "36", "y1": "124", "x2": "410", "y2": "124"}
+                )
                 etree.SubElement(svg, "polyline", {"points": chart["points"]})
                 for point in chart["dots"]:
                     etree.SubElement(
                         svg,
                         "circle",
-                        {"cx": f"{point['x']:.2f}", "cy": f"{point['y']:.2f}", "r": "4"},
+                        {
+                            "cx": f"{point['x']:.2f}",
+                            "cy": f"{point['y']:.2f}",
+                            "r": "4",
+                        },
                     )
                 first_label = etree.SubElement(svg, "text", {"x": "38", "y": "143"})
-                first_label.text = "首次观察"
+                first_label.text = chart.get("first_date", "首次观察")
                 last_label = etree.SubElement(svg, "text", {"x": "350", "y": "143"})
-                last_label.text = "最近观察"
+                last_label.text = chart.get("last_date", "最近观察")
             root.insert(index + 1, block)
             break
         return root
 
 
 class _LongitudinalPrintExtension(Extension):
-    def __init__(self, prediction_result: dict[str, Any] | None = None):
+    def __init__(
+        self, prediction_result: dict[str, Any] | None = None, *, report_document=None
+    ):
         super().__init__()
-        self.charts = _persisted_observation_charts(prediction_result)
+        self.charts = (
+            _document_observation_charts(report_document)
+            if report_document is not None
+            else _persisted_observation_charts(prediction_result)
+        )
 
     def extendMarkdown(self, md):
         md.treeprocessors.register(
@@ -221,17 +282,26 @@ def _markdown_to_safe_html(
     markdown_content: str,
     prediction_result: dict[str, Any] | None = None,
     evidence_snapshot: dict[str, Any] | None = None,
+    *,
+    report_document: dict | None = None,
 ) -> str:
     """Render saved Markdown and preserve only approved print structure."""
     if evidence_snapshot is not None:
         from app.schemas.longitudinal_evidence import EvidenceBundle
         from app.services.evidence_bundle import verify_evidence_bundle
+
         bundle = EvidenceBundle.model_validate(evidence_snapshot)
         if not verify_evidence_bundle(bundle):
             raise ValueError("evidence_integrity_mismatch")
     html_body = markdown.markdown(
         markdown_content,
-        extensions=["tables", "fenced_code", _LongitudinalPrintExtension(prediction_result)],
+        extensions=[
+            "tables",
+            "fenced_code",
+            _LongitudinalPrintExtension(
+                prediction_result, report_document=report_document
+            ),
+        ],
     )
     return bleach.clean(
         html_body,
@@ -251,6 +321,8 @@ def generate_pdf(
     title: str = "分析报告",
     prediction_result: dict[str, Any] | None = None,
     evidence_snapshot: dict[str, Any] | None = None,
+    *,
+    report_document: dict | None = None,
 ) -> bytes:
     """将 Markdown 报告转换为 PDF bytes。
 
@@ -267,12 +339,19 @@ def generate_pdf(
         RuntimeError: PDF 生成过程中发生错误。
     """
     # 1-2. Markdown → 带打印分组的安全 HTML
-    safe_html = _markdown_to_safe_html(markdown_content, prediction_result, evidence_snapshot)
+    safe_html = _markdown_to_safe_html(
+        markdown_content,
+        prediction_result,
+        evidence_snapshot,
+        report_document=report_document,
+    )
 
     # 3. Jinja2 渲染完整 HTML 页面
     template = _jinja_env.get_template("report_pdf.html")
     release_set = (prediction_result or {}).get("release_set") or {}
-    saved_model_version = release_set.get("release_set_id") or release_set.get("data_release_id")
+    saved_model_version = release_set.get("release_set_id") or release_set.get(
+        "data_release_id"
+    )
     model_version_notice = (
         f"报告生成时保存的模型版本：{saved_model_version}。当前模型变化不会影响这份历史报告。"
         if saved_model_version
@@ -301,7 +380,12 @@ def generate_pdf(
             page.wait_for_timeout(500)
             pdf_bytes = page.pdf(
                 format="A4",
-                margin={"top": "20mm", "bottom": "20mm", "left": "22mm", "right": "22mm"},
+                margin={
+                    "top": "20mm",
+                    "bottom": "20mm",
+                    "left": "22mm",
+                    "right": "22mm",
+                },
                 print_background=True,
                 display_header_footer=True,
                 header_template=(
@@ -312,7 +396,7 @@ def generate_pdf(
                     '<div style="font-size:9pt;color:#666;font-family:SimSun,Microsoft YaHei,sans-serif;'
                     'text-align:center;width:100%;padding:0 22mm">'
                     '第 <span class="pageNumber"></span> 页'
-                    '</div>'
+                    "</div>"
                 ),
             )
             browser.close()

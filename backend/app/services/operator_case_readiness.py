@@ -11,7 +11,10 @@ from app.schemas.operator_case_workspace import (
     OperatorCaseReadinessBlocker,
     OperatorCaseReportReadiness,
 )
-from app.services.disease_catalog import DiseaseCatalogError, require_enabled_case_disease
+from app.services.disease_catalog import (
+    DiseaseCatalogError,
+    require_enabled_case_disease,
+)
 from app.services.longitudinal_model_registry import load_active_model_registry
 from app.services.longitudinal_release_set import load_disease_release_set
 from app.services.longitudinal_task_routing import route_outcome_task
@@ -41,7 +44,9 @@ def load_active_minimum_visits(
 ) -> int:
     root = Path(registry_root).resolve()
     release = load_disease_release_set(dataset, root)
-    manifest_path = (root / "datasets" / release.data_release_id / "manifest.json").resolve()
+    manifest_path = (
+        root / "datasets" / release.data_release_id / "manifest.json"
+    ).resolve()
     try:
         manifest_path.relative_to(root)
     except ValueError as exc:
@@ -67,7 +72,11 @@ def load_active_minimum_visits(
             "dataset_manifest_invalid",
             "活动模型数据清单无效",
         ) from exc
-    if isinstance(minimum_visits, bool) or not isinstance(minimum_visits, int) or minimum_visits < 1:
+    if (
+        isinstance(minimum_visits, bool)
+        or not isinstance(minimum_visits, int)
+        or minimum_visits < 1
+    ):
         raise OperatorCaseReadinessError(
             "dataset_manifest_invalid",
             "活动模型数据清单中的 minimum_visits 无效",
@@ -82,6 +91,8 @@ def _blocker(code: str, message: str) -> OperatorCaseReadinessBlocker:
 def evaluate_operator_case_readiness(
     case: Any,
     registry_root: Path | str = MODEL_DIR,
+    *,
+    load_runtime=True,
 ) -> OperatorCaseReportReadiness:
     blockers: list[OperatorCaseReadinessBlocker] = []
     disease = getattr(case, "disease", None)
@@ -96,7 +107,9 @@ def evaluate_operator_case_readiness(
         require_enabled_case_disease(case)
     except DiseaseCatalogError:
         disease_ready = False
-        blockers.append(_blocker("disease_disabled", "疾病已停用或未开放，病例当前只读"))
+        blockers.append(
+            _blocker("disease_disabled", "疾病已停用或未开放，病例当前只读")
+        )
 
     profile_ready = True
     normalized_stage = None
@@ -132,9 +145,7 @@ def evaluate_operator_case_readiness(
         blockers.append(_blocker("model_unavailable", "活动模型或数据清单暂时不可用"))
 
     enough_visits = bool(
-        timeline_valid
-        and minimum_visits is not None
-        and visit_count >= minimum_visits
+        timeline_valid and minimum_visits is not None and visit_count >= minimum_visits
     )
     if timeline_valid and minimum_visits is not None and not enough_visits:
         blockers.append(
@@ -159,7 +170,18 @@ def evaluate_operator_case_readiness(
     runtime_ready = model_metadata_ready and task_applicable
     if runtime_ready:
         try:
-            load_active_model_registry(disease_code, registry_root=registry_root)
+            if load_runtime:
+                load_active_model_registry(disease_code, registry_root=registry_root)
+            else:
+                from app.services.longitudinal_model_registry import (
+                    load_model_suite_record,
+                )
+
+                load_model_suite_record(
+                    load_disease_release_set(disease_code, registry_root),
+                    registry_root,
+                    load_runtime=False,
+                )
         except Exception:
             runtime_ready = False
             blockers.append(_blocker("model_unavailable", "活动模型暂时不可用"))

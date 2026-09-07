@@ -11,6 +11,8 @@ const api = vi.hoisted(() => ({
   getLongitudinalCaseReportReadiness: vi.fn(),
   listOperatorIndicatorCatalog: vi.fn(),
 }))
+vi.mock('vue-router',()=>({useRoute:()=>({query:{}}),useRouter:()=>({replace:vi.fn(),push:vi.fn()})}))
+
 const validationIssueMap = vi.hoisted(() => vi.fn(() => ({ age: '旧会话校验错误' })))
 
 function existingCase() {

@@ -8,11 +8,23 @@
         </div>
         <div class="report-head-actions">
           <el-button :icon="ArrowLeft" @click="$emit('back')">返回病例</el-button>
-          <el-button v-if="report?.status === 'completed'" :icon="Download" type="primary" @click="$emit('download')">下载 PDF</el-button>
+          <el-button v-if="report?.status === 'completed' && !invalid" :icon="Download" type="primary" @click="$emit('download')">下载 PDF</el-button>
         </div>
       </div>
 
-      <section class="summary-block" aria-label="报告摘要">
+      <p v-if="invalid" role="alert">报告完整性校验失败，已停止展示内容与导出。</p>
+      <template v-else>
+      <p v-if="report?.integrity_status === 'unverifiable'" role="status">历史资料未完整保存，无法验证完整性。</p>
+      <section v-if="document" class="summary-block" aria-label="报告摘要">
+        <h4>报告 #{{ document.identity.report_id }} · {{ document.identity.anonymous_case_code || '历史匿名编号未记录' }}</h4>
+        <div class="summary-grid">
+          <div><span>模型输入</span><strong>{{ inputStatus }}</strong><small>共 {{ document.summary.selected_model_count }} 个任务</small></div>
+          <div><span>模型参与情况</span><strong>{{ document.summary.invoked_model_count }} 个已调用</strong><small>{{ document.summary.available_model_count }} 个结果可用</small></div>
+          <div><span>观察与证据</span><strong>{{ document.summary.signal_count }} 条信号</strong><small>{{ document.summary.evidence_status === 'complete' ? '完整证据' : '部分证据' }}</small></div>
+        </div>
+        <p v-for="limitation in document.summary.limitations" :key="limitation">{{ limitation }}</p>
+      </section>
+      <section v-else class="summary-block" aria-label="报告摘要">
         <h4>报告摘要</h4>
         <div class="summary-grid">
           <div><span>数据够不够</span><strong class="ok">{{ visitCount >= 3 ? '够用' : '有限' }}</strong><small>{{ visitCount }} 次有效访视</small></div>
@@ -27,7 +39,8 @@
         <a v-for="item in sections" :key="item.id" :href="`#${item.id}`">{{ item.label }}</a>
       </nav>
 
-      <section v-if="chartSeries.length" class="observed-charts" aria-label="已观察到的变化图表">
+      <ReportDocumentCharts v-if="document" :charts="document.charts" />
+      <section v-else-if="chartSeries.length" class="observed-charts" aria-label="已观察到的变化图表">
         <h4>已观察到的变化（不是模型预测）</h4>
         <div v-for="series in chartSeries" :key="series.name" class="observed-chart">
           <div class="chart-title"><strong>{{ series.name }}</strong><span>{{ series.unit || '单位未提供' }} · {{ series.values.length }} 次有效观察</span></div>
@@ -42,7 +55,7 @@
         </div>
       </section>
 
-      <section class="snapshot-block" aria-label="生成时输入快照">
+      <section v-if="!document" class="snapshot-block" aria-label="生成时输入快照">
         <h4>生成时输入快照</h4>
         <p class="snapshot-note">历史报告只展示生成时保存的资料，不会自动按当前模型重新计算。</p>
         <div v-if="snapshotAvailable" class="summary-grid">
@@ -55,14 +68,17 @@
       </section>
 
       <div class="markdown-body" v-html="renderedContentParts.before" />
-      <LongitudinalEvidenceSection v-if="evidence" :evidence="evidence" />
+      <LongitudinalEvidenceSection v-if="evidence && !document" :evidence="evidence" />
       <div v-if="renderedContentParts.after" class="markdown-body" v-html="renderedContentParts.after" />
+      </template>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
+import {legacyChartPoints} from '@/utils/report-chart'
 import { computed } from 'vue'
+import ReportDocumentCharts from '@/components/report/ReportDocumentCharts.vue'
 import { ArrowLeft, Download } from '@element-plus/icons-vue'
 import type { EvidenceBundleV1, LongitudinalPrediction, ReportDetail } from '@/api/operator'
 import LongitudinalEvidenceSection from '@/components/LongitudinalEvidenceSection.vue'
@@ -76,6 +92,9 @@ const props = defineProps<{
 }>()
 defineEmits<{ back: []; download: [] }>()
 
+const invalid = computed(()=>props.report?.integrity_status === 'invalid')
+const document = computed(()=>props.report?.report_document || null)
+const inputStatus = computed(()=>({satisfied:'输入满足',partial:'部分满足',unavailable:'未满足'}[document.value?.summary.model_input_status || 'unavailable']))
 const prediction = computed<LongitudinalPrediction | null>(() => props.report?.prediction_result || props.predictionResult || null)
 const observation = computed(() => prediction.value?.observation || {})
 const visitCount = computed(() => Number(observation.value.visit_count || 0))
@@ -88,14 +107,14 @@ const snapshot = computed(() => props.report?.input_snapshot || {})
 const snapshotAvailable = computed(() => Object.keys(snapshot.value).length > 0)
 const evidence = computed<EvidenceBundleV1 | null>(() => props.report?.evidence_snapshot || props.evidenceSnapshot || null)
 const renderedContentParts = computed(() => {
-  if (!evidence.value || typeof DOMParser === 'undefined') return { before: props.renderedContent, after: '' }
-  const document = new DOMParser().parseFromString(props.renderedContent, 'text/html')
-  const section = document.body.querySelector('#section-8')
+  if (document.value || !evidence.value || typeof DOMParser === 'undefined') return { before: props.renderedContent, after: '' }
+  const parsedDocument = new DOMParser().parseFromString(props.renderedContent, 'text/html')
+  const section = parsedDocument.body.querySelector('#section-8')
   if (!section) return { before: props.renderedContent, after: '' }
   const before: string[] = []
   const after: string[] = []
   let position: 'before' | 'skip' | 'after' = 'before'
-  for (const node of Array.from(document.body.childNodes)) {
+  for (const node of Array.from(parsedDocument.body.childNodes)) {
     if (node === section) {
       position = 'skip'
       continue
@@ -113,13 +132,10 @@ const renderedContentParts = computed(() => {
 const releaseSetId = computed(() => prediction.value?.schema_version === 'longitudinal_prediction.v3' ? prediction.value.release_set.release_set_id : '')
 const dataReleaseId = computed(() => prediction.value?.schema_version === 'longitudinal_prediction.v3' ? prediction.value.release_set.data_release_id : '')
 const chartSeries = computed(() => Object.entries(observation.value.indicators || {}).flatMap(([name, item]: [string, any]) => {
-  const series = Array.isArray(item?.series) ? item.series : []
-  if (series.length < 3 || item?.unit_state && item.unit_state !== 'consistent') return []
-  const values = series.map((entry: any) => Number(entry.value)).filter(Number.isFinite)
-  if (values.length < 3) return []
-  const min = Math.min(...values); const max = Math.max(...values); const span = max - min || 1
-  const dots = values.map((value: number, index: number) => ({ key: `${name}-${index}`, x: 42 + (index * 360) / Math.max(values.length - 1, 1), y: 116 - ((value - min) / span) * 96 }))
-  return [{ name, unit: item?.unit, values, dots, points: dots.map((point: any) => `${point.x},${point.y}`).join(' ') }]
+  const points = legacyChartPoints(item)
+  if (!points.length) return []
+  const dots = points.map((p,index)=>({...p,key:`${name}-${index}`}))
+  return [{name,unit:item.unit,values:points.map(p=>p.value),dots,points:dots.map(p=>`${p.x},${p.y}`).join(' ')}]
 }))
 const sections = [
   { id: 'section-1', label: '1 报告摘要' }, { id: 'section-2', label: '2 病例与预测范围' },

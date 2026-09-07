@@ -1,33 +1,24 @@
+param([string]$TestDatabaseUrl = $env:TEST_DATABASE_URL)
 $ErrorActionPreference = 'Stop'
-
 $projectName = 'surgery-rag-agent-test'
 $composeFile = Join-Path $PSScriptRoot '..\docker-compose.test.yml'
-$backendRoot = Join-Path $PSScriptRoot '..\backend'
-$frontendRoot = Join-Path $PSScriptRoot '..\frontend'
-$processes = @()
-
+$startedDocker = $false
+$previousUrl = $env:TEST_DATABASE_URL
+$previousLocation = Get-Location
 try {
-    docker compose -p $projectName -f $composeFile up -d --wait
-    $env:TEST_DATABASE_URL = 'postgresql://surgery_test:surgery_test@127.0.0.1:55432/surgery_rag_operator_test'
-    $env:DATABASE_URL = $env:TEST_DATABASE_URL
-
-    $backend = Start-Process -FilePath 'python' -ArgumentList '-m','uvicorn','app.main:app','--host','127.0.0.1','--port','8000' -WorkingDirectory $backendRoot -WindowStyle Hidden -PassThru
-    $processes += $backend
-    $frontend = Start-Process -FilePath 'npm' -ArgumentList 'run','dev','--','--host','127.0.0.1' -WorkingDirectory $frontendRoot -WindowStyle Hidden -PassThru
-    $processes += $frontend
-
-    $deadline = (Get-Date).AddSeconds(60)
-    do {
-        try { Invoke-WebRequest -Uri 'http://127.0.0.1:8000/health' -UseBasicParsing | Out-Null; break } catch { Start-Sleep -Seconds 1 }
-    } while ((Get-Date) -lt $deadline)
-    if ((Get-Date) -ge $deadline) { throw 'backend health check timed out' }
-
-    Set-Location $backendRoot
-    pytest tests/e2e/test_operator_case_workspace.py -q
+    if (-not $TestDatabaseUrl) {
+        docker compose -p $projectName -f $composeFile up -d --wait
+        if ($LASTEXITCODE -ne 0) { throw 'isolated Docker database failed to start' }
+        $startedDocker = $true
+        $TestDatabaseUrl = 'postgresql://surgery_test:surgery_test@127.0.0.1:55432/surgery_rag_operator_test'
+    }
+    $env:TEST_DATABASE_URL = $TestDatabaseUrl
+    Set-Location (Join-Path $PSScriptRoot '..')
+    python -X utf8 scripts/run_operator_report_e2e.py
+    if ($LASTEXITCODE -ne 0) { throw 'operator E2E verification failed' }
 }
 finally {
-    foreach ($process in $processes) {
-        if ($process -and !$process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
-    }
-    docker compose -p $projectName -f $composeFile down
+    $env:TEST_DATABASE_URL = $previousUrl
+    Set-Location $previousLocation
+    if ($startedDocker) { docker compose -p $projectName -f $composeFile down }
 }

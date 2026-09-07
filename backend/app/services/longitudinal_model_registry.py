@@ -102,8 +102,13 @@ def validate_bundle_files(
         return _bundle_validation("incompatible", "artifact_hash_mismatch", metadata)
     if sha256_file(Path(manifest_path)) != metadata.dataset_contract.manifest_sha256:
         return _bundle_validation("incompatible", "manifest_hash_mismatch", metadata)
-    if manifest.get("data_content_sha256") != metadata.dataset_contract.data_content_sha256:
-        return _bundle_validation("incompatible", "data_content_hash_mismatch", metadata)
+    if (
+        manifest.get("data_content_sha256")
+        != metadata.dataset_contract.data_content_sha256
+    ):
+        return _bundle_validation(
+            "incompatible", "data_content_hash_mismatch", metadata
+        )
     files = manifest.get("files")
     if not isinstance(files, dict):
         return _bundle_validation("incompatible", "manifest_files_missing", metadata)
@@ -114,20 +119,21 @@ def validate_bundle_files(
             "incompatible", "training_file_hash_mismatch", metadata
         )
     training_path = Path(manifest_path).parent / training_file
-    if not training_path.is_file() or sha256_file(training_path) != expected_training_hash:
+    if (
+        not training_path.is_file()
+        or sha256_file(training_path) != expected_training_hash
+    ):
         return _bundle_validation(
             "incompatible", "training_file_hash_mismatch", metadata
         )
     split_file = manifest.get("group_split_file")
-    if (
-        not isinstance(split_file, str)
-        or files.get(split_file) != manifest.get("group_split_sha256")
+    if not isinstance(split_file, str) or files.get(split_file) != manifest.get(
+        "group_split_sha256"
     ):
         return _bundle_validation("incompatible", "split_hash_mismatch", metadata)
     split_path = Path(manifest_path).parent / split_file
-    if (
-        not split_path.is_file()
-        or sha256_file(split_path) != manifest.get("group_split_sha256")
+    if not split_path.is_file() or sha256_file(split_path) != manifest.get(
+        "group_split_sha256"
     ):
         return _bundle_validation("incompatible", "split_hash_mismatch", metadata)
     try:
@@ -136,8 +142,7 @@ def validate_bundle_files(
         disease_split = next(
             item
             for item in disease_splits
-            if isinstance(item, dict)
-            and item.get("disease") == metadata.dataset
+            if isinstance(item, dict) and item.get("disease") == metadata.dataset
         )
     except (OSError, UnicodeError, json.JSONDecodeError, TypeError, StopIteration):
         return _bundle_validation("incompatible", "split_hash_mismatch", metadata)
@@ -274,8 +279,7 @@ def _metadata_reason(raw: dict[str, Any], expected_task: TaskName | None) -> str
         return "feature_schema_mismatch"
     if (
         features.get("schema_version") != "longitudinal_fixed_window_features.v1"
-        or features.get("feature_version")
-        != "longitudinal_fixed_window_features.v1"
+        or features.get("feature_version") != "longitudinal_fixed_window_features.v1"
     ):
         return "feature_schema_mismatch"
     names = features.get("feature_names")
@@ -330,10 +334,16 @@ def _metadata_reason(raw: dict[str, Any], expected_task: TaskName | None) -> str
     if not isinstance(calibration, dict):
         return "calibration_contract_invalid"
     if calibration.get("status") == "not_calibrated":
-        if calibration.get("method") is not None or score.get("semantics") != "model_score":
+        if (
+            calibration.get("method") is not None
+            or score.get("semantics") != "model_score"
+        ):
             return "calibration_contract_invalid"
     elif calibration.get("status") == "calibrated":
-        if not calibration.get("method") or score.get("semantics") != "calibrated_probability":
+        if (
+            not calibration.get("method")
+            or score.get("semantics") != "calibrated_probability"
+        ):
             return "calibration_contract_invalid"
     else:
         return "calibration_contract_invalid"
@@ -363,7 +373,10 @@ def _interface_reason(model: Any, metadata: ArtifactMetadata) -> str | None:
         return "model_interface_incompatible"
     numeric, numeric_columns = transformers["numeric"]
     sex, sex_columns = transformers["sex"]
-    if numeric_columns != expected.numeric_features or sex_columns != expected.categorical_features:
+    if (
+        numeric_columns != expected.numeric_features
+        or sex_columns != expected.categorical_features
+    ):
         return "model_interface_incompatible"
     numeric_steps = getattr(numeric, "named_steps", {})
     sex_steps = getattr(sex, "named_steps", {})
@@ -428,14 +441,22 @@ def _validate_files(
         or metadata_path.name != f"{contract.artifact_stem}.meta.json"
     ):
         return _validation(
-            _status(task=raw_task, status="incompatible", reason_code="filename_task_mismatch"),
+            _status(
+                task=raw_task,
+                status="incompatible",
+                reason_code="filename_task_mismatch",
+            ),
             model_path=model_path,
             metadata_path=metadata_path,
             release_path=release_path,
         ), None
     if sha256_file(model_path) != raw["model_contract"]["artifact_sha256"]:
         return _validation(
-            _status(task=raw_task, status="incompatible", reason_code="artifact_hash_mismatch"),
+            _status(
+                task=raw_task,
+                status="incompatible",
+                reason_code="artifact_hash_mismatch",
+            ),
             model_path=model_path,
             metadata_path=metadata_path,
             release_path=release_path,
@@ -444,7 +465,9 @@ def _validate_files(
         metadata = ArtifactMetadata.model_validate(raw)
     except ValidationError:
         return _validation(
-            _status(task=raw_task, status="incompatible", reason_code="metadata_invalid"),
+            _status(
+                task=raw_task, status="incompatible", reason_code="metadata_invalid"
+            ),
             model_path=model_path,
             metadata_path=metadata_path,
             release_path=release_path,
@@ -542,7 +565,9 @@ def validate_candidate_bundle(
     if not metadata_files:
         return _validation(_status(status="missing", reason_code="metadata_missing"))
     if len(models) != 1 or len(metadata_files) != 1:
-        return _validation(_status(status="incompatible", reason_code="metadata_invalid"))
+        return _validation(
+            _status(status="incompatible", reason_code="metadata_invalid")
+        )
     result, _ = _validate_files(
         models[0],
         metadata_files[0],
@@ -584,7 +609,11 @@ def validate_release_record(
         release = ReleaseRecord.model_validate(raw_release)
     except ValidationError:
         return _validation(
-            _status(task=expected_task, status="incompatible", reason_code="metadata_invalid"),
+            _status(
+                task=expected_task,
+                status="incompatible",
+                reason_code="metadata_invalid",
+            ),
             release_path=path,
         )
     model_path = _inside(root, release.model_path)
@@ -592,26 +621,36 @@ def validate_release_record(
     review_path = _inside(root, release.review_path)
     if model_path is None or metadata_path is None or review_path is None:
         return _validation(
-            _status(task=release.task, status="incompatible", reason_code="registry_path_escape"),
+            _status(
+                task=release.task,
+                status="incompatible",
+                reason_code="registry_path_escape",
+            ),
             release_path=path,
         )
     if not model_path.is_file():
         return _validation(
-            _status(task=release.task, status="missing", reason_code="artifact_missing"),
+            _status(
+                task=release.task, status="missing", reason_code="artifact_missing"
+            ),
             model_path=model_path,
             metadata_path=metadata_path,
             release_path=path,
         )
     if not metadata_path.is_file():
         return _validation(
-            _status(task=release.task, status="missing", reason_code="metadata_missing"),
+            _status(
+                task=release.task, status="missing", reason_code="metadata_missing"
+            ),
             model_path=model_path,
             metadata_path=metadata_path,
             release_path=path,
         )
     if not review_path.is_file():
         return _validation(
-            _status(task=release.task, status="missing", reason_code="review_record_missing"),
+            _status(
+                task=release.task, status="missing", reason_code="review_record_missing"
+            ),
             model_path=model_path,
             metadata_path=metadata_path,
             release_path=path,
@@ -630,21 +669,33 @@ def validate_release_record(
         )
     if sha256_file(model_path) != release.model_sha256:
         return _validation(
-            _status(task=release.task, status="incompatible", reason_code="artifact_hash_mismatch"),
+            _status(
+                task=release.task,
+                status="incompatible",
+                reason_code="artifact_hash_mismatch",
+            ),
             model_path=model_path,
             metadata_path=metadata_path,
             release_path=path,
         )
     if sha256_file(metadata_path) != release.metadata_sha256:
         return _validation(
-            _status(task=release.task, status="incompatible", reason_code="metadata_hash_mismatch"),
+            _status(
+                task=release.task,
+                status="incompatible",
+                reason_code="metadata_hash_mismatch",
+            ),
             model_path=model_path,
             metadata_path=metadata_path,
             release_path=path,
         )
     if sha256_file(review_path) != release.review_sha256:
         return _validation(
-            _status(task=release.task, status="incompatible", reason_code="integrity_chain_broken"),
+            _status(
+                task=release.task,
+                status="incompatible",
+                reason_code="integrity_chain_broken",
+            ),
             model_path=model_path,
             metadata_path=metadata_path,
             release_path=path,
@@ -652,14 +703,22 @@ def validate_release_record(
     raw_review, review_error = _safe_json(review_path)
     if review_error or raw_review is None:
         return _validation(
-            _status(task=release.task, status="incompatible", reason_code="integrity_chain_broken"),
+            _status(
+                task=release.task,
+                status="incompatible",
+                reason_code="integrity_chain_broken",
+            ),
             release_path=path,
         )
     try:
         review = ReviewRecord.model_validate(raw_review)
     except ValidationError:
         return _validation(
-            _status(task=release.task, status="incompatible", reason_code="integrity_chain_broken"),
+            _status(
+                task=release.task,
+                status="incompatible",
+                reason_code="integrity_chain_broken",
+            ),
             release_path=path,
         )
     if (
@@ -672,7 +731,11 @@ def validate_release_record(
         or review.metadata_path != release.metadata_path
     ):
         return _validation(
-            _status(task=release.task, status="incompatible", reason_code="integrity_chain_broken"),
+            _status(
+                task=release.task,
+                status="incompatible",
+                reason_code="integrity_chain_broken",
+            ),
             release_path=path,
         )
     result, _ = _validate_files(
@@ -805,6 +868,8 @@ def load_model_registry(
 def _suite_entry_from_bundle(
     bundle: dict[str, Any],
     root: Path,
+    *,
+    load_runtime=True,
 ) -> SuiteModelEntry:
     artifact_type = str(bundle.get("artifact_type", ""))
     task = str(bundle.get("task", ""))
@@ -895,7 +960,7 @@ def _suite_entry_from_bundle(
             metadata=metadata,
         )
     try:
-        model = joblib.load(paths["model_path"])
+        model = joblib.load(paths["model_path"]) if load_runtime else None
     except Exception:
         return SuiteModelEntry(
             status=ModelRuntimeStatus(
@@ -931,7 +996,13 @@ def load_disease_model_suite(
 ) -> LoadedDiseaseModelSuite:
     root = Path(registry_root).resolve()
     release_set = load_disease_release_set(dataset, root)
-    if release_set.dataset != dataset:
+    return load_model_suite_record(release_set, root)
+
+
+def load_model_suite_record(release_set, registry_root, *, load_runtime=True):
+    root = Path(registry_root).resolve()
+    dataset = release_set.dataset
+    if dataset not in REQUIRED_TASKS:
         raise ValueError("release_set_dataset_mismatch")
     if release_set.status not in {"reviewed", "enabled"}:
         raise ValueError("release_set_lifecycle_invalid")
@@ -961,7 +1032,11 @@ def load_disease_model_suite(
     stage: SuiteModelEntry | None = None
     trends: dict[str, SuiteModelEntry] = {}
     for bundle in release_set.bundles:
-        entry = _suite_entry_from_bundle(bundle, root)
+        entry = (
+            _suite_entry_from_bundle(bundle, root)
+            if load_runtime
+            else _suite_entry_from_bundle(bundle, root, load_runtime=False)
+        )
         artifact_type = str(bundle.get("artifact_type"))
         if artifact_type == "outcome":
             outcomes[str(bundle["task"])] = entry
@@ -978,7 +1053,7 @@ def load_disease_model_suite(
         raise ValueError("required_bundle_missing")
     entries = [*outcomes.values(), stage, *trends.values()]
     if any(
-        entry.status.status != "available" or entry.model is None
+        entry.status.status != "available" or (load_runtime and entry.model is None)
         for entry in entries
     ):
         raise ValueError("bundle_preload_failed")
@@ -1014,7 +1089,10 @@ def load_active_model_registry(
             pointer_payload = json.loads(active_pointer.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError):
             pointer_payload = None
-        if isinstance(pointer_payload, dict) and pointer_payload.get("status") == "inactive":
+        if (
+            isinstance(pointer_payload, dict)
+            and pointer_payload.get("status") == "inactive"
+        ):
             return load_model_registry(dataset, registry_root=root)
         try:
             pointer = read_active_pointer(root, dataset)

@@ -17,19 +17,39 @@ OUTCOME_ALLOWLIST = {
     "ad": frozenset({"explicit_cdr", "documented_ad_unspecified"}),
 }
 REASON_ORDER = (
-    "disease_mismatch", "release_mismatch", "synthetic_source",
-    "anonymous_code_missing", "anonymous_code_invalid", "insufficient_visits",
-    "source_trace_missing", "outcome_source_not_allowed",
-    "outcome_reliability_insufficient", "task_incompatible", "timeline_invalid",
+    "disease_mismatch",
+    "release_mismatch",
+    "synthetic_source",
+    "anonymous_code_missing",
+    "anonymous_code_invalid",
+    "insufficient_visits",
+    "source_trace_missing",
+    "outcome_source_not_allowed",
+    "outcome_reliability_insufficient",
+    "task_incompatible",
+    "timeline_invalid",
 )
 ELIGIBILITY_CONFIG_VERSION = "reference_eligibility.v1"
-ELIGIBILITY_CONFIG_HASH = hashlib.sha256(json.dumps(
-    {"version": ELIGIBILITY_CONFIG_VERSION, "anonymous_pattern": ANONYMOUS_CODE.pattern,
-     "outcome_allowlist": {key: sorted(value) for key, value in OUTCOME_ALLOWLIST.items()},
-     "minimum_visits": 3, "outcome_reliability": "high"},
-    ensure_ascii=False, sort_keys=True, separators=(",", ":"),
-).encode("utf-8")).hexdigest()
-REFERENCE_PROFILE_SCHEMA_VERSION = f"reference_case_profile.v1+{ELIGIBILITY_CONFIG_HASH[:12]}"
+ELIGIBILITY_CONFIG_HASH = hashlib.sha256(
+    json.dumps(
+        {
+            "version": ELIGIBILITY_CONFIG_VERSION,
+            "anonymous_pattern": ANONYMOUS_CODE.pattern,
+            "outcome_allowlist": {
+                key: sorted(value) for key, value in OUTCOME_ALLOWLIST.items()
+            },
+            "minimum_visits": 3,
+            "outcome_reliability": "high",
+            "profile_input_version": "reference_history.units.v1",
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+).hexdigest()
+REFERENCE_PROFILE_SCHEMA_VERSION = (
+    f"reference_case_profile.v1+{ELIGIBILITY_CONFIG_HASH[:12]}"
+)
 
 
 class ReferenceEligibilityCandidate(BaseModel):
@@ -54,7 +74,9 @@ class EligibilityDecision:
     reasons: tuple[str, ...]
 
 
-def evaluate_reference_candidate(candidate: ReferenceEligibilityCandidate) -> EligibilityDecision:
+def evaluate_reference_candidate(
+    candidate: ReferenceEligibilityCandidate,
+) -> EligibilityDecision:
     reasons: list[str] = []
     if candidate.disease_code != candidate.expected_disease_code:
         reasons.append("disease_mismatch")
@@ -70,7 +92,9 @@ def evaluate_reference_candidate(candidate: ReferenceEligibilityCandidate) -> El
         reasons.append("insufficient_visits")
     if not candidate.source_trace:
         reasons.append("source_trace_missing")
-    if candidate.outcome_source not in OUTCOME_ALLOWLIST.get(candidate.disease_code, frozenset()):
+    if candidate.outcome_source not in OUTCOME_ALLOWLIST.get(
+        candidate.disease_code, frozenset()
+    ):
         reasons.append("outcome_source_not_allowed")
     if candidate.outcome_reliability != "high":
         reasons.append("outcome_reliability_insufficient")
@@ -83,7 +107,11 @@ def evaluate_reference_candidate(candidate: ReferenceEligibilityCandidate) -> El
 
 
 __all__ = [
-    "ANONYMOUS_CODE", "ELIGIBILITY_CONFIG_HASH", "ELIGIBILITY_CONFIG_VERSION",
-    "EligibilityDecision", "REFERENCE_PROFILE_SCHEMA_VERSION", "ReferenceEligibilityCandidate",
+    "ANONYMOUS_CODE",
+    "ELIGIBILITY_CONFIG_HASH",
+    "ELIGIBILITY_CONFIG_VERSION",
+    "EligibilityDecision",
+    "REFERENCE_PROFILE_SCHEMA_VERSION",
+    "ReferenceEligibilityCandidate",
     "evaluate_reference_candidate",
 ]

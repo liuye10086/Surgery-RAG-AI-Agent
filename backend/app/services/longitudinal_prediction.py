@@ -21,7 +21,10 @@ from app.schemas.longitudinal_report import (
     SignalInterpretationResult,
     StageProjection,
 )
-from app.services.disease_progression import DiseaseProgressionAdapter, predict_indicator_trends
+from app.services.disease_progression import (
+    DiseaseProgressionAdapter,
+    predict_indicator_trends,
+)
 from app.services.longitudinal_features import (
     InferenceContractError,
     build_feature_vector,
@@ -79,12 +82,19 @@ def _run_outcome_model(
     entry: LoadedModelEntry,
     case: dict[str, Any],
     visits: list[dict[str, Any]],
+    *,
+    audit_collector=None,
+    minimum_visits=3,
 ) -> OutcomeInferenceResult:
     if route.routing_status != "selected" or route.task is None:
         return OutcomeInferenceResult(
             _inference_status(entry, "disabled", route.reason_code)
         )
-    if entry.metadata is None or entry.model is None or entry.status.status != "available":
+    if (
+        entry.metadata is None
+        or entry.model is None
+        or entry.status.status != "available"
+    ):
         reason = entry.status.reason_code
         if entry.metadata is not None and entry.metadata.task != route.task:
             reason = "task_mismatch"
@@ -96,17 +106,21 @@ def _run_outcome_model(
         return OutcomeInferenceResult(
             _inference_status(entry, "incompatible", "task_mismatch")
         )
-    if len(visits) < 3:
+    if len(visits) < minimum_visits:
         return OutcomeInferenceResult(
             _inference_status(entry, "disabled", "insufficient_visits")
         )
     try:
-        frame = build_fixed_window_inference_features(case, visits, metadata)
+        frame = build_fixed_window_inference_features(
+            case, visits, metadata, audit_collector=audit_collector
+        )
     except InferenceContractError as error:
         return OutcomeInferenceResult(
             _inference_status(entry, "incompatible", error.code)
         )
     try:
+        if audit_collector is not None:
+            audit_collector.invoking(entry.metadata.task)
         probabilities = entry.model.predict_proba(frame)
         classes = list(entry.model.classes_)
         positive_index = classes.index(metadata.score_contract.positive_class)
@@ -116,9 +130,7 @@ def _run_outcome_model(
             _inference_status(entry, "incompatible", "prediction_failed")
         )
     if not math.isfinite(score) or not (
-        metadata.score_contract.minimum
-        <= score
-        <= metadata.score_contract.maximum
+        metadata.score_contract.minimum <= score <= metadata.score_contract.maximum
     ):
         return OutcomeInferenceResult(
             _inference_status(entry, "incompatible", "prediction_score_invalid")
@@ -140,7 +152,17 @@ def _risk_from_registry(visits, registry):
     probabilities = model.predict_proba([vector])[0]
     classes = list(model.classes_)
     score = float(probabilities[classes.index(1)]) if 1 in classes else None
-    band = "极高" if score is not None and score >= 0.8 else "高" if score is not None and score >= 0.6 else "中" if score is not None and score >= 0.3 else "低" if score is not None else None
+    band = (
+        "极高"
+        if score is not None and score >= 0.8
+        else "高"
+        if score is not None and score >= 0.6
+        else "中"
+        if score is not None and score >= 0.3
+        else "低"
+        if score is not None
+        else None
+    )
     return score, band
 
 
@@ -181,9 +203,15 @@ def _suite_status(entry, status: str, reason_code: str) -> ModelRuntimeStatus:
         status=status,
         reason_code=reason_code,
         lifecycle_status=entry.status.lifecycle_status,
-        model_id=metadata.model_contract.model_id if metadata else entry.status.model_id,
-        model_name=metadata.model_contract.model_name if metadata else entry.status.model_name,
-        model_version=metadata.model_contract.model_version if metadata else entry.status.model_version,
+        model_id=metadata.model_contract.model_id
+        if metadata
+        else entry.status.model_id,
+        model_name=metadata.model_contract.model_name
+        if metadata
+        else entry.status.model_name,
+        model_version=metadata.model_contract.model_version
+        if metadata
+        else entry.status.model_version,
         artifact_sha256=(
             metadata.model_contract.artifact_sha256
             if metadata
@@ -204,15 +232,18 @@ def _suite_status(entry, status: str, reason_code: str) -> ModelRuntimeStatus:
             else entry.status.score_semantics
         ),
         calibration_status=(
-            metadata.calibration.status
-            if metadata
-            else entry.status.calibration_status
+            metadata.calibration.status if metadata else entry.status.calibration_status
         ),
     )
 
 
 def _suite_frame(
-    case: dict[str, Any], visits: list[dict[str, Any]], metadata
+    case: dict[str, Any],
+    visits: list[dict[str, Any]],
+    metadata,
+    *,
+    audit_collector=None,
+    minimum_visits=3,
 ):
     contract = getattr(metadata, "feature_contract", None)
     if not hasattr(contract, "input_container"):
@@ -224,10 +255,14 @@ def _suite_frame(
             [{"age": case.get("age")}],
             columns=getattr(contract, "feature_names", ["age"]),
         )
-    return build_fixed_window_inference_features(case, visits, metadata)
+    return build_fixed_window_inference_features(
+        case, visits, metadata, audit_collector=audit_collector
+    )
 
 
-def _run_suite_outcome(route, entry, case, visits) -> OutcomeInferenceResult:
+def _run_suite_outcome(
+    route, entry, case, visits, *, audit_collector=None, minimum_visits=3
+) -> OutcomeInferenceResult:
     if route.routing_status != "selected" or route.task is None:
         return OutcomeInferenceResult(
             _suite_status(entry, "disabled", route.reason_code)
@@ -242,14 +277,17 @@ def _run_suite_outcome(route, entry, case, visits) -> OutcomeInferenceResult:
         return OutcomeInferenceResult(
             _suite_status(entry, "incompatible", "task_mismatch")
         )
-    if len(visits) < 3:
+    if len(visits) < minimum_visits:
         return OutcomeInferenceResult(
             _suite_status(entry, "disabled", "insufficient_visits")
         )
     try:
-        probabilities = entry.model.predict_proba(
-            _suite_frame(case, visits, entry.metadata)
+        frame = _suite_frame(
+            case, visits, entry.metadata, audit_collector=audit_collector
         )
+        if audit_collector is not None:
+            audit_collector.invoking(entry.metadata.task)
+        probabilities = entry.model.predict_proba(frame)
         classes = list(getattr(entry.model, "classes_", []))
         positive = entry.metadata.output_contract.positive_class
         if positive in classes:
@@ -259,6 +297,8 @@ def _run_suite_outcome(route, entry, case, visits) -> OutcomeInferenceResult:
         else:
             index = 1
         score = float(probabilities[0][index])
+    except InferenceContractError as error:
+        return OutcomeInferenceResult(_suite_status(entry, "incompatible", error.code))
     except Exception:
         return OutcomeInferenceResult(
             _suite_status(entry, "incompatible", "prediction_failed")
@@ -312,7 +352,15 @@ def _monotonic_stage_projection(
     return f"stay_{current}", allowed
 
 
-def _run_suite_stage(entry, case, visits, adapter: DiseaseProgressionAdapter):
+def _run_suite_stage(
+    entry,
+    case,
+    visits,
+    adapter: DiseaseProgressionAdapter,
+    *,
+    audit_collector=None,
+    minimum_visits=3,
+):
     if (
         entry.metadata is None
         or entry.model is None
@@ -320,7 +368,11 @@ def _run_suite_stage(entry, case, visits, adapter: DiseaseProgressionAdapter):
     ):
         return StageProjection(status="not_estimated"), entry.status
     try:
-        frame = _suite_frame(case, visits, entry.metadata)
+        frame = _suite_frame(
+            case, visits, entry.metadata, audit_collector=audit_collector
+        )
+        if audit_collector is not None:
+            audit_collector.invoking(entry.metadata.task)
         likely = str(entry.model.predict(frame)[0])
         candidates = []
         if callable(getattr(entry.model, "predict_proba", None)):
@@ -361,7 +413,16 @@ def _run_suite_stage(entry, case, visits, adapter: DiseaseProgressionAdapter):
         )
 
 
-def _run_suite_trend(indicator, entry, case, visits, observation):
+def _run_suite_trend(
+    indicator,
+    entry,
+    case,
+    visits,
+    observation,
+    *,
+    audit_collector=None,
+    minimum_visits=3,
+):
     observed = observation.get("indicators", {}).get(indicator, {})
     if (
         entry.metadata is None
@@ -384,9 +445,12 @@ def _run_suite_trend(indicator, entry, case, visits, observation):
             "model_status": entry.status,
         }
     try:
-        direction = str(
-            entry.model.predict(_suite_frame(case, visits, entry.metadata))[0]
+        frame = _suite_frame(
+            case, visits, entry.metadata, audit_collector=audit_collector
         )
+        if audit_collector is not None:
+            audit_collector.invoking(entry.metadata.task)
+        direction = str(entry.model.predict(frame)[0])
         if direction not in {"rising", "stable", "falling"}:
             raise ValueError("invalid direction")
         status = entry.status
@@ -442,6 +506,9 @@ def _run_suite_prediction(
     adapter,
     suite: LoadedDiseaseModelSuite,
     standard_sources=None,
+    *,
+    audit_collector=None,
+    minimum_visits=3,
 ):
     observation = summarize_observation(visits)
     route = route_outcome_task(adapter.dataset, case.get("baseline_stage"))
@@ -457,7 +524,14 @@ def _run_suite_prediction(
             outcome_result = OutcomeInferenceResult(outcome_status)
             outcome_feature_names = None
         else:
-            outcome_result = _run_suite_outcome(route, entry, case, visits)
+            outcome_result = _run_suite_outcome(
+                route,
+                entry,
+                case,
+                visits,
+                audit_collector=audit_collector,
+                minimum_visits=minimum_visits,
+            )
             outcome_status = outcome_result.status
             outcome_feature_names = (
                 entry.metadata.feature_contract.feature_names
@@ -469,10 +543,12 @@ def _run_suite_prediction(
         outcome_status = outcome_result.status
         outcome_feature_names = None
     stage_projection, stage_status = _run_suite_stage(
-        suite.stage, case, visits, adapter
+        suite.stage, case, visits, adapter, audit_collector=audit_collector
     )
     trend_predictions = [
-        _run_suite_trend(indicator, entry, case, visits, observation)
+        _run_suite_trend(
+            indicator, entry, case, visits, observation, audit_collector=audit_collector
+        )
         for indicator, entry in sorted(suite.trends.items())
     ]
     available_trends = [
@@ -490,8 +566,11 @@ def _run_suite_prediction(
         )
     )
     progression_signals = interpret_observation_signals(
-        dataset=adapter.dataset, visits=visits, standard_sources=standard_sources or [],
-        outcome_status=outcome_status, feature_names=outcome_feature_names,
+        dataset=adapter.dataset,
+        visits=visits,
+        standard_sources=standard_sources or [],
+        outcome_status=outcome_status,
+        feature_names=outcome_feature_names,
     )
     warnings = _audit_warnings(suite)
     warnings = list(dict.fromkeys(warnings))
@@ -509,9 +588,7 @@ def _run_suite_prediction(
             "risk_band": outcome_result.risk_band,
             "risk_score": outcome_result.risk_score,
             "stage_projection": stage_projection,
-            "confidence": {
-                "calibration_status": outcome_status.calibration_status
-            },
+            "confidence": {"calibration_status": outcome_status.calibration_status},
         },
         trend_predictions=trend_predictions,
         model_status={
@@ -538,7 +615,13 @@ def run_longitudinal_prediction(
     case: dict[str, Any],
     visits: list[dict[str, Any]],
     adapter: DiseaseProgressionAdapter,
-    model_registry: LoadedDiseaseModelSuite | LongitudinalModelRegistry | dict[str, Any] | None = None,
+    model_registry: LoadedDiseaseModelSuite
+    | LongitudinalModelRegistry
+    | dict[str, Any]
+    | None = None,
+    *,
+    audit_collector=None,
+    minimum_visits=3,
     **legacy_kwargs: Any,
 ) -> LongitudinalPredictionResult:
     legacy_sources = legacy_kwargs.get("standard_sources")
@@ -549,13 +632,22 @@ def run_longitudinal_prediction(
             adapter,
             model_registry,
             legacy_sources,
+            audit_collector=audit_collector,
+            minimum_visits=minimum_visits,
         )
     observation = summarize_observation(visits)
     registry = _registry_v2(adapter.dataset, model_registry)
     route = route_outcome_task(adapter.dataset, case.get("baseline_stage"))
     if route.routing_status == "selected" and route.task is not None:
         entry = registry.outcomes[route.task]
-        outcome_result = _run_outcome_model(route, entry, case, visits)
+        outcome_result = _run_outcome_model(
+            route,
+            entry,
+            case,
+            visits,
+            audit_collector=audit_collector,
+            minimum_visits=minimum_visits,
+        )
         outcome_status = outcome_result.status
         score = outcome_result.risk_score
         band = outcome_result.risk_band
@@ -567,8 +659,11 @@ def run_longitudinal_prediction(
         score = band = None
         outcome_feature_names = None
     progression_signals = interpret_observation_signals(
-        dataset=adapter.dataset, visits=visits, standard_sources=legacy_sources or [],
-        outcome_status=outcome_status, feature_names=outcome_feature_names,
+        dataset=adapter.dataset,
+        visits=visits,
+        standard_sources=legacy_sources or [],
+        outcome_status=outcome_status,
+        feature_names=outcome_feature_names,
     )
     stage = StageProjection(status="not_estimated")
     warnings = [adapter.synthetic_data_warning]
@@ -581,7 +676,12 @@ def run_longitudinal_prediction(
     result = LongitudinalPredictionResultV2(
         disease={"dataset": adapter.dataset, "name": adapter.disease_name},
         observation=observation,
-        outcome_prediction={"risk_band": band, "risk_score": score, "stage_projection": stage, "confidence": {"calibration_status": outcome_status.calibration_status}},
+        outcome_prediction={
+            "risk_band": band,
+            "risk_score": score,
+            "stage_projection": stage,
+            "confidence": {"calibration_status": outcome_status.calibration_status},
+        },
         trend_predictions=[],
         model_status={
             "outcome": outcome_status,
@@ -589,22 +689,35 @@ def run_longitudinal_prediction(
             "trend": registry.trend,
         },
         progression_signals=progression_signals,
-        evidence={}, warnings=warnings,
+        evidence={},
+        warnings=warnings,
     )
     return validate_prediction_result(result)
 
 
-def validate_prediction_result(result: LongitudinalPredictionResult | dict[str, Any]) -> LongitudinalPredictionResult:
-    if isinstance(result, (LongitudinalPredictionResultV2, LongitudinalPredictionResultV3)):
+def validate_prediction_result(
+    result: LongitudinalPredictionResult | dict[str, Any],
+) -> LongitudinalPredictionResult:
+    if isinstance(
+        result, (LongitudinalPredictionResultV2, LongitudinalPredictionResultV3)
+    ):
         validated = result
-    elif isinstance(result, dict) and result.get("schema_version") == "longitudinal_prediction.v3":
+    elif (
+        isinstance(result, dict)
+        and result.get("schema_version") == "longitudinal_prediction.v3"
+    ):
         validated = LongitudinalPredictionResultV3.model_validate(result)
     else:
         validated = LongitudinalPredictionResultV2.model_validate(result)
-    if validated.outcome_prediction.risk_score is not None and not 0 <= validated.outcome_prediction.risk_score <= 1:
+    if (
+        validated.outcome_prediction.risk_score is not None
+        and not 0 <= validated.outcome_prediction.risk_score <= 1
+    ):
         raise ValueError("risk_score 必须位于 0 到 1")
     return validated
 
 
-def prediction_result_to_dict(result: LongitudinalPredictionResult | dict[str, Any]) -> dict[str, Any]:
+def prediction_result_to_dict(
+    result: LongitudinalPredictionResult | dict[str, Any],
+) -> dict[str, Any]:
     return validate_prediction_result(result).model_dump(mode="json")

@@ -59,9 +59,9 @@ class CleanupContractTests(unittest.TestCase):
 
     def test_old_chat_and_vector_functions_are_removed(self):
         chat_api = _function_names(PROJECT_ROOT / "backend/app/api/chat.py")
-        frontend_chat = (
-            PROJECT_ROOT / "frontend/src/api/chat.ts"
-        ).read_text(encoding="utf-8")
+        frontend_chat = (PROJECT_ROOT / "frontend/src/api/chat.ts").read_text(
+            encoding="utf-8"
+        )
         vectorstore = _function_names(PROJECT_ROOT / "backend/app/rag/vectorstore.py")
         parser = _function_names(PROJECT_ROOT / "backend/app/ingestion/parser.py")
 
@@ -81,7 +81,9 @@ class CleanupContractTests(unittest.TestCase):
         self.assertNotIn("DocumentStatus", document_types)
 
     def test_runtime_data_and_tools_remain(self):
-        self.assertTrue((PROJECT_ROOT / "uploads").is_dir())
+        self.assertIn(
+            "uploads", (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
+        )
         self.assertTrue((PROJECT_ROOT / "scripts/check_documents.py").is_file())
         self.assertTrue((PROJECT_ROOT / "scripts/create_admin.py").is_file())
         self.assertTrue((PROJECT_ROOT / "scripts/evaluate_rag.py").is_file())
@@ -115,7 +117,21 @@ class CleanupContractTests(unittest.TestCase):
             "docs/superpowers/notes/2026-08-25-longitudinal-report-improvement-roadmap.md",
             "docs/superpowers/notes/2026-08-26-ad-stage-transition-future-design-note.md",
         ]
+        # Clean worktrees intentionally omit ignored secrets and generated local assets.
+        local_only = {
+            "backend/.env",
+            "uploads",
+            "frontend/node_modules",
+            "frontend/dist",
+            "data/generated/longitudinal_150",
+            "data/generated/longitudinal_300",
+            "data/generated/ad_longitudinal_150",
+            "data/generated/ad_longitudinal_300",
+            "outputs/report_method_validation.md",
+        }
         for relative_path in preserved:
+            if relative_path in local_only:
+                continue
             self.assertTrue((PROJECT_ROOT / relative_path).exists(), relative_path)
 
     def test_only_current_cleanup_specs_remain(self):
@@ -137,13 +153,14 @@ class CleanupContractTests(unittest.TestCase):
                 "2026-09-03-operator-visit-input-contract-design.md",
                 "2026-09-04-operator-e2e-defect-remediation-design.md",
                 "2026-09-04-operator-standard-reference-evidence-design.md",
+                "2026-09-07-operator-complete-report-audit-design.md",
             },
         )
 
     def test_old_progression_endpoint_and_imports_are_removed(self):
-        operator_source = (
-            PROJECT_ROOT / "backend/app/api/operator.py"
-        ).read_text(encoding="utf-8")
+        operator_source = (PROJECT_ROOT / "backend/app/api/operator.py").read_text(
+            encoding="utf-8"
+        )
         self.assertNotIn("/progression-predictions", operator_source)
         self.assertNotIn("schemas.progression", operator_source)
         self.assertNotIn("predict_progression", operator_source)
