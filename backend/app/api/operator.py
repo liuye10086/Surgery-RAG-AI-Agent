@@ -41,7 +41,6 @@ from app.schemas.operator_case_status import (
     OperatorCaseStatusChangeRequest,
 )
 from app.schemas.operator_indicator_catalog import OperatorIndicatorCatalogOut
-from app.services.pdf_generator import generate_pdf
 from app.services.longitudinal_case_service import (
     ArchivedCaseError,
     CaseNotFoundError,
@@ -67,7 +66,6 @@ from app.services.operator_case_status_service import (
     OperatorCaseStatusError,
     change_operator_case_status,
 )
-from app.services.longitudinal_report_generator import generate_longitudinal_report
 from app.services.report_integrity import (
     compute_input_snapshot_sha256,
     verify_report_integrity,

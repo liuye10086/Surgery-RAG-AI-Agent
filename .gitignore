@@ -40,7 +40,6 @@ dist-ssr/
 /.claude/
 /tmp/
 /output/
-/research/outputs/
 
 # Local databases and backups
 *.sqlite

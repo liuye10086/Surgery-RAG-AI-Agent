@@ -101,9 +101,7 @@ class CleanupContractTests(unittest.TestCase):
             "data/generated/longitudinal_300",
             "data/generated/ad_longitudinal_150",
             "data/generated/ad_longitudinal_300",
-            "research/main.py",
-            "research/tests",
-            "outputs/report_method_validation.md",
+            "docs/report_method_validation.md",
             "backend/app/ml_models/datasets",
             "backend/app/ml_models/bundles",
             "backend/app/ml_models/release_sets",
@@ -127,7 +125,6 @@ class CleanupContractTests(unittest.TestCase):
             "data/generated/longitudinal_300",
             "data/generated/ad_longitudinal_150",
             "data/generated/ad_longitudinal_300",
-            "outputs/report_method_validation.md",
         }
         for relative_path in preserved:
             if relative_path in local_only:

@@ -2,7 +2,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from app.api.operator import download_report_pdf
-from app.services.longitudinal_report_generator import render_longitudinal_markdown
 from app.services.longitudinal_case_service import build_input_snapshot
 
 
@@ -21,46 +20,6 @@ def test_new_case_snapshot_uses_anonymous_code_and_excludes_legacy_label():
     assert "patient_label" not in snapshot
 
 
-def test_report_source_prefers_anonymous_code_over_sensitive_legacy_label():
-    prediction = {
-        "disease": {"name": "脂肪肝"},
-        "observation": {"visit_count": 0, "observation_span_days": 0, "indicators": {}},
-        "outcome_prediction": {"stage_projection": {}},
-        "model_status": {},
-        "progression_signals": {"signals": [], "summary": {"signal_count": 0}},
-        "warnings": [],
-    }
-    sources = [{
-        "source_type": "similar_case",
-        "patient_label": "张三",
-        "anonymous_case_code": "CASE-7F3K-92LM",
-        "overlap_features": ["alt"],
-    }]
-    rendered = render_longitudinal_markdown(
-        prediction, sources, {"anonymous_case_code": "CASE-7F3K-92LM", "visits": []}
-    )
-    assert "张三" not in rendered
-    assert "CASE-7F3K-92LM" in rendered
-
-
-def test_report_source_without_anonymous_code_uses_placeholder_not_legacy_label():
-    prediction = {
-        "disease": {"name": "脂肪肝"},
-        "observation": {"visit_count": 0, "observation_span_days": 0, "indicators": {}},
-        "outcome_prediction": {"stage_projection": {}},
-        "model_status": {},
-        "progression_signals": {"signals": [], "summary": {"signal_count": 0}},
-        "warnings": [],
-    }
-    rendered = render_longitudinal_markdown(
-        prediction,
-        [{"source_type": "similar_case", "patient_label": "住院号123456", "overlap_features": ["alt"]}],
-        {"visits": []},
-    )
-    assert "住院号123456" not in rendered
-    assert "旧来源未设置匿名编号" in rendered
-
-
 def test_pdf_filename_uses_anonymous_code_when_saved_title_is_sensitive():
     report = SimpleNamespace(
         id=17,
@@ -77,11 +36,15 @@ def test_pdf_filename_uses_anonymous_code_when_saved_title_is_sensitive():
     db = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = report
     import io
+
     from app.services.report_pdf_delivery import PdfDelivery
     from app.services.report_saved_identity import saved_report_identity
+
     identity = saved_report_identity(report.id, report.input_snapshot)
-    delivery = PdfDelivery(io.BytesIO(b"%PDF"), identity.title+'.pdf', 4, 'a'*64)
-    with patch("app.services.report_pdf_delivery.prepare_delivery", return_value=delivery):
+    delivery = PdfDelivery(io.BytesIO(b"%PDF"), identity.title + ".pdf", 4, "a" * 64)
+    with patch(
+        "app.services.report_pdf_delivery.prepare_delivery", return_value=delivery
+    ):
         response = download_report_pdf(17, db=db, current_user=SimpleNamespace(id=5))
     delivery.file.close()
     disposition = response.headers["Content-Disposition"]
@@ -104,6 +67,7 @@ def test_pdf_title_uses_safe_report_id_when_legacy_report_has_no_anonymous_code(
     db = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = report
     from app.services.report_saved_identity import saved_report_identity
+
     identity = saved_report_identity(report.id, None)
     assert identity.title == "报告-18"
     assert "张三" not in identity.title

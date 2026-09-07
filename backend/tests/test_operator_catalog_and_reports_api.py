@@ -170,12 +170,9 @@ class TestReportStateMachine(unittest.TestCase):
 
         db = MagicMock()
         user = SimpleNamespace(id=7)
-        with (
-            patch(
-                "app.api.operator_report_jobs.legacy_submit", return_value="stream"
-            ) as submit,
-            patch("app.api.operator.generate_longitudinal_report") as old_generator,
-        ):
+        with patch(
+            "app.api.operator_report_jobs.legacy_submit", return_value="stream"
+        ) as submit:
             response = asyncio.run(
                 create_longitudinal_report(
                     3, None, db, user, idempotency_key=None, token="test-token"
@@ -185,7 +182,6 @@ class TestReportStateMachine(unittest.TestCase):
         submit.assert_called_once_with(
             3, {"model_options": {}}, db, user, None, "test-token"
         )
-        old_generator.assert_not_called()
         db.add.assert_not_called()
 
     def test_legacy_adapter_propagates_safe_admission_errors(self):

@@ -3,32 +3,14 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from app.api.operator import download_report_pdf, get_report
-from app.services.longitudinal_report_generator import render_longitudinal_markdown
-
-
-def test_report_content_is_rendered_from_saved_snapshot_without_recalculation():
-    prediction = {
-        "schema_version": "longitudinal_prediction.v2",
-        "disease": {"name": "脂肪肝"},
-        "observation": {"visit_count": 3, "observation_span_days": 365, "indicators": {}},
-        "outcome_prediction": {"risk_band": None, "risk_score": None, "stage_projection": {"status": "not_estimated"}},
-        "model_status": {
-            "outcome": {"status": "missing"}, "stage": {"status": "missing"}, "trend": {"status": "missing"}
-        },
-        "progression_signals": {"signals": [], "summary": {"signal_count": 0}},
-        "warnings": [],
-    }
-    snapshot = {"patient_label": "匿名病例", "visits": [{"visit_date": "2025-01-01", "indicators": []}]}
-    content_before = render_longitudinal_markdown(prediction, [], snapshot)
-    snapshot["patient_label"] = "后来修改的标签"
-    content_after = render_longitudinal_markdown(prediction, [], {"patient_label": "匿名病例", "visits": [{"visit_date": "2025-01-01", "indicators": []}]})
-    assert content_after == content_before
 
 
 def test_pdf_template_keeps_summary_signal_and_review_blocks_together():
     from pathlib import Path
 
-    template = Path(__file__).parents[1].joinpath("app/templates/report_pdf.html").read_text(encoding="utf-8")
+    template = Path(__file__).parents[1].joinpath(
+        "app/templates/report_pdf.html"
+    ).read_text(encoding="utf-8")
     assert "break-inside: avoid" in template
     assert ".report-summary" in template
     assert ".signal-block" in template
@@ -66,27 +48,19 @@ def _db_returning(report):
     db.query.return_value.filter.return_value.first.return_value = report
     # Saved detail uses owned SQL mappings.
     from itertools import cycle
-    db.execute.return_value.mappings.return_value.first.side_effect = cycle([vars(report).copy(), None])
+
+    db.execute.return_value.mappings.return_value.first.side_effect = cycle(
+        [vars(report).copy(), None]
+    )
     return db
 
 
-def test_history_detail_returns_saved_content_after_case_changes(monkeypatch):
-    from app.services import longitudinal_report_generator
-
+def test_history_detail_returns_saved_content_after_case_changes():
     report = _saved_report()
     db = _db_returning(report)
     current_user = SimpleNamespace(id=5)
-    case = {"patient_label": "生成时标签"}
-    monkeypatch.setattr(
-        longitudinal_report_generator,
-        "run_longitudinal_prediction",
-        lambda *args, **kwargs: (_ for _ in ()).throw(
-            AssertionError("打开历史报告时不应重新预测")
-        ),
-    )
 
     before = get_report(17, db=db, current_user=current_user)
-    case["patient_label"] = "后来修改的标签"
     after = get_report(17, db=db, current_user=current_user)
 
     assert before.content == "生成时保存的完整正文"
@@ -96,8 +70,13 @@ def test_history_detail_returns_saved_content_after_case_changes(monkeypatch):
 
 def test_pdf_source_uses_saved_content_verbatim():
     from app.services.report_read_service import build_pdf_source
+
     report = _saved_report("网页、历史和 PDF 共用的正文")
-    source = build_pdf_source(get_report(17, db=_db_returning(report), current_user=SimpleNamespace(id=5)))
+    source = build_pdf_source(
+        get_report(
+            17, db=_db_returning(report), current_user=SimpleNamespace(id=5)
+        )
+    )
     assert source.content == report.content
     assert source.title == "报告-17"
     assert source.prediction_result == report.prediction_result
@@ -121,13 +100,34 @@ def test_pdf_download_rejects_report_fingerprint_mismatch():
     report.content = "被篡改正文"
     db = _db_returning(report)
 
-    with patch("app.api.operator.generate_pdf") as generate:
-        with pytest.raises(HTTPException) as raised:
-            download_report_pdf(17, db=db, current_user=SimpleNamespace(id=5))
+    with pytest.raises(HTTPException) as raised:
+        download_report_pdf(17, db=db, current_user=SimpleNamespace(id=5))
 
     assert raised.value.status_code == 409
     assert raised.value.detail["code"] == "report_not_exportable"
-    generate.assert_not_called()
+
+
+def test_pdf_delivery_failure_returns_safe_message_without_local_details():
+    from fastapi import HTTPException
+    import pytest
+
+    from app.services.report_pdf_errors import PdfError
+
+    report = _saved_report("持久化正文")
+    report.id = 21
+    db = _db_returning(report)
+    secret = r"C:\private\chromium.exe Traceback password"
+
+    with patch(
+        "app.services.report_pdf_delivery.prepare_delivery",
+        side_effect=PdfError("pdf_storage_unavailable"),
+    ):
+        with pytest.raises(HTTPException) as raised:
+            download_report_pdf(21, db=db, current_user=SimpleNamespace(id=5))
+
+    assert raised.value.status_code == 503
+    assert raised.value.detail["code"] == "pdf_storage_unavailable"
+    assert secret not in str(raised.value.detail)
 
 
 def test_report_integrity_fields_survive_case_detachment():

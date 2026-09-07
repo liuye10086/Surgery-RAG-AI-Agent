@@ -45,12 +45,12 @@ surgery-rag/
 ├── data/generated/         # 双疾病 150/300 例可复现纵向数据
 ├── database/               # schema.sql 参考快照；正式迁移位于 backend/alembic
 ├── docs/
+│   ├── 核查、设计与部署运维手册
 │   ├── superpowers/plans/  # 保留的实施计划
-│   └── superpowers/specs/  # 尚未落地的采集规范与本次清理规格
-├── research/               # 独立方法验证子项目
+│   ├── superpowers/specs/  # 尚未落地的采集规范与本次清理规格
+│   └── report_method_validation.md  # 保留的方法验证结论
 ├── scripts/                # 数据生成、训练、registry、readiness 和诊断工具
 ├── standard_manifests/     # 双疾病标准 manifest
-├── outputs/                # 保留的方法验证结论
 └── uploads/                # 运行时上传文件，不进入 Git
 ```
 
