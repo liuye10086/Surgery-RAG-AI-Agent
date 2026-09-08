@@ -78,6 +78,7 @@ export function listDocuments(skip = 0, limit = 100, search?: string, department
 }
 
 export interface DocumentUpdateIn {
+  title?: string | null
   department_id?: number | null
   access_scope?: 'chat' | 'operator' | 'both'
 }

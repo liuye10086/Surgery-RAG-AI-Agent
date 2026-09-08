@@ -4,6 +4,7 @@ import csv
 import hashlib
 import importlib.util
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -400,7 +401,7 @@ class FattyLiver300ExtensionTests(unittest.TestCase):
 
     def test_outputs_are_reproducible_for_relative_and_absolute_baseline_paths(self):
         hashes = []
-        relative_baseline = Path("data/generated/longitudinal_150")
+        relative_baseline = Path(os.path.relpath(BASELINE_DIR))
         absolute_baseline = BASELINE_DIR.resolve()
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

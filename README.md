@@ -15,6 +15,8 @@
 | [DESIGN_SPEC.md](docs/DESIGN_SPEC.md) | UI 设计规范（暖杏蓝色彩体系、排版、组件变体） |
 | [DEPLOY.md](docs/DEPLOY.md) | 部署与密钥运行手册 |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md) | 本地依赖、日常测试和可选验收入口 |
+| [MANUAL_TEST_CHECKLIST.md](docs/MANUAL_TEST_CHECKLIST.md) | 按角色与模块逐项勾选的全项目手动测试清单 |
+| [STARTUP_CHECKLIST.md](docs/STARTUP_CHECKLIST.md) | 手动启动前检查、本机环境现状与 API/worker 启动命令 |
 | [OPERATOR_REPORT_OPERATIONS.md](docs/OPERATOR_REPORT_OPERATIONS.md) | 报告任务、PDF 归档与后台 worker 运维 |
 
 ## 项目结构

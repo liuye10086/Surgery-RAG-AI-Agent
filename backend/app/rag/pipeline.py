@@ -169,7 +169,7 @@ def _fulltext_search(
             e.cmetadata->>'chunk_id' AS chunk_id,
             GREATEST(
                 similarity(e.document, :query),
-                similarity(COALESCE(e.cmetadata->>'document_title', ''), :query)
+                similarity(COALESCE(NULLIF(business_document.title, ''), business_document.filename, ''), :query)
             ) AS text_score
         FROM langchain_pg_embedding e
         JOIN langchain_pg_collection c ON c.uuid = e.collection_id
@@ -185,7 +185,7 @@ def _fulltext_search(
           AND (:scope IS NULL OR business_document.access_scope = :scope OR business_document.access_scope = 'both')
           AND GREATEST(
                 similarity(e.document, :query),
-                similarity(COALESCE(e.cmetadata->>'document_title', ''), :query)
+                similarity(COALESCE(NULLIF(business_document.title, ''), business_document.filename, ''), :query)
               ) > 0.0
         ORDER BY text_score DESC
         LIMIT :top_k

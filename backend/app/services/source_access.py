@@ -66,6 +66,8 @@ def user_can_access_document(
     if doc.access_scope == "operator":
         # operator 专属文档仅 ai_operator/admin 可读，普通聊天用户不可读
         return user.role == "ai_operator"
+    if doc.access_scope == "both" and user.role == "ai_operator":
+        return True
     return any(
         source_grants_document(source, document_id)
         for (sources,) in _user_sources(db, user.id)
@@ -88,6 +90,8 @@ def user_can_access_image(
         return False
     if doc.access_scope == "operator":
         return user.role == "ai_operator"
+    if doc.access_scope == "both" and user.role == "ai_operator":
+        return True
     return any(
         source_grants_image(source, document_id, generation, filename)
         for (sources,) in _user_sources(db, user.id)

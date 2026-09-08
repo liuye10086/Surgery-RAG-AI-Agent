@@ -281,7 +281,7 @@ def chunk_document(
         doc.error_message = None
         db.commit()
         db.refresh(doc)
-    except Exception as e:
+    except Exception:
         db.rollback()
         if "generation" in locals():
             try:
@@ -297,11 +297,11 @@ def chunk_document(
             except Exception:
                 db.rollback()
         doc.status = "failed"
-        doc.error_message = str(e)
+        doc.error_message = "分块失败，请检查文件是否损坏或格式是否受支持"
         db.commit()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"分块失败: {e}",
+            detail=doc.error_message,
         )
 
     base = _document_to_out(doc).model_dump()
@@ -439,7 +439,7 @@ def update_document(
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """修改文档的科室归属与访问范围（仅更新请求体中显式给出的字段）。"""
+    """修改文档标题、科室归属与访问范围（仅更新显式给出的字段）。"""
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
@@ -447,6 +447,8 @@ def update_document(
     # model_fields_set 区分“字段省略”与“显式传 null”，避免部分更新误清空其他字段
     fields = payload.model_fields_set
 
+    if "title" in fields:
+        doc.title = payload.title
     if "department_id" in fields:
         if payload.department_id is not None:
             _validate_department(db, payload.department_id)

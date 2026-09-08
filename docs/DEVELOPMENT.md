@@ -19,6 +19,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify_baseline.
 
 该命令只创建 `backend/.venv`、安装 Python 项目依赖并根据 `package-lock.json` 执行 `npm ci`，不会安装系统运行时。
 
+纵向模型直接使用的数值依赖已在 `backend/requirements.txt` 显式固定：NumPy 2.3.5、pandas 3.0.5、scikit-learn 1.9.0、joblib 1.5.3。这些版本对应2026-09-08已验证环境；模型加载仍检查制品自身记录的依赖版本。该文件尚未锁定所有直接和间接依赖，不能视为完整环境锁文件。
+
+`pip install` 不会一次性准备全部运行资源：BGE/OCR模型权重、Playwright的Chromium浏览器、PDF字体和renderer manifest需要额外准备。前端依赖由`package-lock.json`管理，PostgreSQL及其扩展属于系统服务。首次恢复或换电脑时，继续完成[启动清单中的资源准备](STARTUP_CHECKLIST.md#资源准备与依赖文件的分工)和[PDF制品准备](STARTUP_CHECKLIST.md#6-pdf-额外准备)。已有本机环境无需因为这次依赖声明补齐而重建。
+
 如果 Windows 未启用长路径且 worktree 绝对路径较长，PyTorch 安装可能触发 `WinError 206`。可临时将项目目录映射为短盘符后重试安装，完成后解除映射；不要为本项目修改全局 Python 或 Node.js 安装。
 
 ## 日常基线验证

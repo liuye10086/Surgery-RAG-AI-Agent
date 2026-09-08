@@ -27,6 +27,8 @@ def _sha256(path: Path) -> str:
 
 
 def _write_candidate_bundle(root: Path, task="ad.pre_dementia_to_dementia"):
+    import sys
+    from importlib.metadata import version
     import joblib
     import pandas as pd
     from sklearn.compose import ColumnTransformer
@@ -100,6 +102,14 @@ def _write_candidate_bundle(root: Path, task="ad.pre_dementia_to_dementia"):
         )
     )
     metadata.model_contract.artifact_sha256 = _sha256(model_path)
+    # This fixture trains here; record the environment that actually produced it.
+    metadata.model_contract.packages = {
+        "python": f"{sys.version_info.major}.{sys.version_info.minor}",
+        "scikit_learn": version("scikit-learn"),
+        "joblib": version("joblib"),
+        "numpy": version("numpy"),
+        "pandas": version("pandas"),
+    }
     metadata.model_contract.model_id = f"{contract.artifact_stem}-model"
     metadata_path.write_text(metadata.model_dump_json(indent=2), encoding="utf-8")
     return bundle, model_path, metadata_path, metadata

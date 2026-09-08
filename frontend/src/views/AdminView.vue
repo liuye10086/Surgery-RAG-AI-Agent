@@ -132,6 +132,7 @@
             <el-table-column label="文件名 / 标题" min-width="220" align="center" header-align="center">
               <template #default="{ row }">
                 <div class="doc-title" :title="displayDocumentTitle(row)">{{ displayDocumentTitle(row) }}</div>
+                <el-button text type="primary" size="small" @click="editDocumentTitle(row)">编辑标题</el-button>
               </template>
             </el-table-column>
             <el-table-column prop="file_type" label="类型" width="80" align="center" header-align="center" />
@@ -249,6 +250,29 @@
       </div>
     </div>
 
+    <el-dialog
+      v-model="titleDialogVisible"
+      title="编辑文档标题"
+      width="480px"
+      :close-on-click-modal="!savingTitle"
+      :close-on-press-escape="!savingTitle"
+      :show-close="!savingTitle"
+    >
+      <el-input
+        v-model="editedTitle"
+        aria-label="文档标题"
+        placeholder="留空则显示文件名"
+        :maxlength="500"
+        show-word-limit
+        :disabled="savingTitle"
+        @keydown.enter.prevent="saveDocumentTitle"
+      />
+      <template #footer>
+        <el-button :disabled="savingTitle" @click="titleDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="savingTitle" :disabled="savingTitle" @click="saveDocumentTitle">保存</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 分块预览抽屉 -->
     <el-drawer v-model="previewVisible" title="分块预览" size="60%">
       <div v-if="previewDoc" class="preview-header">
@@ -294,6 +318,7 @@ import StandardManagementView from '@/components/StandardManagementView.vue'
 import {
   uploadDocument,
   listDocuments,
+  updateDocument,
   deleteDocument,
   chunkDocument,
   indexDocument,
@@ -335,6 +360,31 @@ const uploadDepartmentId = ref<number | null>(null)
 const uploadAccessScope = ref('chat')
 const filterDepartmentId = ref<number | null>(null)
 const departments = ref<DepartmentOut[]>([])
+const titleDialogVisible = ref(false)
+const titleDocumentId = ref<number | null>(null)
+const editedTitle = ref('')
+const savingTitle = ref(false)
+
+function editDocumentTitle(row: DocumentOut) {
+  titleDocumentId.value = row.id
+  editedTitle.value = row.title || ''
+  titleDialogVisible.value = true
+}
+
+async function saveDocumentTitle() {
+  if (savingTitle.value || titleDocumentId.value === null) return
+  savingTitle.value = true
+  try {
+    await updateDocument(titleDocumentId.value, { title: editedTitle.value.trim() || null })
+    titleDialogVisible.value = false
+    ElMessage.success('文档标题已更新')
+    await loadDocuments(searchKeyword.value.trim() || undefined)
+  } catch {
+    // 请求层已提示错误，保留编辑内容以便重试。
+  } finally {
+    savingTitle.value = false
+  }
+}
 
 const previewVisible = ref(false)
 const previewLoading = ref(false)
@@ -479,9 +529,8 @@ async function handleChunk(row: DocumentOut) {
     const res = await chunkDocument(row.id)
     ElMessage.success(`分块完成，共 ${res.chunks.length} 个分块`)
     await loadDocuments()
-  } catch (e: any) {
-    const detail = e?.response?.data?.detail || '分块失败'
-    ElMessage.error(detail)
+  } catch {
+    // 请求层已提示错误，刷新持久化失败状态。
     await loadDocuments()
   } finally {
     chunkingId.value = null

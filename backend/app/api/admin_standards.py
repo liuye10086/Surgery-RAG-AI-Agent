@@ -320,12 +320,35 @@ def list_candidates(version_id: int, admin=Depends(require_admin), db: Session =
 
 @router.patch("/admin/reference-standard-candidates/{candidate_id}", response_model=StandardParseCandidateOut)
 def review_candidate(candidate_id: int, payload: dict[str, str], admin=Depends(require_admin), db: Session = Depends(get_db)):
-    candidate = db.query(StandardParseCandidate).filter(StandardParseCandidate.id == candidate_id).first()
-    if candidate is None:
+    candidate_probe = db.query(StandardParseCandidate).filter(StandardParseCandidate.id == candidate_id).first()
+    if candidate_probe is None:
         raise HTTPException(status_code=404, detail="解析候选不存在")
     status_value = payload.get("status")
     if status_value not in {"accepted", "rejected", "failed", "pending"}:
         raise HTTPException(status_code=422, detail="候选状态无效")
+    # 与实体化保持相同锁顺序；等待锁后重新读取，避免旧状态覆盖 materialized。
+    version = (
+        db.query(ReferenceStandardVersion)
+        .filter(ReferenceStandardVersion.id == candidate_probe.version_id)
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+    if version is None:
+        raise HTTPException(status_code=404, detail="标准版本不存在")
+    if version.status not in {"draft", "review"}:
+        raise HTTPException(status_code=409, detail="已批准或已退役版本不可审核候选")
+    candidate = (
+        db.query(StandardParseCandidate)
+        .filter(StandardParseCandidate.id == candidate_id)
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="解析候选不存在")
+    if candidate.status == "materialized":
+        raise HTTPException(status_code=409, detail="已实体化候选不可修改状态")
     candidate.status = status_value
     db.commit()
     db.refresh(candidate)

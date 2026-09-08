@@ -1,4 +1,6 @@
-from pydantic import BaseModel, EmailStr
+from typing import Annotated
+
+from pydantic import BaseModel, EmailStr, Field, StringConstraints
 
 
 class Token(BaseModel):
@@ -12,7 +14,7 @@ class LoginRequest(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    username: str
+    username: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
     email: EmailStr
     real_name: str | None = None
-    password: str
+    password: str = Field(min_length=6)

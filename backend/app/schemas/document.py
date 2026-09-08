@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class DocumentUploadResponse(BaseModel):
@@ -55,5 +55,11 @@ class DocumentListOut(BaseModel):
 
 
 class DocumentUpdateIn(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=500)
     department_id: Optional[int] = None
     access_scope: Optional[str] = None
+
+    @field_validator("title")
+    @classmethod
+    def normalize_title(cls, value: str | None) -> str | None:
+        return (value.strip() or None) if value is not None else None

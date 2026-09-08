@@ -16,7 +16,7 @@ def environment(db, integration_engine, monkeypatch):
     factory = sessionmaker(bind=integration_engine, expire_on_commit=False)
     monkeypatch.setattr(settings, "REPORT_JOBS_ENABLED", True)
     monkeypatch.setattr(settings, "REPORT_JOBS_ACCEPTING", True)
-    monkeypatch.setenv("DATABASE_URL", str(integration_engine.url))
+    monkeypatch.setenv("DATABASE_URL", integration_engine.url.render_as_string(hide_password=False))
     seed(factory)
     return factory
 
