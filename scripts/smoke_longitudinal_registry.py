@@ -169,6 +169,21 @@ def _result_summary(result) -> dict[str, object]:
     return payload
 
 
+def assert_normal_scenario_available(summary: dict[str, object]) -> None:
+    outcome = summary["outcome"]
+    if outcome["status"] != "available" or outcome["risk_score"] is None:
+        raise ValueError("outcome_unavailable")
+    stage = summary["stage"]
+    if stage["status"] != "available" or stage["likely_next_stage"] is None:
+        raise ValueError("stage_unavailable")
+    trends = summary["trends"]
+    if (
+        trends["required_count"] < 1
+        or trends["available_count"] != trends["required_count"]
+    ):
+        raise ValueError("required_trend_unavailable")
+
+
 def run_smoke(registry_dir: Path, data_root: Path) -> dict[str, object]:
     root = Path(data_root)
     scenarios = [
@@ -206,7 +221,9 @@ def run_smoke(registry_dir: Path, data_root: Path) -> dict[str, object]:
         prediction = run_longitudinal_prediction(
             case, timeline, adapter, registries[adapter.dataset]
         )
-        results[name] = _result_summary(prediction)
+        summary = _result_summary(prediction)
+        assert_normal_scenario_available(summary)
+        results[name] = summary
 
     case, timeline = load_online_smoke_case(
         "fatty_liver",

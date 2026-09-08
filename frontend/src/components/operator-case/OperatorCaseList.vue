@@ -5,6 +5,7 @@
         <span>搜索匿名编号</span>
         <input :value="query" type="search" placeholder="CASE-" @input="$emit('update:query', ($event.target as HTMLInputElement).value)" />
       </label>
+      <label><span>病例状态</span><select aria-label="病例状态筛选" :value="status" @change="$emit('update:status', ($event.target as HTMLSelectElement).value as 'active' | 'archived')"><option value="active">使用中</option><option value="archived">已归档</option></select></label>
       <button type="button" @click="$emit('new')">新建病例</button>
     </div>
     <div v-if="loading" class="case-list__state" role="status">加载中…</div>
@@ -23,6 +24,7 @@ defineProps<{
   cases: LongitudinalCase[]
   selectedId?: number
   query?: string
+  status?: 'active' | 'archived'
   loading?: boolean
 }>()
 
@@ -30,6 +32,7 @@ defineEmits<{
   select: [item: LongitudinalCase]
   new: []
   'update:query': [value: string]
+  'update:status': [value: 'active' | 'archived']
 }>()
 </script>
 
@@ -37,7 +40,7 @@ defineEmits<{
 .case-list { display: grid; gap: var(--space-3); }
 .case-list__toolbar { display: flex; gap: var(--space-2); align-items: end; }
 .case-list__toolbar label { flex: 1; display: grid; gap: var(--space-1); color: var(--text-secondary); font-size: var(--text-xs); }
-.case-list input { min-height: 44px; border: 1px solid var(--border-default); border-radius: var(--radius-control); padding: 0 var(--space-3); background: var(--bg-input); }
+.case-list input, .case-list select { min-height: 44px; border: 1px solid var(--border-default); border-radius: var(--radius-input); padding: 0 var(--space-3); background: var(--bg-input); color:var(--text-primary); }
 .case-list button { min-height: 44px; border: 0; border-radius: var(--radius-control); padding: 0 var(--space-4); color: var(--text-primary); background: var(--bg-surface); cursor: pointer; }
 .case-list__toolbar button { color: white; background: var(--color-primary); }
 .case-list__item { display: grid; gap: 4px; text-align: left; border: 1px solid var(--border-light); box-shadow: var(--shadow-sm); }

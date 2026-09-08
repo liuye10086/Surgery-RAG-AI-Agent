@@ -14,6 +14,47 @@ class _ScoreModel:
         return [[0.25, 0.75]]
 
 
+def test_real_stage_metadata_maps_baseline_stage_to_current_stage():
+    from pathlib import Path
+
+    from app.services.longitudinal_features import build_fixed_window_inference_features
+    from app.services.longitudinal_model_registry import load_active_model_registry
+
+    registry_root = Path(__file__).parents[1] / "app" / "ml_models"
+    stage_metadata = load_active_model_registry("ad", registry_root).stage.metadata
+
+    frame = build_fixed_window_inference_features(
+        {"baseline_stage": "mci", "sex": "female"},
+        _ad_visits(),
+        stage_metadata,
+    )
+
+    assert list(frame.columns) == stage_metadata.feature_contract.feature_names
+    assert frame.loc[0, "current_stage"] == "mci"
+
+
+def test_real_stage_metadata_rejects_missing_baseline_stage():
+    from pathlib import Path
+
+    import pytest
+
+    from app.services.longitudinal_features import (
+        InferenceContractError,
+        build_fixed_window_inference_features,
+    )
+    from app.services.longitudinal_model_registry import load_active_model_registry
+
+    registry_root = Path(__file__).parents[1] / "app" / "ml_models"
+    stage_metadata = load_active_model_registry("ad", registry_root).stage.metadata
+
+    with pytest.raises(InferenceContractError, match="required_feature_missing"):
+        build_fixed_window_inference_features(
+            {"baseline_stage": None, "sex": "female"},
+            _ad_visits(),
+            stage_metadata,
+        )
+
+
 def test_suite_frame_preserves_zero_age_before_legacy_fallback():
     from types import SimpleNamespace
 

@@ -6,9 +6,8 @@ const api = vi.hoisted(() => ({
   createLongitudinalCase: vi.fn(),
   saveLongitudinalCase: vi.fn(),
   deleteLongitudinalCase: vi.fn(),
+  updateLongitudinalCaseStatus: vi.fn(),
   getLongitudinalCaseReportReadiness: vi.fn(),
-  getReport: vi.fn(),
-  generateLongitudinalReportStream: vi.fn(),
   listOperatorIndicatorCatalog: vi.fn(),
 }))
 
@@ -18,9 +17,40 @@ vi.mock('@/api/operator', async () => {
 })
 
 describe('operator case workspace store', () => {
+  it('keeps the latest search results when an earlier request arrives late', async () => {
+    const { useOperatorStore } = await import('../operator')
+    const store = useOperatorStore()
+    let resolveOld!: (value: any) => void
+    api.listLongitudinalCases.mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve }))
+    api.listLongitudinalCases.mockResolvedValueOnce({ cases: [{ id: 4 }] })
+    const old = store.fetchLongitudinalCases({ q: 'OLD' })
+    await store.fetchLongitudinalCases({ q: 'NEW' })
+    resolveOld({ cases: [{ id: 3 }] })
+    await old
+    expect(store.longitudinalCases).toEqual([{ id: 4 }])
+    expect(store.currentLongitudinalCase).toBeNull()
+  })
+
+  it('ignores case results requested by a previous account', async () => {
+    const { useAuthStore } = await import('../auth')
+    const { useOperatorStore } = await import('../operator')
+    const auth = useAuthStore()
+    const store = useOperatorStore()
+    auth.user = { id: 7 } as any
+    let resolveCases!: (value: any) => void
+    api.listLongitudinalCases.mockReturnValue(new Promise(resolve => { resolveCases = resolve }))
+    const pending = store.fetchLongitudinalCases()
+    auth.user = { id: 8 } as any
+    resolveCases({ cases: [{ id: 3 }] })
+    await pending
+    expect(store.longitudinalCases).toEqual([])
+    expect(store.currentLongitudinalCase).toBeNull()
+  })
   beforeEach(() => {
     setActivePinia(createPinia())
-    vi.clearAllMocks()
+    vi.resetAllMocks()
+    api.listLongitudinalCases.mockResolvedValue({ cases: [] })
+    api.getLongitudinalCaseReportReadiness.mockResolvedValue({ ready: false, blockers: [] })
   })
 
   it('keeps saving true until aggregate save settles and refreshes readiness', async () => {
@@ -77,23 +107,17 @@ describe('operator case workspace store', () => {
     expect(api.listOperatorIndicatorCatalog).toHaveBeenCalledTimes(1)
   })
 
-  it('starts a new case without retaining selected case or report state', async () => {
+  it('starts a new case without retaining selected case state', async () => {
     const { useOperatorStore } = await import('../operator')
     const store = useOperatorStore()
 
     store.currentLongitudinalCase = { id: 3, anonymous_case_code: 'CASE-OLD' } as any
-    store.currentReport = { id: 8 } as any
-    store.longitudinalPrediction = { summary: '旧预测' } as any
-    store.longitudinalEvidence = { evidence: [] } as any
     store.readiness = { ready: true, blockers: [], minimum_visits: 3, visit_count: 3 } as any
     store.draft = { disease_id: 11, age: 56, sex: 'male', baseline_stage: 'pre_cirrhosis', notes: '旧草稿', visits: [] }
 
     store.startNewLongitudinalCase()
 
     expect(store.currentLongitudinalCase).toBeNull()
-    expect(store.currentReport).toBeNull()
-    expect(store.longitudinalPrediction).toBeNull()
-    expect(store.longitudinalEvidence).toBeNull()
     expect(store.readiness).toBeNull()
     expect(store.draft).toBeNull()
   })
@@ -162,21 +186,6 @@ describe('operator case workspace store', () => {
     expect(store.readiness).toBeNull()
   })
 
-  it('does not restore a report fetched before a new case session starts', async () => {
-    const { useOperatorStore } = await import('../operator')
-    let resolveReport!: (value: any) => void
-    api.getReport.mockReturnValue(new Promise((resolve) => { resolveReport = resolve }))
-    const store = useOperatorStore()
-
-    const pendingReport = store.fetchReport(8)
-    store.startNewLongitudinalCase()
-    resolveReport({ id: 8, content: '旧报告' })
-    await pendingReport
-
-    expect(store.currentReport).toBeNull()
-    expect(store.loading).toBe(false)
-  })
-
   it('does not clear a newly selected case when an older deletion finishes', async () => {
     const { useOperatorStore } = await import('../operator')
     let resolveDelete!: () => void
@@ -190,26 +199,72 @@ describe('operator case workspace store', () => {
     resolveDelete()
     await Promise.resolve()
     store.selectLongitudinalCase({ id: 4, status: 'active' } as any)
-    store.longitudinalPrediction = { summary: '新病例预测' } as any
-    store.longitudinalReportContent = '新病例流内容'
-    store.currentStage = 'new-case'
     resolveRefresh({ cases: [] })
     await pendingDelete
 
     expect(store.currentLongitudinalCase?.id).toBe(4)
-    expect(store.longitudinalPrediction).toEqual({ summary: '新病例预测' })
-    expect(store.longitudinalReportContent).toBe('新病例流内容')
-    expect(store.currentStage).toBe('new-case')
   })
 
-  it('delegates generation to durable job state instead of the old stream', async () => {
+  it('refreshes the current filtered list after a status change while keeping the changed case selected', async () => {
     const { useOperatorStore } = await import('../operator')
-    const { useReportGenerationStore } = await import('../report-generation')
-    const generation = useReportGenerationStore()
-    const submit = vi.spyOn(generation,'submit').mockResolvedValue()
     const store = useOperatorStore()
-    await store.generateLongitudinalReport(3)
-    expect(submit).toHaveBeenCalledWith(3)
-    expect(api.generateLongitudinalReportStream).not.toHaveBeenCalled()
+    const activeCase = { id: 3, status: 'active', disease: { operator_enabled: true } }
+    const archivedCase = { ...activeCase, status: 'archived' }
+    api.listLongitudinalCases.mockResolvedValueOnce({ cases: [activeCase] }).mockResolvedValueOnce({ cases: [] })
+    api.updateLongitudinalCaseStatus.mockResolvedValue(archivedCase)
+    api.getLongitudinalCaseReportReadiness.mockResolvedValue({ ready: false, blockers: [] })
+    await store.fetchLongitudinalCases({ q: 'CASE-3', status: 'active' })
+    store.selectLongitudinalCase(activeCase as any)
+
+    await store.changeLongitudinalCaseStatus('archived', '阶段随访结束')
+
+    expect(api.listLongitudinalCases).toHaveBeenLastCalledWith({ q: 'CASE-3', status: 'active' })
+    expect(store.longitudinalCases).toEqual([])
+    expect(store.currentLongitudinalCase).toEqual(archivedCase)
   })
+
+  it('refreshes archived search results after creating an active case while keeping the new case selected', async () => {
+    const { useOperatorStore } = await import('../operator')
+    const store = useOperatorStore()
+    const archivedCase = { id: 9, status: 'archived', anonymous_case_code: 'MATCH-OLD' }
+    const createdCase = { id: 10, status: 'active', anonymous_case_code: 'OTHER-NEW' }
+    api.listLongitudinalCases.mockResolvedValueOnce({ cases: [archivedCase] }).mockResolvedValueOnce({ cases: [archivedCase] })
+    api.createLongitudinalCase.mockResolvedValue(createdCase)
+    api.getLongitudinalCaseReportReadiness.mockResolvedValue({ ready: false, blockers: [] })
+    await store.fetchLongitudinalCases({ q: 'MATCH', status: 'archived' })
+
+    await store.saveLongitudinalCase({ disease_id: 11, age: 56, sex: 'male', baseline_stage: 'pre_cirrhosis', notes: null, visits: [] })
+
+    expect(api.listLongitudinalCases).toHaveBeenLastCalledWith({ q: 'MATCH', status: 'archived' })
+    expect(store.longitudinalCases).toEqual([archivedCase])
+    expect(store.longitudinalCases).toHaveLength(1)
+    expect(store.currentLongitudinalCase).toEqual(createdCase)
+  })
+
+  it('does not replace a new-case draft when a case-list request completes', async () => {
+    const { useOperatorStore } = await import('../operator')
+    const store = useOperatorStore()
+    let resolveCases!: (value: any) => void
+    api.listLongitudinalCases.mockReturnValue(new Promise(resolve => { resolveCases = resolve }))
+    const pending = store.fetchLongitudinalCases({ status: 'active' })
+    store.startNewLongitudinalCase()
+    store.draft = { disease_id: 11, age: 56, sex: 'male', baseline_stage: 'pre_cirrhosis', notes: null, visits: [] }
+    resolveCases({ cases: [{ id: 3 }] })
+    await pending
+    expect(store.longitudinalCases).toEqual([{ id: 3 }])
+    expect(store.currentLongitudinalCase).toBeNull()
+    expect(store.draft).toEqual(expect.objectContaining({ disease_id: 11 }))
+  })
+
+  it('clears a deleted selection even when the list refresh fails', async () => {
+    const { useOperatorStore } = await import('../operator')
+    const store = useOperatorStore()
+    store.selectLongitudinalCase({ id: 3, status: 'active' } as any)
+    api.deleteLongitudinalCase.mockResolvedValue(undefined)
+    api.listLongitudinalCases.mockRejectedValue(new Error('network'))
+    await expect(store.removeLongitudinalCase()).rejects.toThrow('病例已删除，但病例列表刷新失败')
+    expect(store.currentLongitudinalCase).toBeNull()
+    expect(store.readiness).toBeNull()
+  })
+
 })

@@ -1,30 +1,24 @@
 """AI 操作者纵向预测报告、病例和标准数据 API 路由。"""
 
-import logging
 import urllib.parse
-import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_ai_operator
+from app.api.deps import oauth2_scheme, require_ai_operator
 from app.db.models import (
-    AIReport,
     Chunk,
-    Department,
     Disease,
     Document,
     ReferenceRange,
-    ReferenceStandard,
     User,
 )
 from app.db.session import get_db
 from app.schemas.operator import (
     ReportListOut,
-    ReportListItem,
-    ReportOut,
 )
+from app.schemas.report_read_models import ReportReadDetail
 from app.schemas.prediction import DiseaseOut, ReferenceRangeOut
 from app.schemas.longitudinal_case import (
     OperatorCaseCreate,
@@ -46,7 +40,6 @@ from app.services.longitudinal_case_service import (
     CaseNotFoundError,
     get_operator_case,
     list_operator_cases,
-    build_input_snapshot,
 )
 from app.services.operator_case_commands import (
     OperatorCaseCommandError,
@@ -66,23 +59,13 @@ from app.services.operator_case_status_service import (
     OperatorCaseStatusError,
     change_operator_case_status,
 )
-from app.services.report_integrity import (
-    compute_input_snapshot_sha256,
-    verify_report_integrity,
-)
-from app.services.longitudinal_model_registry import load_active_model_registry
-from app.services.longitudinal_evidence import (
-    build_reference_range_sources,
-    mark_synthetic_source,
-    select_similar_longitudinal_cases,
-)
+from app.services.report_read_service import read_owned_report
 from app.services.disease_catalog import (
     DISEASE_CAPABILITIES,
     DiseaseCapabilityMissingError,
     DiseaseCatalogError,
     DiseaseDisabledError,
     DiseaseNotFoundError,
-    require_enabled_case_disease,
     require_disease_capability,
 )
 from app.services.indicator_validation import IndicatorValidationError
@@ -91,27 +74,8 @@ from app.services.operator_indicator_catalog import (
     load_operator_indicator_catalog,
 )
 from app.services.operator_case_readiness import evaluate_operator_case_readiness
-from app.services.evidence_bundle import EvidenceBuildError, preflight_evidence_versions
-
-logger = logging.getLogger(__name__)
-from app.api.deps import oauth2_scheme
 
 router = APIRouter(prefix="/operator", tags=["operator"])
-
-
-def _verify_report_owner(report: AIReport, current_user: User) -> None:
-    """校验报告归属权。admin 也只能查看/操作自己创建的报告。"""
-    if report.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="报告不存在",
-        )
-
-
-def _safe_report_title(report: AIReport) -> str:
-    from app.services.report_saved_identity import saved_report_identity
-
-    return saved_report_identity(report.id, getattr(report, "input_snapshot", None)).title
 
 
 # ---------------------------------------------------------------------------
@@ -381,10 +345,6 @@ def list_reports(
 # ---------------------------------------------------------------------------
 
 
-from app.schemas.report_read_models import ReportReadDetail
-from app.services.report_read_service import read_owned_report
-
-
 @router.get("/reports/{report_id}", response_model=ReportReadDetail)
 def get_report(
     report_id: int,
@@ -437,8 +397,6 @@ def download_report_pdf(
     current_user: User = Depends(require_ai_operator),
 ):
     """交付已归档且通过校验的原件；不在 HTTP 请求中渲染。"""
-    from app.core.config import settings
-    from app.services.report_archive_storage import ArchiveStorage
     from app.services.report_pdf_delivery import prepare_delivery, delivery_chunks
     from app.services.report_pdf_errors import PdfError
     from app.api.operator_report_archives import pdf_http_error

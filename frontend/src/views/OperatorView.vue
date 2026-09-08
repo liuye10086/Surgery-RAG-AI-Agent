@@ -3,7 +3,7 @@
     <OperatorSidebar
       :reports="history.items"
       :total="history.items.length + (history.hasMore ? 1 : 0)"
-      :current-id="generation.reportId || operatorStore.currentReport?.id"
+      :current-id="generation.reportId || undefined"
       :collapsed="sidebarCollapsed"
       :loading="history.loading || history.loadingMore"
       :generating="generation.active"
@@ -43,10 +43,8 @@
         </section>
         <LongitudinalReportView
           v-else-if="reportReadingMode"
-          :report="generation.report || operatorStore.currentReport"
-          :prediction-result="operatorStore.longitudinalPrediction"
-          :evidence-snapshot="operatorStore.longitudinalEvidence"
-          :rendered-content="renderMarkdown((generation.report || operatorStore.currentReport)?.content || '')"
+          :report="generation.report"
+          :rendered-content="renderMarkdown(generation.report?.content || '')"
           :generating="generation.active"
           @back="closeReport"
           @download="handleDownload"
@@ -57,21 +55,25 @@
         <!-- 统一病例工作区：病例库和进展预测共用同一份聚合草稿 -->
         <div v-else class="progression-view">
           <div class="progression-inner">
-            <OperatorCaseList v-if="activeView === 'cases'" :cases="operatorStore.longitudinalCases" :selected-id="operatorStore.currentLongitudinalCase?.id" :loading="operatorStore.caseListLoading" @select="selectLongitudinalCase" @new="startNewLongitudinalCase" />
+            <OperatorCaseList v-if="activeView === 'cases'" v-model:query="caseQuery" v-model:status="caseStatus" :cases="operatorStore.longitudinalCases" :selected-id="operatorStore.currentLongitudinalCase?.id" :loading="operatorStore.caseListLoading" @select="selectLongitudinalCase" @new="startNewLongitudinalCase" />
+            <div v-if="operatorStore.currentLongitudinalCase" class="case-management" :aria-busy="caseOperationPending">
+              <button data-test="case-status" :disabled="!canChangeCurrentCaseStatus" @click="handleCaseStatus">{{ operatorStore.currentLongitudinalCase.status === 'archived' ? '恢复病例' : '归档病例' }}</button>
+              <button data-test="delete-case" class="case-management__danger" :disabled="!canDeleteCurrentCase" @click="handleDeleteLongitudinalCase">删除病例</button>
+              <span v-if="caseOperationPending" role="status">正在处理病例操作…</span>
+            </div>
             <OperatorCaseWorkspace
               :model="operatorStore.currentLongitudinalCase"
               :diseases="progressionDiseases"
               :indicator-catalog="activeIndicatorCatalog"
               :validation-issues="validationIssues"
               :readiness="operatorStore.readiness"
-              :saving="operatorStore.saving"
+              :saving="operatorStore.saving || caseOperationPending"
               :report-generating="generation.active"
               @save="handleWorkspaceSave"
               @disease-change="handleDiseaseChange"
-              @edit="validationIssues = {}"
+              @edit="handleWorkspaceEdit"
               @generate-report="generateCurrentReport"
             />
-            <LongitudinalPredictionSummary :prediction="operatorStore.longitudinalPrediction" />
           </div>
         </div>
 
@@ -92,7 +94,6 @@ import DOMPurify from 'dompurify'
 import OperatorSidebar from '@/components/OperatorSidebar.vue'
 import OperatorCaseList from '@/components/operator-case/OperatorCaseList.vue'
 import OperatorCaseWorkspace from '@/components/operator-case/OperatorCaseWorkspace.vue'
-import LongitudinalPredictionSummary from '@/components/LongitudinalPredictionSummary.vue'
 import LongitudinalReportView from '@/components/LongitudinalReportView.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useOperatorStore } from '@/stores/operator'
@@ -114,10 +115,64 @@ const draftDiseaseCode = ref('')
 const activeDiseaseCode = computed(() => operatorStore.currentLongitudinalCase?.disease.code || draftDiseaseCode.value)
 const activeIndicatorCatalog = computed(() => activeDiseaseCode.value ? operatorStore.indicatorCatalogs[activeDiseaseCode.value] || null : null)
 const validationIssues = ref<Record<string, string>>({})
+const caseQuery = ref('')
+const caseStatus = ref<'active' | 'archived'>('active')
+const caseOperationPending = ref(false)
+let initialCaseSelectionAllowed = true
+const canDeleteCurrentCase = computed(() => Boolean(operatorStore.currentLongitudinalCase?.status === 'active' && operatorStore.currentLongitudinalCase.disease.operator_enabled !== false && !caseOperationPending.value && !operatorStore.saving && !generation.active))
+const canChangeCurrentCaseStatus = computed(() => {
+  const current = operatorStore.currentLongitudinalCase
+  if (!current || !['active', 'archived'].includes(current.status) || caseOperationPending.value || operatorStore.saving || generation.active) return false
+  return current.status === 'active' || current.disease.operator_enabled !== false
+})
+async function refreshCases() {
+  const q = caseQuery.value.trim() || undefined
+  try { await operatorStore.fetchLongitudinalCases({ ...(q ? { q } : {}), status: caseStatus.value }) }
+  catch (error: any) { ElMessage.error(error?.message || '病例列表加载失败') }
+}
+watch([caseQuery, caseStatus], () => {
+  initialCaseSelectionAllowed = false
+  void refreshCases()
+})
+
+function handleWorkspaceEdit() {
+  initialCaseSelectionAllowed = false
+  validationIssues.value = {}
+}
+
+async function manageCurrentCase(action: 'delete' | 'status') {
+  const current = operatorStore.currentLongitudinalCase
+  if (!current || caseOperationPending.value || operatorStore.saving || generation.active) return
+  if (action === 'delete' && !canDeleteCurrentCase.value) return
+  if (action === 'status' && !canChangeCurrentCaseStatus.value) return
+  const revision = operatorStore.caseSessionRevision
+  const restoring = current.status === 'archived'
+  caseOperationPending.value = true
+  try {
+    let reason: string | undefined
+    if (action === 'delete') {
+      await ElMessageBox.confirm(`确定删除 ${current.anonymous_case_code}？病例及全部访视将永久删除。历史报告仍会保留，只能通过生成时输入快照追溯。`, '确认病例操作', { confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning' })
+    } else {
+      const result = await ElMessageBox.prompt(`请输入${restoring ? '恢复' : '归档'} ${current.anonymous_case_code} 的原因。`, '确认病例操作', {
+        confirmButtonText: '确认', cancelButtonText: '取消', inputPlaceholder: '请输入原因（最多 500 字）',
+        inputValidator: value => value.trim().length > 0 && value.trim().length <= 500 || '原因须为 1–500 个字符',
+      })
+      reason = result.value.trim()
+    }
+    if (revision !== operatorStore.caseSessionRevision || current.id !== operatorStore.currentLongitudinalCase?.id) return
+    if (action === 'delete') await operatorStore.removeLongitudinalCase()
+    else await operatorStore.changeLongitudinalCaseStatus(restoring ? 'active' : 'archived', reason)
+    ElMessage.success(action === 'delete' ? '病例已删除，历史报告仍会保留' : restoring ? '病例已恢复' : '病例已归档')
+  } catch (error: any) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '病例操作失败')
+  } finally { caseOperationPending.value = false }
+}
+function handleDeleteLongitudinalCase() { return manageCurrentCase('delete') }
+function handleCaseStatus() { return manageCurrentCase('status') }
 
 const reportReadingMode = computed(() =>
   activeView.value === 'report'
-  && Boolean(generation.viewState !== 'idle' || operatorStore.currentReport),
+  && generation.viewState !== 'idle',
 )
 
 const REPORT_SECTIONS = [
@@ -181,6 +236,7 @@ async function handleWorkspaceSave(payload: LongitudinalCaseCreatePayload | Long
 }
 
 function startNewLongitudinalCase() {
+  initialCaseSelectionAllowed = false
   closeReport()
   activeView.value='cases'
   operatorStore.startNewLongitudinalCase()
@@ -188,8 +244,9 @@ function startNewLongitudinalCase() {
   validationIssues.value = {}
 }
 
-async function selectLongitudinalCase(item: any) {
-  closeReport()
+async function selectLongitudinalCase(item: any, openWorkspace = true) {
+  initialCaseSelectionAllowed = false
+  if (openWorkspace) closeReport()
   const sessionRevision = operatorStore.selectLongitudinalCase(item)
   draftDiseaseCode.value = ''
   validationIssues.value = {}
@@ -215,7 +272,7 @@ function generateCurrentReport() {
 }
 
 async function handleDownload() {
-  const report = generation.report || operatorStore.currentReport
+  const report = generation.report
   if (!report) return
   try {
     const filename = `${report.anonymous_case_code || `report-${report.id}`}.pdf`
@@ -229,7 +286,6 @@ async function handleSelect(id: number) {
   // 从病例库选择历史报告时，切回纵向报告视图
   if(activeView.value !== 'report') reportReturnView.value=activeView.value
   activeView.value = 'report'
-  operatorStore.clearCurrent()
   await generation.observe(id)
 }
 
@@ -239,7 +295,6 @@ function handleNavigate(view:'cases'|'history'|'report') {
 function closeReport() {
   activeView.value=reportReturnView.value
   generation.detach()
-  operatorStore.clearCurrent()
   const query = {...route.query}; delete query.reportId
   void router.replace({query})
 }
@@ -270,7 +325,6 @@ watch(()=>generation.reportId,id=>{
   if (id) {activeView.value='report';history.updatesAvailable=true}
   if (id && String(route.query.reportId || '') !== String(id)) void router.replace({query:{...route.query,reportId:String(id)}})
 })
-watch(()=>operatorStore.currentReport,report=>{if(report)activeView.value='report'},{immediate:true})
 watch(()=>route.query.reportId,value=>{
   const id=Number(value)
   if (typeof value==='string' && /^[1-9]\d*$/.test(value) && Number.isSafeInteger(id) && generation.reportId!==id) void generation.observe(id)
@@ -281,30 +335,32 @@ watch(()=>generation.state?.status,status=>{
 })
 watch(()=>authStore.token,token=>{if (!token) void router.replace('/login')})
 onBeforeUnmount(()=>{
+  initialCaseSelectionAllowed = false
   window.removeEventListener('online',generation.refreshConnection)
   window.removeEventListener('focus',generation.refreshConnection)
   generation.detach()
 })
 onMounted(async () => {
+  const sessionRevision = operatorStore.caseSessionRevision
   window.addEventListener('online',generation.refreshConnection)
   window.addEventListener('focus',generation.refreshConnection)
   if (!route.query.reportId) generation.restorePending()
   void history.refresh()
   await Promise.all([
     operatorStore.fetchDiseases(),
-    operatorStore.fetchLongitudinalCases(),
+    refreshCases(),
   ])
-  const selected = operatorStore.currentLongitudinalCase
-  if (selected) {
-    await Promise.all([
-      handleDiseaseChange(selected.disease.code),
-      operatorStore.refreshLongitudinalCaseReadiness(selected.id),
-    ])
-  }
+  if (!initialCaseSelectionAllowed || sessionRevision !== operatorStore.caseSessionRevision) return
+  const selected = operatorStore.currentLongitudinalCase || operatorStore.longitudinalCases[0]
+  if (selected) await selectLongitudinalCase(selected, false)
 })
 </script>
 
 <style scoped>
+.case-management { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-3); margin-top:var(--space-4); color:var(--text-secondary); }
+.case-management button { min-height:44px; padding:var(--space-2) var(--space-5); border:1px solid var(--color-primary); border-radius:var(--radius-pill); background:var(--bg-surface); color:var(--color-primary); cursor:pointer; }
+.case-management button.case-management__danger { color:var(--color-danger); border-color:var(--color-danger-soft); }
+.case-management button:disabled { opacity:.4; cursor:not-allowed; }
 .generation-status { width:min(100%,var(--content-max-width)); margin:var(--space-6) auto; padding:var(--space-6); color:var(--text-primary); background:var(--bg-surface); border:1px solid var(--border-default); border-radius:var(--radius-card); }
 .generation-actions { display:flex; flex-wrap:wrap; gap:var(--space-3); }
 .generation-actions :deep(button) { min-height:44px; border-radius:var(--radius-pill); }
@@ -372,163 +428,6 @@ onMounted(async () => {
 .progression-inner {
   width: min(100%, var(--content-max-width));
   margin: 0 auto;
-}
-
-/* ===== 报告内容卡片 ===== */
-.report-content {
-  background: var(--bg-surface);
-  border-radius: var(--radius-card);
-  padding: var(--space-6) var(--space-8);
-  box-shadow: var(--shadow-sm);
-  margin-bottom: var(--space-6);
-}
-
-.report-head {
-  margin-bottom: var(--space-6);
-  padding-bottom: var(--space-4);
-  border-bottom: 1px solid var(--border-light);
-}
-
-.report-head h3 {
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 var(--space-3) 0;
-}
-
-.report-head-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.meta-time {
-  font-size: var(--text-xs);
-  color: var(--text-disabled);
-}
-
-/* ===== Markdown 正文 ===== */
-.markdown-body {
-  font-size: var(--text-base);
-  line-height: 1.8;
-  color: var(--text-primary);
-}
-
-.markdown-body :deep(h2) {
-  font-size: var(--text-md);
-  font-weight: 600;
-  margin: 1.5em 0 0.8em;
-  padding-bottom: 0.3em;
-  border-bottom: 1px solid var(--border-light);
-}
-
-.markdown-body :deep(h3) {
-  font-size: var(--text-base);
-  font-weight: 600;
-  margin: 1.2em 0 0.6em;
-}
-
-.markdown-body :deep(p) {
-  margin: 0.6em 0;
-}
-
-.markdown-body :deep(ul), .markdown-body :deep(ol) {
-  padding-left: 1.5em;
-  margin: 0.5em 0;
-}
-
-.markdown-body :deep(li) {
-  margin: 0.3em 0;
-}
-
-.markdown-body :deep(table) {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 1em 0;
-  font-size: var(--text-sm);
-}
-
-.markdown-body :deep(th), .markdown-body :deep(td) {
-  border: 1px solid var(--border-default);
-  padding: 6px 10px;
-  text-align: left;
-}
-
-.markdown-body :deep(th) {
-  background: var(--bg-sidebar);
-  font-weight: 600;
-}
-
-.markdown-body :deep(blockquote) {
-  margin: 0.8em 0;
-  padding: 0.6em 1em;
-  border-left: 3px solid var(--color-accent);
-  background: var(--color-accent-light);
-  color: var(--text-secondary);
-}
-
-.markdown-body :deep(code) {
-  font-family: var(--font-mono);
-  font-size: 0.9em;
-  background: var(--bg-input);
-  padding: 1px 5px;
-  border-radius: 4px;
-}
-
-.markdown-body :deep(pre) {
-  background: var(--bg-sidebar);
-  padding: var(--space-4);
-  border-radius: var(--radius-item);
-  overflow-x: auto;
-}
-
-.markdown-body :deep(pre code) {
-  background: none;
-  padding: 0;
-}
-
-.markdown-body :deep(strong) {
-  font-weight: 600;
-}
-
-/* ===== 来源卡片 ===== */
-.sources-section {
-  margin-top: var(--space-8);
-  padding-top: var(--space-6);
-  border-top: 1px solid var(--border-light);
-}
-
-.sources-section h4 {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin: 0 0 var(--space-3) 0;
-}
-
-.source-card {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-  background: var(--bg-canvas);
-  border-radius: var(--radius-item);
-  margin-bottom: var(--space-1);
-}
-
-.source-index {
-  font-weight: 600;
-  color: var(--color-primary);
-  min-width: 24px;
-}
-
-.source-title {
-  flex: 1;
-}
-
-.source-page {
-  color: var(--text-disabled);
 }
 
 @media (max-width: 760px) {

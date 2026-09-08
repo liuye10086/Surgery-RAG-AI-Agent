@@ -1,10 +1,7 @@
-import { useReportGenerationStore } from '@/stores/report-generation'
 import { defineStore } from 'pinia'
 import { readonly, ref, watch } from 'vue'
 import { useAuthStore } from './auth'
 import {
-  listReports,
-  getReport,
   deleteReport,
   listLongitudinalCases,
   createLongitudinalCase,
@@ -14,8 +11,6 @@ import {
   getLongitudinalCaseReportReadiness,
   listDiseases,
   listOperatorIndicatorCatalog,
-  type ReportListItem,
-  type ReportDetail,
   type Disease,
   type LongitudinalCase,
   type LongitudinalCaseCreatePayload,
@@ -23,25 +18,16 @@ import {
   type LongitudinalCaseStatus,
   type OperatorCaseListParams,
   type OperatorCaseReportReadiness,
-  type LongitudinalPrediction,
   type OperatorIndicatorCatalog,
-  type EvidenceBundleV1,
 } from '@/api/operator'
 
 export const useOperatorStore = defineStore('operator', () => {
   const auth = useAuthStore()
-  let reportListEpoch = 0
-  const reports = ref<ReportListItem[]>([])
-  const total = ref(0)
-  const currentReport = ref<ReportDetail | null>(null)
-  const loading = ref(false)
+  let caseListEpoch = 0
+  let caseListParams: OperatorCaseListParams = {}
   const caseListLoading = ref(false)
   const saving = ref(false)
   const readinessLoading = ref(false)
-  const generating = ref(false)
-  const currentStage = ref('')
-  const stageMessage = ref('')
-  const currentSources = ref<any[]>([])
   const diseases = ref<Disease[]>([])
   const indicatorCatalogs = ref<Record<string, OperatorIndicatorCatalog>>({})
   const indicatorCatalogLoading = ref<Record<string, boolean>>({})
@@ -50,12 +36,8 @@ export const useOperatorStore = defineStore('operator', () => {
   const draft = ref<LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload | null>(null)
   const readiness = ref<OperatorCaseReportReadiness | null>(null)
   const longitudinalCaseStatusFilter = ref<LongitudinalCaseStatus | undefined>(undefined)
-  const longitudinalPrediction = ref<LongitudinalPrediction | null>(null)
-  const longitudinalReportContent = ref('')
-  const longitudinalEvidence = ref<EvidenceBundleV1 | null>(null)
   const caseSessionRevision = ref(0)
 
-  let cancelFn: (() => void) | null = null
   let createIdempotencyKey: string | null = null
 
   function beginCaseSession() {
@@ -68,65 +50,8 @@ export const useOperatorStore = defineStore('operator', () => {
       && (caseId === undefined || currentLongitudinalCase.value?.id === caseId)
   }
 
-  function stopGeneration() {
-    if (cancelFn) {
-      cancelFn()
-      cancelFn = null
-    }
-    generating.value = false
-  }
-
-  async function fetchReports(skip = 0, limit = 20, append = false) {
-    if (append && loading.value) return
-    const requestEpoch = ++reportListEpoch, userId = auth.user?.id
-    loading.value = true
-    try {
-      const res = await listReports(skip, limit, 'longitudinal_predictive')
-      if (requestEpoch !== reportListEpoch || userId !== auth.user?.id) return
-      reports.value = append
-        ? [...reports.value, ...res.reports.filter((item) => !reports.value.some((existing) => existing.id === item.id))]
-        : res.reports
-      total.value = res.total
-    } finally {
-      if (requestEpoch === reportListEpoch) loading.value = false
-    }
-  }
-
-  watch(()=>auth.user?.id,(next,previous)=>{
-    if(next!==previous){reportListEpoch++;reports.value=[];total.value=0;loading.value=false;clearCurrent()}
-  },{flush:'sync'})
-
-  async function fetchReport(reportId: number, revision = caseSessionRevision.value) {
-    loading.value = true
-    try {
-      const report = await getReport(reportId)
-      if (isCurrentCaseSession(revision)) currentReport.value = report
-      return report
-    } finally {
-      if (isCurrentCaseSession(revision)) loading.value = false
-    }
-  }
-
-  async function loadSavedReport(reportId: number) {
-    stopGeneration()
-    clearCurrent()
-    const revision = caseSessionRevision.value
-    longitudinalPrediction.value = null
-    longitudinalEvidence.value = null
-    longitudinalReportContent.value = ''
-    currentSources.value = []
-    return fetchReport(reportId, revision)
-  }
-
   async function removeReport(reportId: number) {
-    const result = await deleteReport(reportId)
-    reports.value = reports.value.filter((r) => r.id !== reportId)
-    total.value = Math.max(0, total.value - 1)
-    if (currentReport.value?.id === reportId) {
-      currentReport.value = null
-      longitudinalReportContent.value = ''
-    }
-    return result
+    return deleteReport(reportId)
   }
 
   async function fetchDiseases() {
@@ -145,23 +70,18 @@ export const useOperatorStore = defineStore('operator', () => {
     }
   }
 
-  function cancelGeneration() {
-    stopGeneration()
-    beginCaseSession()
-    currentStage.value = 'cancelled'
-  }
-
   async function fetchLongitudinalCases(params: OperatorCaseListParams = {}) {
-    const revision = caseSessionRevision.value
+    const epoch = ++caseListEpoch
+    caseListParams = { ...params }
     longitudinalCaseStatusFilter.value = params.status
     caseListLoading.value = true
     try {
       const result = await listLongitudinalCases(params)
+      if (epoch !== caseListEpoch) return result
       longitudinalCases.value = result.cases
-      if (isCurrentCaseSession(revision) && !currentLongitudinalCase.value && result.cases.length) selectLongitudinalCase(result.cases[0])
       return result
     } finally {
-      caseListLoading.value = false
+      if (epoch === caseListEpoch) caseListLoading.value = false
     }
   }
 
@@ -186,8 +106,10 @@ export const useOperatorStore = defineStore('operator', () => {
       if (!isCurrentCaseSession(revision, id)) return saved
       currentLongitudinalCase.value = saved
       draft.value = null
-      longitudinalCases.value = [saved, ...longitudinalCases.value.filter((item) => item.id !== saved.id)]
-      await refreshLongitudinalCaseReadiness(saved.id, revision)
+      await Promise.all([
+        fetchLongitudinalCases(caseListParams),
+        refreshLongitudinalCaseReadiness(saved.id, revision),
+      ])
       return saved
     } finally {
       if (isCurrentCaseSession(revision)) saving.value = false
@@ -218,7 +140,10 @@ export const useOperatorStore = defineStore('operator', () => {
     if (!isCurrentCaseSession(revision, current.id)) return saved
     currentLongitudinalCase.value = saved
     longitudinalCases.value = longitudinalCases.value.map((item) => item.id === saved.id ? saved : item)
-    await refreshLongitudinalCaseReadiness(saved.id, revision)
+    await Promise.all([
+      fetchLongitudinalCases(caseListParams),
+      refreshLongitudinalCaseReadiness(saved.id, revision),
+    ])
     return saved
   }
 
@@ -230,7 +155,7 @@ export const useOperatorStore = defineStore('operator', () => {
     await deleteLongitudinalCase(current.id)
     if (!isCurrentCaseSession(revision, current.id)) return
     try {
-      await fetchLongitudinalCases({ status: longitudinalCaseStatusFilter.value })
+      await fetchLongitudinalCases(caseListParams)
     } catch {
       throw new Error('病例已删除，但病例列表刷新失败，请重新加载页面')
     } finally {
@@ -238,54 +163,39 @@ export const useOperatorStore = defineStore('operator', () => {
     }
   }
 
-  function generateLongitudinalReport(caseId: number) {
-    return useReportGenerationStore().submit(caseId)
-  }
-
   function clearCurrent() {
     beginCaseSession()
-    currentReport.value = null
-    loading.value = false
-    longitudinalReportContent.value = ''
-    longitudinalEvidence.value = null
-    currentStage.value = ''
-    stageMessage.value = ''
-    currentSources.value = []
   }
 
   function startNewLongitudinalCase() {
-    stopGeneration()
     clearCurrent()
     currentLongitudinalCase.value = null
     draft.value = null
     readiness.value = null
     readinessLoading.value = false
     saving.value = false
-    longitudinalPrediction.value = null
     createIdempotencyKey = null
   }
 
   function selectLongitudinalCase(item: LongitudinalCase) {
-    stopGeneration()
     clearCurrent()
     currentLongitudinalCase.value = item
     draft.value = null
     readiness.value = null
     readinessLoading.value = false
     saving.value = false
-    longitudinalPrediction.value = null
     return caseSessionRevision.value
   }
 
+  watch(() => auth.user?.id, (next, previous) => {
+    if (next === previous) return
+    caseListEpoch += 1
+    longitudinalCases.value = []
+    caseListLoading.value = false
+    startNewLongitudinalCase()
+  }, { flush: 'sync' })
+
   return {
-    reports,
-    total,
-    currentReport,
-    loading,
-    generating,
-    currentStage,
-    stageMessage,
-    currentSources,
     caseSessionRevision: readonly(caseSessionRevision),
     diseases,
     indicatorCatalogs,
@@ -298,17 +208,9 @@ export const useOperatorStore = defineStore('operator', () => {
     draft,
     readiness,
     longitudinalCaseStatusFilter,
-    longitudinalPrediction,
-    longitudinalEvidence,
-    longitudinalReportContent,
-
-    fetchReports,
-    fetchReport,
-    loadSavedReport,
     removeReport,
     fetchDiseases,
     fetchOperatorIndicatorCatalog,
-    cancelGeneration,
     clearCurrent,
     startNewLongitudinalCase,
     selectLongitudinalCase,
@@ -317,6 +219,5 @@ export const useOperatorStore = defineStore('operator', () => {
     refreshLongitudinalCaseReadiness,
     changeLongitudinalCaseStatus,
     removeLongitudinalCase,
-    generateLongitudinalReport,
   }
 })

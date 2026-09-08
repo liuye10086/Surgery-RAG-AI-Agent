@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data" / "generated"
@@ -79,3 +81,30 @@ def test_complete_suite_summary_includes_release_outcome_stage_and_trends():
     assert summary["stage"]["status"] == "available"
     assert summary["trends"]["available_count"] == 2
     assert summary["trends"]["required_count"] == 2
+
+
+@pytest.mark.parametrize(
+    ("degraded", "expected_code"),
+    [
+        ({"outcome": {"status": "incompatible", "risk_score": None}}, "outcome_unavailable"),
+        ({"stage": {"status": "incompatible", "likely_next_stage": None}}, "stage_unavailable"),
+        (
+            {"trends": {"required_count": 2, "available_count": 1}},
+            "required_trend_unavailable",
+        ),
+    ],
+)
+def test_normal_smoke_scenario_rejects_degraded_model_sections(
+    degraded, expected_code
+):
+    from scripts.smoke_longitudinal_registry import assert_normal_scenario_available
+
+    summary = {
+        "outcome": {"status": "available", "risk_score": 0.25},
+        "stage": {"status": "available", "likely_next_stage": "stay_mci"},
+        "trends": {"required_count": 2, "available_count": 2},
+    }
+    summary.update(degraded)
+
+    with pytest.raises(ValueError, match=expected_code):
+        assert_normal_scenario_available(summary)

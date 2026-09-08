@@ -53,18 +53,6 @@ export interface Disease {
   created_at: string
 }
 
-export interface ReferenceRange {
-  id: number
-  indicator_name: string
-  name_cn: string | null
-  unit: string | null
-  lower: number | null
-  upper: number | null
-  lower_inclusive: boolean
-  upper_inclusive: boolean
-  category: string | null
-}
-
 export interface ReportIdentityMeta {
   id: number
   user_id: number
@@ -461,41 +449,7 @@ export function getLongitudinalCaseReportReadiness(caseId: number): Promise<Oper
   return request.get(`/v1/operator/longitudinal-cases/${caseId}/report-readiness`)
 }
 
-export function generateLongitudinalReportStream(caseId: number, callbacks: PredictionStreamCallbacks, modelOptions: Record<string, unknown> = {}): () => void {
-  const controller = new AbortController()
-  const token = localStorage.getItem('token')
-  fetch(`/api/v1/operator/longitudinal-cases/${caseId}/reports`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: token ? `Bearer ${token}` : '' }, body: JSON.stringify({ model_options: modelOptions }), signal: controller.signal })
-    .then(async (response) => {
-      if (!response.ok) { callbacks.onError((await response.json().catch(() => ({}))).detail || `请求失败 (${response.status})`); return }
-      const reader = response.body?.getReader()
-      if (!reader) { callbacks.onError('无法读取响应流'); return }
-      const decoder = new TextDecoder(); let buffer = ''
-      while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const parts = buffer.split('\n\n'); buffer = parts.pop() || ''; for (const part of parts) if (part.trim()) parseOperatorSSE(part, callbacks) }
-      if (buffer.trim()) parseOperatorSSE(buffer, callbacks)
-    })
-    .catch((error) => { if (error.name !== 'AbortError') callbacks.onError(error.message || '网络错误') })
-  return () => controller.abort()
-}
-
-export interface ReportListOut {
-  reports: ReportListItem[]
-  total: number
-}
-
-export interface ReportStreamCallbacks {
-  onStage: (stage: string, message: string) => void
-  onDelta: (content: string) => void
-  onSources: (sources: any[]) => void
-  onDone: (reportId: number) => void
-  onError: (error: string) => void
-}
-
-export interface PredictionStreamCallbacks extends ReportStreamCallbacks {
-  onPrediction?: (prediction: LongitudinalPrediction) => void
-  onEvidence?: (evidence: EvidenceBundleV1) => void
-}
-
-// ===== 疾病 / 病例 / 参考范围 API =====
+// ===== 疾病 / 病例 / 报告 API =====
 export function listDiseases(): Promise<Disease[]> {
   return request.get('/v1/operator/diseases')
 }
@@ -506,14 +460,6 @@ export function listOperatorIndicatorCatalog(code: string): Promise<OperatorIndi
 
 export function updateLongitudinalCaseStatus(id: number, data: LongitudinalCaseStatusChangePayload): Promise<LongitudinalCase> {
   return request.put(`/v1/operator/longitudinal-cases/${id}/status`, data)
-}
-
-export function listReferenceRanges(): Promise<ReferenceRange[]> {
-  return request.get('/v1/operator/reference-ranges')
-}
-
-export function listReports(skip = 0, limit = 20, analysisType?: string): Promise<ReportListOut> {
-  return request.get('/v1/operator/reports', { params: { skip, limit, analysis_type: analysisType } })
 }
 
 export function getReport(reportId: number): Promise<ReportDetail> {
@@ -529,46 +475,4 @@ export function deleteReport(reportId: number): Promise<void | DeleteReportResul
 export async function downloadReport(reportId: number, _filename?: string): Promise<void> {
   const {downloadOriginal}=await import('./report-archive')
   await downloadOriginal(reportId)
-}
-
-function parseOperatorSSE(raw: string, callbacks: PredictionStreamCallbacks) {
-  const lines = raw.split('\n')
-  let event = ''
-  let data = ''
-  for (const line of lines) {
-    if (line.startsWith('event:')) {
-      event = line.slice(6).trim()
-    } else if (line.startsWith('data:')) {
-      data = line.slice(5).trim()
-    }
-  }
-  if (!event || !data) return
-  try {
-    const payload = JSON.parse(data)
-    switch (event) {
-      case 'stage':
-        callbacks.onStage(payload.stage || '', payload.message || '')
-        break
-      case 'prediction':
-        callbacks.onPrediction?.(payload as LongitudinalPrediction)
-        break
-      case 'evidence':
-        callbacks.onEvidence?.(payload as EvidenceBundleV1)
-        break
-      case 'delta':
-        callbacks.onDelta(payload.content || '')
-        break
-      case 'sources':
-        callbacks.onSources(payload.sources || [])
-        break
-      case 'done':
-        callbacks.onDone(payload.report_id || 0)
-        break
-      case 'error':
-        callbacks.onError(payload.error || payload.message || '生成失败')
-        break
-    }
-  } catch {
-    // 忽略无法解析的事件
-  }
 }

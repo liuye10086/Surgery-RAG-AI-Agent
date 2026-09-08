@@ -27,6 +27,7 @@ python-dotenv
 markdown
 playwright
 httpx
+pytest
 bleach
 Jinja2
 scikit-learn==1.9.0

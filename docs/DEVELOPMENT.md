@@ -34,12 +34,27 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify_baseline.
 ```powershell
 cd backend
 .\.venv\Scripts\Activate.ps1
-python -m unittest discover -s tests -v
+python -m pytest tests ../scripts/tests --ignore=tests/integration --ignore=tests/e2e
 alembic current
 uvicorn app.main:app --reload
 ```
 
 数据库正式结构以 Alembic 为准。新建空数据库执行 `alembic upgrade head`；`database/schema.sql` 只作参考。
+
+## 原始病例 DOCX 验收
+
+四份原始文档可以保留在项目外。测试通过环境变量读取路径；缺少变量或文件时，仅跳过对应原始资料验收。以下命令从项目根目录执行，将 `$sourceDir` 替换为实际存放目录：
+
+```powershell
+$sourceDir = 'D:\原始病例资料'
+$env:FATTY_LIVER_DOC_A = Join-Path $sourceDir '脂肪肝相关病例（1-78例）.docx'
+$env:FATTY_LIVER_DOC_B = Join-Path $sourceDir '脂肪肝病例-2026.8.7.docx'
+$env:AD_DOC_A = Join-Path $sourceDir 'AD病例（1-73例）.docx'
+$env:AD_DOC_B = Join-Path $sourceDir 'AD病例70例.docx'
+python -m pytest scripts/tests/test_generate_fatty_liver_longitudinal.py scripts/tests/test_generate_ad_longitudinal.py -q
+```
+
+这四个变量仅作用于当前 PowerShell 会话，也可在同一会话中运行日常基线验证。两份测试文件共包含 58 项原始资料验收和 3 项可移植测试；生成输出仅写入临时目录，不覆盖 `data/generated` 或原始 DOCX。文档分散存放时，可分别为变量指定完整路径。
 
 ## 前端
 
@@ -47,6 +62,8 @@ uvicorn app.main:app --reload
 nvm use 22.15.0
 cd frontend
 npm ci
+npm run test:unit
+npm run test:contracts
 npm run dev
 npm run build
 ```
@@ -65,3 +82,4 @@ npm run build
 - BGE-M3、PaddleOCR 等模型下载
 - OCR 集成、GPU 测试和文档重新索引
 - 数据库写入测试
+- 原始 DOCX 数据验收（按上文配置 `FATTY_LIVER_DOC_A` / `FATTY_LIVER_DOC_B` 和 `AD_DOC_A` / `AD_DOC_B` 后运行对应验收）

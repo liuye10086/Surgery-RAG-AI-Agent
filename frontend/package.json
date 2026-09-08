@@ -8,6 +8,7 @@
     "build": "vue-tsc && vite build",
     "preview": "vite preview",
     "test:unit": "vitest run",
+    "test:contracts": "node --test tests/*.test.mjs",
     "test:unit:watch": "vitest"
   },
   "dependencies": {

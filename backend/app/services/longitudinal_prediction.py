@@ -27,7 +27,6 @@ from app.services.disease_progression import (
 )
 from app.services.longitudinal_features import (
     InferenceContractError,
-    build_feature_vector,
     build_fixed_window_inference_features,
     summarize_observation,
 )
@@ -140,30 +139,6 @@ def _run_outcome_model(
         risk_score=score,
         risk_band=_risk_band(score, metadata.score_contract.threshold),
     )
-
-
-def _risk_from_registry(visits, registry):
-    info = registry.get("outcome") if isinstance(registry, dict) else None
-    if not info or info.get("model") is None:
-        return None, None
-    meta = info.get("meta", {})
-    vector = build_feature_vector(visits, meta.get("feature_names", []))
-    model = info["model"]
-    probabilities = model.predict_proba([vector])[0]
-    classes = list(model.classes_)
-    score = float(probabilities[classes.index(1)]) if 1 in classes else None
-    band = (
-        "极高"
-        if score is not None and score >= 0.8
-        else "高"
-        if score is not None and score >= 0.6
-        else "中"
-        if score is not None and score >= 0.3
-        else "低"
-        if score is not None
-        else None
-    )
-    return score, band
 
 
 def _empty_registry(dataset: str) -> LongitudinalModelRegistry:

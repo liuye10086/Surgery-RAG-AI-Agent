@@ -15,8 +15,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "scripts" / "generate_fatty_liver_longitudinal.py"
-DOC_A = Path(os.environ.get("FATTY_LIVER_DOC_A", r"C:\Users\86182\Desktop\脂肪肝相关病例（1-78例）.docx"))
-DOC_B = Path(os.environ.get("FATTY_LIVER_DOC_B", r"C:\Users\86182\Desktop\脂肪肝病例-2026.8.7.docx"))
+DOC_A = os.environ.get("FATTY_LIVER_DOC_A")
+DOC_B = os.environ.get("FATTY_LIVER_DOC_B")
 
 
 def load_generator():
@@ -29,11 +29,101 @@ def load_generator():
     return module
 
 
-class FattyLiverGenerationTests(unittest.TestCase):
+class PortableFattyLiverGenerationTests(unittest.TestCase):
+    def test_controlled_docx_fixture_generates_a_valid_deterministic_dataset(self):
+        from docx import Document
+
+        generator = load_generator()
+        with tempfile.TemporaryDirectory() as temp:
+            paths = [Path(temp) / "a.docx", Path(temp) / "b.docx"]
+            for path, start, stop in ((paths[0], 1, 79), (paths[1], 1, 78)):
+                document = Document()
+                for number in range(start, stop):
+                    document.add_paragraph(f"病例 {number}")
+                    document.add_paragraph(
+                        f"患者，男，{30 + number % 40}岁。2024年1月{number % 28 + 1}日确诊脂肪肝。"
+                    )
+                    document.add_paragraph("诊断：非酒精性脂肪肝；ALT 80 U/L。")
+                document.save(path)
+
+            cases = generator.parse_case_documents(*paths)
+
+            config = generator.GenerationConfig()
+            patients, visits, report = generator.generate_dataset(cases, config)
+            repeated = generator.generate_dataset(cases, config)
+
+        self.assertEqual(len(cases), 150)
+        self.assertEqual(cases[0].source_case_id, "A1-1")
+        self.assertEqual(cases[-1].source_case_id, "B77-1")
+        self.assertEqual(cases[0].age, 31)
+        self.assertEqual(cases[0].sex, "male")
+        self.assertTrue(cases[0].lab_anchors)
+        self.assertEqual(len(patients), 150)
+        self.assertEqual(
+            Counter(row["final_stage"] for row in patients),
+            {"fatty_liver": 75, "cirrhosis": 50, "hcc": 25},
+        )
+        visit_counts = Counter(row["patient_id"] for row in visits)
+        self.assertTrue(all(3 <= visit_counts[patient["patient_id"]] <= 6 for patient in patients))
+        self.assertEqual(generator.validate_dataset(patients, visits)["errors"], [])
+        self.assertEqual(report["stage_counts"], {"fatty_liver": 75, "cirrhosis": 50, "hcc": 25})
+        self.assertEqual((patients, visits, report), repeated)
+
+    def test_explicit_cirrhosis_rejects_suspected_but_accepts_confirmed_diagnosis(self):
+        generator = load_generator()
+
+        def case_with(text):
+            return generator.CaseRecord(
+                patient_id="PX01", source="T", source_number=1, source_occurrence=1,
+                source_case_id="T1-1", paragraphs=[text], full_text=text,
+                age=50, sex="male", diagnosis_text="",
+            )
+
+        self.assertFalse(generator._explicit_cirrhosis_evidence(
+            case_with("明确诊断为MAFLD合并酒精性肝病、肝硬化（不除外）、脂肪性肝炎。")
+        ))
+        self.assertFalse(generator._explicit_cirrhosis_evidence(
+            case_with("患者可能进展为肝硬化，仍需随访确认。")
+        ))
+        self.assertTrue(generator._explicit_cirrhosis_evidence(
+            case_with("结合检查结果，明确诊断为代谢相关脂肪性肝病并肝硬化。")
+        ))
+
+    def test_explicit_hcc_rejects_suspected_but_accepts_pathology_confirmation(self):
+        generator = load_generator()
+
+        def case_with(text):
+            return generator.CaseRecord(
+                patient_id="PX02", source="T", source_number=2, source_occurrence=1,
+                source_case_id="T2-1", paragraphs=[text], full_text=text,
+                age=50, sex="male", diagnosis_text=text,
+            )
+
+        self.assertFalse(generator._explicit_hcc_evidence(case_with("肝癌（不除外）")))
+        self.assertFalse(generator._explicit_hcc_evidence(case_with("肝癌待排")))
+        self.assertFalse(generator._explicit_hcc_evidence(case_with("考虑肝癌可能")))
+        self.assertFalse(generator._explicit_hcc_evidence(case_with("病理提示肝细胞性肝癌可能")))
+        self.assertFalse(generator._explicit_hcc_evidence(case_with("病理考虑肝细胞性肝癌待排")))
+        self.assertFalse(generator._explicit_hcc_evidence(case_with("病理肝细胞癌（不除外）")))
+        self.assertTrue(generator._explicit_hcc_evidence(case_with("病理确诊肝细胞性肝癌")))
+
+
+class FattyLiverSourceAcceptanceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        if not DOC_A or not DOC_B:
+            raise unittest.SkipTest(
+                "raw source DOCX acceptance is opt-in; set FATTY_LIVER_DOC_A and FATTY_LIVER_DOC_B"
+            )
+        doc_a = Path(DOC_A)
+        doc_b = Path(DOC_B)
+        missing = [str(path) for path in (doc_a, doc_b) if not path.is_file()]
+        if missing:
+            raise unittest.SkipTest("raw source DOCX acceptance files are unavailable")
         cls.generator = load_generator()
-        cls.cases = cls.generator.parse_case_documents(DOC_A, DOC_B)
+        cls.doc_a = doc_a
+        cls.doc_b = doc_b
+        cls.cases = cls.generator.parse_case_documents(doc_a, doc_b)
         cls.patients, cls.visits, cls.report = cls.generator.generate_dataset(
             cls.cases, cls.generator.GenerationConfig()
         )
@@ -171,40 +261,6 @@ class FattyLiverGenerationTests(unittest.TestCase):
             case = case_by_id[patient_id]
             if self.generator._explicit_cirrhosis_evidence(case):
                 self.assertNotEqual(patient["final_stage"], "hcc", patient_id)
-
-    def test_explicit_cirrhosis_rejects_suspected_but_accepts_confirmed_diagnosis(self):
-        def case_with(text):
-            return self.generator.CaseRecord(
-                patient_id="PX01", source="T", source_number=1, source_occurrence=1,
-                source_case_id="T1-1", paragraphs=[text], full_text=text,
-                age=50, sex="male", diagnosis_text="",
-            )
-
-        self.assertFalse(self.generator._explicit_cirrhosis_evidence(
-            case_with("明确诊断为MAFLD合并酒精性肝病、肝硬化（不除外）、脂肪性肝炎。")
-        ))
-        self.assertFalse(self.generator._explicit_cirrhosis_evidence(
-            case_with("患者可能进展为肝硬化，仍需随访确认。")
-        ))
-        self.assertTrue(self.generator._explicit_cirrhosis_evidence(
-            case_with("结合检查结果，明确诊断为代谢相关脂肪性肝病并肝硬化。")
-        ))
-
-    def test_explicit_hcc_rejects_suspected_but_accepts_pathology_confirmation(self):
-        def case_with(text):
-            return self.generator.CaseRecord(
-                patient_id="PX02", source="T", source_number=2, source_occurrence=1,
-                source_case_id="T2-1", paragraphs=[text], full_text=text,
-                age=50, sex="male", diagnosis_text=text,
-            )
-
-        self.assertFalse(self.generator._explicit_hcc_evidence(case_with("肝癌（不除外）")))
-        self.assertFalse(self.generator._explicit_hcc_evidence(case_with("肝癌待排")))
-        self.assertFalse(self.generator._explicit_hcc_evidence(case_with("考虑肝癌可能")))
-        self.assertFalse(self.generator._explicit_hcc_evidence(case_with("病理提示肝细胞性肝癌可能")))
-        self.assertFalse(self.generator._explicit_hcc_evidence(case_with("病理考虑肝细胞性肝癌待排")))
-        self.assertFalse(self.generator._explicit_hcc_evidence(case_with("病理肝细胞癌（不除外）")))
-        self.assertTrue(self.generator._explicit_hcc_evidence(case_with("病理确诊肝细胞性肝癌")))
 
     def test_classification_reasons_are_reported_without_changing_csv_schema(self):
         reasons = self.report["cohort_classification_reasons"]
@@ -396,7 +452,7 @@ class FattyLiverGenerationTests(unittest.TestCase):
                 patients, visits, report = self.generator.generate_dataset(
                     self.cases, self.generator.GenerationConfig()
                 )
-                paths = self.generator.write_outputs(base / run, self.cases, patients, visits, report, DOC_A, DOC_B)
+                paths = self.generator.write_outputs(base / run, self.cases, patients, visits, report, self.doc_a, self.doc_b)
                 patient_bytes = paths["patients"].read_bytes()
                 visit_bytes = paths["visits"].read_bytes()
                 self.assertFalse(patient_bytes.startswith(b"\xef\xbb\xbf"))
@@ -455,7 +511,7 @@ class FattyLiverGenerationTests(unittest.TestCase):
     def test_provenance_contains_source_mapping_and_seed(self):
         with tempfile.TemporaryDirectory() as temp:
             paths = self.generator.write_outputs(
-                Path(temp), self.cases, self.patients, self.visits, self.report, DOC_A, DOC_B
+                Path(temp), self.cases, self.patients, self.visits, self.report, self.doc_a, self.doc_b
             )
             provenance = paths["provenance"].read_text(encoding="utf-8")
         self.assertIn("20260818", provenance)

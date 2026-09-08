@@ -15,6 +15,15 @@ function mountWorkspace(props: Record<string, unknown>) {
 }
 
 describe('OperatorCaseWorkspace', () => {
+  it.each(['archived', 'disabled'])('blocks editing and report generation for %s cases with a reason', async (mode) => {
+    const model = existingCase()
+    if (mode === 'archived') model.status = 'archived'
+    else model.disease.operator_enabled = false
+    const wrapper = mountWorkspace({ model, readiness: { ready: true, blockers: [] } })
+    expect(wrapper.get('.profile-grid input').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.action-bar__report').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain(mode === 'archived' ? '病例已归档' : '疾病已停用')
+  })
   it('starts a new case with exactly one initial visit', () => {
     const wrapper = mount(OperatorCaseWorkspace)
     expect(wrapper.findAll('.timeline__card')).toHaveLength(1)

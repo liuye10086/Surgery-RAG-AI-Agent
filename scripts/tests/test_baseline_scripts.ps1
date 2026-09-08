@@ -18,10 +18,28 @@ foreach ($required in @('3.11.4', '22.15.0', '10.9.2', 'DATABASE_URL', 'JWT_SECR
     }
 }
 
-foreach ($required in @('InstallDependencies', 'unittest discover', 'npm ci', 'check_database_readonly.py', 'BASELINE.md')) {
+foreach ($required in @(
+    'InstallDependencies',
+    '-m pytest',
+    "'tests'",
+    "'..\scripts\tests'",
+    "'--ignore=tests/integration'",
+    "'--ignore=tests/e2e'",
+    'npm ci',
+    "npm run test:unit",
+    "npm run test:contracts",
+    'check_database_readonly.py',
+    "'--phase'",
+    "'postflight'",
+    'BASELINE.md'
+)) {
     if (-not $verifySource.Contains($required)) {
         throw "Baseline verifier missing contract: $required"
     }
+}
+
+if ($verifySource.Contains('unittest discover')) {
+    throw 'Baseline verifier still uses unittest discovery, which misses pytest tests'
 }
 
 foreach ($required in @(

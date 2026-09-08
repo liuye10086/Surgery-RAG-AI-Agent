@@ -64,7 +64,6 @@ Thumbs.db
 
 # 上传文件目录（运行时产生，不进入 git）
 /uploads/
-/uploads/
 /data/uploads/
 
 # Reproducible ML model artifacts (metadata remains trackable)

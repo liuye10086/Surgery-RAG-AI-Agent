@@ -14,6 +14,8 @@
 | [MVP开发计划.md](docs/MVP开发计划.md) | MVP 技术方案与里程碑（M0–M7，全部完成） |
 | [DESIGN_SPEC.md](docs/DESIGN_SPEC.md) | UI 设计规范（暖杏蓝色彩体系、排版、组件变体） |
 | [DEPLOY.md](docs/DEPLOY.md) | 部署与密钥运行手册 |
+| [DEVELOPMENT.md](docs/DEVELOPMENT.md) | 本地依赖、日常测试和可选验收入口 |
+| [OPERATOR_REPORT_OPERATIONS.md](docs/OPERATOR_REPORT_OPERATIONS.md) | 报告任务、PDF 归档与后台 worker 运维 |
 
 ## 项目结构
 
@@ -21,36 +23,44 @@
 surgery-rag/
 ├── backend/               # FastAPI 后端
 │   ├── app/
-│   │   ├── api/           # 路由：auth, chat, admin, user
+│   │   ├── api/           # 路由：auth, chat, admin, user, operator
 │   │   ├── core/          # 配置、安全、JWT
 │   │   ├── data/          # M5 安全规则库（JSON）
 │   │   ├── db/            # SQLAlchemy 模型
 │   │   ├── ingestion/     # 文档解析（PDF/Word/OCR）、分块
+│   │   ├── ml_models/     # 当前模型、数据集快照、发布指针与审计
 │   │   ├── rag/           # RAG 检索 + LangChain 适配器
+│   │   ├── schemas/       # API、模型输入与报告数据契约
 │   │   ├── services/      # Embedding、LLM 调用、内容过滤、审计
+│   │   ├── templates/     # PDF 模板
+│   │   ├── workers/       # 持久化报告与 PDF 后台任务
 │   │   └── main.py
 │   ├── alembic/            # 业务表数据库迁移
+│   ├── tests/              # 单元、集成和端到端测试
 │   ├── alembic.ini
 │   ├── requirements.txt
 │   └── .env.example
 ├── frontend/              # Vue 3 + TypeScript + Element Plus
 │   ├── src/
-│   │   ├── views/         # 页面：Chat, Admin, Login, Settings
+│   │   ├── views/         # 页面：Chat, Admin, Operator, Login, Settings
 │   │   ├── components/    # ChatMessage, ChatSidebar, AdminSidebar 等
 │   │   ├── api/           # 后端接口封装（SSE 流式）
-│   │   ├── stores/        # Pinia 状态管理（chat, auth, admin）
+│   │   ├── stores/        # Pinia：聊天、病例、报告生成和历史
 │   │   └── router/        # 路由配置
 │   ├── package.json
 │   └── vite.config.ts
 ├── data/generated/         # 双疾病 150/300 例可复现纵向数据
 ├── database/               # schema.sql 参考快照；正式迁移位于 backend/alembic
+├── deploy/systemd/         # 报告 worker、巡检与文件清理服务
 ├── docs/
 │   ├── 核查、设计与部署运维手册
 │   ├── superpowers/plans/  # 保留的实施计划
-│   ├── superpowers/specs/  # 尚未落地的采集规范与本次清理规格
+│   ├── superpowers/specs/  # 功能设计及注明状态的历史采集规范
 │   └── report_method_validation.md  # 保留的方法验证结论
 ├── scripts/                # 数据生成、训练、registry、readiness 和诊断工具
+├── evaluation/             # RAG 检索评估样本
 ├── standard_manifests/     # 双疾病标准 manifest
+├── docker-compose.test.yml # 隔离测试数据库
 └── uploads/                # 运行时上传文件，不进入 Git
 ```
 
@@ -76,15 +86,15 @@ surgery-rag/
 1. 保存操作者自有纵向病例和按日期排列的访视指标。
 2. 根据疾病和基线阶段选择当前激活的结局、阶段与趋势模型套件。
 3. 解析当前批准的参考标准，并选择带来源标记的相似病例证据。
-4. 生成严格结构化预测结果，再由确定性模板渲染 Markdown 报告。
-5. 持久化输入快照、模型版本、证据、报告正文，并支持历史查看和 PDF 导出。
+4. 将生成请求保存为后台任务，固定输入、模型和证据版本；worker 构建结构化报告文档并渲染正文。
+5. 持久化完整报告与审计，前端可恢复生成进度；历史查看和 PDF 归档使用保存的报告资料。
 
 ## 本地开发
 
 ### 前置条件
 
-- Python 3.11+
-- Node.js 18+
+- Python 3.11（详见 [本地开发指南](docs/DEVELOPMENT.md)）
+- Node.js 22（本机基线 22.15.0）
 - PostgreSQL 15+（需启用 pgvector 扩展）
 - DeepSeek API Key
 
@@ -93,8 +103,8 @@ surgery-rag/
 ```bash
 cd backend
 cp .env.example .env   # 编辑填入 DB 地址、DeepSeek Key、JWT 密钥
-python -m venv venv
-venv\Scripts\activate  # Windows
+python -m venv .venv
+.venv\Scripts\activate  # Windows
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```

@@ -3,9 +3,9 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 const viewPath = new URL('../src/components/LongitudinalReportView.vue', import.meta.url)
-const storePath = new URL('../src/stores/operator.ts', import.meta.url)
+const generationStorePath = new URL('../src/stores/report-generation.ts', import.meta.url)
+const historyStorePath = new URL('../src/stores/report-history.ts', import.meta.url)
 const operatorViewPath = new URL('../src/views/OperatorView.vue', import.meta.url)
-const summaryPath = new URL('../src/components/LongitudinalPredictionSummary.vue', import.meta.url)
 const apiPath = new URL('../src/api/operator.ts', import.meta.url)
 
 test('longitudinal report has three summary answers and eleven sections', async () => {
@@ -20,14 +20,14 @@ test('longitudinal report has three summary answers and eleven sections', async 
   assert.doesNotMatch(view, /likely_rising|direction_only/)
 })
 
-test('history loading clears live prediction state before reading saved report', async () => {
-  const [store, operatorView] = await Promise.all([
-    readFile(storePath, 'utf8'),
+test('saved and newly generated reports share the durable generation store', async () => {
+  const [generationStore, operatorView] = await Promise.all([
+    readFile(generationStorePath, 'utf8'),
     readFile(operatorViewPath, 'utf8'),
   ])
-  assert.match(store, /longitudinalPrediction\.value\s*=\s*null/)
-  assert.match(store, /async function loadSavedReport\(/)
-  assert.match(operatorView, /LongitudinalReportView/)
+  assert.match(generationStore, /async function observe\(id:number\)/)
+  assert.match(operatorView, /:report="generation\.report"/)
+  assert.doesNotMatch(operatorView, /operatorStore\.currentReport|operatorStore\.longitudinalPrediction/)
 })
 
 test('report opens as a dedicated reading view with a return action', async () => {
@@ -48,15 +48,6 @@ test('report directory targets ids assigned to persisted markdown headings', asy
   assert.match(operatorView, /heading\.id = section\.id/)
 })
 
-test('complete prediction summary exposes outcome stage and trend without probability wording', async () => {
-  const source = await readFile(summaryPath, 'utf8')
-  for (const text of ['未来 365 天结局', '下一疾病阶段', '下一次访视趋势', '模型分数', '不代表临床概率', '已观察方向', '模型预测方向']) {
-    assert.match(source, new RegExp(text))
-  }
-  assert.doesNotMatch(source, /临床概率：/)
-  assert.doesNotMatch(source, /row\.forecast\?\.direction \|\| '不可估计'.*观察趋势/)
-})
-
 test('historical prediction types remain compatible while v3 is strict', async () => {
   const api = await readFile(apiPath, 'utf8')
   assert.match(api, /LongitudinalPredictionV1\s*\|\s*LongitudinalPredictionV2\s*\|\s*LongitudinalPredictionV3/)
@@ -73,13 +64,13 @@ test('report reading view shows saved release identity only as technical detail'
 })
 
 test('history list supports saved snapshot summaries and load more', async () => {
-  const [api, store, sidebar, view] = await Promise.all([
-    readFile(apiPath, 'utf8'), readFile(storePath, 'utf8'),
+  const [api, historyStore, sidebar, view] = await Promise.all([
+    readFile(apiPath, 'utf8'), readFile(historyStorePath, 'utf8'),
     readFile(new URL('../src/components/OperatorSidebar.vue', import.meta.url), 'utf8'),
     readFile(viewPath, 'utf8'),
   ])
   assert.match(api, /input_snapshot/)
-  assert.match(store, /append/)
+  assert.match(historyStore, /async function fetchPage\(append: boolean\)/)
   assert.match(sidebar, /加载更多/)
   assert.match(view, /LegacyReportSnapshot/)
   const snapshot = await readFile(new URL('../src/components/report/LegacyReportSnapshot.vue', import.meta.url), 'utf8')

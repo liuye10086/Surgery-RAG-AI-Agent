@@ -446,6 +446,7 @@ def build_fixed_window_inference_features(
     summary = summarize_fixed_window_history(visit_rows)
     values: dict[str, Any] = {
         "age": case.get("age"),
+        "current_stage": case.get("baseline_stage"),
         "sex": case.get("sex"),
         "visit_count": summary["visit_count"],
         "observation_span_days": summary["observation_span_days"],

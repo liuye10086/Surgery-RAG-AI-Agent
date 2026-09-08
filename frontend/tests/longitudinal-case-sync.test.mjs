@@ -10,7 +10,6 @@ if (!store.includes('saveLongitudinalCaseRequest')) throw new Error('store does 
 if (!workspace.includes('watch(() => props.model')) throw new Error('workspace does not react to selected case changes')
 if (!workspace.includes('const { disease_id: _diseaseId')) throw new Error('immutable disease ID leaks into case updates')
 if (!workspace.includes(':disease-locked="Boolean(model?.id)"')) throw new Error('existing case disease can be edited')
-if (!api.includes('payload.error || payload.message')) throw new Error('SSE errors drop the backend message')
 if (!view.includes('fetchLongitudinalCases')) throw new Error('longitudinal cases are not loaded')
 if (!view.includes('startNewLongitudinalCase')) throw new Error('new longitudinal case lifecycle is missing')
 if (!api.includes('disease: LongitudinalCaseDisease')) throw new Error('case disease identity is missing')

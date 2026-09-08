@@ -176,7 +176,7 @@ alembic current
 → python scripts/check_operator_disease_migration_readonly.py
 → 人工确认 status=PASS，并确认 mode 为 empty_initialize 或 existing_backfill
 → cd backend && alembic upgrade head
-→ python ../scripts/check_database_readonly.py
+→ python ../scripts/check_database_readonly.py --phase postflight
 → 重启后端
 → 对 AD 和脂肪肝分别执行病例读取、病例写入和报告生成冒烟验证
 ```

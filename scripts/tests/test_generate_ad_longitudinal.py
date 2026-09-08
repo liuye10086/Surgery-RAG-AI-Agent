@@ -4,6 +4,7 @@ import csv
 import hashlib
 import importlib.util
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -14,8 +15,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "scripts" / "generate_ad_longitudinal.py"
-DOC_A = Path(r"C:\Users\86182\Desktop\AD病例（1-73例）.docx")
-DOC_B = Path(r"C:\Users\86182\Desktop\AD病例70例.docx")
+DOC_A = os.environ.get("AD_DOC_A")
+DOC_B = os.environ.get("AD_DOC_B")
 
 
 def load_generator():
@@ -31,10 +32,16 @@ def load_generator():
 class ADLongitudinalTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        if not DOC_A.exists() or not DOC_B.exists():
+        if not DOC_A or not DOC_B:
+            raise unittest.SkipTest(
+                "raw source DOCX acceptance is opt-in; set AD_DOC_A and AD_DOC_B"
+            )
+        doc_a = Path(DOC_A)
+        doc_b = Path(DOC_B)
+        if not doc_a.exists() or not doc_b.exists():
             raise unittest.SkipTest("AD source DOCX files are unavailable")
         cls.generator = load_generator()
-        cls.docs = [DOC_A, DOC_B]
+        cls.docs = [doc_a, doc_b]
         cls.cases = cls.generator.parse_case_documents(cls.docs)
 
     def test_parser_reads_malformed_second_docx_and_builds_150_anchors(self):
@@ -67,7 +74,7 @@ class ADLongitudinalTests(unittest.TestCase):
         self.assertEqual([case.anchors.get("mmse") for case in family], [23.0, 23.0, None])
 
     def test_second_docx_can_be_read_without_python_docx_relationship_resolution(self):
-        blocks = self.generator.read_docx_blocks(DOC_B)
+        blocks = self.generator.read_docx_blocks(self.docs[1])
         self.assertGreater(len(blocks), 2000)
         self.assertTrue(blocks[0].startswith("1病例"))
 

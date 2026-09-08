@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = 'Continue'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $results = [System.Collections.Generic.List[object]]::new()
-$backendTestLabel = 'unittest discover'
+$backendTestLabel = 'pytest backend and scripts'
 $npmInstallLabel = 'npm ci'
 
 function Add-Result([string]$Component, [string]$Status, [string]$Evidence) {
@@ -82,14 +82,24 @@ try {
 
 if ($environmentExit -eq 0) {
     Push-Location (Join-Path $projectRoot 'backend')
-    try { Invoke-Recorded $backendTestLabel { & $venvPython -m unittest discover -s tests -v } | Out-Null }
+    try {
+        Invoke-Recorded $backendTestLabel {
+            & $venvPython -m pytest 'tests' '..\scripts\tests' '--ignore=tests/integration' '--ignore=tests/e2e'
+        } | Out-Null
+    }
     finally { Pop-Location }
     Push-Location (Join-Path $projectRoot 'frontend')
-    try { Invoke-Recorded 'frontend-build' { & $npm run build } | Out-Null }
+    try {
+        Invoke-Recorded 'frontend-unit-tests' { & $npm run test:unit } | Out-Null
+        Invoke-Recorded 'frontend-contract-tests' { & $npm run test:contracts } | Out-Null
+        Invoke-Recorded 'frontend-build' { & $npm run build } | Out-Null
+    }
     finally { Pop-Location }
     if ($SkipDatabase) { Add-Result 'database-readonly' 'SKIP' 'disabled by -SkipDatabase' }
     else {
-        $databaseRun = Invoke-Recorded 'database-readonly-command' { & $venvPython (Join-Path $projectRoot 'scripts\check_database_readonly.py') }
+        $databaseRun = Invoke-Recorded 'database-readonly-command' {
+            & $venvPython (Join-Path $projectRoot 'scripts\check_database_readonly.py') '--phase' 'postflight'
+        }
         if ($databaseRun.output) {
             try {
                 $database = $databaseRun.output | ConvertFrom-Json
