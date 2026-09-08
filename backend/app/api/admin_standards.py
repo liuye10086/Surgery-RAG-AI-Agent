@@ -32,7 +32,7 @@ from app.schemas.standard import (
     ValidationReport,
 )
 from app.services.standard_lifecycle import (
-    materialize_candidate,
+    materialize_candidate as materialize_candidate_service,
     materialize_candidate_rule,
     publish_approved_version,
     publish_review_version,
@@ -335,7 +335,7 @@ def review_candidate(candidate_id: int, payload: dict[str, str], admin=Depends(r
 @router.post("/admin/reference-standard-candidates/{candidate_id}/materialize", response_model=RuleOut)
 def materialize_candidate(candidate_id: int, reason: str = Query(..., min_length=1), admin=Depends(require_admin), db: Session = Depends(get_db)):
     try:
-        return materialize_candidate(
+        return materialize_candidate_service(
             db,
             candidate_id=candidate_id,
             admin_id=getattr(admin, "id", 0),

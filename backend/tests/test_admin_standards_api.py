@@ -35,6 +35,10 @@ class _Query:
         self.events.append("first")
         return self.value
 
+    def get(self, primary_key):
+        self.events.append(("get", primary_key))
+        return self.value
+
     def update(self, _values, synchronize_session=False):
         self.events.append("update")
         return 0
@@ -523,3 +527,109 @@ def test_delete_version_rejects_immutable_states(version_status):
     assert exc_info.value.status_code == 409
     assert exc_info.value.detail == "已批准或已退役版本不可删除"
     assert db.deleted == []
+
+
+@pytest.fixture
+def materialization_case():
+    candidate = SimpleNamespace(
+        id=5,
+        version_id=2,
+        segment_id=8,
+        status="accepted",
+        candidate_json={
+            "indicator_name": "ALT",
+            "rule_type": "numeric_range",
+            "numeric": {"upper": 40, "unit": "U/L"},
+            "machine_actionability": "calculable",
+        },
+    )
+    version = SimpleNamespace(id=2, status="draft")
+    db = _Db({
+        "StandardParseCandidate": [candidate, candidate],
+        "ReferenceStandardVersion": [version],
+        "StandardIndicator": [SimpleNamespace(id=3)],
+    })
+    return SimpleNamespace(candidate=candidate, version=version, db=db)
+
+
+def _materialize_response(db, *, params, role="admin"):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.admin_standards import router
+    from app.api.deps import get_current_user
+    from app.db.session import get_db
+
+    app = FastAPI()
+    app.include_router(router, prefix="/api/v1")
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=7, role=role)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        return client.post(
+            "/api/v1/admin/reference-standard-candidates/5/materialize",
+            params=params,
+        )
+
+
+@pytest.mark.parametrize("version_status", ["draft", "review"])
+def test_materialize_route_creates_rule_and_audit(materialization_case, version_status):
+    case = materialization_case
+    case.version.status = version_status
+
+    response = _materialize_response(case.db, params={"reason": "逐条审核通过"})
+
+    assert response.status_code == 200, response.text
+    rule = response.json()
+    assert rule["id"] == case.db.added[0].id
+    assert rule["version_id"] == 2
+    assert rule["source_segment_id"] == 8
+    assert rule["indicator_id"] == 3
+    assert rule["rule_type"] == "numeric_range"
+    assert rule["upper"] == 40
+    assert rule["unit"] == "U/L"
+    assert rule["machine_actionability"] == "calculable"
+    assert case.candidate.status == "materialized"
+    assert len(case.db.added) == 2
+    audit = case.db.added[1]
+    assert audit.entity_id == rule["id"]
+    assert audit.action == "materialize_candidate"
+    assert audit.after_json["candidate_id"] == 5
+    assert audit.actor_id == 7
+    assert audit.reason == "逐条审核通过"
+    assert case.db.commits == 1
+    assert case.db.rollbacks == 0
+
+
+def test_materialize_route_returns_409_for_unaccepted_candidate(materialization_case):
+    case = materialization_case
+    case.candidate.status = "pending"
+
+    response = _materialize_response(case.db, params={"reason": "审核候选"})
+
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"] == "只有 accepted 候选可以转为规则"
+    assert case.candidate.status == "pending"
+    assert case.db.added == []
+    assert case.db.commits == 0
+
+
+@pytest.mark.parametrize("params", [{}, {"reason": ""}])
+def test_materialize_route_requires_reason(materialization_case, params):
+    response = _materialize_response(materialization_case.db, params=params)
+
+    assert response.status_code == 422
+    assert materialization_case.db.added == []
+    assert materialization_case.db.commits == 0
+
+
+def test_materialize_route_rejects_non_admin(materialization_case):
+    response = _materialize_response(
+        materialization_case.db,
+        params={"reason": "审核候选"},
+        role="ai_operator",
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Admin required"
+    assert materialization_case.db.added == []
+    assert materialization_case.db.commits == 0

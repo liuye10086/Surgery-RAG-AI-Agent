@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from app.db.models import OperatorCase, OperatorCaseVisit
@@ -155,6 +156,8 @@ def save_operator_case_command(db, user_id: int, case_id: int, payload):
         case.sex = payload.sex
         case.baseline_stage = normalized_stage
         case.notes = payload.notes
+        # Timeline-only changes must also advance the aggregate's list timestamp.
+        case.updated_at = func.now()
         replace_case_visits_in_session(db, case, timeline)
         append_case_change_log(
             db,

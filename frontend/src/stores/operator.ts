@@ -25,6 +25,7 @@ export const useOperatorStore = defineStore('operator', () => {
   const auth = useAuthStore()
   let caseListEpoch = 0
   let caseListParams: OperatorCaseListParams = {}
+  const caseListPagination = ref({ total: 0, skip: 0, limit: 20 })
   const caseListLoading = ref(false)
   const saving = ref(false)
   const readinessLoading = ref(false)
@@ -73,12 +74,21 @@ export const useOperatorStore = defineStore('operator', () => {
   async function fetchLongitudinalCases(params: OperatorCaseListParams = {}) {
     const epoch = ++caseListEpoch
     caseListParams = { ...params }
-    longitudinalCaseStatusFilter.value = params.status
     caseListLoading.value = true
     try {
-      const result = await listLongitudinalCases(params)
+      let requested = { ...params }
+      let result = await listLongitudinalCases(requested)
       if (epoch !== caseListEpoch) return result
+      // Resolve a now-empty final page before publishing either records or metadata.
+      while (result.skip > 0 && result.skip >= result.total) {
+        requested = { ...requested, skip: Math.max(0, Math.ceil(result.total / result.limit) - 1) * result.limit }
+        result = await listLongitudinalCases(requested)
+        if (epoch !== caseListEpoch) return result
+      }
+      caseListParams = requested
+      longitudinalCaseStatusFilter.value = requested.status
       longitudinalCases.value = result.cases
+      caseListPagination.value = { total: result.total ?? result.cases.length, skip: result.skip ?? requested.skip ?? 0, limit: result.limit ?? requested.limit ?? 20 }
       return result
     } finally {
       if (epoch === caseListEpoch) caseListLoading.value = false
@@ -139,7 +149,6 @@ export const useOperatorStore = defineStore('operator', () => {
     })
     if (!isCurrentCaseSession(revision, current.id)) return saved
     currentLongitudinalCase.value = saved
-    longitudinalCases.value = longitudinalCases.value.map((item) => item.id === saved.id ? saved : item)
     await Promise.all([
       fetchLongitudinalCases(caseListParams),
       refreshLongitudinalCaseReadiness(saved.id, revision),
@@ -191,6 +200,8 @@ export const useOperatorStore = defineStore('operator', () => {
     if (next === previous) return
     caseListEpoch += 1
     longitudinalCases.value = []
+    caseListPagination.value = { total: 0, skip: 0, limit: 20 }
+    caseListParams = {}
     caseListLoading.value = false
     startNewLongitudinalCase()
   }, { flush: 'sync' })
@@ -201,6 +212,7 @@ export const useOperatorStore = defineStore('operator', () => {
     indicatorCatalogs,
     indicatorCatalogLoading,
     caseListLoading,
+    caseListPagination,
     saving,
     readinessLoading,
     longitudinalCases,

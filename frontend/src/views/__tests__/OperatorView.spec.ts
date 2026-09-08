@@ -7,6 +7,7 @@ const api = vi.hoisted(() => ({
   listDiseases: vi.fn(),
   listLongitudinalCases: vi.fn(),
   createLongitudinalCase: vi.fn(),
+  saveLongitudinalCase: vi.fn(),
   deleteLongitudinalCase: vi.fn(),
   updateLongitudinalCaseStatus: vi.fn(),
   getLongitudinalCaseReportReadiness: vi.fn(),
@@ -57,6 +58,147 @@ describe('OperatorView', () => {
     return wrapper
   }
 
+  it.each([false, true])('retains edited age through history and report reading (new: %s)', async (isNew) => {
+    const wrapper = await mountCases()
+    if (isNew) await wrapper.findAll('button').find(b => b.text() === '新建病例')!.trigger('click')
+    await wrapper.get('.profile-form input[type="number"]').setValue('63')
+    wrapper.findComponent({ name: 'OperatorSidebar' }).vm.$emit('navigate', 'history')
+    await flushPromises()
+    expect(wrapper.get('.progression-view').attributes('style')).toContain('display: none')
+    expect(wrapper.get('.profile-form input[type="number"]').isVisible()).toBe(false)
+    wrapper.findComponent({ name: 'OperatorSidebar' }).vm.$emit('navigate', 'cases')
+    await flushPromises()
+    expect((wrapper.get('.profile-form input[type="number"]').element as HTMLInputElement).value).toBe('63')
+    const { useReportGenerationStore } = await import('@/stores/report-generation')
+    const generation = useReportGenerationStore()
+    generation.reportId = 44
+    generation.viewState = 'completed'
+    generation.report = { id: 44, content: 'report' } as any
+    await nextTick()
+    wrapper.findComponent({ name: 'LongitudinalReportView' }).vm.$emit('back')
+    await flushPromises()
+    expect((wrapper.get('.profile-form input[type="number"]').element as HTMLInputElement).value).toBe('63')
+    wrapper.unmount()
+  })
+
+  it('asks before discarding a draft and resets a new draft even when model stays null', async () => {
+    const wrapper = await mountCases()
+    const { ElMessageBox } = await import('element-plus')
+    const newButton = () => wrapper.findAll('button').find(b => b.text() === '新建病例')!
+    await wrapper.get('.profile-form input[type="number"]').setValue('63')
+    vi.mocked(ElMessageBox.confirm).mockRejectedValueOnce('cancel')
+    await newButton().trigger('click'); await flushPromises()
+    expect((wrapper.get('.profile-form input[type="number"]').element as HTMLInputElement).value).toBe('63')
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('未保存'), expect.any(String), expect.any(Object))
+    vi.mocked(ElMessageBox.confirm).mockResolvedValueOnce('confirm' as any)
+    await newButton().trigger('click'); await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('建立病例')
+    await wrapper.get('.profile-form input[type="number"]').setValue('71')
+    vi.mocked(ElMessageBox.confirm).mockRejectedValueOnce('cancel')
+    await wrapper.get('.case-list__item').trigger('click'); await flushPromises()
+    expect((wrapper.get('.profile-form input[type="number"]').element as HTMLInputElement).value).toBe('71')
+    vi.mocked(ElMessageBox.confirm).mockResolvedValueOnce('confirm' as any)
+    await newButton().trigger('click'); await flushPromises()
+    expect((wrapper.get('.profile-form input[type="number"]').element as HTMLInputElement).value).toBe('0')
+    wrapper.unmount()
+  })
+
+  it('keeps rejected save input through navigation and clears dirty after a successful save', async () => {
+    const wrapper = await mountCases()
+    api.saveLongitudinalCase.mockRejectedValueOnce(new Error('conflict')).mockResolvedValueOnce({ ...existingCase(), age: 63 })
+    await wrapper.get('.profile-form input[type="number"]').setValue('63')
+    const save = async () => {
+      await wrapper.get('.action-bar button').trigger('click')
+      await wrapper.get('.reason-dialog textarea').setValue('更正年龄')
+      await wrapper.findAll('.reason-dialog button')[1].trigger('click')
+      await flushPromises()
+    }
+    await save()
+    wrapper.findComponent({ name: 'OperatorSidebar' }).vm.$emit('navigate', 'history'); await flushPromises()
+    wrapper.findComponent({ name: 'OperatorSidebar' }).vm.$emit('navigate', 'cases'); await flushPromises()
+    expect((wrapper.get('.profile-form input[type="number"]').element as HTMLInputElement).value).toBe('63')
+    expect(wrapper.get('.action-bar button').attributes('disabled')).toBeUndefined()
+    await save()
+    expect(wrapper.get('.action-bar button').attributes('disabled')).toBeDefined()
+    wrapper.unmount()
+  })
+
+  it('reaches case 21 on page two without replacing edits and resets filters to page one', async () => {
+    const wrapper = await mountCases()
+    const cases = Array.from({ length: 21 }, (_, i) => ({ ...existingCase(), id: i + 1, anonymous_case_code: `CASE-${i + 1}` }))
+    api.listLongitudinalCases.mockImplementation(async ({ skip = 0, limit = 20 }) => ({ cases: cases.slice(skip, skip + limit), total: 21, skip, limit }))
+    await wrapper.get('input[type="search"]').setValue('CASE-'); await flushPromises()
+    await wrapper.get('.profile-form input[type="number"]').setValue('63')
+    await wrapper.get('[aria-label="下一页病例"]').trigger('click'); await flushPromises()
+    expect(wrapper.get('.case-list__item').text()).toContain('CASE-21')
+    expect(wrapper.get('[aria-label="病例分页"]').text()).toContain('第 2 / 2 页')
+    expect((wrapper.get('.profile-form input[type="number"]').element as HTMLInputElement).value).toBe('63')
+    await wrapper.get('[aria-label="病例状态筛选"]').setValue('archived'); await flushPromises()
+    expect(api.listLongitudinalCases).toHaveBeenLastCalledWith({ q: 'CASE-', status: 'archived', skip: 0, limit: 20 })
+    wrapper.unmount()
+  })
+
+  it('preserves a failed new-case save and blocks selection while saving', async () => {
+    const wrapper = await mountCases()
+    await wrapper.findAll('button').find(b => b.text() === '新建病例')!.trigger('click')
+    await wrapper.get('.profile-form input[type="number"]').setValue('72')
+    let rejectSave!: (reason: Error) => void
+    api.createLongitudinalCase.mockReturnValueOnce(new Promise((_resolve, reject) => { rejectSave = reject }))
+    await wrapper.get('.action-bar button').trigger('click')
+    await wrapper.get('.case-list__item').trigger('click'); await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('建立病例')
+    rejectSave(new Error('network')); await flushPromises()
+    wrapper.findComponent({ name: 'OperatorSidebar' }).vm.$emit('navigate', 'history'); await flushPromises()
+    wrapper.findComponent({ name: 'OperatorSidebar' }).vm.$emit('navigate', 'cases'); await flushPromises()
+    expect((wrapper.get('.profile-form input[type="number"]').element as HTMLInputElement).value).toBe('72')
+    expect(wrapper.get('.action-bar button').attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('switches from edited A to B only on explicit discard and keeps A on cancel', async () => {
+    const wrapper = await mountCases()
+    const { ElMessageBox } = await import('element-plus')
+    api.listLongitudinalCases.mockResolvedValue({ cases: [{ ...existingCase(), id: 4, age: 40 }], total: 1, skip: 0, limit: 20 })
+    await wrapper.get('input[type="search"]').setValue('B'); await flushPromises()
+    await wrapper.get('.profile-form input[type="number"]').setValue('63')
+    vi.mocked(ElMessageBox.confirm).mockRejectedValueOnce('cancel')
+    await wrapper.get('.case-list__item').trigger('click'); await flushPromises()
+    expect((wrapper.get('.profile-form input[type="number"]').element as HTMLInputElement).value).toBe('63')
+    vi.mocked(ElMessageBox.confirm).mockResolvedValueOnce('confirm' as any)
+    await wrapper.get('.case-list__item').trigger('click'); await flushPromises()
+    expect((wrapper.get('.profile-form input[type="number"]').element as HTMLInputElement).value).toBe('40')
+    expect(wrapper.get('.action-bar button').attributes('disabled')).toBeDefined()
+    wrapper.unmount()
+  })
+
+  it('freezes case actions during discard confirmation and ignores confirmation from an old session', async () => {
+    const wrapper = await mountCases()
+    const { ElMessageBox } = await import('element-plus')
+    const { useOperatorStore } = await import('@/stores/operator')
+    await wrapper.get('.profile-form input[type="number"]').setValue('63')
+    let confirm!: () => void
+    vi.mocked(ElMessageBox.confirm).mockReturnValueOnce(new Promise(resolve => { confirm = () => resolve('confirm') }) as any)
+    const newButton = wrapper.findAll('button').find(b => b.text() === '新建病例')!
+    await newButton.trigger('click')
+    await newButton.trigger('click')
+    expect(ElMessageBox.confirm).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-test="case-status"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-test="delete-case"]').attributes('disabled')).toBeDefined()
+    useOperatorStore().selectLongitudinalCase({ ...existingCase(), id: 4, age: 40 })
+    confirm(); await flushPromises()
+    expect((wrapper.get('.profile-form input[type="number"]').element as HTMLInputElement).value).toBe('40')
+    wrapper.unmount()
+  })
+
+  it('loads dependencies for a case already selected before mounting', async () => {
+    const { useOperatorStore } = await import('@/stores/operator')
+    useOperatorStore().selectLongitudinalCase(existingCase())
+    const wrapper = await mountCases()
+    expect(api.getLongitudinalCaseReportReadiness).toHaveBeenCalledWith(3)
+    expect(api.listOperatorIndicatorCatalog).toHaveBeenCalledWith('fatty_liver')
+    wrapper.unmount()
+  })
+
   it('loads readiness and indicators when initially selecting a saved case', async () => {
     const wrapper = await mountCases()
     expect(wrapper.get('h1').text()).toBe('病例详情')
@@ -105,16 +247,16 @@ describe('OperatorView', () => {
 
   it('requests searched and archived cases from list controls', async () => {
     const wrapper = await mountCases()
-    expect(api.listLongitudinalCases).toHaveBeenCalledWith({ status: 'active' })
+    expect(api.listLongitudinalCases).toHaveBeenCalledWith({ status: 'active', skip: 0, limit: 20 })
     await wrapper.get('input[type="search"]').setValue('CASE-FIND')
     await flushPromises()
-    expect(api.listLongitudinalCases).toHaveBeenLastCalledWith({ q: 'CASE-FIND', status: 'active' })
+    expect(api.listLongitudinalCases).toHaveBeenLastCalledWith({ q: 'CASE-FIND', status: 'active', skip: 0, limit: 20 })
     await wrapper.get('[aria-label="病例状态筛选"]').setValue('archived')
     await flushPromises()
-    expect(api.listLongitudinalCases).toHaveBeenLastCalledWith({ q: 'CASE-FIND', status: 'archived' })
+    expect(api.listLongitudinalCases).toHaveBeenLastCalledWith({ q: 'CASE-FIND', status: 'archived', skip: 0, limit: 20 })
     await wrapper.get('input[type="search"]').setValue('   ')
     await flushPromises()
-    expect(api.listLongitudinalCases).toHaveBeenLastCalledWith({ status: 'archived' })
+    expect(api.listLongitudinalCases).toHaveBeenLastCalledWith({ status: 'archived', skip: 0, limit: 20 })
     wrapper.unmount()
   })
 
@@ -230,6 +372,8 @@ describe('OperatorView', () => {
 
     await wrapper.get('[data-test="save"]').trigger('click')
     await wrapper.get('[data-test="new-case"]').trigger('click')
+    expect(store.caseSessionRevision).toBe(0) // UI protects an in-flight save.
+    store.startNewLongitudinalCase() // Simulate an external session change (for example account reset).
     rejectCreate(new Error('conflict'))
     await flushPromises()
 

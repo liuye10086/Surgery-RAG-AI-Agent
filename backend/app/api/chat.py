@@ -270,6 +270,7 @@ async def ask(
         safety_flags["danger_level"] = danger_result.level
 
     # 首条消息时提前生成标题
+    user_message_id = user_message.id if user_message else None
     generated_title: Optional[str] = None
     if is_first_message:
         generated_title = await _generate_title(req.content)
@@ -367,6 +368,9 @@ async def ask(
                 )
                 message_id = saved_msg.id if saved_msg else None
 
+            # 回答必须先持久化；后续审计或标题更新失败不能回滚回答。
+            db.commit()
+
         except (asyncio.CancelledError, GeneratorExit):
             logger.warning("Stream cancelled (client disconnect) for session %d", session_id)
             try:
@@ -432,7 +436,7 @@ async def ask(
             except Exception:
                 logger.exception("Failed to persist error message")
 
-            yield f"event: error\ndata: {json.dumps({'detail': str(e), 'title': generated_title, 'message_id': error_message_id})}\n\n"
+            yield f"event: error\ndata: {json.dumps({'detail': str(e), 'title': generated_title, 'message_id': error_message_id, 'user_message_id': user_message_id})}\n\n"
             return
 
         if output_filter_reasons:
@@ -458,6 +462,10 @@ async def ask(
             )
         except Exception:
             logger.exception("Audit log failed, response already sent to client")
+            try:
+                db.rollback()
+            except Exception:
+                logger.exception("Failed to roll back audit transaction")
 
         # --- 9. 首条消息更新标题（非关键路径：失败不影响已成功的响应流）---
         try:
@@ -465,10 +473,14 @@ async def ask(
                 _update_session_title(db, session_id, generated_title)
         except Exception:
             logger.exception("Update session title failed, response already sent to client")
+            try:
+                db.rollback()
+            except Exception:
+                logger.exception("Failed to roll back title transaction")
 
         yield f"event: sources\ndata: {json.dumps({'sources': sources})}\n\n"
         status = 'no_knowledge' if is_no_knowledge else 'done'
-        yield f"event: done\ndata: {json.dumps({'status': status, 'message_id': message_id, 'user_message_id': user_message.id if user_message else None, 'title': generated_title, 'is_no_knowledge': is_no_knowledge})}\n\n"
+        yield f"event: done\ndata: {json.dumps({'status': status, 'message_id': message_id, 'user_message_id': user_message_id, 'title': generated_title, 'is_no_knowledge': is_no_knowledge})}\n\n"
 
     return StreamingResponse(
         event_stream(),

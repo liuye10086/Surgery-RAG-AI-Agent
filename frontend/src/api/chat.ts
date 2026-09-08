@@ -29,7 +29,7 @@ export interface AskCallbacks {
   onStage?: (stage: string) => void
   onDanger?: (level: string, advice: string) => void
   onDone: (status: string, warning?: string, messageId?: number, userMessageId?: number, title?: string, isNoKnowledge?: boolean) => void
-  onError: (msg: string, messageId?: number, title?: string) => void
+  onError: (msg: string, messageId?: number, title?: string, userMessageId?: number) => void
 }
 
 export function listSessions(): Promise<Session[]> {
@@ -100,7 +100,7 @@ function parseSSEEvent(raw: string, callbacks: AskCallbacks) {
     } else if (event === 'danger') {
       callbacks.onDanger?.(payload.level || '', payload.advice || '')
     } else if (event === 'error') {
-      callbacks.onError(payload.detail || '生成失败', payload.message_id, payload.title)
+      callbacks.onError(payload.detail || '生成失败', payload.message_id, payload.title, payload.user_message_id)
     }
   } catch {
     // 忽略无法解析的事件

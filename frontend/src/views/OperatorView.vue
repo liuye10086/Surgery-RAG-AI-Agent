@@ -53,21 +53,23 @@
         <ReportHistoryWorkspace v-else-if="activeView === 'history'" @select="handleSelect" @delete="handleDelete" />
 
         <!-- 统一病例工作区：病例库和进展预测共用同一份聚合草稿 -->
-        <div v-else class="progression-view">
+        <div v-show="!reportReadingMode && activeView !== 'history'" class="progression-view">
           <div class="progression-inner">
-            <OperatorCaseList v-if="activeView === 'cases'" v-model:query="caseQuery" v-model:status="caseStatus" :cases="operatorStore.longitudinalCases" :selected-id="operatorStore.currentLongitudinalCase?.id" :loading="operatorStore.caseListLoading" @select="selectLongitudinalCase" @new="startNewLongitudinalCase" />
+            <OperatorCaseList v-if="activeView === 'cases'" v-model:query="caseQuery" v-model:status="caseStatus" :pagination="operatorStore.caseListPagination" @page="refreshCases" :cases="operatorStore.longitudinalCases" :selected-id="operatorStore.currentLongitudinalCase?.id" :loading="operatorStore.caseListLoading" @select="selectLongitudinalCase" @new="startNewLongitudinalCase" />
             <div v-if="operatorStore.currentLongitudinalCase" class="case-management" :aria-busy="caseOperationPending">
               <button data-test="case-status" :disabled="!canChangeCurrentCaseStatus" @click="handleCaseStatus">{{ operatorStore.currentLongitudinalCase.status === 'archived' ? '恢复病例' : '归档病例' }}</button>
               <button data-test="delete-case" class="case-management__danger" :disabled="!canDeleteCurrentCase" @click="handleDeleteLongitudinalCase">删除病例</button>
               <span v-if="caseOperationPending" role="status">正在处理病例操作…</span>
             </div>
             <OperatorCaseWorkspace
+              ref="caseWorkspace"
+              :key="operatorStore.caseSessionRevision"
               :model="operatorStore.currentLongitudinalCase"
               :diseases="progressionDiseases"
               :indicator-catalog="activeIndicatorCatalog"
               :validation-issues="validationIssues"
               :readiness="operatorStore.readiness"
-              :saving="operatorStore.saving || caseOperationPending"
+              :saving="operatorStore.saving || caseOperationPending || caseSwitchPending"
               :report-generating="generation.active"
               @save="handleWorkspaceSave"
               @disease-change="handleDiseaseChange"
@@ -118,21 +120,23 @@ const validationIssues = ref<Record<string, string>>({})
 const caseQuery = ref('')
 const caseStatus = ref<'active' | 'archived'>('active')
 const caseOperationPending = ref(false)
+const caseSwitchPending = ref(false)
+const caseWorkspace = ref<InstanceType<typeof OperatorCaseWorkspace> | null>(null)
 let initialCaseSelectionAllowed = true
-const canDeleteCurrentCase = computed(() => Boolean(operatorStore.currentLongitudinalCase?.status === 'active' && operatorStore.currentLongitudinalCase.disease.operator_enabled !== false && !caseOperationPending.value && !operatorStore.saving && !generation.active))
+const canDeleteCurrentCase = computed(() => Boolean(operatorStore.currentLongitudinalCase?.status === 'active' && operatorStore.currentLongitudinalCase.disease.operator_enabled !== false && !caseOperationPending.value && !caseSwitchPending.value && !operatorStore.saving && !generation.active))
 const canChangeCurrentCaseStatus = computed(() => {
   const current = operatorStore.currentLongitudinalCase
-  if (!current || !['active', 'archived'].includes(current.status) || caseOperationPending.value || operatorStore.saving || generation.active) return false
+  if (!current || !['active', 'archived'].includes(current.status) || caseOperationPending.value || caseSwitchPending.value || operatorStore.saving || generation.active) return false
   return current.status === 'active' || current.disease.operator_enabled !== false
 })
-async function refreshCases() {
+async function refreshCases(skip = operatorStore.caseListPagination.skip) {
   const q = caseQuery.value.trim() || undefined
-  try { await operatorStore.fetchLongitudinalCases({ ...(q ? { q } : {}), status: caseStatus.value }) }
+  try { await operatorStore.fetchLongitudinalCases({ ...(q ? { q } : {}), status: caseStatus.value, skip, limit: operatorStore.caseListPagination.limit }) }
   catch (error: any) { ElMessage.error(error?.message || '病例列表加载失败') }
 }
 watch([caseQuery, caseStatus], () => {
   initialCaseSelectionAllowed = false
-  void refreshCases()
+  void refreshCases(0)
 })
 
 function handleWorkspaceEdit() {
@@ -142,7 +146,7 @@ function handleWorkspaceEdit() {
 
 async function manageCurrentCase(action: 'delete' | 'status') {
   const current = operatorStore.currentLongitudinalCase
-  if (!current || caseOperationPending.value || operatorStore.saving || generation.active) return
+  if (!current || caseOperationPending.value || caseSwitchPending.value || operatorStore.saving || generation.active) return
   if (action === 'delete' && !canDeleteCurrentCase.value) return
   if (action === 'status' && !canChangeCurrentCaseStatus.value) return
   const revision = operatorStore.caseSessionRevision
@@ -235,7 +239,20 @@ async function handleWorkspaceSave(payload: LongitudinalCaseCreatePayload | Long
   }
 }
 
-function startNewLongitudinalCase() {
+async function confirmDraftDiscard() {
+  if (operatorStore.saving || caseOperationPending.value || caseSwitchPending.value || generation.active) return false
+  if (!caseWorkspace.value?.dirty) return true
+  const revision = operatorStore.caseSessionRevision
+  caseSwitchPending.value = true
+  try {
+    await ElMessageBox.confirm('当前病例有未保存的修改，是否丢弃这些修改？', '确认切换病例', { confirmButtonText: '丢弃修改', cancelButtonText: '继续编辑', type: 'warning' })
+    return revision === operatorStore.caseSessionRevision && !operatorStore.saving && !generation.active
+  } catch { return false }
+  finally { caseSwitchPending.value = false }
+}
+
+async function startNewLongitudinalCase() {
+  if (!await confirmDraftDiscard()) return
   initialCaseSelectionAllowed = false
   closeReport()
   activeView.value='cases'
@@ -246,7 +263,9 @@ function startNewLongitudinalCase() {
 
 async function selectLongitudinalCase(item: any, openWorkspace = true) {
   initialCaseSelectionAllowed = false
-  if (openWorkspace) closeReport()
+  if (openWorkspace && item.id === operatorStore.currentLongitudinalCase?.id) return
+  if (!await confirmDraftDiscard()) return
+  if (openWorkspace) { closeReport(); activeView.value = 'cases' }
   const sessionRevision = operatorStore.selectLongitudinalCase(item)
   draftDiseaseCode.value = ''
   validationIssues.value = {}

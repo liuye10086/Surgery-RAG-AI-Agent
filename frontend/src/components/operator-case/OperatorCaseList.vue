@@ -14,21 +14,28 @@
       <strong>{{ item.anonymous_case_code || '待补录匿名编号' }}</strong>
       <span>{{ item.disease.name }} · {{ item.visits.length }} 次访视</span>
     </button>
+    <nav class="case-list__pagination" aria-label="病例分页">
+      <button type="button" aria-label="上一页病例" :disabled="loading || pagination.skip === 0" @click="$emit('page', Math.max(0, pagination.skip - pagination.limit))">上一页</button>
+      <span aria-live="polite">共 {{ pagination.total }} 例 · 第 {{ Math.floor(pagination.skip / pagination.limit) + 1 }} / {{ Math.max(1, Math.ceil(pagination.total / pagination.limit)) }} 页</span>
+      <button type="button" aria-label="下一页病例" :disabled="loading || pagination.skip + pagination.limit >= pagination.total" @click="$emit('page', pagination.skip + pagination.limit)">下一页</button>
+    </nav>
   </section>
 </template>
 
 <script setup lang="ts">
 import type { LongitudinalCase } from '@/api/operator'
 
-defineProps<{
+withDefaults(defineProps<{
+  pagination?: { total: number; skip: number; limit: number }
   cases: LongitudinalCase[]
   selectedId?: number
   query?: string
   status?: 'active' | 'archived'
   loading?: boolean
-}>()
+}>(), { pagination: () => ({ total: 0, skip: 0, limit: 20 }) })
 
 defineEmits<{
+  page: [skip: number]
   select: [item: LongitudinalCase]
   new: []
   'update:query': [value: string]
@@ -47,4 +54,8 @@ defineEmits<{
 .case-list__item.selected { border-color: var(--border-focus); box-shadow: 0 0 0 3px hsla(200, 65%, 40%, .16); }
 .case-list__item span { color: var(--text-secondary); font-size: var(--text-sm); }
 .case-list__state { padding: var(--space-6); color: var(--text-secondary); text-align: center; }
+.case-list__pagination { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); color: var(--text-secondary); font-size: var(--text-xs); }
+.case-list__pagination button { border: 1px solid var(--color-primary); border-radius: var(--radius-pill); color: var(--color-primary); }
+.case-list button:disabled { opacity: .4; cursor: not-allowed; }
+.case-list button:focus-visible { box-shadow: 0 0 0 2px var(--bg-canvas), 0 0 0 4px var(--color-primary); }
 </style>

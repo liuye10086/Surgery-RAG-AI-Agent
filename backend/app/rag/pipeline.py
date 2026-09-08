@@ -300,19 +300,21 @@ def hybrid_search(
     fulltext_failed = False
 
     try:
-        vector_results = _vector_search(
-            db, query, settings.RETRIEVER_TOP_K_VECTOR,
-            department_id=department_id, access_scope=access_scope,
-        )
+        with db.begin_nested():
+            vector_results = _vector_search(
+                db, query, settings.RETRIEVER_TOP_K_VECTOR,
+                department_id=department_id, access_scope=access_scope,
+            )
     except Exception:
         vector_failed = True
         logger.exception("Vector search failed for query '%s...'", query[:30])
 
     try:
-        fulltext_results = _fulltext_search(
-            db, query, settings.RETRIEVER_TOP_K_FULLTEXT,
-            department_id=department_id, access_scope=access_scope,
-        )
+        with db.begin_nested():
+            fulltext_results = _fulltext_search(
+                db, query, settings.RETRIEVER_TOP_K_FULLTEXT,
+                department_id=department_id, access_scope=access_scope,
+            )
     except Exception:
         fulltext_failed = True
         logger.exception("Fulltext search failed for query '%s...'", query[:30])

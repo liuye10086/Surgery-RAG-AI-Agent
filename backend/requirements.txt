@@ -15,7 +15,8 @@ sentence-transformers
 modelscope
 pymupdf
 python-docx
-paddleocr
+paddleocr==3.7.0
+paddlepaddle==3.3.0
 openai
 langchain>=0.2.0
 langchain-core>=0.2.0

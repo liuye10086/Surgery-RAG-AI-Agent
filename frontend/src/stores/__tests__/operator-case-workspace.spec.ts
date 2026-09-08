@@ -17,6 +17,63 @@ vi.mock('@/api/operator', async () => {
 })
 
 describe('operator case workspace store', () => {
+  it('commits list and paging together, ignores stale pages and preserves both on failure', async () => {
+    const { useOperatorStore } = await import('../operator')
+    const store = useOperatorStore()
+    let resolveOld!: (value: any) => void
+    api.listLongitudinalCases.mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve }))
+    api.listLongitudinalCases.mockResolvedValueOnce({ cases: [{ id: 21 }], total: 21, skip: 20, limit: 20 })
+    const old = store.fetchLongitudinalCases({ skip: 0, limit: 20 })
+    await store.fetchLongitudinalCases({ skip: 20, limit: 20 })
+    resolveOld({ cases: [{ id: 1 }], total: 40, skip: 0, limit: 20 }); await old
+    expect(store.caseListPagination).toEqual({ total: 21, skip: 20, limit: 20 })
+    api.listLongitudinalCases.mockRejectedValueOnce(new Error('network'))
+    await expect(store.fetchLongitudinalCases({ skip: 0, limit: 20 })).rejects.toThrow('network')
+    expect(store.longitudinalCases).toEqual([{ id: 21 }])
+    expect(store.caseListPagination).toEqual({ total: 21, skip: 20, limit: 20 })
+  })
+
+  it('backs up after deleting the final item on the final page while retaining filters', async () => {
+    const { useOperatorStore } = await import('../operator')
+    const store = useOperatorStore()
+    api.listLongitudinalCases.mockResolvedValueOnce({ cases: [{ id: 21 }], total: 21, skip: 20, limit: 20 })
+      .mockResolvedValueOnce({ cases: [], total: 20, skip: 20, limit: 20 })
+      .mockResolvedValueOnce({ cases: [{ id: 1 }], total: 20, skip: 0, limit: 20 })
+    await store.fetchLongitudinalCases({ q: 'CASE', status: 'active', skip: 20, limit: 20 })
+    store.selectLongitudinalCase({ id: 21, status: 'active' } as any)
+    await store.removeLongitudinalCase()
+    expect(api.listLongitudinalCases).toHaveBeenLastCalledWith({ q: 'CASE', status: 'active', skip: 0, limit: 20 })
+    expect(store.caseListPagination).toEqual({ total: 20, skip: 0, limit: 20 })
+    expect(store.longitudinalCases).toEqual([{ id: 1 }])
+  })
+
+  it('does not publish an out-of-range page when its fallback fails', async () => {
+    const { useOperatorStore } = await import('../operator')
+    const store = useOperatorStore()
+    api.listLongitudinalCases.mockResolvedValueOnce({ cases: [{ id: 21 }], total: 21, skip: 20, limit: 20 })
+      .mockResolvedValueOnce({ cases: [], total: 20, skip: 20, limit: 20 })
+      .mockRejectedValueOnce(new Error('network'))
+    await store.fetchLongitudinalCases({ skip: 20, limit: 20 })
+    await expect(store.fetchLongitudinalCases({ skip: 20, limit: 20 })).rejects.toThrow('network')
+    expect(store.longitudinalCases).toEqual([{ id: 21 }])
+    expect(store.caseListPagination).toEqual({ total: 21, skip: 20, limit: 20 })
+  })
+
+  it('ignores a delayed fallback when a new filter has already completed', async () => {
+    const { useOperatorStore } = await import('../operator')
+    const store = useOperatorStore()
+    let resolveFallback!: (value: any) => void
+    api.listLongitudinalCases.mockResolvedValueOnce({ cases: [], total: 20, skip: 20, limit: 20 })
+      .mockReturnValueOnce(new Promise(resolve => { resolveFallback = resolve }))
+      .mockResolvedValueOnce({ cases: [{ id: 99 }], total: 1, skip: 0, limit: 20 })
+    const old = store.fetchLongitudinalCases({ skip: 20, limit: 20 })
+    await Promise.resolve()
+    await store.fetchLongitudinalCases({ q: 'new', skip: 0, limit: 20 })
+    resolveFallback({ cases: [{ id: 1 }], total: 20, skip: 0, limit: 20 }); await old
+    expect(store.longitudinalCases).toEqual([{ id: 99 }])
+    expect(store.caseListPagination).toEqual({ total: 1, skip: 0, limit: 20 })
+  })
+
   it('keeps the latest search results when an earlier request arrives late', async () => {
     const { useOperatorStore } = await import('../operator')
     const store = useOperatorStore()

@@ -3,6 +3,7 @@
 import json
 import logging
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
@@ -93,12 +94,14 @@ def export_data(
     ]
 
     json_str = json.dumps(export_data_dict, ensure_ascii=False, indent=2)
-    filename = f"data_export_{user.username}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+    timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+    filename = f"data_export_{user.username}_{timestamp}.json"
+    fallback_filename = f"data_export_{user.id}_{timestamp}.json"
 
     return Response(
         content=json_str,
         media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{fallback_filename}"; filename*=UTF-8\'\'{quote(filename, safe="")}'},
     )
 
 

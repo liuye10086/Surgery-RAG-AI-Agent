@@ -94,11 +94,17 @@ CREATE DATABASE surgery_rag OWNER surgery_user;
 -- 授予权限
 GRANT ALL PRIVILEGES ON DATABASE surgery_rag TO surgery_user;
 \c surgery_rag
+-- pgvector 需要超级用户安装，必须在当前 postgres 管理员会话中执行。
+-- 数据库 owner 与 schema 权限不能代替该扩展的安装权限。
+CREATE EXTENSION IF NOT EXISTS vector;
 GRANT ALL ON SCHEMA public TO surgery_user;
 \q
 ```
 
 ### 2.3 使用 Alembic 创建业务结构
+
+完成第 3 节的后端虚拟环境、依赖安装和 `.env` 配置后，再执行以下命令。
+迁移使用普通 `surgery_user` 账号，无需赋予应用账号超级用户权限。
 
 ```bash
 cd backend
@@ -106,7 +112,7 @@ source venv/bin/activate
 alembic upgrade head
 ```
 
-Alembic 会创建 `vector`、`uuid-ossp`、`pg_trgm` 扩展及当前版本的全部业务表（基础用户/文档/会话表、AI 操作者病例/访视/报告表、标准版本化相关表）：
+`vector` 已由第 2.2 节的管理员步骤启用。Alembic 会幂等检查该扩展，并创建 `uuid-ossp`、`pg_trgm` 及当前版本的全部业务表（基础用户/文档/会话表、AI 操作者病例/访视/报告表、标准版本化相关表）：
 
 | 表名 | 用途 |
 |------|------|
@@ -234,11 +240,14 @@ pip install -r requirements.txt
 - **AI / RAG：** openai、langchain>=0.2.0、langchain-core>=0.2.0、langchain-openai>=0.1.0、langchain-postgres>=0.0.10、langchain-text-splitters>=0.2.0、langsmith>=0.1.0
 - **Embedding：** sentence-transformers、modelscope
 - **文档解析：** pymupdf、python-docx
-- **OCR：** paddleocr
+- **OCR：** paddleocr==3.7.0、paddlepaddle==3.3.0（CPU 运行时）
 - **配置：** python-dotenv
 
 **PaddleOCR 注意：**
-- 首次 `import paddleocr` 会尝试下载模型（~50 MB），若网络不通，可提前设置环境变量：`export PADDLEOCR_HOME=/path/to/model_cache`
+- 本项目使用 PaddleOCR 3.x 的 `device`、`predict()` 和 `rec_texts` 接口；旧版 `use_gpu`、`show_log`、`ocr(..., cls=True)` 不兼容。
+- Windows 下关闭 MKL-DNN 加速，规避 Paddle 3.3 的 OCR PIR 属性转换错误；其他平台保持加速开启。
+- OCR 在首次解析图片或扫描 PDF 时初始化并下载所需模型。可在启动进程前设置 `PADDLE_PDX_CACHE_HOME=/path/to/model_cache`；部署离线环境时先在同版本在线环境预热并复制完整缓存。导入模块不代表模型已就绪。
+- 默认安装 CPU 运行时并设置 `PADDLEOCR_USE_GPU=False`。如需 GPU，先在项目虚拟环境卸载 `paddlepaddle`，按 [PaddlePaddle 官方安装说明](https://www.paddlepaddle.org.cn/documentation/docs/en/install/index_en.html) 安装与 CUDA 匹配的 3.x `paddlepaddle-gpu`，再启用 `PADDLEOCR_USE_GPU=True`；不要同时安装 CPU/GPU 两种运行时。重新执行 CPU 版 requirements 后需重新核对运行时。
 - Windows 环境下 PaddleOCR 可能遇到 VC++ 运行时依赖问题，请安装 [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
 
 **sentence-transformers 注意：**
@@ -667,18 +676,17 @@ RuntimeError: Can't download model from paddleocr...
 **解决步骤：**
 
 1. **Windows：** 安装 [VC++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
-2. **模型下载失败：** 手动下载并放置到 `~/.paddleocr/`：
+2. **模型下载失败：** 使用同版本预热的 PaddleX 缓存，默认目录为 `~/.paddlex/`：
    ```bash
    # 设置模型缓存目录
-   export PADDLEOCR_HOME=/path/to/model_cache
-   # 或通过代理
-   pip install paddlepaddle  # 确保 PaddlePaddle 基础包正确安装
+   export PADDLE_PDX_CACHE_HOME=/path/to/model_cache
+   python -c "import paddle; print(paddle.__version__); paddle.utils.run_check()"
    ```
 3. **Linux：** 确保安装了必要的系统库：
    ```bash
    sudo apt install -y libgomp1 libgl1-mesa-glx libglib2.0-0 libsm6 libxrender1 libxext6
    ```
-4. 如果 OCR 不是必需功能，可在代码中跳过 OCR 初始化（不影响对话和向量检索功能）
+4. 普通后端启动不会初始化 OCR；图片和扫描 PDF 仍需要完整 OCR 运行时和模型。排查 `Unknown argument: use_gpu` 时检查代码与 requirements 是否同时更新。
 
 ### 7.4 DeepSeek API 连接失败
 

@@ -66,20 +66,23 @@ def _sanitize_docx_rels(src_path: str) -> io.BytesIO:
 
 def _extract_docx_text(file: Union[str, BinaryIO]) -> str:
     from docx import Document
+    from docx.oxml.ns import qn
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
 
     doc = Document(file)
     parts: List[str] = []
 
-    for para in doc.paragraphs:
-        t = para.text.strip()
-        if t:
-            parts.append(t)
-
-    for table in doc.tables:
-        for row in table.rows:
-            cells = [cell.text.strip() for cell in row.cells]
-            if any(cells):
-                parts.append("| " + " | ".join(cells) + " |")
+    for element in doc.element.body:
+        if element.tag == qn("w:p"):
+            text = Paragraph(element, doc).text.strip()
+            if text:
+                parts.append(text)
+        elif element.tag == qn("w:tbl"):
+            for row in Table(element, doc).rows:
+                cells = [cell.text.strip() for cell in row.cells]
+                if any(cells):
+                    parts.append("| " + " | ".join(cells) + " |")
 
     return "\n".join(parts)
 
@@ -113,23 +116,22 @@ def _get_ocr():
     if _ocr is None:
         from paddleocr import PaddleOCR
         _ocr = PaddleOCR(
-            use_angle_cls=True,
             lang=settings.PADDLEOCR_LANG,
-            use_gpu=settings.PADDLEOCR_USE_GPU,
-            show_log=False,
+            device="gpu" if settings.PADDLEOCR_USE_GPU else "cpu",
+            use_doc_orientation_classify=False,
+            use_doc_unwarping=False,
+            use_textline_orientation=True,
+            # Paddle 3.3 Windows oneDNN cannot execute some OCR PIR attributes.
+            enable_mkldnn=os.name != "nt",
         )
     return _ocr
 
 
 def _run_ocr(image_path: str) -> str:
     ocr = _get_ocr()
-    result = ocr.ocr(image_path, cls=True)
-    if not result or not result[0]:
-        return ""
     lines = []
-    for line in result[0]:
-        if line and len(line) >= 2 and line[1] and len(line[1]) >= 1:
-            lines.append(str(line[1][0]))
+    for result in ocr.predict(input=image_path):
+        lines.extend(line for line in result.get("rec_texts", []) if line)
     return "\n".join(lines)
 
 
@@ -204,6 +206,7 @@ def parse_docx(file_path: str) -> List[ExtractedPage]:
             "可能是 .doc 老格式被强制改后缀，请用 Word/WPS 另存为 .docx 后重新上传。"
         )
 
+    docx_source: Union[str, BinaryIO] = file_path
     try:
         text = _clean_text(_extract_docx_text(file_path))
     except (KeyError, zipfile.BadZipFile) as e:
@@ -211,8 +214,8 @@ def parse_docx(file_path: str) -> List[ExtractedPage]:
         error_msg = str(e).lower()
         if "null" in error_msg or "rels" in error_msg or "item" in error_msg:
             try:
-                sanitized = _sanitize_docx_rels(file_path)
-                text = _clean_text(_extract_docx_text(sanitized))
+                docx_source = _sanitize_docx_rels(file_path)
+                text = _clean_text(_extract_docx_text(docx_source))
             except Exception as inner:
                 raise ValueError(
                     "该 .docx 文件结构异常，自动修复后仍无法解析。"
@@ -227,11 +230,13 @@ def parse_docx(file_path: str) -> List[ExtractedPage]:
             f"解析 .docx 失败：{e}。建议重新另存为 .docx 后上传。"
         ) from e
 
-    images = _extract_docx_images(file_path)
+    if not isinstance(docx_source, str):
+        docx_source.seek(0)
+    images = _extract_docx_images(docx_source)
     return [ExtractedPage(text=text, page_number=None, source_type="docx", images=images)]
 
 
-def _extract_docx_images(file_path: str) -> list:
+def _extract_docx_images(file_path: Union[str, BinaryIO]) -> list:
     """从 .docx 中按出现顺序提取内嵌图片，返回 ImageRef 列表。"""
     from docx import Document
     doc = Document(file_path)

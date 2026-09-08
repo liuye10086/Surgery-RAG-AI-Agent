@@ -32,6 +32,7 @@ const draft = ref<LongitudinalCaseCreatePayload | LongitudinalCaseSavePayload>(m
 const baseline = ref(JSON.stringify(draft.value))
 watch(() => props.model, (model) => { draft.value = makeDraft(model); baseline.value = JSON.stringify(draft.value); reasonOpen.value = false }, { deep: true })
 const dirty = computed(() => JSON.stringify(draft.value) !== baseline.value)
+defineExpose({ dirty })
 const readonlyReason = computed(() => props.model?.disease.operator_enabled === false ? '疾病已停用，当前病例只读，不能保存、生成报告或删除病例。' : props.model?.status === 'archived' ? '病例已归档，请先恢复病例后再编辑、生成报告或删除。' : props.model?.status !== undefined && props.model.status !== 'active' ? '病例状态未知，已停止写入操作。' : '')
 const readonly = computed(() => Boolean(readonlyReason.value) || props.saving || props.reportGenerating)
 const diseaseCode = computed(() => props.model?.disease.code || props.diseases?.find((d) => d.id === (draft.value as LongitudinalCaseCreatePayload).disease_id)?.code)

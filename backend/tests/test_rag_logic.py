@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from langchain_core.documents import Document
+from sqlalchemy.orm import Session
 
 from app.rag.pipeline import hybrid_search
 from app.services.llm_client import _has_sufficient_knowledge_for_docs, parse_citations
@@ -44,16 +45,20 @@ class CitationParsingTests(unittest.TestCase):
 
 
 class HybridSearchTests(unittest.TestCase):
+    def setUp(self):
+        self.db = Session()
+        self.addCleanup(self.db.close)
+
     @patch("app.rag.pipeline._fulltext_search", return_value=[])
     @patch("app.rag.pipeline._vector_search", return_value=[])
     def test_normal_empty_search_returns_empty_list(self, _vector, _fulltext):
-        self.assertEqual(hybrid_search(object(), "不存在的问题"), [])
+        self.assertEqual(hybrid_search(self.db, "不存在的问题"), [])
 
     @patch("app.rag.pipeline._fulltext_search", side_effect=RuntimeError("fulltext"))
     @patch("app.rag.pipeline._vector_search", side_effect=RuntimeError("vector"))
     def test_both_failed_raises(self, _vector, _fulltext):
         with self.assertRaises(RuntimeError):
-            hybrid_search(object(), "检索故障")
+            hybrid_search(self.db, "检索故障")
 
     def test_retrieval_sql_contains_access_scope_filter(self):
         from app.rag.pipeline import _fulltext_search, _vector_search
@@ -69,11 +74,11 @@ class HybridSearchTests(unittest.TestCase):
     def test_hybrid_search_passes_access_scope_to_branches(self, mock_vec, mock_full):
         from app.rag.pipeline import hybrid_search
 
-        hybrid_search(object(), "q", access_scope="chat")
+        hybrid_search(self.db, "q", access_scope="chat")
         self.assertEqual(mock_vec.call_args.kwargs["access_scope"], "chat")
         self.assertEqual(mock_full.call_args.kwargs["access_scope"], "chat")
 
-        hybrid_search(object(), "q", access_scope=None)
+        hybrid_search(self.db, "q", access_scope=None)
         self.assertIsNone(mock_vec.call_args.kwargs["access_scope"])
 
     def test_chat_passes_access_scope_explicitly(self):

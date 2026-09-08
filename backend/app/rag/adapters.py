@@ -92,8 +92,7 @@ class SurgeryChatMessageHistory(BaseChatMessageHistory):
         # 此处仅处理 assistant 消息，避免重复写入。
         #
         # 注意：此方法使用 flush() 而非 commit()，将提交职责交给上层调用方
-        # （如 chat.py 中的 log_chat()），以保证 add_message 与后续审计日志写入
-        # 处于同一事务中，支持原子性回滚。
+        # （chat.py 在发送成功事件前提交回答，审计日志使用后续独立事务）。
         if isinstance(message, HumanMessage):
             return
 

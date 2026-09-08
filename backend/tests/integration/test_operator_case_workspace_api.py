@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from uuid import uuid4
+from copy import deepcopy
+from datetime import datetime, timezone
 import json
 
 import pytest
@@ -255,3 +257,96 @@ def test_cross_disease_indicator_is_rejected_at_aggregate_boundary(
 
     assert response.status_code == 422
     assert response.json()["detail"]["field"] == "visits.0.indicators"
+
+
+def _case_with_old_timestamp(operator, db):
+    payload = _payload()
+    second_visit = deepcopy(payload["visits"][0])
+    second_visit["visit_date"] = "2026-02-01"
+    payload["visits"].append(second_visit)
+    response = operator.post(
+        "/api/v1/operator/longitudinal-cases",
+        json=payload,
+        headers={"Idempotency-Key": str(uuid4())},
+    )
+    assert response.status_code == 201
+    created = response.json()
+    before = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    db.execute(
+        text("UPDATE operator_cases SET updated_at = :before WHERE id = :id"),
+        {"before": before, "id": created["id"]},
+    )
+    db.commit()
+    db.expire_all()
+    editable = {key: created[key] for key in ("age", "sex", "baseline_stage", "notes")}
+    editable["visits"] = deepcopy(_editable_visits(created["visits"]))
+    return created, editable, before
+
+
+@pytest.mark.parametrize("change", ["edit", "append", "remove"])
+def test_visit_only_save_updates_case_timestamp_and_list_order(client, db, change):
+    operator = client(1)
+    created, payload, before = _case_with_old_timestamp(operator, db)
+    other_response = operator.post(
+        "/api/v1/operator/longitudinal-cases",
+        json=_payload(),
+        headers={"Idempotency-Key": str(uuid4())},
+    )
+    assert other_response.status_code == 201
+    other_id = other_response.json()["id"]
+    assert operator.get("/api/v1/operator/longitudinal-cases").json()["cases"][0]["id"] == other_id
+
+    if change == "edit":
+        payload["visits"][0]["indicators"][0]["value"] = 43
+    elif change == "append":
+        extra = deepcopy(payload["visits"][0])
+        extra["visit_date"] = "2026-03-01"
+        payload["visits"].append(extra)
+    else:
+        payload["visits"].pop()
+    payload["change_reason"] = "修正访视"
+    response = operator.put(
+        f"/api/v1/operator/longitudinal-cases/{created['id']}", json=payload
+    )
+    assert response.status_code == 200
+    saved = response.json()
+    timestamp = db.execute(
+        text("SELECT updated_at FROM operator_cases WHERE id = :id"), {"id": created["id"]}
+    ).scalar_one()
+    assert timestamp > before
+    assert datetime.fromisoformat(saved["updated_at"]) == timestamp
+    assert saved["created_at"] == created["created_at"]
+    assert len(saved["visits"]) == len(payload["visits"])
+    assert saved["visits"][0]["indicators"] == payload["visits"][0]["indicators"]
+    assert operator.get("/api/v1/operator/longitudinal-cases").json()["cases"][0]["id"] == created["id"]
+
+
+def test_unchanged_save_preserves_case_timestamp_and_audit(client, db):
+    operator = client(1)
+    created, payload, before = _case_with_old_timestamp(operator, db)
+    response = operator.put(
+        f"/api/v1/operator/longitudinal-cases/{created['id']}", json=payload
+    )
+    assert response.status_code == 200
+    assert datetime.fromisoformat(response.json()["updated_at"]) == before
+    assert db.execute(text("SELECT updated_at FROM operator_cases")).scalar_one() == before
+    assert db.execute(text("SELECT count(*) FROM operator_case_change_logs")).scalar_one() == 1
+
+
+def test_failed_visit_save_rolls_back_case_timestamp_and_timeline(client, db, monkeypatch):
+    operator = client(1)
+    created, payload, before = _case_with_old_timestamp(operator, db)
+    payload["visits"][0]["indicators"][0]["value"] = 43
+    payload["change_reason"] = "修正访视"
+
+    def fail_audit(*args, **kwargs):
+        raise RuntimeError("synthetic audit failure")
+
+    monkeypatch.setattr("app.services.operator_case_commands.append_case_change_log", fail_audit)
+    with pytest.raises(RuntimeError, match="synthetic audit failure"):
+        operator.put(f"/api/v1/operator/longitudinal-cases/{created['id']}", json=payload)
+    assert db.execute(text("SELECT updated_at FROM operator_cases")).scalar_one() == before
+    assert db.execute(text("SELECT count(*) FROM operator_case_change_logs")).scalar_one() == 1
+    restored = operator.get(f"/api/v1/operator/longitudinal-cases/{created['id']}")
+    assert restored.status_code == 200
+    assert restored.json()["visits"] == created["visits"]
