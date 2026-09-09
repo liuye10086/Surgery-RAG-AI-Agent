@@ -18,6 +18,9 @@
 | [MANUAL_TEST_CHECKLIST.md](docs/MANUAL_TEST_CHECKLIST.md) | 按角色与模块逐项勾选的全项目手动测试清单 |
 | [STARTUP_CHECKLIST.md](docs/STARTUP_CHECKLIST.md) | 手动启动前检查、本机环境现状与 API/worker 启动命令 |
 | [OPERATOR_REPORT_OPERATIONS.md](docs/OPERATOR_REPORT_OPERATIONS.md) | 报告任务、PDF 归档与后台 worker 运维 |
+| [预测模型重构总领文档](docs/superpowers/specs/2026-09-09-prediction-model-refactor-master-design.md) | 脂肪肝与 AD 的重构依据及阶段导航；阶段一 Excel 清洗交付完成 |
+| [预测模型重构阶段一计划](docs/superpowers/plans/2026-09-09-prediction-model-refactor-phase-1-data-audit.md) | 阶段一执行记录与范围调整；正式训练所需的身份、时间及标签仍需核实 |
+| [预测模型阶段一盘点结果](docs/superpowers/notes/2026-09-09-prediction-model-phase-1-data-audit.md) | 两份 Excel 的最终交付状态、去标识汇总、资料缺口及验证边界 |
 
 ## 项目结构
 
