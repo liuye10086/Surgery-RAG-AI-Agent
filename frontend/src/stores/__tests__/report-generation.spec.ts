@@ -6,6 +6,27 @@ import {getReport} from '@/api/operator'
 vi.mock('@/api/report-generation',()=>({getGenerationStatus:vi.fn(),cancelReportJob:vi.fn(),submitReportJob:vi.fn(),subscribeReportJob:vi.fn(()=>vi.fn())}))
 vi.mock('@/api/operator',()=>({getReport:vi.fn()}))
 describe('report generation state',()=>{
+  it('persists synthetic request kind across reload and retry without silently changing it',async()=>{
+    vi.mocked(submitReportJob).mockRejectedValue(new Error('response lost'))
+    const store=useReportGenerationStore()
+    await store.submit(8,'synthetic_numeric')
+    const pending=store.recoverPending()
+    expect(pending).toMatchObject({case_id:8,report_kind:'synthetic_numeric'})
+    setActivePinia(createPinia())
+    const restored=useReportGenerationStore();restored.restorePending()
+    expect(submitReportJob).toHaveBeenCalledTimes(1)
+    await restored.submit(8)
+    expect(submitReportJob).toHaveBeenLastCalledWith(8,pending?.key,'synthetic_numeric')
+  })
+  it('recovers an accepted synthetic request by observation only',async()=>{
+    sessionStorage.setItem('operator-report-request:unknown',JSON.stringify({case_id:8,key:'same-key',report_kind:'synthetic_numeric',report_id:7}))
+    vi.mocked(getGenerationStatus).mockResolvedValue({report_id:7,batch_id:'batch',revision:1,status:'queued',phase:'queued'} as never)
+    const store=useReportGenerationStore();store.restorePending()
+    await Promise.resolve();await Promise.resolve()
+    expect(getGenerationStatus).toHaveBeenCalledWith(7)
+    expect(submitReportJob).not.toHaveBeenCalled()
+    store.detach()
+  })
   it.each(['failed','cancelled'])('reads saved detail for %s without starting another job',async(status)=>{
     vi.mocked(getGenerationStatus).mockResolvedValue({report_id:7,batch_id:'batch',revision:4,status,phase:'terminal'} as never)
     vi.mocked(getReport).mockResolvedValue({id:7,generation_batch_id:'batch',status,publication_status:'not_published'} as never)

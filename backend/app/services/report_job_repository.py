@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.services.report_generation_errors import safe_code
 from app.db.models import AIReport, ReportGenerationJob
 from app.schemas.report_generation import JobClaim
-from app.schemas.report_document import Publication
+from app.schemas.report_document import SyntheticPublication, parse_publication
 from app.services.report_integrity import compute_input_snapshot_sha256
 
 PHASES = [
@@ -274,7 +274,7 @@ def publish_completed(db, claim, publication):
             db.rollback()
             return False
         report = _report_lock(db, claim.report_id)
-        publication = Publication.model_validate(publication.model_dump(mode="json"))
+        publication = parse_publication(publication.model_dump(mode="json"))
         doc = publication.report_document
         if (
             not report
@@ -290,16 +290,34 @@ def publish_completed(db, claim, publication):
         ):
             db.rollback()
             return False
-        rebuilt = build_publication(
-            report.input_snapshot,
-            publication.prediction_result,
-            EvidenceBuildResult(
-                EvidenceBundle.model_validate(publication.evidence_snapshot),
-                publication.evidence_status,
-                tuple(publication.sources),
-            ),
-            doc,
-        )
+        from app.schemas.numeric_report import NumericPublication
+        from app.schemas.numeric_report_v2 import NumericPublicationV2
+        if isinstance(publication, (SyntheticPublication, NumericPublication, NumericPublicationV2)):
+            from app.services.synthetic_report_publication import build_synthetic_publication
+            from app.services.numeric_report_publication import build_numeric_publication
+            from app.services.numeric_report_v2 import build_numeric_v2_publication
+            full_numeric = isinstance(publication, NumericPublicationV2)
+            unified = isinstance(publication, (NumericPublication, NumericPublicationV2))
+            if (report.analysis_type != ("numeric_prediction" if unified else "synthetic_numeric")
+                    or report.input_snapshot.get("user_id") != report.user_id
+                    or report.input_snapshot.get("disease_id") != report.disease_id
+                    or report.input_snapshot.get("case_id") != job.source_case_id
+                    or doc.identity.created_at != report.created_at):
+                db.rollback()
+                return False
+            rebuild = build_numeric_v2_publication if full_numeric else build_numeric_publication if unified else build_synthetic_publication
+            rebuilt = rebuild(report.input_snapshot, publication.prediction_result, doc)
+        else:
+            rebuilt = build_publication(
+                report.input_snapshot,
+                publication.prediction_result,
+                EvidenceBuildResult(
+                    EvidenceBundle.model_validate(publication.evidence_snapshot),
+                    publication.evidence_status,
+                    tuple(publication.sources),
+                ),
+                doc,
+            )
         if rebuilt.model_dump(mode="json") != publication.model_dump(mode="json"):
             db.rollback()
             return False

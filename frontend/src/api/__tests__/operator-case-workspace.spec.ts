@@ -45,7 +45,7 @@ describe('operator case workspace API', () => {
     request.get.mockResolvedValue(readiness)
 
     await expect(getLongitudinalCaseReportReadiness(3)).resolves.toEqual(readiness)
-    expect(request.get).toHaveBeenCalledWith('/v1/operator/longitudinal-cases/3/report-readiness')
+    expect(request.get).toHaveBeenCalledWith('/v1/operator/longitudinal-cases/3/report-readiness', {params: {report_kind: 'numeric_prediction'}})
   })
 
   it('maps structured Chinese validation issues directly to their fields', async () => {

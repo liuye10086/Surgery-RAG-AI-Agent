@@ -21,6 +21,7 @@
 | [预测模型重构总领文档](docs/superpowers/specs/2026-09-09-prediction-model-refactor-master-design.md) | 脂肪肝与 AD 的重构依据及阶段导航；阶段一 Excel 清洗交付完成 |
 | [预测模型重构阶段一计划](docs/superpowers/plans/2026-09-09-prediction-model-refactor-phase-1-data-audit.md) | 阶段一执行记录与范围调整；正式训练所需的身份、时间及标签仍需核实 |
 | [预测模型阶段一盘点结果](docs/superpowers/notes/2026-09-09-prediction-model-phase-1-data-audit.md) | 两份 Excel 的最终交付状态、去标识汇总、资料缺口及验证边界 |
+| [预测模型重构阶段二计划](docs/superpowers/plans/2026-09-09-prediction-model-refactor-phase-2-task-evaluation.md) | 第7.76节记录[统一三步工程路线已完成](docs/superpowers/notes/2026-09-15-numeric-unified-acceptance-result.md)：两病种数据/模型切换、4份完整报告与PDF已验收；后续真实资料同契约导入、训练评价及版本绑定。正式阶段二仍5类/23条待条件，候选未优于基线 |
 
 ## 项目结构
 

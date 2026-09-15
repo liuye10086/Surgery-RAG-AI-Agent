@@ -17,6 +17,28 @@ vi.mock('@/api/operator', async () => {
 })
 
 describe('operator case workspace store', () => {
+  it.each([true, false])('requests numeric readiness even when enabled=%s', async (enabled) => {
+    const { useOperatorStore } = await import('../operator')
+    const store = useOperatorStore()
+    store.selectLongitudinalCase({ id: 3, prediction: { verified: true, enabled, input_readonly: true, report_kind: 'numeric_prediction' } } as any)
+    await store.refreshLongitudinalCaseReadiness(3)
+    expect(api.getLongitudinalCaseReportReadiness).toHaveBeenCalledWith(3, 'numeric_prediction')
+  })
+  it('never requests readiness for an unverified prediction binding', async () => {
+    const { useOperatorStore } = await import('../operator')
+    const store = useOperatorStore()
+    store.selectLongitudinalCase({ id: 3, prediction: { verified: false, enabled: false, input_readonly: true, report_kind: null } } as any)
+    await store.refreshLongitudinalCaseReadiness(3)
+    expect(api.getLongitudinalCaseReportReadiness).not.toHaveBeenCalled()
+    expect(store.readiness?.ready).not.toBe(true)
+  })
+  it('requests numeric readiness for an ordinary saved case', async () => {
+    const { useOperatorStore } = await import('../operator')
+    const store = useOperatorStore()
+    store.selectLongitudinalCase({ id: 3 } as any)
+    await store.refreshLongitudinalCaseReadiness(3)
+    expect(api.getLongitudinalCaseReportReadiness).toHaveBeenCalledWith(3, 'numeric_prediction')
+  })
   it('commits list and paging together, ignores stale pages and preserves both on failure', async () => {
     const { useOperatorStore } = await import('../operator')
     const store = useOperatorStore()
@@ -123,7 +145,7 @@ describe('operator case workspace store', () => {
     resolveSave({ id: 3 })
     await promise
     expect(store.saving).toBe(false)
-    expect(api.getLongitudinalCaseReportReadiness).toHaveBeenCalledWith(3)
+    expect(api.getLongitudinalCaseReportReadiness).toHaveBeenCalledWith(3, 'numeric_prediction')
   })
 
   it('preserves draft when the aggregate save rejects', async () => {

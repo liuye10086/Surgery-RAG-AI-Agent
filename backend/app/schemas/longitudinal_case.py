@@ -156,6 +156,22 @@ class OperatorCaseDiseaseOut(BaseModel):
     operator_enabled: bool
 
 
+class EngineeringCaseCapability(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    verified: bool
+    input_readonly: Literal[True] = True
+    report_kind: Literal["synthetic_numeric"] | None
+    enabled: bool
+
+
+class PredictionCaseCapability(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    verified: bool
+    input_readonly: Literal[True] = True
+    report_kind: Literal["numeric_prediction"] | None
+    enabled: bool
+
+
 class OperatorCaseOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -172,6 +188,48 @@ class OperatorCaseOut(BaseModel):
     created_at: datetime | None = None
     updated_at: datetime | None = None
     disease: OperatorCaseDiseaseOut
+    engineering: EngineeringCaseCapability | None = None
+    prediction: PredictionCaseCapability | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def project_engineering_capability(cls, value):
+        if isinstance(value, cls):
+            return value
+        source = value.get("engineering_source") if isinstance(value, dict) else getattr(value, "engineering_source", None)
+        data = ({key: item for key, item in value.items() if key in cls.model_fields}
+                if isinstance(value, dict) else
+                {key: getattr(value, key) for key in cls.model_fields if key != "engineering" and hasattr(value, key)})
+        data["engineering"] = None
+        data["prediction"] = None
+        prediction_source = value.get("prediction_source") if isinstance(value, dict) else getattr(value, "prediction_source", None)
+        if prediction_source is not None or source is not None:
+            from app.core.config import settings
+            from app.services.prediction_case_source import validate_prediction_case
+            verified = False
+            try:
+                validate_prediction_case(value)
+                verified = True
+            except (ValueError, TypeError, AttributeError, KeyError):
+                pass
+            data["prediction"] = dict(verified=verified, input_readonly=True,
+                report_kind="numeric_prediction" if verified else None,
+                enabled=bool(verified and settings.NUMERIC_REPORTS_ENABLED
+                             and settings.REPORT_JOBS_ENABLED and settings.REPORT_JOBS_ACCEPTING))
+        if source is not None:
+            from app.core.config import settings
+            from app.services.synthetic_case_source import validate_engineering_case
+            verified = False
+            try:
+                validate_engineering_case(value)
+                verified = True
+            except (ValueError, TypeError, AttributeError, KeyError):
+                pass
+            data["engineering"] = dict(verified=verified, input_readonly=True,
+                report_kind="synthetic_numeric" if verified else None,
+                enabled=bool(verified and settings.SYNTHETIC_REPORTS_ENABLED
+                             and settings.REPORT_JOBS_ENABLED and settings.REPORT_JOBS_ACCEPTING))
+        return data
 
 
 class OperatorCaseListOut(BaseModel):

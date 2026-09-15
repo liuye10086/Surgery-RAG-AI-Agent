@@ -87,7 +87,7 @@ def require_operator_disease(
 ) -> Disease:
     query = db.query(Disease).filter(Disease.id == disease_id)
     if for_update:
-        query = query.with_for_update()
+        query = query.populate_existing().with_for_update()
     disease = query.first()
     if disease is None:
         raise DiseaseNotFoundError("疾病不存在")

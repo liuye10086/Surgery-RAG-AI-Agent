@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     REFERENCE_CASE_QUERY_TIMEOUT_MS: int = 750
     REPORT_JOBS_ENABLED: bool = False
     REPORT_JOBS_ACCEPTING: bool = False
+    SYNTHETIC_REPORTS_ENABLED: bool = False
+    NUMERIC_REPORTS_ENABLED: bool = False
+    NUMERIC_MODEL_BUNDLE: str = ""
     REPORT_LEGACY_SSE_ENABLED: bool = True
     REPORT_JOB_HEARTBEAT_SECONDS: int = 10
     REPORT_JOB_LEASE_SECONDS: int = 45

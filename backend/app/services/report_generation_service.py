@@ -25,6 +25,7 @@ from app.services.longitudinal_case_service import (
     ArchivedCaseError,
 )
 from app.services.operator_case_readiness import evaluate_operator_case_readiness
+from app.services.disease_catalog import DiseaseDisabledError
 from app.services.report_generation_context import capture_generation_context
 from app.services.report_standard_identity import standard_rules_hash
 from app.services.longitudinal_release_set import read_active_pointer
@@ -78,7 +79,15 @@ def submit_report_job(user_id, case_id, key, request, session_factory, registry_
         digest = hash_report_request(case_id, request)
     except ValueError as exc:
         raise ReportJobError("unsupported_report_options", 422) from exc
+    unified = request.get("report_kind") == "numeric_prediction"
+    numeric = unified or request.get("report_kind") == "synthetic_numeric"
+    if unified:
+        from app.services.numeric_report_admission import require_numeric_actor as require_actor, build_numeric_snapshot as build_snapshot, capture_numeric_context as capture_context
+    else:
+        from app.services.synthetic_report_admission import require_synthetic_actor as require_actor, build_synthetic_snapshot as build_snapshot, capture_synthetic_context as capture_context
     with session_factory() as db:
+        if numeric:
+            require_actor(db, user_id)
         replay = _replay(db, user_id, key, digest)
         if replay:
             return replay
@@ -87,28 +96,40 @@ def submit_report_job(user_id, case_id, key, request, session_factory, registry_
     try:
         with session_factory() as db:
             case = get_operator_case(db, user_id, case_id)
-            readiness = evaluate_operator_case_readiness(
-                case, registry_root, load_runtime=False
-            )
-            if not readiness.ready:
-                codes = {b.code for b in getattr(readiness, "blockers", [])}
-                code = next(
-                    (
-                        c
-                        for c in (
-                            "disease_disabled",
-                            "case_archived",
-                            "case_incomplete",
-                            "invalid_timeline",
-                            "model_unavailable",
-                        )
-                        if c in codes
-                    ),
-                    "report_not_ready",
+            if numeric:
+                snapshot = build_snapshot(case)
+            else:
+                if (getattr(case, "engineering_source", None) is not None or getattr(case, "prediction_source", None) is not None):
+                    raise ReportJobError("numeric_report_kind_required" if getattr(case, "prediction_source", None) is not None else "synthetic_report_kind_required")
+                readiness = evaluate_operator_case_readiness(
+                    case, registry_root, load_runtime=False
                 )
-                raise ReportJobError(code, 503 if code == "model_unavailable" else 409)
-            snapshot = build_input_snapshot(case, case.visits, {})
-        context = capture_generation_context(snapshot, session_factory, registry_root)
+                if not readiness.ready:
+                    codes = {b.code for b in getattr(readiness, "blockers", [])}
+                    code = next(
+                        (
+                            c
+                            for c in (
+                                "disease_disabled",
+                                "case_archived",
+                                "case_incomplete",
+                                "invalid_timeline",
+                                "model_unavailable",
+                            )
+                            if c in codes
+                        ),
+                        "report_not_ready",
+                    )
+                    raise ReportJobError(code, 503 if code == "model_unavailable" else 409)
+                snapshot = build_input_snapshot(case, case.visits, {})
+        full_numeric = unified and bool(settings.NUMERIC_MODEL_BUNDLE)
+        if full_numeric:
+            from app.services.numeric_report_v2_admission import capture_numeric_v2_context
+            with session_factory() as db:
+                context = capture_numeric_v2_context(snapshot, db)
+        else:
+            context = (capture_context(snapshot) if numeric else
+                       capture_generation_context(snapshot, session_factory, registry_root))
         with session_factory() as db:
             # Only the final comparison and insert are serialized.
             db.execute(text("SET LOCAL statement_timeout = '5000ms'"))
@@ -117,38 +138,51 @@ def submit_report_job(user_id, case_id, key, request, session_factory, registry_
             if replay:
                 return replay
             case = get_operator_case_for_write(db, user_id, case_id)
-            current_snapshot = build_input_snapshot(case, case.visits, {})
+            if numeric:
+                require_actor(db, user_id, for_update=True)
+                from app.services.disease_catalog import require_operator_disease
+                case.disease = require_operator_disease(db, case.disease_id, for_update=True)
+            elif (getattr(case, "engineering_source", None) is not None or getattr(case, "prediction_source", None) is not None):
+                raise ReportJobError("numeric_report_kind_required" if getattr(case, "prediction_source", None) is not None else "synthetic_report_kind_required")
+            current_snapshot = (build_snapshot(case) if numeric else
+                                build_input_snapshot(case, case.visits, {}))
             if compute_input_snapshot_sha256(
                 current_snapshot
             ) != compute_input_snapshot_sha256(snapshot):
                 raise ReportJobError("case_changed")
-            pointer = read_active_pointer(registry_root, context.disease_code)
-            if (pointer.release_set_id, pointer.release_set_sha256) != (
-                context.release_set_id,
-                context.release_set_sha256,
-            ):
-                raise ReportJobError("generation_context_changed")
-            pinned = context.evidence_token.standard
-            version = (
-                db.query(ReferenceStandardVersion)
-                .filter_by(id=pinned.version_id)
-                .with_for_update()
-                .first()
-            )
-            if not version or version.status != "approved":
-                raise ReportJobError("standard_not_approved", 503)
-            if (
-                version.standard_id != pinned.standard_id
-                or version.standard_document_id != pinned.document_id
-                or version.content_hash != pinned.version_sha256
-                or version.standard_document.content_hash != pinned.document_sha256
-            ):
-                raise ReportJobError("standard_integrity_failed", 503)
-            if (
-                standard_rules_hash(db, pinned.version_id)
-                != context.standard_rules_sha256
-            ):
-                raise ReportJobError("standard_integrity_failed", 503)
+            if numeric:
+                current_context = (capture_numeric_v2_context(current_snapshot, db) if full_numeric
+                                   else capture_context(current_snapshot))
+                if current_context != context or (unified and bool(settings.NUMERIC_MODEL_BUNDLE) != full_numeric):
+                    raise ReportJobError("generation_context_changed")
+            else:
+                pointer = read_active_pointer(registry_root, context.disease_code)
+                if (pointer.release_set_id, pointer.release_set_sha256) != (
+                    context.release_set_id,
+                    context.release_set_sha256,
+                ):
+                    raise ReportJobError("generation_context_changed")
+                pinned = context.evidence_token.standard
+                version = (
+                    db.query(ReferenceStandardVersion)
+                    .filter_by(id=pinned.version_id)
+                    .with_for_update()
+                    .first()
+                )
+                if not version or version.status != "approved":
+                    raise ReportJobError("standard_not_approved", 503)
+                if (
+                    version.standard_id != pinned.standard_id
+                    or version.standard_document_id != pinned.document_id
+                    or version.content_hash != pinned.version_sha256
+                    or version.standard_document.content_hash != pinned.document_sha256
+                ):
+                    raise ReportJobError("standard_integrity_failed", 503)
+                if (
+                    standard_rules_hash(db, pinned.version_id)
+                    != context.standard_rules_sha256
+                ):
+                    raise ReportJobError("standard_integrity_failed", 503)
             active = db.query(ReportGenerationJob).filter(
                 ReportGenerationJob.status.in_(["queued", "running"])
             )
@@ -172,8 +206,8 @@ def submit_report_job(user_id, case_id, key, request, session_factory, registry_
                 operator_case_id=case.id,
                 disease_id=case.disease_id,
                 query=snapshot.get("anonymous_case_code") or "纵向进展预测报告",
-                title="纵向进展预测报告",
-                analysis_type="longitudinal_predictive",
+                title="数值预测报告" if unified else "合成数值预测报告" if numeric else "纵向进展预测报告",
+                analysis_type="numeric_prediction" if unified else "synthetic_numeric" if numeric else "longitudinal_predictive",
                 status="generating",
                 input_snapshot=snapshot,
                 input_snapshot_sha256=snapshot["input_snapshot_sha256"],
@@ -212,6 +246,8 @@ def submit_report_job(user_id, case_id, key, request, session_factory, registry_
         raise ReportJobError("case_archived", 409) from exc
     except CaseNotFoundError as exc:
         raise ReportJobError("case_not_found", 404) from exc
+    except DiseaseDisabledError as exc:
+        raise ReportJobError("disease_disabled", 409) from exc
     except Exception as exc:
         code = getattr(exc, "code", None)
         if code is None and isinstance(exc, ValueError) and len(exc.args) == 1:

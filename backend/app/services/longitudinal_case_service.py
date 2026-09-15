@@ -54,6 +54,13 @@ class ArchivedCaseError(LongitudinalCaseError):
     pass
 
 
+def require_editable_case_input(case) -> None:
+    if getattr(case, "prediction_source", None) is not None:
+        raise ArchivedCaseError("固定版本病例输入只读，不能修改")
+    if getattr(case, "engineering_source", None) is not None:
+        raise ArchivedCaseError("合成工程病例输入只读，不能修改")
+
+
 def _validate_visit_count(count: int) -> None:
     if count < 1:
         raise VisitLimitError("病例至少需要 1 次访视")
@@ -202,6 +209,7 @@ def update_operator_case(
     db, user_id: int, case_id: int, payload: OperatorCaseUpdate
 ) -> OperatorCase:
     case = get_operator_case_for_write(db, user_id, case_id)
+    require_editable_case_input(case)
     values = payload.model_dump(exclude_unset=True)
     for field, value in values.items():
         setattr(case, field, value)
@@ -261,6 +269,7 @@ def _reindex_visits(db, case_id: int, case: OperatorCase | None = None) -> list[
 
 def add_visit(db, user_id: int, case_id: int, payload: VisitCreate) -> OperatorCaseVisit:
     case = get_operator_case_for_write(db, user_id, case_id)
+    require_editable_case_input(case)
     visits = _ordered_visits(db, case_id, case)
     normalized_visits = _normalize_timeline_or_legacy_error(
         case.disease.code, [*visits, payload]
@@ -315,6 +324,7 @@ def add_visit(db, user_id: int, case_id: int, payload: VisitCreate) -> OperatorC
 
 def _owned_visit_query(db, user_id: int, case_id: int, visit_id: int):
     case = get_operator_case_for_write(db, user_id, case_id)
+    require_editable_case_input(case)
     visit = (
         db.query(OperatorCaseVisit)
         .filter(
@@ -396,6 +406,7 @@ def replace_visits(
     the submitted history used for prediction.
     """
     case = get_operator_case_for_write(db, user_id, case_id)
+    require_editable_case_input(case)
     payloads = list(payloads)
     _validate_visit_count(len(payloads))
     normalized_visits = _normalize_timeline_or_legacy_error(case.disease.code, payloads)
@@ -424,6 +435,7 @@ def replace_case_visits_in_session(
     normalized_visits: Iterable[NormalizedVisit],
 ) -> None:
     """Replace a complete timeline without owning the surrounding transaction."""
+    require_editable_case_input(case)
 
     db.query(OperatorCaseVisit).filter(
         OperatorCaseVisit.case_id == case.id

@@ -177,3 +177,413 @@ export interface ReportDocumentV1 {
   charts: (ObservedChart)[]
   sections: (ReportSection)[]
 }
+
+export interface NumericAlgorithmIdentity {
+  model_id: "last_value"
+  algorithm_version: "synthetic_numeric.last_value.v1"
+  input_schema_version: "synthetic_numeric_input.v1"
+  implementation_sha256: string
+  parameters_sha256: string
+  clinical_validity_claim: false
+  production_enabled: false
+}
+
+export interface NumericObservation {
+  observation_id: string
+  indicator: "mmse" | "alt"
+  measured_on: string
+  known_on: string
+  value: number
+  unit: string
+  method: string
+}
+
+export interface NumericPacketSource {
+  source_kind: "synthetic"
+  is_synthetic: true
+  generator_version: "synthetic-prediction.v1"
+  run_id: string
+}
+
+export interface NumericPredictionInput {
+  sample_id: string
+  subject_id: string
+  dependency_group_id: string
+  task_id: string
+  horizon_months: 6 | 12
+  anchor_date: string
+  anchor_observation_id: string | null
+  input_observations: (NumericObservation)[]
+  input_status: "available" | "unavailable"
+  input_reason: "anchor_unavailable" | "population_not_confirmed" | "population_not_known_at_anchor" | "conflicting_history" | null
+  history_coverage: "complete" | "unknown"
+  history_state: "confirmed_none" | "observed" | "unknown"
+  source: NumericPacketSource
+}
+
+export interface NumericSourceIdentity {
+  source_kind: "synthetic"
+  is_synthetic: true
+  generator_version: "synthetic-prediction.v1"
+  run_id: string
+  manifest_sha256: string
+  input_file_sha256: string
+}
+
+export interface NumericTaskPrediction {
+  task_id: string
+  indicator: "mmse" | "alt"
+  unit: "分" | "U/L"
+  horizon_months: 6 | 12
+  target_date: string
+  status: "available" | "unavailable"
+  value: number | null
+  reason: "anchor_unavailable" | "population_not_confirmed" | "population_not_known_at_anchor" | "conflicting_history" | null
+}
+
+export interface SyntheticGenerationContext {
+  schema_version: "synthetic_numeric_generation_context.v1"
+  disease_code: "ad" | "fatty_liver"
+  numeric_input_sha256: string
+  engineering_source_sha256: string
+  algorithm: NumericAlgorithmIdentity
+  template_version: "synthetic_numeric_report.zh-CN.v1"
+}
+
+export interface SyntheticNumericInput {
+  schema_version: "synthetic_numeric_input.v1"
+  disease_code: "ad" | "fatty_liver"
+  subject_id: string
+  dependency_group_id: string
+  anchor_date: string
+  source: NumericSourceIdentity
+  packets: (NumericPredictionInput)[]
+}
+
+export interface SyntheticNumericPrediction {
+  schema_version: "synthetic_numeric_prediction.v1"
+  disease_code: "ad" | "fatty_liver"
+  subject_id: string
+  dependency_group_id: string
+  anchor_date: string
+  source: NumericSourceIdentity
+  input_sha256: string
+  algorithm: NumericAlgorithmIdentity
+  predictions: (NumericTaskPrediction)[]
+}
+
+export interface SyntheticReportIdentity {
+  report_id: number
+  batch_id: string
+  anonymous_case_code: string
+  disease_code: "ad" | "fatty_liver"
+  disease_name: string
+  age: number
+  sex: "male" | "female"
+  baseline_stage: string
+  created_at: string
+  anchor_date: string
+}
+
+export interface SyntheticNumericReportDocumentV1 {
+  schema_version: "synthetic_numeric_report_document.v1"
+  template_version: "synthetic_numeric_report.zh-CN.v1"
+  identity: SyntheticReportIdentity
+  generation_context: SyntheticGenerationContext
+  numeric_input: SyntheticNumericInput
+  prediction: SyntheticNumericPrediction
+}
+
+export interface NumericAlgorithm {
+  model_id: "last_value"
+  algorithm_version: "numeric.last_value.v1"
+  input_schema_version: "numeric_input.v1"
+  implementation_sha256: string
+  parameters_sha256: string
+  clinical_validity_claim: false
+  production_enabled: false
+}
+
+export interface NumericGenerationContext {
+  schema_version: "numeric_generation_context.v1"
+  disease_code: "ad" | "fatty_liver"
+  numeric_input_sha256: string
+  source_binding_sha256: string
+  algorithm: NumericAlgorithm
+  template_version: "numeric_report.zh-CN.v1"
+}
+
+export interface NumericInput {
+  schema_version: "numeric_input.v1"
+  disease_code: "ad" | "fatty_liver"
+  subject_id: string
+  dependency_group_id: string
+  anchor_date: string
+  source: PredictionSource
+  packets: (NumericInputPacket)[]
+}
+
+export interface NumericInputPacket {
+  sample_id: string
+  subject_id: string
+  dependency_group_id: string
+  task_id: string
+  horizon_months: 6 | 12
+  anchor_date: string
+  anchor_observation_id: string | null
+  input_observations: (NumericObservation)[]
+  input_status: "available" | "unavailable"
+  input_reason: "anchor_unavailable" | "population_not_confirmed" | "population_not_known_at_anchor" | "conflicting_history" | null
+  history_coverage: "complete" | "unknown"
+  history_state: "confirmed_none" | "observed" | "unknown"
+  source: PredictionPacketSource
+}
+
+export interface NumericPrediction {
+  schema_version: "numeric_prediction.v1"
+  disease_code: "ad" | "fatty_liver"
+  subject_id: string
+  dependency_group_id: string
+  anchor_date: string
+  source: PredictionSource
+  input_sha256: string
+  algorithm: NumericAlgorithm
+  predictions: (NumericTaskPrediction)[]
+}
+
+export interface NumericReportIdentity {
+  report_id: number
+  batch_id: string
+  anonymous_case_code: string
+  disease_code: "ad" | "fatty_liver"
+  disease_name: string
+  age: number
+  sex: "male" | "female"
+  baseline_stage: string
+  created_at: string
+  anchor_date: string
+}
+
+export interface PredictionPacketSource {
+  source_kind: "synthetic" | "real"
+  is_synthetic: boolean
+  dataset_id: string
+  dataset_version: string
+  run_id: string
+  generator_version: string | null
+}
+
+export interface PredictionSource {
+  source_kind: "synthetic" | "real"
+  is_synthetic: boolean
+  dataset_id: string
+  dataset_version: string
+  run_id: string
+  generator_version: string | null
+  manifest_sha256: string
+  input_file_sha256: string
+}
+
+export interface NumericReportDocumentV1 {
+  schema_version: "numeric_report_document.v1"
+  template_version: "numeric_report.zh-CN.v1"
+  identity: NumericReportIdentity
+  generation_context: NumericGenerationContext
+  numeric_input: NumericInput
+  prediction: NumericPrediction
+}
+
+export type JsonValue = unknown
+
+export interface NumericBundleSource {
+  cases: NumericBundleSourceItem
+  calculation: NumericBundleSourceItem
+}
+
+export interface NumericBundleSourceItem {
+  run_id: string
+  data_content_sha256: string
+}
+
+export interface NumericGenerationContextV2 {
+  schema_version: "numeric_generation_context.v2"
+  disease_code: "ad" | "fatty_liver"
+  numeric_input_sha256: string
+  source_binding_sha256: string
+  model_bundle: NumericModelBundle
+  algorithm: TrainedNumericAlgorithm
+  references: NumericReferenceContext
+  llm_model: string
+  prompt_text: string
+  prompt_sha256: string
+  retrieval_settings: NumericRetrievalSettings
+  prompt_version: "numeric_narrative.prompt.v1"
+  template_version: "numeric_report.zh-CN.v2"
+}
+
+export interface NumericModelBundle {
+  schema_version: "numeric_model_bundle.v1"
+  model_id: "ridge:main_anchor"
+  algorithm_version: "numeric.ridge.main_anchor.v1"
+  input_schema_version: "numeric_input.v1"
+  implementation_sha256: string
+  models: (NumericRidgeTask)[]
+  source: NumericBundleSource
+  challenge_subject_ids: (string)[]
+  challenge_dependency_groups: (string)[]
+  evaluation: { [key: string]: JsonValue }
+  evaluation_sha256: string
+  clinical_validity_claim: false
+  production_enabled: false
+}
+
+export interface NumericNarrative {
+  sections: (NumericNarrativeSection)[]
+  limitations: (string)[]
+  schema_version: "numeric_narrative.v1"
+  status: "completed"
+  model: string
+  response_model: string | null
+  prompt_version: "numeric_narrative.prompt.v1"
+  prompt_sha256: string
+  input_sha256: string
+  prediction_sha256: string
+  evidence_sha256: string
+  output_sha256: string
+  response_text: string
+}
+
+export interface NumericNarrativeSection {
+  title: string
+  text: string
+  citation_ids: (number)[]
+}
+
+export interface NumericRagEvidence {
+  schema_version: "numeric_rag_evidence.v1"
+  input_sha256: string
+  context_sha256: string
+  status: "complete" | "partial" | "empty"
+  vector_status: "complete" | "failed" | "not_run"
+  fulltext_status: "complete" | "failed" | "not_run"
+  embedding_model: string
+  collection_name: string
+  rrf_k: number
+  query: string
+  items: (NumericRetrievedEvidence)[]
+}
+
+export interface NumericReferenceChunk {
+  chunk_id: number
+  document_id: number
+  document_version: number
+  generation: number
+  title: string
+  content: string
+  content_sha256: string
+  department_id: null
+  access_scope: "operator" | "both"
+  disease_code: "ad" | "fatty_liver"
+  subject_id: string
+  dependency_group_id: string
+  known_on: string
+  pool: "development_pool"
+  source: PredictionSource
+}
+
+export interface NumericReferenceContext {
+  schema_version: "numeric_reference_context.v1"
+  input_sha256: string
+  disease_code: "ad" | "fatty_liver"
+  anchor_date: string
+  catalog_sha256: string
+  candidates: (NumericReferenceChunk)[]
+}
+
+export interface NumericRetrievalSettings {
+  embedding_model: string
+  collection_name: string
+  rrf_k: number
+  vector_top_k: number
+  fulltext_top_k: number
+  final_top_k: number
+}
+
+export interface NumericRetrievedEvidence {
+  chunk_id: number
+  document_id: number
+  document_version: number
+  generation: number
+  title: string
+  content: string
+  content_sha256: string
+  department_id: null
+  access_scope: "operator" | "both"
+  disease_code: "ad" | "fatty_liver"
+  subject_id: string
+  dependency_group_id: string
+  known_on: string
+  pool: "development_pool"
+  source: PredictionSource
+  score: number
+  vector_score: number | null
+  vector_rank: number | null
+  fulltext_score: number | null
+  fulltext_rank: number | null
+}
+
+export interface NumericRidgeTask {
+  task_id: "ad.mmse.6m" | "ad.mmse.12m" | "fatty_liver.alt.6m" | "fatty_liver.alt.12m"
+  indicator: "mmse" | "alt"
+  unit: "分" | "U/L"
+  horizon_months: 6 | 12
+  feature_names: ("anchor_value")[]
+  mean: (number)[]
+  std: (number)[]
+  scale: (number)[]
+  coef: (number)[]
+  intercept: number
+  training_sample_ids: (string)[]
+  training_subject_ids: (string)[]
+  training_dependency_groups: (string)[]
+  training_identity_sha256: string
+  training_data_sha256: string
+  parameters_sha256: string
+}
+
+export interface TrainedNumericAlgorithm {
+  model_id: "ridge:main_anchor"
+  algorithm_version: "numeric.ridge.main_anchor.v1"
+  input_schema_version: "numeric_input.v1"
+  implementation_sha256: string
+  parameters_sha256: string
+  clinical_validity_claim: false
+  production_enabled: false
+  bundle_sha256: string
+}
+
+export interface TrainedNumericPrediction {
+  schema_version: "numeric_prediction.v2"
+  disease_code: "ad" | "fatty_liver"
+  subject_id: string
+  dependency_group_id: string
+  anchor_date: string
+  source: PredictionSource
+  input_sha256: string
+  algorithm: TrainedNumericAlgorithm
+  predictions: (NumericTaskPrediction)[]
+  baseline_predictions: (NumericTaskPrediction)[]
+}
+
+export interface NumericReportDocumentV2 {
+  schema_version: "numeric_report_document.v2"
+  template_version: "numeric_report.zh-CN.v2"
+  identity: NumericReportIdentity
+  generation_context: NumericGenerationContextV2
+  numeric_input: NumericInput
+  prediction: TrainedNumericPrediction
+  evidence: NumericRagEvidence
+  narrative: NumericNarrative
+}
+
+export type AnyReportDocument = ReportDocumentV1 | SyntheticNumericReportDocumentV1 | NumericReportDocumentV1 | NumericReportDocumentV2

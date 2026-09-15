@@ -91,6 +91,8 @@ def append_generation_audit(db, claim, event):
         if not _valid(job, claim, db_now(db)) or event.phase != job.phase:
             db.rollback()
             return False
+        if event.result_state == "not_requested" and job.generation_context.get("schema_version") not in ("synthetic_numeric_generation_context.v1", "numeric_generation_context.v1"):
+            raise ValueError("invalid_evidence_audit_state")
         report = _report_lock(db, claim.report_id)
         if (
             not report

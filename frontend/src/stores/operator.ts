@@ -128,9 +128,18 @@ export const useOperatorStore = defineStore('operator', () => {
 
   async function refreshLongitudinalCaseReadiness(caseId: number, revision = caseSessionRevision.value) {
     if (!isCurrentCaseSession(revision, caseId)) return null
+    const prediction = currentLongitudinalCase.value?.prediction
+    if (currentLongitudinalCase.value?.engineering && !prediction) {
+      readiness.value = null
+      return null
+    }
+    if (prediction && (!prediction.verified || prediction.report_kind !== 'numeric_prediction')) {
+      readiness.value = null
+      return null
+    }
     readinessLoading.value = true
     try {
-      const nextReadiness = await getLongitudinalCaseReportReadiness(caseId)
+      const nextReadiness = await getLongitudinalCaseReportReadiness(caseId, 'numeric_prediction')
       if (isCurrentCaseSession(revision, caseId)) readiness.value = nextReadiness
       return nextReadiness
     } finally {

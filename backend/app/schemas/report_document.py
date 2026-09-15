@@ -1,8 +1,13 @@
 from datetime import date, datetime, timedelta
 from typing import Annotated, Literal
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from app.schemas.longitudinal_model_registry import ModelRuntimeStatus
+from app.schemas.synthetic_numeric_prediction import (
+    CalendarDate, NumericSourceIdentity, StrictNumericModel,
+    SyntheticNumericInput, SyntheticNumericPrediction,
+)
+from app.schemas.synthetic_report_context import SyntheticGenerationContext
 
 Sha = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 
@@ -232,3 +237,135 @@ class Publication(StrictReportModel):
     report_document_sha256: Sha
     generation_fingerprint: Sha
     generation_fingerprint_version: Literal["v2"] = "v2"
+
+
+class SyntheticReportIdentity(StrictNumericModel):
+    report_id: int = Field(gt=0, strict=True)
+    batch_id: UUID
+    anonymous_case_code: str = Field(pattern=r"^CASE-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$")
+    disease_code: Literal["ad", "fatty_liver"]
+    disease_name: str = Field(min_length=1)
+    age: int = Field(ge=0, le=120, strict=True)
+    sex: Literal["male", "female"]
+    baseline_stage: str = Field(min_length=1)
+    created_at: datetime
+    anchor_date: CalendarDate
+
+    @model_validator(mode="after")
+    def valid_identity(self):
+        if self.created_at.tzinfo is None or self.created_at.utcoffset() is None:
+            raise ValueError("report_time_requires_timezone")
+        stages = {"ad": {"normal", "mci", "pre_dementia", "dementia"},
+                  "fatty_liver": {"pre_cirrhosis", "suspected_cirrhosis", "cirrhosis", "hcc"}}
+        if self.baseline_stage not in stages[self.disease_code]:
+            raise ValueError("synthetic_report_stage_mismatch")
+        return self
+
+
+class SyntheticNumericReportDocument(StrictNumericModel):
+    schema_version: Literal["synthetic_numeric_report_document.v1"] = "synthetic_numeric_report_document.v1"
+    template_version: Literal["synthetic_numeric_report.zh-CN.v1"] = "synthetic_numeric_report.zh-CN.v1"
+    identity: SyntheticReportIdentity
+    generation_context: SyntheticGenerationContext
+    numeric_input: SyntheticNumericInput
+    prediction: SyntheticNumericPrediction
+
+    @model_validator(mode="after")
+    def same_generation(self):
+        identity, context, numeric, result = self.identity, self.generation_context, self.numeric_input, self.prediction
+        if len({identity.disease_code, context.disease_code, numeric.disease_code, result.disease_code}) != 1:
+            raise ValueError("synthetic_report_disease_mismatch")
+        if (identity.anchor_date, numeric.subject_id, numeric.dependency_group_id, numeric.source,
+            context.numeric_input_sha256, context.algorithm, self.template_version) != (
+            result.anchor_date, result.subject_id, result.dependency_group_id, result.source,
+            result.input_sha256, result.algorithm, context.template_version
+        ) or numeric.anchor_date != identity.anchor_date:
+            raise ValueError("synthetic_report_generation_mismatch")
+        return self
+
+
+class SyntheticEvidenceSnapshot(StrictNumericModel):
+    schema_version: Literal["synthetic_numeric_evidence.v1"] = "synthetic_numeric_evidence.v1"
+    source_kind: Literal["synthetic"] = "synthetic"
+    purpose: Literal["synthetic_software_verification_only"] = "synthetic_software_verification_only"
+    clinical_validity_claim: Literal[False] = False
+    production_enabled: Literal[False] = False
+    standard_evidence_status: Literal["not_requested"] = "not_requested"
+    reference_case_status: Literal["not_requested"] = "not_requested"
+    batch_id: UUID
+    disease_code: Literal["ad", "fatty_liver"]
+    source: NumericSourceIdentity
+    numeric_input_sha256: Sha
+    engineering_source_sha256: Sha
+
+    @field_validator("clinical_validity_claim", "production_enabled", mode="before")
+    @classmethod
+    def engineering_only(cls, value):
+        if value is not False:
+            raise ValueError("engineering_only")
+        return value
+
+
+class SyntheticPublication(StrictNumericModel):
+    content: str
+    prediction_result: dict
+    sources: list[dict] = Field(max_length=0)
+    evidence_snapshot: dict
+    evidence_snapshot_sha256: Sha
+    evidence_status: Literal["not_requested"]
+    standard_evidence_status: Literal["not_requested"]
+    reference_case_status: Literal["not_requested"]
+    report_document: SyntheticNumericReportDocument
+    report_document_sha256: Sha
+    generation_fingerprint: Sha
+    generation_fingerprint_version: Literal["v3"] = "v3"
+
+    @model_validator(mode="after")
+    def valid_saved_contract(self):
+        prediction = SyntheticNumericPrediction.model_validate(self.prediction_result)
+        evidence = SyntheticEvidenceSnapshot.model_validate(self.evidence_snapshot)
+        document = self.report_document
+        if prediction != document.prediction or (
+            evidence.batch_id, evidence.disease_code, evidence.source,
+            evidence.numeric_input_sha256, evidence.engineering_source_sha256
+        ) != (
+            document.identity.batch_id, document.identity.disease_code, document.numeric_input.source,
+            document.generation_context.numeric_input_sha256,
+            document.generation_context.engineering_source_sha256
+        ):
+            raise ValueError("synthetic_publication_contract_mismatch")
+        return self
+
+
+def parse_report_document(value) -> ReportDocument | SyntheticNumericReportDocument:
+    raw = value.model_dump(mode="json") if isinstance(value, BaseModel) else value
+    if not isinstance(raw, dict):
+        raise ValueError("report_document_payload_invalid")
+    schema = raw.get("schema_version")
+    if schema == "report_document.v1":
+        return ReportDocument.model_validate(raw)
+    if schema == "synthetic_numeric_report_document.v1":
+        return SyntheticNumericReportDocument.model_validate(raw)
+    if schema == "numeric_report_document.v1":
+        from app.schemas.numeric_report import NumericReportDocument
+        return NumericReportDocument.model_validate(raw)
+    if schema == "numeric_report_document.v2":
+        from app.schemas.numeric_report_v2 import NumericReportDocumentV2
+        return NumericReportDocumentV2.model_validate(raw)
+    raise ValueError("report_document_version_unknown")
+
+
+def parse_publication(value) -> Publication | SyntheticPublication:
+    raw = value.model_dump(mode="json") if isinstance(value, BaseModel) else value
+    if not isinstance(raw, dict):
+        raise ValueError("publication_payload_invalid")
+    document = parse_report_document(raw.get("report_document"))
+    from app.schemas.numeric_report_v2 import NumericReportDocumentV2, NumericPublicationV2
+    if isinstance(document, NumericReportDocumentV2):
+        return NumericPublicationV2.model_validate(raw)
+    from app.schemas.numeric_report import NumericReportDocument, NumericPublication
+    if isinstance(document, NumericReportDocument):
+        return NumericPublication.model_validate(raw)
+    if isinstance(document, SyntheticNumericReportDocument):
+        return SyntheticPublication.model_validate(raw)
+    return Publication.model_validate(raw)

@@ -286,23 +286,56 @@ def _markdown_to_safe_html(
     report_document: dict | None = None,
 ) -> str:
     """Render saved Markdown and preserve only approved print structure."""
-    if evidence_snapshot is not None:
+    synthetic = (report_document or {}).get("schema_version") == "synthetic_numeric_report_document.v1"
+    unified = (report_document or {}).get("schema_version") == "numeric_report_document.v1"
+    full_numeric = (report_document or {}).get("schema_version") == "numeric_report_document.v2"
+    if full_numeric:
+        from app.schemas.numeric_report_v2 import NumericReportDocumentV2
+        from app.services.numeric_report_v2 import render_numeric_v2_document, validate_saved_trained_prediction
+        document = NumericReportDocumentV2.model_validate(report_document)
+        validate_saved_trained_prediction(prediction_result, document.numeric_input, document.generation_context)
+        if (markdown_content != render_numeric_v2_document(document)
+                or evidence_snapshot != document.evidence.model_dump(mode='json')):
+            raise ValueError('numeric_pdf_contract_mismatch')
+    elif unified:
+        from app.schemas.numeric_report import NumericReportDocument, NumericEvidenceSnapshot
+        from app.services.numeric_report_publication import render_numeric_document
+        document = NumericReportDocument.model_validate(report_document)
+        evidence = NumericEvidenceSnapshot.model_validate(evidence_snapshot)
+        expected = NumericEvidenceSnapshot(batch_id=document.identity.batch_id,
+            disease_code=document.identity.disease_code, source=document.numeric_input.source,
+            numeric_input_sha256=document.generation_context.numeric_input_sha256,
+            source_binding_sha256=document.generation_context.source_binding_sha256)
+        if (markdown_content != render_numeric_document(document)
+                or prediction_result != document.prediction.model_dump(mode="json") or evidence != expected):
+            raise ValueError("numeric_pdf_contract_mismatch")
+    elif synthetic:
+        from app.schemas.report_document import SyntheticEvidenceSnapshot, SyntheticNumericReportDocument
+        from app.services.synthetic_report_publication import render_synthetic_document
+
+        document = SyntheticNumericReportDocument.model_validate(report_document)
+        evidence = SyntheticEvidenceSnapshot.model_validate(evidence_snapshot)
+        expected_evidence = SyntheticEvidenceSnapshot(
+            batch_id=document.identity.batch_id, disease_code=document.identity.disease_code,
+            source=document.numeric_input.source,
+            numeric_input_sha256=document.generation_context.numeric_input_sha256,
+            engineering_source_sha256=document.generation_context.engineering_source_sha256,
+        )
+        if (markdown_content != render_synthetic_document(document)
+            or prediction_result != document.prediction.model_dump(mode="json")
+            or evidence != expected_evidence):
+            raise ValueError("synthetic_pdf_contract_mismatch")
+    elif evidence_snapshot is not None:
         from app.schemas.longitudinal_evidence import EvidenceBundle
         from app.services.evidence_bundle import verify_evidence_bundle
 
         bundle = EvidenceBundle.model_validate(evidence_snapshot)
         if not verify_evidence_bundle(bundle):
             raise ValueError("evidence_integrity_mismatch")
-    html_body = markdown.markdown(
-        markdown_content,
-        extensions=[
-            "tables",
-            "fenced_code",
-            _LongitudinalPrintExtension(
-                prediction_result, report_document=report_document
-            ),
-        ],
-    )
+    extensions = ["tables", "fenced_code"]
+    if not (synthetic or unified or full_numeric):
+        extensions.append(_LongitudinalPrintExtension(prediction_result, report_document=report_document))
+    html_body = markdown.markdown(markdown_content, extensions=extensions)
     return bleach.clean(
         html_body,
         tags=ALLOWED_TAGS,
@@ -361,6 +394,7 @@ def generate_pdf(
     )
 
     # 3. Jinja2 渲染完整 HTML 页面
+    synthetic = (report_document or {}).get("schema_version") == "synthetic_numeric_report_document.v1"
     template = _jinja_env.get_template("report_pdf.html")
     release_set = (prediction_result or {}).get("release_set") or {}
     saved_model_version = release_set.get("release_set_id") or release_set.get(
@@ -371,6 +405,9 @@ def generate_pdf(
         if saved_model_version
         else "报告生成时保存的模型版本：历史报告未记录。当前模型变化不会影响这份历史报告。"
     )
+    if (report_document or {}).get("schema_version") in ("numeric_report_document.v1", "numeric_report_document.v2", "synthetic_numeric_report_document.v1"):
+        algorithm = report_document["generation_context"]["algorithm"]["algorithm_version"]
+        model_version_notice = f"报告生成时保存的算法版本：{algorithm}。当前算法变化不会影响这份历史报告。"
     full_html = template.render(
         title=title,
         content=safe_html,

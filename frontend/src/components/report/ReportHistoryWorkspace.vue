@@ -59,7 +59,7 @@
         class="history-row"
       >
         <button class="open-report" @click="$emit('select', item.id)">
-          <strong>{{ item.anonymous_case_code || `报告-${item.id}` }}</strong
+          <strong>{{ item.anonymous_case_code || `报告-${item.id}` }}{{ ['synthetic_numeric','numeric_prediction'].includes(item.analysis_type || '') ? ' · 数值预测报告' : '' }}</strong
           ><span
             >{{ item.disease_name || '病种未记录' }} ·
             {{ stageLabel(item.baseline_stage) }}</span
@@ -75,7 +75,7 @@
           }}
         </p>
         <p>
-          模型版本：{{ item.model_version_summary || '未记录' }} · PDF：{{
+          {{ item.analysis_type === 'synthetic_numeric' ? '算法' : item.analysis_type === 'numeric_prediction' ? '算法版本' : '模型版本' }}：{{ item.analysis_type === 'synthetic_numeric' ? '末次值保持（历史版本）' : item.model_version_summary || '未记录' }} · PDF：{{
             pdfLabels[item.pdf_status] || '未准备'
           }}
           · 下载 {{ item.download_count }} 次

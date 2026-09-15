@@ -1,5 +1,6 @@
 import request, {ApiRequestError,parseRetryAfter} from './request'
 
+export type ReportKind='longitudinal_predictive'|'synthetic_numeric'|'numeric_prediction'
 export type JobStatus='queued'|'running'|'completed'|'failed'|'cancelled'
 export type JobPhase='queued'|'model_loading'|'prediction'|'standard_evidence'|'rendering'|'persistence'|'terminal'
 export interface GenerationStatus {
@@ -7,7 +8,7 @@ export interface GenerationStatus {
   phase:JobPhase; revision:number; updated_at:string; error_code:string|null; message:string;cancel_requested:boolean;legacy:boolean
 }
 export interface JobAccepted {report_id:number;batch_id:string;status:JobStatus;status_url:string;events_url:string}
-export const submitReportJob=(caseId:number,key:string):Promise<JobAccepted>=>request.post(`/v1/operator/longitudinal-cases/${caseId}/report-jobs`,{model_options:{}},{headers:{'Idempotency-Key':key}})
+export const submitReportJob=(caseId:number,key:string,kind?:ReportKind):Promise<JobAccepted>=>request.post(`/v1/operator/longitudinal-cases/${caseId}/report-jobs`,kind?{model_options:{},report_kind:kind}:{model_options:{}},{headers:{'Idempotency-Key':key}})
 export const getGenerationStatus=(reportId:number):Promise<GenerationStatus>=>request.get(`/v1/operator/reports/${reportId}/generation-status`)
 export const cancelReportJob=(reportId:number):Promise<GenerationStatus>=>request.post(`/v1/operator/reports/${reportId}/cancel`)
 

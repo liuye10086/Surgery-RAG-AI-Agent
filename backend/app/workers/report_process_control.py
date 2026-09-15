@@ -10,7 +10,7 @@ import time
 import threading
 
 from app.core.config import settings
-from app.schemas.report_document import Publication
+from app.schemas.report_document import Publication, SyntheticPublication, parse_publication
 from app.services.report_generation_errors import safe_code
 
 MAX_MESSAGE_BYTES = 8 * 1024 * 1024
@@ -25,7 +25,7 @@ PHASES = [
 
 @dataclass(frozen=True)
 class ExecutionOutcome:
-    publication: Publication | None
+    publication: Publication | SyntheticPublication | None
     code: str | None
     child_alive: bool
     phase: str | None = None
@@ -329,10 +329,14 @@ def supervise_execution(
                         break
                     if message["kind"] == "publication":
                         try:
-                            publication = Publication.model_validate(
+                            publication = parse_publication(
                                 message["publication"]
                             )
+                            synthetic = payload.get("context", {}).get("schema_version") == "synthetic_numeric_generation_context.v1"
+                            if isinstance(publication, SyntheticPublication) != synthetic:
+                                raise ValueError("execution_protocol_invalid")
                         except ValueError:
+                            publication = None
                             code = "execution_protocol_invalid"
                 elif not process.is_alive():
                     code = "worker_interrupted"

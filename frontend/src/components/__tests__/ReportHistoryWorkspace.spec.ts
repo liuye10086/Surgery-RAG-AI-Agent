@@ -6,6 +6,14 @@ import LegacyReportSnapshot from '../report/LegacyReportSnapshot.vue'
 import { useReportHistoryStore } from '@/stores/report-history'
 vi.mock('@/api/report-history', () => ({ listHistory: vi.fn() }))
 describe('saved history views', () => {
+  it('shows saved numeric history without a source disclosure', () => {
+    const store = useReportHistoryStore()
+    store.items = [{ id: 7, analysis_type: 'synthetic_numeric', status: 'completed', created_at: '2026-09-14T00:00:00Z' }] as never
+    const wrapper = mount(ReportHistoryWorkspace, { global: { stubs: { 'el-button': true } } })
+    expect(wrapper.text()).toContain('数值预测报告')
+    expect(wrapper.text()).not.toMatch(/合成|工程|来源批次/)
+    expect(wrapper.text()).not.toContain('模型版本：')
+  })
   beforeEach(() => setActivePinia(createPinia()))
   it('opens saved report identity without a case editor', async () => {
     const store = useReportHistoryStore()

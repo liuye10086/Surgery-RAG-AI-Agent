@@ -96,6 +96,23 @@ def verify_report_integrity(
     report_document_sha256: str | None = None,
     generation_fingerprint_version: str | None = None,
 ) -> IntegrityVerificationResult:
+    if generation_fingerprint_version in ("v3", "v4", "v5"):
+        from app.services.synthetic_report_publication import verify_synthetic_integrity
+        from app.services.numeric_report_publication import verify_numeric_integrity
+        from app.services.numeric_report_v2 import verify_numeric_v2_integrity
+        verify = (verify_numeric_v2_integrity if generation_fingerprint_version == "v5" else
+                  verify_numeric_integrity if generation_fingerprint_version == "v4" else verify_synthetic_integrity)
+        valid = verify(
+            input_snapshot, input_snapshot_sha256, generation_fingerprint,
+            prediction_result, content, evidence_snapshot, evidence_sha256,
+            report_document, report_document_sha256,
+            [] if saved_sources is _SOURCES_NOT_PROVIDED else saved_sources,
+        )
+        return IntegrityVerificationResult(
+            "valid" if valid else "invalid",
+            "integrity_verified" if valid else "report_integrity_failed",
+            valid, valid, valid,
+        )
     new_document = (
         report_document is not None
         or report_document_sha256 is not None

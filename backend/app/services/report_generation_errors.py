@@ -1,6 +1,23 @@
 """Public error codes never contain exception strings or clinical inputs."""
 
 MESSAGES = {
+    "numeric_narrative_llm_failed": "报告说明生成服务调用失败",
+    "numeric_narrative_response_invalid": "报告说明未通过结构校验",
+    "numeric_narrative_unknown_citation": "报告说明包含无法核实的引用",
+    "numeric_narrative_numeric_text_forbidden": "报告说明未通过数值一致性校验",
+    "numeric_narrative_medical_filter_rejected": "报告说明未通过内容校验",
+    "numeric_narrative_algorithm_mismatch": "报告说明与实际计算方法不一致",
+    "numeric_retrieval_failed": "参考资料检索失败",
+    "numeric_reference_context_changed": "固定参考资料已变化，请重新提交",
+    "numeric_model_prediction_out_of_bounds": "模型输出超出指标允许范围",
+    "prediction_source_required": "病例缺少已验证的版本化预测输入",
+    "prediction_source_invalid": "版本化预测输入或病例绑定校验失败",
+    "numeric_report_kind_required": "该病例仅支持数值预测报告",
+    "numeric_reports_unavailable": "数值预测报告暂停受理新任务",
+    "synthetic_source_required": "病例缺少已验证的合成来源",
+    "synthetic_source_invalid": "合成来源或病例绑定校验失败",
+    "synthetic_report_kind_required": "合成工程病例仅支持合成数值报告",
+    "synthetic_reports_unavailable": "合成数值报告暂停受理新任务",
     "generation_failed": "报告生成失败，请稍后重新生成",
     "prediction_failed": "模型未生成有效结果",
     "model_unavailable": "模型暂时不可用",

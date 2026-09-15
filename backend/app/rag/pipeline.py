@@ -68,6 +68,7 @@ def _vector_search(
     top_k: int,
     department_id: Optional[int] = None,
     access_scope: Optional[str] = None,
+    allowed_chunk_ids: Optional[List[int]] = None,
 ) -> List[RetrievedChunk]:
     """基于 pgvector 的余弦相似度检索。
 
@@ -76,6 +77,12 @@ def _vector_search(
     当 department_id 不为 None 时，仅检索该科室文档。
     当 access_scope 不为 None 时，仅检索该范围（含 both）的文档。
     """
+    if allowed_chunk_ids == []:
+        return []
+    allowed_sql = ("AND business_chunk.id = ANY(:allowed_chunk_ids) "
+                   "AND e.document = business_chunk.content "
+                   "AND CAST(e.cmetadata->>'generation' AS INTEGER) = business_chunk.generation"
+                   if allowed_chunk_ids is not None else "")
     embeddings = embed_texts([query])
     if not embeddings or not embeddings[0]:
         return []
@@ -84,7 +91,7 @@ def _vector_search(
     embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
 
     sql = text(
-        """
+        f"""
         SELECT e.cmetadata->>'chunk_id' AS chunk_id,
                e.embedding <=> CAST(:embedding AS vector) AS distance
         FROM langchain_pg_embedding e
@@ -99,6 +106,7 @@ def _vector_search(
           AND business_document.is_current IS TRUE
           AND (:dept_id IS NULL OR business_document.department_id = :dept_id)
           AND (:scope IS NULL OR business_document.access_scope = :scope OR business_document.access_scope = 'both')
+          {allowed_sql}
         ORDER BY distance ASC
         LIMIT :top_k
         """
@@ -111,6 +119,7 @@ def _vector_search(
             "top_k": top_k,
             "dept_id": department_id,
             "scope": access_scope,
+            **({"allowed_chunk_ids": allowed_chunk_ids} if allowed_chunk_ids is not None else {}),
         },
     ).fetchall()
     if not rows:
@@ -152,6 +161,7 @@ def _fulltext_search(
     top_k: int,
     department_id: Optional[int] = None,
     access_scope: Optional[str] = None,
+    allowed_chunk_ids: Optional[List[int]] = None,
 ) -> List[RetrievedChunk]:
     """基于 pg_trgm 相似度检索 langchain_pg_embedding.document 列。
 
@@ -160,11 +170,15 @@ def _fulltext_search(
     当 department_id 不为 None 时，仅检索该科室文档。
     当 access_scope 不为 None 时，仅检索该范围（含 both）的文档。
     """
-    if not query or not query.strip():
+    if not query or not query.strip() or allowed_chunk_ids == []:
         return []
+    allowed_sql = ("AND business_chunk.id = ANY(:allowed_chunk_ids) "
+                   "AND e.document = business_chunk.content "
+                   "AND CAST(e.cmetadata->>'generation' AS INTEGER) = business_chunk.generation"
+                   if allowed_chunk_ids is not None else "")
 
     sql = text(
-        """
+        f"""
         SELECT
             e.cmetadata->>'chunk_id' AS chunk_id,
             GREATEST(
@@ -183,6 +197,7 @@ def _fulltext_search(
           AND business_document.is_current IS TRUE
           AND (:dept_id IS NULL OR business_document.department_id = :dept_id)
           AND (:scope IS NULL OR business_document.access_scope = :scope OR business_document.access_scope = 'both')
+          {allowed_sql}
           AND GREATEST(
                 similarity(e.document, :query),
                 similarity(COALESCE(NULLIF(business_document.title, ''), business_document.filename, ''), :query)
@@ -199,6 +214,7 @@ def _fulltext_search(
             "top_k": top_k,
             "dept_id": department_id,
             "scope": access_scope,
+            **({"allowed_chunk_ids": allowed_chunk_ids} if allowed_chunk_ids is not None else {}),
         },
     ).fetchall()
     if not rows:
@@ -277,6 +293,7 @@ def hybrid_search(
     top_k: int = settings.RETRIEVER_FINAL_TOP_K,
     department_id: Optional[int] = None,
     access_scope: Optional[str] = None,
+    allowed_chunk_ids: Optional[List[int]] = None,
 ) -> List[RetrievedChunk]:
     """混合检索入口：向量 + 全文 + RRF 融合。
 
@@ -290,7 +307,7 @@ def hybrid_search(
     Returns:
         按 RRF 得分降序排列的 RetrievedChunk 列表。
     """
-    if not query or not query.strip():
+    if not query or not query.strip() or allowed_chunk_ids == []:
         return []
 
     # 各分支独立容错：单个分支失败不影响另一分支的结果
@@ -304,6 +321,7 @@ def hybrid_search(
             vector_results = _vector_search(
                 db, query, settings.RETRIEVER_TOP_K_VECTOR,
                 department_id=department_id, access_scope=access_scope,
+                **({"allowed_chunk_ids": allowed_chunk_ids} if allowed_chunk_ids is not None else {}),
             )
     except Exception:
         vector_failed = True
@@ -314,6 +332,7 @@ def hybrid_search(
             fulltext_results = _fulltext_search(
                 db, query, settings.RETRIEVER_TOP_K_FULLTEXT,
                 department_id=department_id, access_scope=access_scope,
+                **({"allowed_chunk_ids": allowed_chunk_ids} if allowed_chunk_ids is not None else {}),
             )
     except Exception:
         fulltext_failed = True

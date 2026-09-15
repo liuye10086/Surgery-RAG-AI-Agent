@@ -11,6 +11,7 @@ from app.services.disease_catalog import require_operator_disease
 from app.services.longitudinal_case_service import (
     get_operator_case_for_write,
     replace_case_visits_in_session,
+    require_editable_case_input,
 )
 from app.services.operator_case_audit import (
     CREATION_REASON,
@@ -139,6 +140,7 @@ def create_operator_case_command(db, user_id: int, payload, idempotency_key):
 
 def save_operator_case_command(db, user_id: int, case_id: int, payload):
     case = get_operator_case_for_write(db, user_id, case_id)
+    require_editable_case_input(case)
     normalized_stage = validate_operator_case_profile(
         case.disease.code,
         payload.age,

@@ -4,6 +4,7 @@ import asyncio
 import json
 import time
 from uuid import uuid4
+from typing import Literal
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -27,6 +28,7 @@ router = APIRouter(prefix="/operator", tags=["operator"])
 
 class JobRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    report_kind: Literal["longitudinal_predictive", "synthetic_numeric", "numeric_prediction"] = "longitudinal_predictive"
     model_options: dict = Field(default_factory=dict)
 
     @field_validator("model_options")

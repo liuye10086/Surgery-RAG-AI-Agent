@@ -24,12 +24,24 @@ def execute_report(input_payload, send_message):
         send_message({"kind": "audit", "phase": phase, "child_sequence": audit_sequence, "audit": event})
     try:
         snapshot = input_payload["snapshot"]
-        context = ReportGenerationContext.model_validate(input_payload["context"])
         if (
             compute_input_snapshot_sha256(snapshot) != input_payload["snapshot_sha256"]
             or context_hash(input_payload["context"]) != input_payload["context_sha256"]
         ):
             raise ValueError("generation_context_integrity_failed")
+        if input_payload["context"].get("schema_version") == "numeric_generation_context.v2":
+            from app.workers.numeric_report_v2 import execute_numeric_v2_report
+            execute_numeric_v2_report(input_payload, send_message)
+            return
+        if input_payload["context"].get("schema_version") == "numeric_generation_context.v1":
+            from app.workers.numeric_report_execution import execute_numeric_report
+            execute_numeric_report(input_payload, send_message)
+            return
+        if input_payload["context"].get("schema_version") == "synthetic_numeric_generation_context.v1":
+            from app.workers.synthetic_report_execution import execute_synthetic_report
+            execute_synthetic_report(input_payload, send_message)
+            return
+        context = ReportGenerationContext.model_validate(input_payload["context"])
         send_message({"kind": "phase", "phase": phase})
         suite = load_pinned_model_suite(context, input_payload["registry_root"])
         from app.services.disease_catalog import DISEASE_CAPABILITIES

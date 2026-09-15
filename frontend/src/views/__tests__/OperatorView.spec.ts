@@ -50,6 +50,20 @@ vi.mock('element-plus', async () => {
 })
 
 describe('OperatorView', () => {
+  it('submits a verified bound case with the explicit numeric kind', async () => {
+    const wrapper = await mountCases()
+    const { useOperatorStore } = await import('@/stores/operator')
+    const { useReportGenerationStore } = await import('@/stores/report-generation')
+    const store = useOperatorStore()
+    const generation = useReportGenerationStore()
+    const submit = vi.spyOn(generation, 'submit').mockResolvedValue(undefined)
+    store.selectLongitudinalCase({ ...existingCase(), prediction: { verified: true, enabled: true, input_readonly: true, report_kind: 'numeric_prediction' } })
+    store.readiness = { ready: true, blockers: [] } as any
+    await nextTick()
+    await wrapper.get('.action-bar__report').trigger('click')
+    expect(submit).toHaveBeenCalledWith(3, 'numeric_prediction')
+    wrapper.unmount()
+  })
   async function mountCases() {
     api.listLongitudinalCases.mockResolvedValue({ cases: [existingCase()] })
     const OperatorView = (await import('../OperatorView.vue')).default
@@ -194,7 +208,7 @@ describe('OperatorView', () => {
     const { useOperatorStore } = await import('@/stores/operator')
     useOperatorStore().selectLongitudinalCase(existingCase())
     const wrapper = await mountCases()
-    expect(api.getLongitudinalCaseReportReadiness).toHaveBeenCalledWith(3)
+    expect(api.getLongitudinalCaseReportReadiness).toHaveBeenCalledWith(3, 'numeric_prediction')
     expect(api.listOperatorIndicatorCatalog).toHaveBeenCalledWith('fatty_liver')
     wrapper.unmount()
   })
@@ -202,7 +216,7 @@ describe('OperatorView', () => {
   it('loads readiness and indicators when initially selecting a saved case', async () => {
     const wrapper = await mountCases()
     expect(wrapper.get('h1').text()).toBe('病例详情')
-    expect(api.getLongitudinalCaseReportReadiness).toHaveBeenCalledWith(3)
+    expect(api.getLongitudinalCaseReportReadiness).toHaveBeenCalledWith(3, 'numeric_prediction')
     expect(api.listOperatorIndicatorCatalog).toHaveBeenCalledWith('fatty_liver')
     wrapper.unmount()
   })
@@ -222,7 +236,7 @@ describe('OperatorView', () => {
     await wrapper.get('.case-list__item').trigger('click')
     await flushPromises()
     expect(wrapper.get('h1').text()).toBe('病例详情')
-    expect(api.getLongitudinalCaseReportReadiness).toHaveBeenCalledWith(3)
+    expect(api.getLongitudinalCaseReportReadiness).toHaveBeenCalledWith(3, 'numeric_prediction')
     wrapper.unmount()
   })
 

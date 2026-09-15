@@ -286,8 +286,13 @@ async function handleDiseaseChange(code: string) {
 }
 
 function generateCurrentReport() {
-  const id = operatorStore.currentLongitudinalCase?.id
-  if (id) { reportReturnView.value='cases'; activeView.value = 'report'; void generation.submit(id) }
+  const current = operatorStore.currentLongitudinalCase
+  if (!current || current.status !== 'active' || current.disease.operator_enabled === false || !operatorStore.readiness?.ready) return
+  const prediction = current.prediction
+  if (current.engineering && !prediction) return
+  if (prediction && (!prediction.verified || !prediction.enabled || prediction.report_kind !== 'numeric_prediction')) return
+  reportReturnView.value='cases'; activeView.value = 'report'
+  void generation.submit(current.id, 'numeric_prediction')
 }
 
 async function handleDownload() {

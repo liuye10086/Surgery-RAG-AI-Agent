@@ -15,6 +15,28 @@ function mountWorkspace(props: Record<string, unknown>) {
 }
 
 describe('OperatorCaseWorkspace', () => {
+  it.each([
+    { verified: true, enabled: true, report_kind: 'numeric_prediction' },
+    { verified: true, enabled: false, report_kind: 'numeric_prediction' },
+    { verified: false, enabled: false, report_kind: null },
+  ])('keeps version-bound inputs read-only and gates numeric action: %j', async (prediction) => {
+    const wrapper = mountWorkspace({ model: { ...existingCase(), prediction: { ...prediction, input_readonly: true } }, readiness: { ready: true, blockers: [] } })
+    expect(wrapper.text()).toContain('已绑定版本的输入只读')
+    expect(wrapper.text()).not.toMatch(/合成|工程/)
+    expect(wrapper.text()).toContain('只读')
+    expect(wrapper.text()).not.toContain('保存病例')
+    expect(wrapper.findAll('input, select, textarea')).toHaveLength(0)
+    expect(wrapper.text()).toContain('42 U/L')
+    expect(wrapper.findAll('input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')).toHaveLength(0)
+    if (prediction.verified && prediction.enabled) {
+      expect(wrapper.get('.action-bar__report').text()).toBe('生成报告')
+      await wrapper.get('.action-bar__report').trigger('click')
+      expect(wrapper.emitted('generate-report')).toHaveLength(1)
+    } else {
+      expect(wrapper.find('.action-bar__report').exists()).toBe(false)
+      expect(wrapper.emitted('generate-report')).toBeUndefined()
+    }
+  })
   it.each(['archived', 'disabled'])('blocks editing and report generation for %s cases with a reason', async (mode) => {
     const model = existingCase()
     if (mode === 'archived') model.status = 'archived'

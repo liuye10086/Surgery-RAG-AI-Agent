@@ -3,20 +3,26 @@
     <div class="report-inner">
       <div class="report-head">
         <div>
-          <h3 id="longitudinal-report-title">{{ report?.title || '纵向进展报告' }}</h3>
+          <h3 id="longitudinal-report-title">{{ numericReport ? `${report?.anonymous_case_code || '匿名病例'} · 数值预测报告` : report?.title || '纵向进展报告' }}</h3>
           <span class="report-meta">{{ report ? formatTime(report.created_at) : '正在生成' }}</span>
         </div>
         <div class="report-head-actions">
           <el-button :icon="ArrowLeft" @click="$emit('back')">返回</el-button>
-          <ReportArchiveActions v-if="report?.status === 'completed' && !invalid" :report-id="report.id" />
+          <ReportArchiveActions v-if="report?.status === 'completed' && !invalid && !unsupportedDocument" :report-id="report.id" />
         </div>
       </div>
 
       <p v-if="invalid" role="alert">报告完整性校验失败，已停止展示内容与导出。</p>
       <template v-else-if="report && report.status !== 'completed'">
         <p role="status">{{ report.status==='cancelled'?'报告生成已取消':'报告生成失败' }}；以下为已保存的资料和已确认审计记录。</p>
-        <LegacyReportSnapshot :snapshot="report.input_snapshot" />
-        <ReportGenerationAudit :audit="report.generation_audit" />
+        <NumericReportView v-if="numericReport" :input="numericInput" :context="numericContext" :anonymous-case-code="report.anonymous_case_code" />
+        <LegacyReportSnapshot v-else :snapshot="report.input_snapshot" />
+        <ReportGenerationAudit :audit="report.generation_audit" :numeric="numericReport" />
+      </template>
+      <p v-else-if="unsupportedDocument" role="alert">报告文档版本无法识别或缺失，已停止展示内容与导出。</p>
+      <template v-else-if="numericDocument">
+        <NumericReportView :document="numericDocument" />
+        <ReportGenerationAudit v-if="report?.generation_audit" :audit="report.generation_audit" numeric />
       </template>
       <template v-else>
       <p v-if="report?.integrity_status === 'unverifiable'" role="status">历史资料未完整保存，无法验证完整性。</p>
@@ -75,6 +81,8 @@
 import {legacyChartPoints} from '@/utils/report-chart'
 import { computed } from 'vue'
 import ReportDocumentCharts from '@/components/report/ReportDocumentCharts.vue'
+import NumericReportView from '@/components/report/NumericReportView.vue'
+import type { SyntheticNumericInput, SyntheticGenerationContext, NumericReportDocumentV1, NumericReportDocumentV2 } from '@/types/report-document'
 import ReportGenerationAudit from '@/components/report/ReportGenerationAudit.vue'
 import LegacyReportSnapshot from '@/components/report/LegacyReportSnapshot.vue'
 import ReportArchiveActions from '@/components/report/ReportArchiveActions.vue'
@@ -92,9 +100,20 @@ const props = defineProps<{
 defineEmits<{ back: []; download: [] }>()
 
 const invalid = computed(()=>props.report?.integrity_status === 'invalid')
-const document = computed(()=>props.report?.report_document || null)
+const document = computed(()=>props.report?.report_document?.schema_version === 'report_document.v1' ? props.report.report_document : null)
+const numericDocument = computed(()=>['synthetic_numeric_report_document.v1','numeric_report_document.v1','numeric_report_document.v2'].includes(props.report?.report_document?.schema_version || '') ? props.report?.report_document as NumericReportDocumentV1 | NumericReportDocumentV2 | import('@/types/report-document').SyntheticNumericReportDocumentV1 : null)
+const numericReport = computed(()=>['synthetic_numeric','numeric_prediction'].includes(props.report?.analysis_type || '') || Boolean(numericDocument.value) || ['synthetic_numeric','numeric_prediction'].includes(String(props.report?.input_snapshot?.report_kind || '')) || ['synthetic_numeric_generation_context.v1','numeric_generation_context.v1','numeric_generation_context.v2'].includes(String(props.report?.generation_context?.schema_version || '')))
+const unsupportedDocument = computed(()=> Boolean(props.report?.report_document && !document.value && !numericDocument.value) || Boolean(numericReport.value && !numericDocument.value))
+const numericInput = computed(()=> {
+  const input = props.report?.input_snapshot?.numeric_input as SyntheticNumericInput | NumericReportDocumentV1['numeric_input'] | undefined
+  return props.report?.snapshot_integrity === 'valid' && ['synthetic_numeric_input.v1','numeric_input.v1'].includes(input?.schema_version || '') ? input : null
+})
+const numericContext = computed(()=> props.report?.context_integrity === 'valid' && ['synthetic_numeric_generation_context.v1','numeric_generation_context.v1','numeric_generation_context.v2'].includes(String(props.report.generation_context?.schema_version || '')) ? props.report.generation_context as unknown as SyntheticGenerationContext | NumericReportDocumentV1['generation_context'] | NumericReportDocumentV2['generation_context'] : null)
 const inputStatus = computed(()=>({satisfied:'输入满足',partial:'部分满足',unavailable:'未满足'}[document.value?.summary.model_input_status || 'unavailable']))
-const prediction = computed<LongitudinalPrediction | null>(() => props.report?.prediction_result || props.predictionResult || null)
+const prediction = computed<LongitudinalPrediction | null>(() => {
+  const saved = props.report?.prediction_result
+  return saved && ['longitudinal_prediction.v1','longitudinal_prediction.v2','longitudinal_prediction.v3'].includes(saved.schema_version) ? saved as LongitudinalPrediction : props.predictionResult || null
+})
 const observation = computed(() => prediction.value?.observation || {})
 const visitCount = computed(() => Number(observation.value.visit_count || 0))
 const signalCount = computed(() => {
@@ -102,7 +121,7 @@ const signalCount = computed(() => {
   return Number(signals?.summary?.signal_count || signals?.signals?.length || 0)
 })
 const outcomeAvailable = computed(() => prediction.value && 'model_status' in prediction.value && prediction.value.model_status.outcome.status === 'available')
-const evidence = computed<EvidenceBundleV1 | null>(() => props.report?.evidence_snapshot || props.evidenceSnapshot || null)
+const evidence = computed<EvidenceBundleV1 | null>(() => props.report?.evidence_snapshot?.schema_version === 'longitudinal_evidence_bundle.v1' ? props.report.evidence_snapshot : props.evidenceSnapshot || null)
 const renderedContentParts = computed(() => {
   if (document.value || !evidence.value || typeof DOMParser === 'undefined') return { before: props.renderedContent, after: '' }
   const parsedDocument = new DOMParser().parseFromString(props.renderedContent, 'text/html')

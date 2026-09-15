@@ -32,10 +32,12 @@ class GenerationAuditEvent(BaseModel):
     reason_code: str | None = Field(
         default=None, max_length=120, pattern=r"^[a-z0-9_]+$"
     )
-    result_state: Literal["available", "unavailable", "unconfirmed"] | None = None
+    result_state: Literal["available", "unavailable", "unconfirmed", "not_requested"] | None = None
 
     @model_validator(mode="after")
     def matching_task(self):
+        if self.result_state == "not_requested" and (self.kind != "evidence_resolved" or self.phase != "standard_evidence"):
+            raise ValueError("invalid_evidence_audit_state")
         if self.input_audit is not None and self.input_audit.task != self.task:
             raise ValueError("audit_task_mismatch")
         return self

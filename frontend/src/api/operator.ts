@@ -1,5 +1,5 @@
 import request from './request'
-import type { ReportDocumentV1 } from '@/types/report-document'
+import type { AnyReportDocument, NumericPrediction, NumericRagEvidence, SyntheticNumericPrediction, TrainedNumericPrediction } from '@/types/report-document'
 
 // ===== 预测分析类型 =====
 export interface IndicatorInput {
@@ -98,7 +98,7 @@ export interface ReportDetail extends ReportIdentityMeta {
   context_integrity?: 'valid'|'invalid'|'unverifiable'
   generation_context?: Record<string,unknown>|null
   generation_audit?: GenerationAuditSummary|null
-  report_document?: ReportDocumentV1 | null
+  report_document?: AnyReportDocument | null
   report_document_sha256?: string | null
   generation_fingerprint_version?: string | null
   integrity_status?: 'valid' | 'invalid' | 'unverifiable' | null
@@ -106,9 +106,9 @@ export interface ReportDetail extends ReportIdentityMeta {
   content: string
   sources: LegacyEvidenceSource[]
   retrieval_meta: Record<string, unknown>
-  prediction_result: LongitudinalPrediction | null
+  prediction_result: LongitudinalPrediction | SyntheticNumericPrediction | NumericPrediction | TrainedNumericPrediction | null
   input_snapshot: Record<string, unknown> | null
-  evidence_snapshot: EvidenceBundleV1 | null
+  evidence_snapshot: EvidenceBundleV1 | NumericRagEvidence | null
   evidence_snapshot_sha256: string | null
   evidence_status: EvidenceStatus | null
   standard_evidence_status: StandardEvidenceStatus | null
@@ -232,6 +232,8 @@ export interface LongitudinalCaseDisease {
 }
 
 export interface LongitudinalCase {
+  prediction?: { verified: boolean; input_readonly: true; report_kind: 'numeric_prediction' | null; enabled: boolean } | null
+  engineering?: { verified: boolean; input_readonly: true; report_kind: 'synthetic_numeric' | null; enabled: boolean } | null
   id: number
   user_id: number
   disease_id: number
@@ -445,8 +447,10 @@ export function deleteLongitudinalCase(id: number): Promise<void> {
   return request.delete(`/v1/operator/longitudinal-cases/${id}`)
 }
 
-export function getLongitudinalCaseReportReadiness(caseId: number): Promise<OperatorCaseReportReadiness> {
-  return request.get(`/v1/operator/longitudinal-cases/${caseId}/report-readiness`)
+export function getLongitudinalCaseReportReadiness(caseId: number, kind: import('./report-generation').ReportKind = 'numeric_prediction'): Promise<OperatorCaseReportReadiness> {
+  return kind !== 'longitudinal_predictive'
+    ? request.get(`/v1/operator/longitudinal-cases/${caseId}/report-readiness`, {params: {report_kind: kind}})
+    : request.get(`/v1/operator/longitudinal-cases/${caseId}/report-readiness`)
 }
 
 // ===== 疾病 / 病例 / 报告 API =====

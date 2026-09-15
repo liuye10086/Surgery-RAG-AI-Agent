@@ -94,6 +94,10 @@ def evaluate_operator_case_readiness(
     *,
     load_runtime=True,
 ) -> OperatorCaseReportReadiness:
+    if getattr(case, "engineering_source", None) is not None:
+        return OperatorCaseReportReadiness(ready=False, case_ready=False, timeline_ready=False,
+            model_ready=False, visit_count=len(case.visits), minimum_visits=None,
+            blockers=[_blocker("synthetic_report_kind_required", "合成工程病例仅支持合成数值报告")])
     blockers: list[OperatorCaseReadinessBlocker] = []
     disease = getattr(case, "disease", None)
     disease_code = getattr(disease, "code", "")

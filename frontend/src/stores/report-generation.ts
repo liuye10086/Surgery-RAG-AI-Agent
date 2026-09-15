@@ -2,10 +2,10 @@ import {defineStore} from 'pinia'
 import {computed,ref,watch} from 'vue'
 import {useAuthStore} from '@/stores/auth'
 import {getReport,type ReportDetail} from '@/api/operator'
-import {submitReportJob,getGenerationStatus,subscribeReportJob,cancelReportJob,type GenerationStatus} from '@/api/report-generation'
+import {submitReportJob,getGenerationStatus,subscribeReportJob,cancelReportJob,type GenerationStatus,type ReportKind} from '@/api/report-generation'
 
 export type GenerationViewState='idle'|'submitting'|'queued'|'running'|'reconnecting'|'loading_completed'|'completed'|'load_failed'|'failed'|'cancelled'
-interface PendingRequest {case_id:number;key:string;report_id?:number}
+interface PendingRequest {case_id:number;key:string;report_id?:number;report_kind?:ReportKind}
 const PREFIX='operator-report-request:'
 export function clearReportRequestStorage() {
   for (const key of Object.keys(sessionStorage)) if (key.startsWith(PREFIX)) sessionStorage.removeItem(key)
@@ -27,7 +27,7 @@ export const useReportGenerationStore=defineStore('report-generation',()=>{
   function saved():PendingRequest|null {
     try {
       const value=JSON.parse(sessionStorage.getItem(storageKey()) || 'null') as PendingRequest|null
-      return value && Number.isSafeInteger(value.case_id) && typeof value.key==='string'?value:null
+      return value && Number.isSafeInteger(value.case_id) && typeof value.key==='string' && (value.report_kind===undefined || ['longitudinal_predictive','synthetic_numeric','numeric_prediction'].includes(value.report_kind))?value:null
     } catch {return null}
   }
   function persist(value:PendingRequest) {sessionStorage.setItem(storageKey(),JSON.stringify(value))}
@@ -103,15 +103,15 @@ export const useReportGenerationStore=defineStore('report-generation',()=>{
     detach();reportId.value=id;viewState.value='reconnecting';attempt=0
     await poll(epoch)
   }
-  async function submit(caseId:number) {
+  async function submit(caseId:number,kind:ReportKind='numeric_prediction') {
     if (active.value) return
     const userId=auth.user?.id
     const prior=saved()
-    const pending=prior?.case_id===caseId && !prior.report_id?prior:{case_id:caseId,key:crypto.randomUUID()}
+    const pending=prior?.case_id===caseId && !prior.report_id?prior:{case_id:caseId,key:crypto.randomUUID(),report_kind:kind}
     persist(pending);pendingCaseId.value=caseId
     detach();const currentEpoch=epoch;viewState.value='submitting';message.value='正在受理报告'
     try {
-      const accepted=await submitReportJob(caseId,pending.key)
+      const accepted=await submitReportJob(caseId,pending.key,pending.report_kind)
       if (auth.user?.id!==userId) return
       persist({...pending,report_id:accepted.report_id})
       if (currentEpoch!==epoch) return

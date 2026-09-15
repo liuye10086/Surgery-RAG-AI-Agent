@@ -19,6 +19,7 @@ class FakeDb:
         if model is Disease:
             query = MagicMock()
             query.filter.return_value = query
+            query.populate_existing.return_value = query
             query.with_for_update.side_effect = lambda: self._lock(query)
             query.first.return_value = self.disease
             return query

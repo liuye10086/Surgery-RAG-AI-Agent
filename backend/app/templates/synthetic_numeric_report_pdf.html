@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ title }}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: ReportCJK, "Microsoft YaHei", sans-serif; color: #303133; font-size: 10pt; line-height: 1.65; }
+    h1 { font-size: 20pt; line-height: 1.35; color: #315c85; margin: 0 0 12pt; }
+    h2 { font-size: 12pt; color: #315c85; margin: 17pt 0 7pt; break-after: avoid; }
+    p { margin: 6pt 0; overflow-wrap: anywhere; orphans: 3; widows: 3; }
+    .source-notice { padding: 8pt 10pt; background: #fff5e9; border-left: 3pt solid #e4b37d; margin-bottom: 14pt; font-size: 9pt; }
+    table { border-collapse: collapse; width: 100%; margin: 8pt 0 12pt; font-size: 8.5pt; table-layout: auto; }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; }
+    th, td { border: 0.5pt solid #dcdfe6; padding: 5pt 4pt; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+    th { background: #edf4fa; color: #315c85; font-weight: 700; }
+    a { color: #315c85; }
+  </style>
+</head>
+<body>
+  <div class="source-notice">合成数据工程验证归档 · 非临床有效性验证<br>本原件保留报告生成时的输入、数值与算法版本。</div>
+  <main>{{ content | safe }}</main>
+</body>
+</html>

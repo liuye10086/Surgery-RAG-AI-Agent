@@ -4,6 +4,93 @@
 
 ## 配置与容量
 
+### 统一数值预测主流程（0029，2026-09-14）
+
+新请求使用 `report_kind=numeric_prediction`，readiness 查询使用同名参数，仅接受空 `model_options`。`NUMERIC_REPORTS_ENABLED=False` 默认关闭新接单；还需现有 `REPORT_JOBS_ENABLED`、`REPORT_JOBS_ACCEPTING` 开启。关闭新开关不取消已受理任务，不影响历史或已发布 PDF 下载。未配置 `NUMERIC_MODEL_BUNDLE` 时保留 `last_value` 基线；配置固定模型包后的完整流程见下一节。`clinical_validity_claim=False` 不表示临床效果通过。
+
+迁移 0029 增加服务端 `OperatorCase.prediction_source` 和 v4 发布约束。新来源绑定不与 `engineering_source` 同时保存；有新绑定或 v4 报告时 downgrade 拒绝丢弃事实。普通 HTTP 病例写入不能设置来源，已绑定输入只读。旧绑定先按原合同验证，再在内存转换为新数值输入，不覆写旧记录。页面只接收服务端生成的 `prediction` 能力摘要，不接收来源绑定原文。
+
+受控导入使用显式版本包目录和操作者 ID；来源真实性来自服务端管理的包与操作权限，SHA 只证明完整性。包内仅需 `manifest.json` 和 `records.jsonl`，不读取随访结果文件：
+
+- manifest：`schema_version=prediction_case_package.v1`，`source` 包含 `source_kind`、严格布尔 `is_synthetic`、`dataset_id`、`dataset_version`、`run_id`、`generator_version`；真实来源的 generator 为 null，合成来源必须为非空版本。还需 `records={bytes,sha256}`、正整数 `record_count`、严格 `clinical_validity_claim=false`。
+- records：每行包含 `age`、`sex`、`baseline_stage` 和 `numeric_input`。输入沿用双时距任务契约，但不填写顶层 source，由 loader 根据 manifest 注入来源和两文件摘要；各 packet 的 source 必须与 manifest 一致。未知来源、重复主体／sample、错误单位、未来观测和文件摘要不符均拒绝。
+
+从仓库根目录执行以下默认 dry-run，不连接数据库；必须显式设置 `TEST_DATABASE_URL`，不加载 `.env`，不回退业务 `DATABASE_URL`。仅允许本机 PostgreSQL `_test` 数据库，拒绝 URL 查询参数及 `PGHOSTADDR`／`PGSERVICE` 重定向。确认隔离目标已迁移后，显式加 `--apply` 才建立病例、访视、绑定和审计；整个包处于一个事务，同一操作者的相同 dataset_id／dataset_version 重复导入拒绝，中途失败全部回滚。
+
+```powershell
+backend/.venv/Scripts/python.exe scripts/import_prediction_cases.py --package-dir <version-package-directory> --user-id <operator-id>
+```
+
+新快照、上下文和文档分别使用 `numeric_report_input.v1`、`numeric_generation_context.v1`、`numeric_report_document.v1`，算法固定 `numeric.last_value.v1`，发布指纹 v4。来源摘要、输入摘要和算法身份进入保存事实。旧临床 v1/v2、合成数值 v3 仍按保存版本读取，不调用当前算法重算。新数值报告复用 `report_pdf.html`；更新渲染源码后按下文重建独立 renderer 制品，已发布原件继续交付原字节，缺失或损坏只按原件恢复流程处理。
+
+本阶段真实来源合同只用明确虚构 fixture 验证；实际真实病例导入和临床性能尚未验证。下方 B/C/D 内容为前序记录，其专用页面与模板方向由本节统一方向取代，冻结数据、源码与旧 PDF 仍保留。
+
+### 训练模型、检索与说明生成（0030，2026-09-14）
+
+新请求仍使用同一个 `numeric_prediction` 入口。将 `NUMERIC_MODEL_BUNDLE` 指向已验证、不可变的 `bundle.json` 文件后，接单固定四任务 Ridge 参数、实现摘要、参考候选、检索配置、提示词全文及摘要、说明模型名称。使用 `numeric_generation_context.v2`、`numeric_prediction.v2`、`numeric_report_document.v2` 和发布指纹 v5；输入仍为 `numeric_input.v1`。0030 升级仅增加兼容约束；已有 v5 报告或 v2 排队／终止上下文时拒绝降级。
+
+API 与 worker 必须使用相同模型制品和兼容实现。模型包不能是 pickle；加载验证严格 JSON、四任务参数、单位、来源及训练／挑战分离。接单前和最终事务内重新捕获模型与参考身份；worker 使用已保存参数，不训练，也不加载当前指针替代已受理版本。提示词或检索配置在排队期间变化会失败，不静默换版本；已有幂等请求仍回到原报告。
+
+参考检索复用本地 BGE-M3、PGVector、pg_trgm 与 RRF，只允许固定、当前、全局且 operator／both 范围内的参考片段，核对病种、锚点时已知信息及来源，排除同主体／依赖组。两分支均失败则任务失败；部分失败和空结果如实保存。当前参考语料是输入测量记录，不是临床指南或随访结局，报告明确未执行临床标准评价。
+
+DeepSeek 只生成解释，数值表由固定计算结果产生；调用失败、非法引用、禁止的数字或不一致算法说明会拒绝发布，不用模板冒充 LLM 成功。保存请求模型名及服务实际响应模型名，两者可能因服务端别名映射不同。生成时执行内容过滤；历史只验证保存的输入、提示词身份、响应原文及引用，不调用当前模型、检索、LLM 或当前内容过滤配置。
+
+前端与 PDF 继续共用原有入口和 `report_pdf.html`，显示模型结果、末次值基线、保存说明和引用；来源属性仅保存在后端。页面和 PDF 以六位有效数字展示预测值，后台保留完整浮点值。准备 PDF 必须通过保存事实完整性验证；下载仍只交付归档原件。
+
+本机参考种子命令默认只读校验；`--apply` 仅接受显式 `TEST_DATABASE_URL` 指向本机 `_test` 库，不回退业务连接：
+
+```powershell
+backend/.venv/Scripts/python.exe scripts/seed_numeric_reference_corpus.py --source-dir outputs/synthetic-prediction-cases/2026-09-14-v1 --limit-per-disease 8
+```
+
+本轮训练过程、旧来源源码摘要的隔离复现、实际外部调用和检查结果见[完整能力验收记录](superpowers/notes/2026-09-14-numeric-full-capability-result.md)。本机验收不授权业务库迁移、部署或模型发布；默认开关和 `.env` 不变。训练模型未优于基线，不将本轮合成数据结果解释为真实临床效果。
+
+### 统一隔离总验收与版本切换（2026-09-15）
+
+`scripts/run_numeric_report_acceptance.py` 是持久验收入口。默认只读核对两份合成来源包、对应已训练模型、renderer、输出路径与端口；实际运行须同时显式指定 `--apply --allow-external-llm`。仅允许 `TEST_DATABASE_URL` 指向本机 `_test` 库，SQL 与向量连接均覆盖为该隔离目标；库需已迁移至当前 head，用户、病例和报告为空，允许已有受控参考索引。脚本不清空既有业务数据。
+
+准备两个独立合成数据/计算/训练制品目录；复用 `build_synthetic_prediction_cases.py`、`evaluate_synthetic_prediction_cases.py`、`build_numeric_model_bundle.py`，生成后不可修改源包或模型。按上文索引合成开发池输入参考，构建匹配当前代码的 renderer。固定源码校验如不匹配须使用对应保存源码或新建版本，不能改旧manifest以绕过检查。
+
+从项目根目录使用以下入口（尖括号参数替换为已验证的本地路径；输出目录必须尚不存在）：
+
+```powershell
+backend/.venv/Scripts/python.exe scripts/run_numeric_report_acceptance.py --source-a <source-a-dir> --source-b <source-b-dir> --model-a <model-a-bundle.json> --model-b <model-b-bundle.json> --renderer <renderer-manifest.json> --output <fresh-output-dir>
+```
+
+确认是获准的隔离环境后，在同一命令追加 `--apply --allow-external-llm`。验收包含两病种两模型版本的实际 API、worker CLI、RAG/DeepSeek、浏览器、历史及 PDF；B 数据通过当前版本包导入契约接入。切换 `NUMERIC_MODEL_BUNDLE` 只影响随后新接单，已排队任务保存原包；提示词、检索配置或实现不兼容仍按既有门控失败。幂等重放返回原报告，既有报告及 PDF 保存原版本和原字节。
+
+结果、日志、页面与 PDF 写入本次新输出目录；异常退出非零并清理该次拥有的进程树，数据库由调用者单独停止。不得将合成版本切换验收解释为任意真实文件可以直接替换，亦不自动授权业务模型发布。真实资料须先完成同契约映射、事实审核、适用训练/评价，再配置通过验收的新版本。
+
+### 合成数值报告B包（2026-09-14）
+
+迁移0027新增`OperatorCase.engineering_source`，保留旧病例为空；已有来源数据时downgrade拒绝删除该列。B包完成隔离来源导入与接单，`SYNTHETIC_REPORTS_ENABLED=False`为默认值。B包时的worker排除限制已由下述C包解除；来源导入及客户端只读边界不变。
+
+种子使用`scripts/seed_synthetic_numeric_cases.py`，必须明确`TEST_DATABASE_URL`，不回退业务`DATABASE_URL`。目标仅允许PostgreSQL本机地址、`_test`库名、无URL查询参数，且不得存在非空`PGHOSTADDR`或`PGSERVICE`。固定包根为`outputs/synthetic-prediction-cases`；普通客户端不得赋值来源绑定。以下命令从仓库根目录运行，替换占位主体及操作者，默认仅校验文件，不连接数据库；明确隔离目标已迁移后才用`--apply`执行原子导入。
+
+```powershell
+backend/.venv/Scripts/python.exe scripts/seed_synthetic_numeric_cases.py --package-dir outputs/synthetic-prediction-cases/2026-09-14-v1 --user-id <operator-id> --subject-id <synthetic-subject-id>
+```
+
+接单显式传`report_kind=synthetic_numeric`，仅接受空`model_options`；对应readiness使用同名查询参数。无类型请求维持旧临床语义，工程病例走旧入口会拒绝。详细证据见[本轮B包验收](superpowers/notes/2026-09-14-synthetic-report-admission-result.md)。本节不授权在业务库执行迁移或启用新报告。
+
+### 合成数值报告C包（2026-09-14）
+
+迁移0028支持独立v3发布指纹及工程专用`not_requested`证据状态；旧临床报告不能使用该状态绕过证据要求。有已发布v3事实时拒绝downgrade。现有报告worker已能领取合成任务，使用接单固定输入与算法身份生成；不需要训练模型或调用LLM。算法身份变化时旧排队任务明确失败，不换用新代码重算。
+
+任务仍受原租约、并发、取消、阶段预算和sweep约束。`SYNTHETIC_REPORTS_ENABLED`只控制新接单，关闭后已受理任务仍可执行；停止所有worker则沿用既有全局开关与服务管理。历史读取只校验保存事实，不加载当前算法或来源文件；损坏按错误处理，不重新生成补齐。C包曾临时拒绝v3 PDF，该限制已由下述D包专用模板支持解除。
+
+本轮仅在私有测试库迁移和验证，详见[C包结果](superpowers/notes/2026-09-14-synthetic-report-execution-result.md)。这不改变业务库迁移和正式部署的授权边界。
+
+### 合成数值报告D包（2026-09-14）
+
+操作者页面根据服务端验证的`engineering`摘要显示只读工程病例及类型化生成入口；功能关闭或来源无效时不回退旧临床入口。数值历史与失败／取消输入按保存版本展示，未知文档禁止导出。
+
+完整性通过的v3报告可以沿用现有PDF准备与归档流程。新增`synthetic_numeric_report_pdf.html`及相关渲染源码已纳入manifest，部署兼容实现时须构建独立新renderer，不能修改旧manifest哈希来放行漂移。旧ready归档仍交付已发布原件；损坏时使用已有原件备份恢复，不重新渲染替代。新模板不代表正式部署获准。
+
+两病种真实PDF worker、权限／字节校验／原件恢复与实际浏览器结果见[D包记录](superpowers/notes/2026-09-14-synthetic-report-ui-pdf-result.md)。本机专项验收通过，完整新旧隔离启动器扩展及总验收留给E包；生产容量和发布门禁不变。
+
+### 既有报告配置
+
 默认 `REPORT_JOBS_ENABLED=False`、`REPORT_JOBS_ACCEPTING=False`。启用 worker 需前者为 True；开放新受理还需后者为 True。关闭受理不影响历史读取、状态查询、取消和下载。
 
 默认全局并发 1、队列上限 20、每用户活动任务 2、每病例活动任务 1；排队 600 秒、执行 300 秒、租约 45 秒、心跳 10 秒。各阶段预算见 `backend/.env.example`，阶段超时不能通过重复消息延长。新增部署不得提升并发绕过 4 GiB 主机资源基线。

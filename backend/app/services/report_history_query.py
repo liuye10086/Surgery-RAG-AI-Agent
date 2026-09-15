@@ -47,6 +47,7 @@ def history_projection(user_id, analysis_type=None):
                 r.prediction_result["release_set"]["release_set_id"].astext,
                 r.prediction_result["release_set"]["data_release_id"].astext,
                 j.generation_context["release_set_id"].astext,
+                j.generation_context["algorithm"]["algorithm_version"].astext,
             ).label("model_version_summary"),
         )
         .select_from(
@@ -65,7 +66,7 @@ def history_projection(user_id, analysis_type=None):
 def project_history_item(row):
     data = dict(row)
     identity = saved_report_identity(
-        data["id"], {"anonymous_case_code": data["anonymous_case_code"]}
+        data["id"], {"anonymous_case_code": data["anonymous_case_code"], "report_kind": data["analysis_type"]}
     )
     data.update(
         title=identity.title,
@@ -95,7 +96,7 @@ def read_history(db, user_id, filters: HistoryFilters, *, limit=20, cursor=None,
     r = AIReport.__table__.c
     # Include historical predictive rows alongside the current longitudinal discriminator.
     statement = history_projection(user_id).where(
-        r.analysis_type.in_(["predictive", "longitudinal_predictive"])
+        r.analysis_type.in_(["predictive", "longitudinal_predictive", "synthetic_numeric", "numeric_prediction"])
     )
     if filters.disease_code:
         disease = func.coalesce(

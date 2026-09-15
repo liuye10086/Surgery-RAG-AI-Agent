@@ -1,6 +1,7 @@
 """AI 操作者纵向预测报告、病例和标准数据 API 路由。"""
 
 import urllib.parse
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -290,6 +291,7 @@ def update_longitudinal_case_status(
 )
 def get_longitudinal_report_readiness(
     case_id: int,
+    report_kind: Literal["longitudinal_predictive", "synthetic_numeric", "numeric_prediction"] = "longitudinal_predictive",
     db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_operator),
 ):
@@ -297,6 +299,16 @@ def get_longitudinal_report_readiness(
         case = get_operator_case(db, current_user.id, case_id)
     except (CaseNotFoundError, DiseaseCatalogError) as exc:
         raise _longitudinal_error(exc) from exc
+    if report_kind == "numeric_prediction":
+        from app.core.config import settings
+        if settings.NUMERIC_MODEL_BUNDLE:
+            from app.services.numeric_report_v2_admission import evaluate_numeric_v2_readiness
+            return evaluate_numeric_v2_readiness(case, db)
+        from app.services.numeric_report_admission import evaluate_numeric_case_readiness
+        return evaluate_numeric_case_readiness(case)
+    if report_kind == "synthetic_numeric":
+        from app.services.synthetic_report_admission import evaluate_synthetic_case_readiness
+        return evaluate_synthetic_case_readiness(case)
     return evaluate_operator_case_readiness(case)
 
 

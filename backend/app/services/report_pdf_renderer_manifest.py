@@ -11,6 +11,18 @@ from app.services.report_pdf_errors import PdfError
 APP_ROOT = Path(__file__).resolve().parents[1]
 RENDERER_FILES = (
     "templates/report_pdf.html",
+    "templates/synthetic_numeric_report_pdf.html",
+    "services/synthetic_report_publication.py",
+    "services/numeric_report_publication.py",
+    "schemas/numeric_report.py",
+    "schemas/numeric_prediction.py",
+    "schemas/numeric_report_v2.py",
+    "schemas/numeric_model_bundle.py",
+    "schemas/numeric_report_evidence.py",
+    "services/numeric_report_v2.py",
+    "schemas/synthetic_report_context.py",
+    "schemas/synthetic_numeric_prediction.py",
+    "schemas/synthetic_prediction_cases.py",
     "services/pdf_generator.py",
     "services/report_document_renderer.py",
     "services/report_document_builder.py",
