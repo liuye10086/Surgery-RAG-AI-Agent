@@ -292,12 +292,15 @@ def publish_completed(db, claim, publication):
             return False
         from app.schemas.numeric_report import NumericPublication
         from app.schemas.numeric_report_v2 import NumericPublicationV2
-        if isinstance(publication, (SyntheticPublication, NumericPublication, NumericPublicationV2)):
+        from app.schemas.numeric_report_v3 import NumericPublicationV3
+        if isinstance(publication, (SyntheticPublication, NumericPublication, NumericPublicationV2, NumericPublicationV3)):
             from app.services.synthetic_report_publication import build_synthetic_publication
             from app.services.numeric_report_publication import build_numeric_publication
             from app.services.numeric_report_v2 import build_numeric_v2_publication
+            from app.services.numeric_report_v3 import build_numeric_v3_publication
+            history_numeric = isinstance(publication, NumericPublicationV3)
             full_numeric = isinstance(publication, NumericPublicationV2)
-            unified = isinstance(publication, (NumericPublication, NumericPublicationV2))
+            unified = isinstance(publication, (NumericPublication, NumericPublicationV2, NumericPublicationV3))
             if (report.analysis_type != ("numeric_prediction" if unified else "synthetic_numeric")
                     or report.input_snapshot.get("user_id") != report.user_id
                     or report.input_snapshot.get("disease_id") != report.disease_id
@@ -305,7 +308,7 @@ def publish_completed(db, claim, publication):
                     or doc.identity.created_at != report.created_at):
                 db.rollback()
                 return False
-            rebuild = build_numeric_v2_publication if full_numeric else build_numeric_publication if unified else build_synthetic_publication
+            rebuild = build_numeric_v3_publication if history_numeric else build_numeric_v2_publication if full_numeric else build_numeric_publication if unified else build_synthetic_publication
             rebuilt = rebuild(report.input_snapshot, publication.prediction_result, doc)
         else:
             rebuilt = build_publication(

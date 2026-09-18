@@ -19,11 +19,30 @@ function render(document: unknown, extra = {}) {
   return mount(LongitudinalReportView, { props: { report: { id: 7, status: 'completed', analysis_type: 'numeric_prediction', integrity_status: 'valid', report_document: document, ...extra } as never, renderedContent: '<p>LEGACY_RISK_CONTENT</p>' }, global: { stubs: { 'el-button': { template: '<button><slot /></button>' }, ReportArchiveActions: true } } })
 }
 describe('trained numeric saved report', () => {
+  it.each([[1.005, '1.01'], [22.56701016, '22.57'], [0, '0.00'], [-0.001, '0.00']])('rounds %s for display only', (value, expected) => {
+    const doc = trainedDocument()
+    doc.prediction.predictions[0]!.value = Number(value)
+    const original = JSON.stringify(doc)
+    const wrapper = render(doc)
+    const row = wrapper.findAll('tbody tr').find(row => row.text().includes('12 个月'))!
+    expect(row.findAll('td')[3]!.text()).toBe(expected)
+    expect(wrapper.text()).toContain('展示值已四舍五入至两位小数')
+    expect(JSON.stringify(doc)).toBe(original)
+  })
+  it('keeps version information after narrative and references', () => {
+    const wrapper = render(trainedDocument())
+    const sections = wrapper.findAll('.numeric-report__section')
+    expect(sections[sections.length - 1]!.attributes('aria-label')).toBe('算法说明')
+    expect(wrapper.find('[aria-label="已保存的结果说明"]').text()).not.toContain('deepseek-chat')
+    expect(sections[sections.length - 1]!.text()).toContain('deepseek-chat')
+  })
+
   it('formats long predictions for reading without mutating saved precision', () => {
     const doc = trainedDocument()
     doc.prediction.predictions[0]!.value = 23.65382997305097
     const wrapper = render(doc)
-    expect(wrapper.text()).toContain('23.6538')
+    const row = wrapper.findAll('tbody tr').find(row => row.text().includes('12 个月'))!
+    expect(row.findAll('td')[3]!.text()).toBe('23.65')
     expect(wrapper.text()).not.toContain('23.65382997305097')
     expect(doc.prediction.predictions[0]!.value).toBe(23.65382997305097)
   })
@@ -32,8 +51,8 @@ describe('trained numeric saved report', () => {
     const rows = wrapper.findAll('[aria-label="6／12月数值结果"] tbody tr')
     expect(rows).toHaveLength(2)
     expect(rows.map(row => row.findAll('td').map(cell => cell.text()))).toEqual([
-      [disease === 'ad' ? 'MMSE' : 'ALT', '6 个月', '2026-07-31', '12.5', '10', disease === 'ad' ? '分' : 'U/L', '可用', '—'],
-      [disease === 'ad' ? 'MMSE' : 'ALT', '12 个月', '2027-01-31', '13.25', '11', disease === 'ad' ? '分' : 'U/L', '可用', '—'],
+      [disease === 'ad' ? 'MMSE' : 'ALT', '6 个月', '2026-07-31', '12.50', '10.00', disease === 'ad' ? '分' : 'U/L', '可用', '—'],
+      [disease === 'ad' ? 'MMSE' : 'ALT', '12 个月', '2027-01-31', '13.25', '11.00', disease === 'ad' ? '分' : 'U/L', '可用', '—'],
     ])
     expect(wrapper.text()).toContain('ridge:main_anchor')
     expect(wrapper.text()).toContain('末次值保持基线')

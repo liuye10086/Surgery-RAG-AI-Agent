@@ -300,12 +300,8 @@ def get_longitudinal_report_readiness(
     except (CaseNotFoundError, DiseaseCatalogError) as exc:
         raise _longitudinal_error(exc) from exc
     if report_kind == "numeric_prediction":
-        from app.core.config import settings
-        if settings.NUMERIC_MODEL_BUNDLE:
-            from app.services.numeric_report_v2_admission import evaluate_numeric_v2_readiness
-            return evaluate_numeric_v2_readiness(case, db)
-        from app.services.numeric_report_admission import evaluate_numeric_case_readiness
-        return evaluate_numeric_case_readiness(case)
+        from app.services.numeric_model_dispatch import evaluate_configured_numeric_readiness
+        return evaluate_configured_numeric_readiness(case, db)
     if report_kind == "synthetic_numeric":
         from app.services.synthetic_report_admission import evaluate_synthetic_case_readiness
         return evaluate_synthetic_case_readiness(case)

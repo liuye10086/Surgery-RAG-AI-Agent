@@ -13,6 +13,7 @@ from app.schemas.report_document import ReportGenerationContext
 from app.schemas.synthetic_report_context import SyntheticGenerationContext
 from app.schemas.numeric_report import NumericGenerationContext
 from app.schemas.numeric_report_v2 import NumericGenerationContextV2
+from app.schemas.numeric_report_v3 import NumericGenerationContextV3
 from app.schemas.report_read_models import PdfSource, ReportReadDetail
 from app.services.report_integrity import (
     compute_input_snapshot_sha256,
@@ -78,11 +79,13 @@ def _validate_synthetic_saved_identity(row, job, context):
     snapshot = row.get("input_snapshot")
     if not isinstance(context, dict):
         raise ValueError("report_identity_mismatch")
+    history_numeric = context.get("schema_version") == "numeric_generation_context.v3"
     full_numeric = context.get("schema_version") == "numeric_generation_context.v2"
-    unified = full_numeric or context.get("schema_version") == "numeric_generation_context.v1"
+    unified = history_numeric or full_numeric or context.get("schema_version") == "numeric_generation_context.v1"
     from app.services.numeric_report_publication import validate_numeric_snapshot
     from app.services.numeric_report_v2 import validate_numeric_v2_snapshot
-    validate = validate_numeric_v2_snapshot if full_numeric else validate_numeric_snapshot if unified else validate_synthetic_snapshot
+    from app.services.numeric_report_v3 import validate_numeric_v3_snapshot
+    validate = validate_numeric_v3_snapshot if history_numeric else validate_numeric_v2_snapshot if full_numeric else validate_numeric_snapshot if unified else validate_synthetic_snapshot
     validate(snapshot, context)
     if (not job or row.get("analysis_type") != ("numeric_prediction" if unified else "synthetic_numeric")
             or snapshot.get("user_id") != row["user_id"]
@@ -129,7 +132,7 @@ def project_report(row, job=None):
         )
         if data["context_integrity"] == "valid":
             try:
-                context_type = (NumericGenerationContextV2 if job["generation_context"].get("schema_version") == "numeric_generation_context.v2" else NumericGenerationContext if job["generation_context"].get("schema_version") == "numeric_generation_context.v1" else SyntheticGenerationContext if job["generation_context"].get("schema_version")
+                context_type = (NumericGenerationContextV3 if job["generation_context"].get("schema_version") == "numeric_generation_context.v3" else NumericGenerationContextV2 if job["generation_context"].get("schema_version") == "numeric_generation_context.v2" else NumericGenerationContext if job["generation_context"].get("schema_version") == "numeric_generation_context.v1" else SyntheticGenerationContext if job["generation_context"].get("schema_version")
                                 == "synthetic_numeric_generation_context.v1" else ReportGenerationContext)
                 context = context_type.model_validate(
                     job["generation_context"]
@@ -137,10 +140,13 @@ def project_report(row, job=None):
                 data["generation_context"] = context.model_dump(mode="json")
             except (ValueError, TypeError):
                 data["context_integrity"] = "invalid"
+    history_numeric = ((data["generation_context"] or {}).get("schema_version") == "numeric_generation_context.v3"
+        or row.get("generation_fingerprint_version") == "v6"
+        or isinstance(row.get("report_document"), dict) and row["report_document"].get("schema_version") == "numeric_report_document.v3")
     full_numeric = ((data["generation_context"] or {}).get("schema_version") == "numeric_generation_context.v2"
         or row.get("generation_fingerprint_version") == "v5"
         or isinstance(row.get("report_document"), dict) and row['report_document'].get('schema_version') == 'numeric_report_document.v2')
-    unified = (full_numeric or row.get("analysis_type") == "numeric_prediction"
+    unified = (history_numeric or full_numeric or row.get("analysis_type") == "numeric_prediction"
         or isinstance(row.get("input_snapshot"), dict) and row["input_snapshot"].get("report_kind") == "numeric_prediction"
         or (data["generation_context"] or {}).get("schema_version") == "numeric_generation_context.v1"
         or row.get("generation_fingerprint_version") == "v4")
@@ -167,7 +173,7 @@ def project_report(row, job=None):
         data["generation_context"] = context
         return ReportReadDetail.model_validate(data)
     try:
-        if synthetic and row.get("generation_fingerprint_version") != ("v5" if full_numeric else "v4" if unified else "v3"):
+        if synthetic and row.get("generation_fingerprint_version") != ("v6" if history_numeric else "v5" if full_numeric else "v4" if unified else "v3"):
             raise ValueError("report_identity_mismatch")
         _validate_saved_containers(row)
         result = verify_report_integrity(
@@ -188,7 +194,7 @@ def project_report(row, job=None):
         )
         if result.status == "invalid":
             raise ValueError(result.reason_code)
-        if row.get("generation_fingerprint_version") in ("v2", "v3", "v4", "v5"):
+        if row.get("generation_fingerprint_version") in ("v2", "v3", "v4", "v5", "v6"):
             document_identity = row["report_document"]["identity"]
             snapshot = row["input_snapshot"]
             if (
@@ -200,11 +206,13 @@ def project_report(row, job=None):
                 != identity.anonymous_case_code
             ):
                 raise ValueError("report_identity_mismatch")
-        if row.get("generation_fingerprint_version") in ("v3", "v4", "v5"):
+        if row.get("generation_fingerprint_version") in ("v3", "v4", "v5", "v6"):
             _validate_synthetic_saved_identity(row, job, data["generation_context"])
-            if full_numeric:
+            if history_numeric or full_numeric:
                 from app.services.numeric_report_v2 import build_numeric_v2_publication
-                saved_publication = build_numeric_v2_publication(row['input_snapshot'], row['prediction_result'], row['report_document'])
+                from app.services.numeric_report_v3 import build_numeric_v3_publication
+                build = build_numeric_v3_publication if history_numeric else build_numeric_v2_publication
+                saved_publication = build(row['input_snapshot'], row['prediction_result'], row['report_document'])
                 status_mismatch = any(row.get(key) != getattr(saved_publication, key) for key in
                     ('evidence_status', 'standard_evidence_status', 'reference_case_status'))
             else:

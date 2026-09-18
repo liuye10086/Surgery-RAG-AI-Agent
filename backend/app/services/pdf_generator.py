@@ -89,6 +89,84 @@ _TEMPLATE_DIR = str(Path(__file__).resolve().parent.parent / "templates")
 _jinja_env = Environment(loader=FileSystemLoader(_TEMPLATE_DIR), autoescape=True)
 
 
+def _numeric_display_value(value):
+    """Round presentation only; canonical Markdown and saved values stay intact."""
+    from decimal import Decimal, ROUND_HALF_UP
+    if value is None:
+        return '—'
+    rounded = Decimal(str(value)).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+    return '0.00' if rounded == 0 else str(rounded)
+
+
+class _NumericPrintTreeprocessor(Treeprocessor):
+    def __init__(self, md, document):
+        super().__init__(md)
+        self.document = document
+
+    def run(self, root):
+        predictions = sorted(self.document.prediction.predictions, key=lambda p: p.horizon_months)
+        baselines = {p.task_id: p for p in self.document.prediction.baseline_predictions}
+        history = self.document.schema_version == 'numeric_report_document.v3'
+        headers = (['时距', '目标日期', '指标', '模型预测', '模型状态与原因', '末次值基线', '基线状态与原因', '单位']
+            if history else ['时距', '目标日期', '指标', '模型预测', '末次值基线', '单位', '状态与原因'])
+        for table in root.findall('table'):
+            if [cell.text for cell in table.findall('thead/tr/th')] != headers:
+                continue
+            if history:
+                etree.SubElement(table.find('thead/tr'), 'th').text = '任务算法'
+            for row, prediction in zip(table.findall('tbody/tr'), predictions):
+                cells = row.findall('td')
+                cells[3].text = _numeric_display_value(prediction.value)
+                cells[5 if history else 4].text = _numeric_display_value(baselines[prediction.task_id].value)
+                if history:
+                    etree.SubElement(row, 'td').text = ('随机森林（历史数值）'
+                        if prediction.algorithm.model_id == 'random_forest:history_v1:value_history'
+                        else 'Ridge（锚点实测值）')
+            note = etree.Element('p')
+            note.text = '预测结果与比较基线的展示值已四舍五入至两位小数，保存值保持原始精度。'
+            root.insert(list(root).index(table) + 1, note)
+            if history:
+                position = list(root).index(table)
+                root.remove(table)
+                wrapper = etree.Element('div', {'class': 'numeric-history-results-print'})
+                wrapper.append(table)
+                root.insert(position, wrapper)
+
+        children, rewritten, index = list(root), [], 0
+        while index < len(children):
+            node = children[index]
+            heading = ''.join(node.itertext()) if node.tag == 'h2' else ''
+            if heading not in ('检索参考', '模型与生成版本'):
+                rewritten.append(node)
+                index += 1
+                continue
+            references = heading == '检索参考'
+            wrapper = etree.Element('div', {'class': 'numeric-references-print' if references else 'numeric-versions-print'})
+            if references:
+                node.text = '参考附录'
+            wrapper.append(node)
+            index += 1
+            block = wrapper
+            while index < len(children) and children[index].tag != 'h2':
+                child = children[index]
+                if references and child.tag == 'h3':
+                    block = etree.SubElement(wrapper, 'div', {'class': 'numeric-reference-print'})
+                block.append(child)
+                index += 1
+            rewritten.append(wrapper)
+        root[:] = rewritten
+        return root
+
+
+class _NumericPrintExtension(Extension):
+    def __init__(self, document):
+        self.document = document
+        super().__init__()
+
+    def extendMarkdown(self, md):
+        md.treeprocessors.register(_NumericPrintTreeprocessor(md, self.document), 'numeric_presentation', 5)
+
+
 class _CriticalSectionBlocksTreeprocessor(Treeprocessor):
     """Group critical report sections so print CSS can keep them together."""
 
@@ -288,8 +366,18 @@ def _markdown_to_safe_html(
     """Render saved Markdown and preserve only approved print structure."""
     synthetic = (report_document or {}).get("schema_version") == "synthetic_numeric_report_document.v1"
     unified = (report_document or {}).get("schema_version") == "numeric_report_document.v1"
-    full_numeric = (report_document or {}).get("schema_version") == "numeric_report_document.v2"
-    if full_numeric:
+    history_numeric = (report_document or {}).get("schema_version") == "numeric_report_document.v3"
+    full_numeric = (report_document or {}).get("schema_version") in ("numeric_report_document.v2", "numeric_report_document.v3")
+    if history_numeric:
+        from app.schemas.numeric_report_v3 import NumericReportDocumentV3
+        from app.services.numeric_report_v3 import render_numeric_v3_document, validate_saved_history_prediction
+        document = NumericReportDocumentV3.model_validate(report_document)
+        validate_saved_history_prediction(prediction_result, document.numeric_input, document.generation_context)
+        if (markdown_content != render_numeric_v3_document(document)
+                or prediction_result != document.prediction.model_dump(mode='json')
+                or evidence_snapshot != document.evidence.model_dump(mode='json')):
+            raise ValueError('numeric_pdf_contract_mismatch')
+    elif full_numeric:
         from app.schemas.numeric_report_v2 import NumericReportDocumentV2
         from app.services.numeric_report_v2 import render_numeric_v2_document, validate_saved_trained_prediction
         document = NumericReportDocumentV2.model_validate(report_document)
@@ -333,6 +421,8 @@ def _markdown_to_safe_html(
         if not verify_evidence_bundle(bundle):
             raise ValueError("evidence_integrity_mismatch")
     extensions = ["tables", "fenced_code"]
+    if full_numeric:
+        extensions.append(_NumericPrintExtension(document))
     if not (synthetic or unified or full_numeric):
         extensions.append(_LongitudinalPrintExtension(prediction_result, report_document=report_document))
     html_body = markdown.markdown(markdown_content, extensions=extensions)
@@ -405,13 +495,14 @@ def generate_pdf(
         if saved_model_version
         else "报告生成时保存的模型版本：历史报告未记录。当前模型变化不会影响这份历史报告。"
     )
-    if (report_document or {}).get("schema_version") in ("numeric_report_document.v1", "numeric_report_document.v2", "synthetic_numeric_report_document.v1"):
+    if (report_document or {}).get("schema_version") in ("numeric_report_document.v1", "numeric_report_document.v2", "numeric_report_document.v3", "synthetic_numeric_report_document.v1"):
         algorithm = report_document["generation_context"]["algorithm"]["algorithm_version"]
         model_version_notice = f"报告生成时保存的算法版本：{algorithm}。当前算法变化不会影响这份历史报告。"
     full_html = template.render(
         title=title,
         content=safe_html,
         model_version_notice=model_version_notice,
+        full_numeric=(report_document or {}).get("schema_version") in ("numeric_report_document.v2", "numeric_report_document.v3"),
     )
     if manifest:
         from app.services.report_pdf_fonts import controlled_font_css

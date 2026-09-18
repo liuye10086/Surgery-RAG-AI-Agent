@@ -29,6 +29,10 @@ def execute_report(input_payload, send_message):
             or context_hash(input_payload["context"]) != input_payload["context_sha256"]
         ):
             raise ValueError("generation_context_integrity_failed")
+        if input_payload["context"].get("schema_version") == "numeric_generation_context.v3":
+            from app.workers.numeric_report_v3 import execute_numeric_v3_report
+            execute_numeric_v3_report(input_payload, send_message)
+            return
         if input_payload["context"].get("schema_version") == "numeric_generation_context.v2":
             from app.workers.numeric_report_v2 import execute_numeric_v2_report
             execute_numeric_v2_report(input_payload, send_message)

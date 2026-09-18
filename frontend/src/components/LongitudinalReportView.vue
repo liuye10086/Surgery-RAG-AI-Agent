@@ -14,7 +14,7 @@
 
       <p v-if="invalid" role="alert">报告完整性校验失败，已停止展示内容与导出。</p>
       <template v-else-if="report && report.status !== 'completed'">
-        <p role="status">{{ report.status==='cancelled'?'报告生成已取消':'报告生成失败' }}；以下为已保存的资料和已确认审计记录。</p>
+        <p role="status">{{ report.status === 'generating' ? '报告正在生成' : report.status === 'cancelled' ? '报告生成已取消' : '报告生成失败' }}；以下为已保存的资料和已确认审计记录。</p>
         <NumericReportView v-if="numericReport" :input="numericInput" :context="numericContext" :anonymous-case-code="report.anonymous_case_code" />
         <LegacyReportSnapshot v-else :snapshot="report.input_snapshot" />
         <ReportGenerationAudit :audit="report.generation_audit" :numeric="numericReport" />
@@ -82,7 +82,7 @@ import {legacyChartPoints} from '@/utils/report-chart'
 import { computed } from 'vue'
 import ReportDocumentCharts from '@/components/report/ReportDocumentCharts.vue'
 import NumericReportView from '@/components/report/NumericReportView.vue'
-import type { SyntheticNumericInput, SyntheticGenerationContext, NumericReportDocumentV1, NumericReportDocumentV2 } from '@/types/report-document'
+import type { SyntheticNumericInput, SyntheticGenerationContext, NumericReportDocumentV1, NumericReportDocumentV2, NumericReportDocumentV3 } from '@/types/report-document'
 import ReportGenerationAudit from '@/components/report/ReportGenerationAudit.vue'
 import LegacyReportSnapshot from '@/components/report/LegacyReportSnapshot.vue'
 import ReportArchiveActions from '@/components/report/ReportArchiveActions.vue'
@@ -101,14 +101,14 @@ defineEmits<{ back: []; download: [] }>()
 
 const invalid = computed(()=>props.report?.integrity_status === 'invalid')
 const document = computed(()=>props.report?.report_document?.schema_version === 'report_document.v1' ? props.report.report_document : null)
-const numericDocument = computed(()=>['synthetic_numeric_report_document.v1','numeric_report_document.v1','numeric_report_document.v2'].includes(props.report?.report_document?.schema_version || '') ? props.report?.report_document as NumericReportDocumentV1 | NumericReportDocumentV2 | import('@/types/report-document').SyntheticNumericReportDocumentV1 : null)
-const numericReport = computed(()=>['synthetic_numeric','numeric_prediction'].includes(props.report?.analysis_type || '') || Boolean(numericDocument.value) || ['synthetic_numeric','numeric_prediction'].includes(String(props.report?.input_snapshot?.report_kind || '')) || ['synthetic_numeric_generation_context.v1','numeric_generation_context.v1','numeric_generation_context.v2'].includes(String(props.report?.generation_context?.schema_version || '')))
+const numericDocument = computed(()=>['synthetic_numeric_report_document.v1','numeric_report_document.v1','numeric_report_document.v2','numeric_report_document.v3'].includes(props.report?.report_document?.schema_version || '') ? props.report?.report_document as NumericReportDocumentV1 | NumericReportDocumentV2 | NumericReportDocumentV3 | import('@/types/report-document').SyntheticNumericReportDocumentV1 : null)
+const numericReport = computed(()=>['synthetic_numeric','numeric_prediction'].includes(props.report?.analysis_type || '') || Boolean(numericDocument.value) || ['synthetic_numeric','numeric_prediction'].includes(String(props.report?.input_snapshot?.report_kind || '')) || ['synthetic_numeric_generation_context.v1','numeric_generation_context.v1','numeric_generation_context.v2','numeric_generation_context.v3'].includes(String(props.report?.generation_context?.schema_version || '')))
 const unsupportedDocument = computed(()=> Boolean(props.report?.report_document && !document.value && !numericDocument.value) || Boolean(numericReport.value && !numericDocument.value))
 const numericInput = computed(()=> {
   const input = props.report?.input_snapshot?.numeric_input as SyntheticNumericInput | NumericReportDocumentV1['numeric_input'] | undefined
   return props.report?.snapshot_integrity === 'valid' && ['synthetic_numeric_input.v1','numeric_input.v1'].includes(input?.schema_version || '') ? input : null
 })
-const numericContext = computed(()=> props.report?.context_integrity === 'valid' && ['synthetic_numeric_generation_context.v1','numeric_generation_context.v1','numeric_generation_context.v2'].includes(String(props.report.generation_context?.schema_version || '')) ? props.report.generation_context as unknown as SyntheticGenerationContext | NumericReportDocumentV1['generation_context'] | NumericReportDocumentV2['generation_context'] : null)
+const numericContext = computed(()=> props.report?.context_integrity === 'valid' && ['synthetic_numeric_generation_context.v1','numeric_generation_context.v1','numeric_generation_context.v2','numeric_generation_context.v3'].includes(String(props.report.generation_context?.schema_version || '')) ? props.report.generation_context as unknown as SyntheticGenerationContext | NumericReportDocumentV1['generation_context'] | NumericReportDocumentV2['generation_context'] | NumericReportDocumentV3['generation_context'] : null)
 const inputStatus = computed(()=>({satisfied:'输入满足',partial:'部分满足',unavailable:'未满足'}[document.value?.summary.model_input_status || 'unavailable']))
 const prediction = computed<LongitudinalPrediction | null>(() => {
   const saved = props.report?.prediction_result

@@ -586,4 +586,382 @@ export interface NumericReportDocumentV2 {
   narrative: NumericNarrative
 }
 
-export type AnyReportDocument = ReportDocumentV1 | SyntheticNumericReportDocumentV1 | NumericReportDocumentV1 | NumericReportDocumentV2
+export interface AggregateCounts {
+  N_label_valid: AggregateValue
+  N_pair_valid: AggregateValue
+}
+
+export interface AggregateMetric {
+  mean: number
+  min: number
+  max: number
+  n_valid: 3
+  n_invalid: 0
+  missing_seeds: (20260914 | 20260915 | 20260916)[]
+}
+
+export interface AggregateMetrics {
+  bias: AggregateMetric
+  mae: AggregateMetric
+  mae_gain_reference_minus_candidate: AggregateMetric
+  reference_mae: AggregateMetric
+  rmse: AggregateMetric
+}
+
+export interface AggregateValue {
+  mean: number
+  min: number
+  max: number
+  n_valid: 3
+  n_invalid: 0
+}
+
+export interface EmptyEvidenceIntervals {
+}
+
+export interface EvidenceCounts {
+  N_patient: number
+  N_anchor_eligible: number
+  N_anchor_ineligible: number
+  N_anchor_pending: number
+  N_history_eligible: number
+  N_history_unavailable: number
+  N_branch_eligible: number
+  N_original_eligible: number
+  N_common_complete: number
+  N_common_excluded: number
+  N_common_excluded_due_to_output: number
+  N_label_valid: number
+  N_label_absent: number
+  N_label_pending: number
+  N_label_not_applicable: number
+  N_pair_valid: number
+  N_dependency_groups: number
+  N_candidate_out_of_range: number
+  N_reference_out_of_range: number
+  N_all_candidate_out_of_range: number
+  N_all_reference_out_of_range: number
+  N_pred_valid: number
+  N_pred_abstain: number
+  N_pred_error: number
+  N_reference_valid: number
+  N_reference_abstain: number
+  N_reference_error: number
+  N_original_pred_valid: number
+  N_original_pred_abstain: number
+  N_original_pred_error: number
+  N_original_reference_valid: number
+  N_original_reference_abstain: number
+  N_original_reference_error: number
+  N_all_pred_valid: number
+  N_all_pred_abstain: number
+  N_all_pred_error: number
+  N_all_reference_valid: number
+  N_all_reference_abstain: number
+  N_all_reference_error: number
+}
+
+export interface EvidenceCoverage {
+  label_support: EvidenceRatio
+  paired: EvidenceRatio
+  end_to_end: EvidenceRatio
+}
+
+export interface EvidenceInterval {
+  status: "estimated" | "unavailable"
+  reason: string | null
+  lower: number | null
+  upper: number | null
+  width: number | null
+  attempted: number
+  valid: number
+  failed: number
+}
+
+export interface EvidenceIntervals {
+  bias: EvidenceInterval
+  mae: EvidenceInterval
+  mae_gain_reference_minus_candidate: EvidenceInterval
+  reference_mae: EvidenceInterval
+  rmse: EvidenceInterval
+}
+
+export interface EvidenceJointStates {
+  both_valid: number
+  candidate_unavailable: number
+  reference_unavailable: number
+  both_unavailable: number
+}
+
+export interface EvidenceRatio {
+  value: number | null
+  numerator: number
+  denominator: number
+  reason: "zero_denominator" | null
+}
+
+export interface EvidenceStatistics {
+  mae: number | null
+  rmse: number | null
+  bias: number | null
+  reference_mae: number | null
+  mae_gain_reference_minus_candidate: number | null
+  alpha: number | null
+  beta: number | null
+  n_patients: number
+  n_groups: number
+  unavailable: (string)[]
+}
+
+export interface MixedNumericAlgorithm {
+  model_id: "mixed_history"
+  algorithm_version: "numeric.mixed_history.v1"
+  input_schema_version: "numeric_input.v1"
+  implementation_sha256: string
+  parameters_sha256: string
+  clinical_validity_claim: false
+  production_enabled: false
+  bundle_sha256: string
+}
+
+export interface NumericGenerationContextV3 {
+  schema_version: "numeric_generation_context.v3"
+  disease_code: "ad" | "fatty_liver"
+  numeric_input: NumericInput
+  numeric_input_sha256: string
+  source_binding_sha256: string
+  model_bundle: NumericHistoryBundle
+  algorithm: MixedNumericAlgorithm
+  task_algorithms: { [key: string]: NumericTaskAlgorithm }
+  references: NumericReferenceContext
+  llm_model: string
+  prompt_text: string
+  prompt_sha256: string
+  retrieval_settings: NumericRetrievalSettings
+  prompt_version: "numeric_narrative.prompt.v2"
+  template_version: "numeric_report.zh-CN.v3"
+}
+
+export interface NumericHistoryAggregateEvidence {
+  evaluation_role: "training" | "internal_validation" | "challenge"
+  task_id: "ad.mmse.12m"
+  family: "random_forest"
+  comparison_name: "value_history_vs_last_value" | "value_history_vs_anchor_history"
+  scope: "original" | "common_complete"
+  candidate_model_id: "random_forest:history_v1:value_history"
+  reference_model_id: "last_value" | "random_forest:history_v1:anchor_history"
+  gain_name: "mae_gain_reference_minus_candidate"
+  unit: "分"
+  expected_seeds: [20260914, 20260915, 20260916]
+  seeds: [20260914, 20260915, 20260916]
+  missing_seeds: (20260914 | 20260915 | 20260916)[]
+  n_present_seeds: 3
+  effective_seeds: [20260914, 20260915, 20260916]
+  n_effective_seeds: 3
+  complete: true
+  incomplete: false
+  gain_direction: "positive" | "negative" | "zero" | "mixed"
+  metrics: AggregateMetrics
+  counts: AggregateCounts
+  source_kind: "synthetic"
+  clinical_validity_claim: false
+  clinical_status: "not_assessable"
+}
+
+export interface NumericHistoryBundle {
+  schema_version: "numeric_model_bundle.v2"
+  selection_version: "numeric_history_selection.v1"
+  input_schema_version: "numeric_input.v1"
+  implementation_sha256: string
+  clinical_validity_claim: false
+  production_enabled: boolean
+  legacy_bundle: NumericModelBundle
+  legacy_bundle_sha256: string
+  history_model: NumericHistoryRfModel
+  task_assignments: (NumericHistoryTaskAssignment)[]
+  history_evidence: NumericHistoryEvidence
+}
+
+export interface NumericHistoryComparisonEvidence {
+  seed: 20260914
+  comparison_id: string
+  task_id: "ad.mmse.12m"
+  pool: "development_pool" | "challenge_pool"
+  evaluation_role: "training" | "internal_validation" | "challenge"
+  family: "random_forest"
+  comparison_name: "value_history_vs_last_value" | "value_history_vs_anchor_history"
+  scope: "original" | "common_complete"
+  candidate_model_id: "random_forest:history_v1:value_history"
+  reference_model_id: "last_value" | "random_forest:history_v1:anchor_history"
+  gain_name: "mae_gain_reference_minus_candidate"
+  unit: "分"
+  counts: EvidenceCounts
+  joint_states: EvidenceJointStates
+  coverage: EvidenceCoverage
+  complete_output: true
+  statistics: EvidenceStatistics
+  intervals: EvidenceIntervals | EmptyEvidenceIntervals
+  common_scope_limited: false
+  bootstrap_plan_id: string | null
+  uncertainty_scope: "descriptive_only" | "synthetic_fixed_challenge_group_bootstrap"
+  clinical_status: "not_assessable"
+}
+
+export interface NumericHistoryEvidence {
+  schema_version: "numeric_history_evidence.v1"
+  source_kind: "synthetic"
+  clinical_status: "not_assessable"
+  clinical_validity_claim: false
+  run_id: string
+  manifest_sha256: string
+  data_content_sha256: string
+  protocol_identity_sha256: string
+  selection: NumericHistorySelection
+  source_seed: 20260914
+  model_id: "random_forest:history_v1:value_history"
+  training_identity_sha256: string
+  parameters_sha256: string
+  challenge_subject_ids: (string)[]
+  challenge_dependency_groups: (string)[]
+  comparisons: (NumericHistoryComparisonEvidence)[]
+  aggregates: (NumericHistoryAggregateEvidence)[]
+}
+
+export interface NumericHistoryRfModel {
+  task_id: "ad.mmse.12m"
+  model_id: "random_forest:history_v1:value_history"
+  feature_names: ("anchor_value" | "prior_value" | "slope_per_day")[]
+  mean: (number)[]
+  std: (number)[]
+  scale: (number)[]
+  parameters: RfParameters
+  trees: (RfTree)[]
+  source_seed: number
+  training_sample_ids: (string)[]
+  training_subject_ids: (string)[]
+  training_dependency_groups: (string)[]
+  training_identity_sha256: string
+  training_data_sha256: string
+  training_target_sha256: string
+  parameters_sha256: string
+}
+
+export interface NumericHistorySelection {
+  schema_version: "numeric_history_selection.v1"
+  seed: 20260914
+  task_id: "ad.mmse.12m"
+  model_id: "random_forest:history_v1:value_history"
+}
+
+export interface NumericHistoryTaskAssignment {
+  task_id: "ad.mmse.6m" | "ad.mmse.12m" | "fatty_liver.alt.6m" | "fatty_liver.alt.12m"
+  provider: "legacy_ridge" | "history_rf"
+}
+
+export interface NumericNarrativeSectionV2 {
+  title: "结果阅读说明" | "参考证据说明"
+  text: string
+  citation_ids: (number)[]
+}
+
+export interface NumericNarrativeV2 {
+  sections: (NumericNarrativeSectionV2)[]
+  limitations: (string)[]
+  schema_version: "numeric_narrative.v2"
+  status: "completed"
+  model: string
+  response_model: string | null
+  prompt_version: "numeric_narrative.prompt.v2"
+  prompt_sha256: string
+  input_sha256: string
+  prediction_sha256: string
+  evidence_sha256: string
+  output_sha256: string
+  response_text: string
+}
+
+export interface NumericPredictionV3 {
+  schema_version: "numeric_prediction.v3"
+  disease_code: "ad" | "fatty_liver"
+  subject_id: string
+  dependency_group_id: string
+  anchor_date: string
+  source: PredictionSource
+  input_sha256: string
+  algorithm: MixedNumericAlgorithm
+  predictions: (NumericTaskPredictionV3)[]
+  baseline_predictions: (NumericTaskPredictionV3)[]
+}
+
+export interface NumericTaskAlgorithm {
+  model_id: "ridge:main_anchor" | "random_forest:history_v1:value_history" | "last_value"
+  algorithm_version: "numeric.ridge.main_anchor.v1" | "numeric.random_forest.history_v1.value_history.v1" | "numeric.last_value.v1"
+  feature_version: "main_anchor" | "history_v1:value_history"
+  eligibility_version: "numeric.anchor.v1" | "numeric.history.H.v1"
+  feature_names: ("anchor_value" | "prior_value" | "slope_per_day")[]
+  parameters_sha256: string
+}
+
+export interface NumericTaskPredictionV3 {
+  task_id: "ad.mmse.6m" | "ad.mmse.12m" | "fatty_liver.alt.6m" | "fatty_liver.alt.12m"
+  indicator: "mmse" | "alt"
+  unit: "分" | "U/L"
+  horizon_months: 6 | 12
+  target_date: string
+  algorithm: NumericTaskAlgorithm
+  status: "available" | "abstain" | "error"
+  value: number | null
+  reason: "anchor_unavailable" | "population_not_confirmed" | "population_not_known_at_anchor" | "conflicting_history" | "history_coverage_incomplete" | "history_not_observed" | "comparable_history_required" | "history_calculation_error" | "standardization_error" | "prediction_calculation_error" | "nonfinite_prediction" | "prediction_out_of_bounds" | null
+  raw_prediction: number | null
+}
+
+export interface RfBranch {
+  kind: "branch"
+  feature_index: number
+  threshold: number
+  left: number
+  right: number
+}
+
+export interface RfLeaf {
+  kind: "leaf"
+  value: number
+}
+
+export interface RfParameters {
+  n_estimators: number
+  criterion: "squared_error"
+  max_depth: number
+  min_samples_split: number
+  min_samples_leaf: number
+  min_weight_fraction_leaf: number
+  max_features: number
+  max_leaf_nodes: null
+  min_impurity_decrease: number
+  bootstrap: boolean
+  oob_score: boolean
+  n_jobs: number
+  random_state: number
+  verbose: number
+  warm_start: boolean
+  ccp_alpha: number
+  max_samples: null
+  monotonic_cst: null
+}
+
+export interface RfTree {
+  nodes: (RfBranch | RfLeaf)[]
+}
+
+export interface NumericReportDocumentV3 {
+  schema_version: "numeric_report_document.v3"
+  template_version: "numeric_report.zh-CN.v3"
+  identity: NumericReportIdentity
+  generation_context: NumericGenerationContextV3
+  numeric_input: NumericInput
+  prediction: NumericPredictionV3
+  evidence: NumericRagEvidence
+  narrative: NumericNarrativeV2
+}
+
+export type AnyReportDocument = ReportDocumentV1 | SyntheticNumericReportDocumentV1 | NumericReportDocumentV1 | NumericReportDocumentV2 | NumericReportDocumentV3

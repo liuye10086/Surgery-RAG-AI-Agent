@@ -1,5 +1,5 @@
 import request from './request'
-import type { AnyReportDocument, NumericPrediction, NumericRagEvidence, SyntheticNumericPrediction, TrainedNumericPrediction } from '@/types/report-document'
+import type { AnyReportDocument, NumericPrediction, NumericPredictionV3, NumericRagEvidence, SyntheticNumericPrediction, TrainedNumericPrediction } from '@/types/report-document'
 
 // ===== 预测分析类型 =====
 export interface IndicatorInput {
@@ -106,7 +106,7 @@ export interface ReportDetail extends ReportIdentityMeta {
   content: string
   sources: LegacyEvidenceSource[]
   retrieval_meta: Record<string, unknown>
-  prediction_result: LongitudinalPrediction | SyntheticNumericPrediction | NumericPrediction | TrainedNumericPrediction | null
+  prediction_result: LongitudinalPrediction | SyntheticNumericPrediction | NumericPrediction | TrainedNumericPrediction | NumericPredictionV3 | null
   input_snapshot: Record<string, unknown> | null
   evidence_snapshot: EvidenceBundleV1 | NumericRagEvidence | null
   evidence_snapshot_sha256: string | null

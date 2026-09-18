@@ -122,11 +122,10 @@ def submit_report_job(user_id, case_id, key, request, session_factory, registry_
                     )
                     raise ReportJobError(code, 503 if code == "model_unavailable" else 409)
                 snapshot = build_input_snapshot(case, case.visits, {})
-        full_numeric = unified and bool(settings.NUMERIC_MODEL_BUNDLE)
-        if full_numeric:
-            from app.services.numeric_report_v2_admission import capture_numeric_v2_context
+        if unified:
+            from app.services.numeric_model_dispatch import capture_configured_numeric_context
             with session_factory() as db:
-                context = capture_numeric_v2_context(snapshot, db)
+                context = capture_configured_numeric_context(snapshot, db)
         else:
             context = (capture_context(snapshot) if numeric else
                        capture_generation_context(snapshot, session_factory, registry_root))
@@ -151,9 +150,9 @@ def submit_report_job(user_id, case_id, key, request, session_factory, registry_
             ) != compute_input_snapshot_sha256(snapshot):
                 raise ReportJobError("case_changed")
             if numeric:
-                current_context = (capture_numeric_v2_context(current_snapshot, db) if full_numeric
+                current_context = (capture_configured_numeric_context(current_snapshot, db) if unified
                                    else capture_context(current_snapshot))
-                if current_context != context or (unified and bool(settings.NUMERIC_MODEL_BUNDLE) != full_numeric):
+                if current_context != context:
                     raise ReportJobError("generation_context_changed")
             else:
                 pointer = read_active_pointer(registry_root, context.disease_code)

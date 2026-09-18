@@ -352,6 +352,9 @@ def parse_report_document(value) -> ReportDocument | SyntheticNumericReportDocum
     if schema == "numeric_report_document.v2":
         from app.schemas.numeric_report_v2 import NumericReportDocumentV2
         return NumericReportDocumentV2.model_validate(raw)
+    if schema == "numeric_report_document.v3":
+        from app.schemas.numeric_report_v3 import NumericReportDocumentV3
+        return NumericReportDocumentV3.model_validate(raw)
     raise ValueError("report_document_version_unknown")
 
 
@@ -360,6 +363,9 @@ def parse_publication(value) -> Publication | SyntheticPublication:
     if not isinstance(raw, dict):
         raise ValueError("publication_payload_invalid")
     document = parse_report_document(raw.get("report_document"))
+    from app.schemas.numeric_report_v3 import NumericReportDocumentV3, NumericPublicationV3
+    if isinstance(document, NumericReportDocumentV3):
+        return NumericPublicationV3.model_validate(raw)
     from app.schemas.numeric_report_v2 import NumericReportDocumentV2, NumericPublicationV2
     if isinstance(document, NumericReportDocumentV2):
         return NumericPublicationV2.model_validate(raw)

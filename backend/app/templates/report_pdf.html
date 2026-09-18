@@ -241,12 +241,40 @@
     color: #3a7ca5;
     font-weight: bold;
   }
+
+  .numeric-print h1 { margin-top: 0; }
+  .numeric-print p { orphans: 3; widows: 3; }
+  .numeric-history-results-print table { font-size: 8.5pt; line-height: 1.5; }
+  .numeric-history-results-print th, .numeric-history-results-print td { padding: 5px 4px; }
+  .numeric-history-results-print th:nth-child(1) { width: 6%; }
+  .numeric-history-results-print th:nth-child(2) { width: 14%; }
+  .numeric-history-results-print th:nth-child(3) { width: 7%; }
+  .numeric-history-results-print th:nth-child(4) { width: 9%; }
+  .numeric-history-results-print th:nth-child(5) { width: 17%; }
+  .numeric-history-results-print th:nth-child(6) { width: 10%; }
+  .numeric-history-results-print th:nth-child(7) { width: 15%; }
+  .numeric-history-results-print th:nth-child(8) { width: 7%; }
+  .numeric-history-results-print th:nth-child(9) { width: 15%; }
+  .numeric-references-print { margin-top: 1.2em; }
+  .numeric-reference-print {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin: 0.55em 0;
+    padding-left: 0.8em;
+    border-left: 2px solid #d9e0e5;
+    font-size: 9.5pt;
+    line-height: 1.5;
+  }
+  .numeric-reference-print h3 { margin: 0 0 0.3em; font-size: 10pt; }
+  .numeric-reference-print p { margin: 0.3em 0; }
+  .numeric-versions-print { break-inside: avoid; page-break-inside: avoid; font-size: 9pt; }
+  .numeric-versions-print h2 { font-size: 10pt; margin: 0.8em 0 0.3em; padding-bottom: 3px; }
 </style>
 </head>
 <body>
-<div class="content">
+<div class="content{% if full_numeric %} numeric-print{% endif %}">
 <!-- 报告生成时保存的模型版本；当前模型不会自动重算历史报告 -->
-<div class="model-status">{{ model_version_notice }}</div>
+{% if not full_numeric %}<div class="model-status">{{ model_version_notice }}</div>{% endif %}
 {{ content | safe }}
 </div>
 </body>

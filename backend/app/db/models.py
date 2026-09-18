@@ -1162,7 +1162,7 @@ class AIReport(Base):
             name="ck_ai_reports_document_sha256",
         ),
         CheckConstraint(
-            "generation_fingerprint_version IS NULL OR generation_fingerprint_version IN ('v1', 'v2', 'v3', 'v4', 'v5')",
+            "generation_fingerprint_version IS NULL OR generation_fingerprint_version IN ('v1', 'v2', 'v3', 'v4', 'v5', 'v6')",
             name="ck_ai_reports_fingerprint_version",
         ),
         CheckConstraint(
@@ -1189,10 +1189,11 @@ class AIReport(Base):
             "generation_fingerprint_version IS DISTINCT FROM 'v3' OR (analysis_type = 'synthetic_numeric' AND status = 'completed' AND report_document IS NOT NULL AND report_document_sha256 IS NOT NULL AND generation_fingerprint IS NOT NULL AND input_snapshot IS NOT NULL AND input_snapshot_sha256 IS NOT NULL AND evidence_snapshot IS NOT NULL AND evidence_snapshot_sha256 IS NOT NULL AND report_document->>'schema_version' = 'synthetic_numeric_report_document.v1' AND evidence_status = 'not_requested' AND standard_evidence_status = 'not_requested' AND reference_case_status = 'not_requested') IS TRUE",
             name="ck_ai_reports_synthetic_publication",
         ),
+        CheckConstraint("(generation_fingerprint_version IS DISTINCT FROM 'v6' AND report_document->>'schema_version' IS DISTINCT FROM 'numeric_report_document.v3') OR (generation_fingerprint_version = 'v6' AND analysis_type = 'numeric_prediction' AND status = 'completed' AND report_document IS NOT NULL AND report_document_sha256 IS NOT NULL AND generation_fingerprint IS NOT NULL AND input_snapshot IS NOT NULL AND input_snapshot_sha256 IS NOT NULL AND evidence_snapshot IS NOT NULL AND evidence_snapshot_sha256 IS NOT NULL AND report_document->>'schema_version' = 'numeric_report_document.v3' AND evidence_status IN ('complete', 'partial') AND standard_evidence_status = 'not_requested' AND reference_case_status IN ('available', 'no_eligible_cases', 'reference_query_failed')) IS TRUE", name="ck_ai_reports_numeric_history_publication"),
         CheckConstraint("generation_fingerprint_version IS DISTINCT FROM 'v5' OR (analysis_type = 'numeric_prediction' AND status = 'completed' AND report_document IS NOT NULL AND report_document_sha256 IS NOT NULL AND generation_fingerprint IS NOT NULL AND input_snapshot IS NOT NULL AND input_snapshot_sha256 IS NOT NULL AND evidence_snapshot IS NOT NULL AND evidence_snapshot_sha256 IS NOT NULL AND report_document->>'schema_version' = 'numeric_report_document.v2' AND evidence_status IN ('complete', 'partial') AND standard_evidence_status = 'not_requested' AND reference_case_status IN ('available', 'no_eligible_cases', 'reference_query_failed')) IS TRUE", name="ck_ai_reports_numeric_full_publication"),
         CheckConstraint("generation_fingerprint_version IS DISTINCT FROM 'v4' OR (analysis_type = 'numeric_prediction' AND status = 'completed' AND report_document IS NOT NULL AND report_document_sha256 IS NOT NULL AND generation_fingerprint IS NOT NULL AND input_snapshot IS NOT NULL AND input_snapshot_sha256 IS NOT NULL AND evidence_snapshot IS NOT NULL AND evidence_snapshot_sha256 IS NOT NULL AND report_document->>'schema_version' = 'numeric_report_document.v1' AND evidence_status = 'not_requested' AND standard_evidence_status = 'not_requested' AND reference_case_status = 'not_requested') IS TRUE", name="ck_ai_reports_numeric_publication"),
         CheckConstraint(
-            "(evidence_status IS DISTINCT FROM 'not_requested' AND standard_evidence_status IS DISTINCT FROM 'not_requested' AND reference_case_status IS DISTINCT FROM 'not_requested') OR (generation_fingerprint_version IN ('v3', 'v4', 'v5')) IS TRUE",
+            "(evidence_status IS DISTINCT FROM 'not_requested' AND standard_evidence_status IS DISTINCT FROM 'not_requested' AND reference_case_status IS DISTINCT FROM 'not_requested') OR (generation_fingerprint_version IN ('v3', 'v4', 'v5', 'v6')) IS TRUE",
             name="ck_ai_reports_engineering_evidence",
         ),
         Index("ix_ai_reports_user_id", "user_id"),

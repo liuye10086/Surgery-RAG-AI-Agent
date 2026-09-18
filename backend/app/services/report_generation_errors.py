@@ -1,6 +1,11 @@
 """Public error codes never contain exception strings or clinical inputs."""
 
 MESSAGES = {
+    "numeric_narrative_status_mismatch": "报告说明与实际任务状态不一致",
+    "numeric_narrative_evidence_mismatch": "报告说明与保存参考状态不一致",
+    "numeric_narrative_source_label_forbidden": "报告说明包含禁止的来源标签",
+    "numeric_narrative_input_filter_rejected": "报告输入未通过内容校验",
+    "numeric_narrative_limitations_required": "报告说明缺少必要限制",
     "numeric_narrative_llm_failed": "报告说明生成服务调用失败",
     "numeric_narrative_response_invalid": "报告说明未通过结构校验",
     "numeric_narrative_unknown_citation": "报告说明包含无法核实的引用",

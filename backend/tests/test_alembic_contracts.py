@@ -676,5 +676,43 @@ class AlembicContractTests(unittest.TestCase):
             self.assertFalse(cols[name].nullable, name)
 
 
+class NumericHistoryMigrationContracts(unittest.TestCase):
+    def test_upgrade_preserves_v5_and_matches_orm(self):
+        from app.db.models import AIReport
+        migration = _load_revision('0031_numeric_history_publication.py', 'migration_0031_upgrade')
+        self.assertEqual((migration.revision, migration.down_revision), ('0031', '0030'))
+        fake = MagicMock()
+        with patch.object(migration, 'op', fake): migration.upgrade()
+        constraints = {c.name: str(c.sqltext) for c in AIReport.__table__.constraints if hasattr(c, 'sqltext')}
+        created = {c.args[0]: c.args[2] for c in fake.create_check_constraint.call_args_list}
+        self.assertEqual(len(created), 3)
+        for name, expression in created.items(): self.assertEqual(expression, constraints[name])
+        self.assertNotIn('ck_ai_reports_numeric_full_publication', created)
+        self.assertIn('IS TRUE', created['ck_ai_reports_numeric_history_publication'])
+
+    def test_downgrade_refuses_all_saved_v3_facts_before_ddl(self):
+        migration = _load_revision('0031_numeric_history_publication.py', 'migration_0031_guard')
+        fake = MagicMock()
+        fake.get_bind.return_value.execute.return_value.scalar.return_value = True
+        with patch.object(migration, 'op', fake):
+            with self.assertRaisesRegex(RuntimeError, 'discard_saved_facts'): migration.downgrade()
+        fake.drop_constraint.assert_not_called()
+        sql = str(fake.get_bind.return_value.execute.call_args.args[0])
+        self.assertIn("generation_fingerprint_version='v6'", sql)
+        self.assertIn("numeric_report_document.v3", sql)
+        self.assertIn("numeric_generation_context.v3", sql)
+        self.assertNotIn('status', sql)
+
+    def test_empty_downgrade_restores_exact_0030_constraints(self):
+        migration = _load_revision('0031_numeric_history_publication.py', 'migration_0031_down')
+        old = _load_revision('0030_numeric_full_publication.py', 'migration_0030_compare')
+        fake = MagicMock()
+        fake.get_bind.return_value.execute.return_value.scalar.return_value = False
+        with patch.object(migration, 'op', fake): migration.downgrade()
+        self.assertEqual(fake.method_calls[0], call.get_bind())
+        self.assertEqual({c.args[0]: c.args[2] for c in fake.create_check_constraint.call_args_list}, {
+            'ck_ai_reports_fingerprint_version': old.FP, 'ck_ai_reports_engineering_evidence': old.EV})
+
+
 if __name__ == "__main__":
     unittest.main()

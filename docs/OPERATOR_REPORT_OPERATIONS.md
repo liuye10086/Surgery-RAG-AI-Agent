@@ -35,7 +35,9 @@ API 与 worker 必须使用相同模型制品和兼容实现。模型包不能�
 
 DeepSeek 只生成解释，数值表由固定计算结果产生；调用失败、非法引用、禁止的数字或不一致算法说明会拒绝发布，不用模板冒充 LLM 成功。保存请求模型名及服务实际响应模型名，两者可能因服务端别名映射不同。生成时执行内容过滤；历史只验证保存的输入、提示词身份、响应原文及引用，不调用当前模型、检索、LLM 或当前内容过滤配置。
 
-前端与 PDF 继续共用原有入口和 `report_pdf.html`，显示模型结果、末次值基线、保存说明和引用；来源属性仅保存在后端。页面和 PDF 以六位有效数字展示预测值，后台保留完整浮点值。准备 PDF 必须通过保存事实完整性验证；下载仍只交付归档原件。
+前端与 PDF 继续共用原有入口和 `report_pdf.html`，显示模型结果、末次值基线、保存说明和引用；来源属性仅保存在后端。训练数值报告（numeric_report_document.v2）的页面及新版 PDF 将预测值与比较基线统一显示为两位小数，并注明展示值已四舍五入；后台保留完整浮点值，历史实测记录不改变展示精度。旧版未训练数值报告继续保留原有展示规则。准备 PDF 必须通过保存事实完整性验证；下载仍只交付归档原件。
+
+2026-09-15 展示调整只在已验证的打印 HTML 与前端展示层应用，不修改用于完整性校验的 canonical 正文生成规则。数值报告的模型版本信息集中末尾，PDF 参考附录按记录块控制分页并保留全部引用。更新 pdf_generator.py 或 report_pdf.html 后必须构建新的 renderer manifest，API 与 PDF worker 使用一致的新资源；既有归档仍交付原 PDF 字节，不因新模板重渲染替换。
 
 本机参考种子命令默认只读校验；`--apply` 仅接受显式 `TEST_DATABASE_URL` 指向本机 `_test` 库，不回退业务连接：
 
@@ -60,6 +62,24 @@ backend/.venv/Scripts/python.exe scripts/run_numeric_report_acceptance.py --sour
 确认是获准的隔离环境后，在同一命令追加 `--apply --allow-external-llm`。验收包含两病种两模型版本的实际 API、worker CLI、RAG/DeepSeek、浏览器、历史及 PDF；B 数据通过当前版本包导入契约接入。切换 `NUMERIC_MODEL_BUNDLE` 只影响随后新接单，已排队任务保存原包；提示词、检索配置或实现不兼容仍按既有门控失败。幂等重放返回原报告，既有报告及 PDF 保存原版本和原字节。
 
 结果、日志、页面与 PDF 写入本次新输出目录；异常退出非零并清理该次拥有的进程树，数据库由调用者单独停止。不得将合成版本切换验收解释为任意真实文件可以直接替换，亦不自动授权业务模型发布。真实资料须先完成同契约映射、事实审核、适用训练/评价，再配置通过验收的新版本。
+
+### 历史候选接入（0031，2026-09-18）
+
+将 `NUMERIC_MODEL_BUNDLE` 指向严格混合包 `numeric_model_bundle.v2` 后，受理使用 `numeric_generation_context.v3`、预测 `numeric_prediction.v3`、文档 `numeric_report_document.v3` 与发布指纹 **v6**；输入仍为 `numeric_input.v1`。混合包内嵌完整旧 `numeric_model_bundle.v1`（按旧 canonical 摘要核验），另有唯一 RF 模型与固定四项 `task_assignments`：`ad.mmse.12m` 使用 `random_forest:history_v1:value_history`，其余任务继承旧 Ridge。未配置模型包时保持 `numeric_generation_context.v1`；配置旧 v1 包时保持 v2 上下文。**非空但未知的版本一律失败，不按字段猜测算法。**
+
+候选与末次值基线**独立记录状态**：某任务可以是 `available`／`abstain`／`error`，同时两条基线正常可用。历史不足不回填基线、有限越界不裁剪（raw 值仅留在审计中）、制品损坏整体验证失败。**报告完成不代表所有预测可用**；AD 无历史时 12 个月弃权、6 个月与两条基线仍可用，页面与 PDF 均显示原因并披露模型未执行。`source_kind=synthetic`、`clinical_validity_claim=false`、`clinical_status=not_assessable`；新包只接受合成输入。
+
+迁移 0031 保留旧 v5 约束并扩展允许 v6，新增 v6／document.v3 完整发布约束（条件用 `IS TRUE` 避免 NULL 穿透）。downgrade 在任何 DDL 之前检查 v6 报告、v3 文档与任意状态的 v3 任务上下文，存在即拒绝。API 与 worker 必须使用同一混合包；worker 使用受理时保存的包与参数，当前选择包变化不影响已排队任务，保存参数／对应 prompt／runtime／检索配置漂移则失败。abstain／error 在审计中映射为既有 `unavailable` 并保留 reason。
+
+`scripts/run_numeric_history_acceptance.py` 是阶段四验收专用入口（与 2026-09-15 的通用入口并列，互不改动对方约束）。默认只读预检；真实执行需同时 `--apply --allow-external-llm`，且输出目录必须尚不存在：
+
+```powershell
+.\backend\.venv\Scripts\python.exe scripts/run_numeric_history_acceptance.py --source-dir <source-dir> --legacy-bundle <v1-bundle.json> --history-bundle <v2-bundle.json> --renderer $env:REPORT_TEST_RENDERER_MANIFEST --output <fresh-output-dir> --apply --allow-external-llm
+```
+
+专用库必须精确为 `surgery_rag_phase4_test`，拒绝 URL 查询参数／fragment 与 `PGHOSTADDR`／`PGSERVICE`／`PGSERVICEFILE`／`PGOPTIONS` 重定向；`users`／`operator_cases`／`ai_reports` 必须为空，允许已有受控参考索引。失败时结果目录写入截图、页面 body、page error 类型与**已脱敏 URL**（不含连接串与密钥），并保留 `browser-failure.json`；新失败一律使用新输出目录，不覆盖、不原地修复既有报告。更新 `pdf_generator.py` 或 `report_pdf.html` 后必须重建 renderer manifest；既有归档继续交付原字节。
+
+2026-09-18 实际验收：5 份报告（含 B 排队后切 C 完成 v5、C 两病种、C AD 部分结果、真实排队取消）退出 0，5 次真实说明生成，5 份归档原件与下载字节一致，非所有者 404／doctor 403／幂等重放均通过。详见[阶段四实施与总验收记录](superpowers/notes/2026-09-16-numeric-history-integration-result.md)。该结果只证明合成工程链路，不构成临床有效性。
 
 ### 合成数值报告B包（2026-09-14）
 

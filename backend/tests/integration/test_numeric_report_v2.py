@@ -17,12 +17,15 @@ from app.services.report_read_service import read_owned_report
 def full_environment(environment, monkeypatch, tmp_path):
     from app.core.config import settings
     from app.services import numeric_report_v2_admission as admission, numeric_report_narrative as narrative
+    from app.services import numeric_model_bundle
     from app.workers import numeric_report_v2 as worker
     from backend.tests.test_numeric_model_bundle import bundle_fixture
     path = tmp_path / 'bundle.json'
     path.write_text(json.dumps(bundle_fixture()),encoding='utf-8')
     monkeypatch.setattr(settings,'NUMERIC_MODEL_BUNDLE',str(path))
     monkeypatch.setattr(admission,'verify_numeric_bundle_runtime',lambda bundle: None)
+    # Fictional identities need the same explicit stub at the strict routing gate.
+    monkeypatch.setattr(numeric_model_bundle,'verify_numeric_bundle_runtime',lambda bundle: None)
     monkeypatch.setattr(worker,'verify_numeric_bundle_runtime',lambda bundle: None)
     monkeypatch.setattr(worker,'SessionLocal',environment[0])
     content = {'sections':[{'title':'预测说明','text':'计算表展示模型结果与末次值对照。','citation_ids':[]}],
