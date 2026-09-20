@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS departments (
     name VARCHAR(100) UNIQUE NOT NULL,
     description TEXT,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 -- 4. 文档表
@@ -120,6 +120,8 @@ CREATE TABLE IF NOT EXISTS operator_cases (
     baseline_stage VARCHAR(100),
     notes TEXT,
     status VARCHAR(50) NOT NULL DEFAULT 'active',
+    engineering_source JSONB,
+    prediction_source JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     CONSTRAINT ck_operator_cases_age_range
@@ -127,7 +129,33 @@ CREATE TABLE IF NOT EXISTS operator_cases (
     CONSTRAINT ck_operator_cases_status
         CHECK (status IN ('active', 'archived')),
     CONSTRAINT ck_operator_cases_sex
-        CHECK (sex IS NULL OR sex IN ('male', 'female'))
+        CHECK (sex IS NULL OR sex IN ('male', 'female')),
+    CONSTRAINT ck_operator_cases_engineering_source
+        CHECK (
+            engineering_source IS NULL OR (
+                jsonb_typeof(engineering_source) = 'object'
+                AND (engineering_source->>'schema_version' = 'synthetic_case_source.v1') IS TRUE
+                AND (engineering_source->>'source_kind' = 'synthetic') IS TRUE
+                AND (engineering_source->'is_synthetic' = 'true'::jsonb) IS TRUE
+            )
+        ),
+    CONSTRAINT ck_operator_cases_prediction_source
+        CHECK (
+            prediction_source IS NULL OR (
+                engineering_source IS NULL
+                AND jsonb_typeof(prediction_source) = 'object'
+                AND (prediction_source->>'schema_version' = 'prediction_case_source.v1') IS TRUE
+                AND (
+                    (
+                        prediction_source->>'source_kind' = 'synthetic'
+                        AND prediction_source->'is_synthetic' = 'true'::jsonb
+                    ) OR (
+                        prediction_source->>'source_kind' = 'real'
+                        AND prediction_source->'is_synthetic' = 'false'::jsonb
+                    )
+                ) IS TRUE
+            )
+        )
 );
 
 CREATE INDEX IF NOT EXISTS ix_operator_cases_user_id ON operator_cases(user_id);
@@ -250,23 +278,86 @@ CREATE TABLE IF NOT EXISTS ai_reports (
     generation_fingerprint_version VARCHAR(8),
     CONSTRAINT ck_ai_reports_document_object CHECK (report_document IS NULL OR jsonb_typeof(report_document) = 'object'),
     CONSTRAINT ck_ai_reports_document_sha256 CHECK (report_document_sha256 IS NULL OR report_document_sha256 ~ '^[0-9a-f]{64}$'),
-    CONSTRAINT ck_ai_reports_fingerprint_version CHECK (generation_fingerprint_version IS NULL OR generation_fingerprint_version IN ('v1', 'v2')),
+    CONSTRAINT ck_ai_reports_fingerprint_version CHECK (generation_fingerprint_version IS NULL OR generation_fingerprint_version IN ('v1', 'v2', 'v3', 'v4', 'v5', 'v6')),
     CONSTRAINT ck_ai_reports_v2_publication CHECK (generation_fingerprint_version IS DISTINCT FROM 'v2' OR (report_document IS NOT NULL AND report_document_sha256 IS NOT NULL AND generation_fingerprint IS NOT NULL AND status = 'completed')),
 
     error_stage VARCHAR(50),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT ck_ai_reports_evidence_snapshot_sha256 CHECK (
         evidence_snapshot_sha256 IS NULL OR evidence_snapshot_sha256 ~ '^[0-9a-f]{64}$'
     ),
     CONSTRAINT ck_ai_reports_evidence_status CHECK (
-        evidence_status IS NULL OR evidence_status IN ('complete', 'partial')
+        evidence_status IS NULL OR evidence_status IN ('complete', 'partial', 'not_requested')
     ),
     CONSTRAINT ck_ai_reports_standard_evidence_status CHECK (
-        standard_evidence_status IS NULL OR standard_evidence_status IN ('available', 'context_incomplete', 'not_applicable', 'conflict')
+        standard_evidence_status IS NULL OR standard_evidence_status IN ('available', 'context_incomplete', 'not_applicable', 'conflict', 'not_requested')
     ),
     CONSTRAINT ck_ai_reports_reference_case_status CHECK (
-        reference_case_status IS NULL OR reference_case_status IN ('available', 'no_eligible_cases', 'insufficient_comparability', 'reference_query_failed', 'reference_index_stale')
+        reference_case_status IS NULL OR reference_case_status IN ('available', 'no_eligible_cases', 'insufficient_comparability', 'reference_query_failed', 'reference_index_stale', 'not_requested')
+    ),
+    CONSTRAINT ck_ai_reports_synthetic_publication CHECK (
+        generation_fingerprint_version IS DISTINCT FROM 'v3' OR (
+            analysis_type = 'synthetic_numeric' AND status = 'completed'
+            AND report_document IS NOT NULL AND report_document_sha256 IS NOT NULL
+            AND generation_fingerprint IS NOT NULL
+            AND input_snapshot IS NOT NULL AND input_snapshot_sha256 IS NOT NULL
+            AND evidence_snapshot IS NOT NULL AND evidence_snapshot_sha256 IS NOT NULL
+            AND report_document->>'schema_version' = 'synthetic_numeric_report_document.v1'
+            AND evidence_status = 'not_requested'
+            AND standard_evidence_status = 'not_requested'
+            AND reference_case_status = 'not_requested'
+        ) IS TRUE
+    ),
+    CONSTRAINT ck_ai_reports_numeric_publication CHECK (
+        generation_fingerprint_version IS DISTINCT FROM 'v4' OR (
+            analysis_type = 'numeric_prediction' AND status = 'completed'
+            AND report_document IS NOT NULL AND report_document_sha256 IS NOT NULL
+            AND generation_fingerprint IS NOT NULL
+            AND input_snapshot IS NOT NULL AND input_snapshot_sha256 IS NOT NULL
+            AND evidence_snapshot IS NOT NULL AND evidence_snapshot_sha256 IS NOT NULL
+            AND report_document->>'schema_version' = 'numeric_report_document.v1'
+            AND evidence_status = 'not_requested'
+            AND standard_evidence_status = 'not_requested'
+            AND reference_case_status = 'not_requested'
+        ) IS TRUE
+    ),
+    CONSTRAINT ck_ai_reports_numeric_full_publication CHECK (
+        generation_fingerprint_version IS DISTINCT FROM 'v5' OR (
+            analysis_type = 'numeric_prediction' AND status = 'completed'
+            AND report_document IS NOT NULL AND report_document_sha256 IS NOT NULL
+            AND generation_fingerprint IS NOT NULL
+            AND input_snapshot IS NOT NULL AND input_snapshot_sha256 IS NOT NULL
+            AND evidence_snapshot IS NOT NULL AND evidence_snapshot_sha256 IS NOT NULL
+            AND report_document->>'schema_version' = 'numeric_report_document.v2'
+            AND evidence_status IN ('complete', 'partial')
+            AND standard_evidence_status = 'not_requested'
+            AND reference_case_status IN ('available', 'no_eligible_cases', 'reference_query_failed')
+        ) IS TRUE
+    ),
+    CONSTRAINT ck_ai_reports_numeric_history_publication CHECK (
+        (
+            generation_fingerprint_version IS DISTINCT FROM 'v6'
+            AND report_document->>'schema_version' IS DISTINCT FROM 'numeric_report_document.v3'
+        ) OR (
+            generation_fingerprint_version = 'v6'
+            AND analysis_type = 'numeric_prediction' AND status = 'completed'
+            AND report_document IS NOT NULL AND report_document_sha256 IS NOT NULL
+            AND generation_fingerprint IS NOT NULL
+            AND input_snapshot IS NOT NULL AND input_snapshot_sha256 IS NOT NULL
+            AND evidence_snapshot IS NOT NULL AND evidence_snapshot_sha256 IS NOT NULL
+            AND report_document->>'schema_version' = 'numeric_report_document.v3'
+            AND evidence_status IN ('complete', 'partial')
+            AND standard_evidence_status = 'not_requested'
+            AND reference_case_status IN ('available', 'no_eligible_cases', 'reference_query_failed')
+        ) IS TRUE
+    ),
+    CONSTRAINT ck_ai_reports_engineering_evidence CHECK (
+        (
+            evidence_status IS DISTINCT FROM 'not_requested'
+            AND standard_evidence_status IS DISTINCT FROM 'not_requested'
+            AND reference_case_status IS DISTINCT FROM 'not_requested'
+        ) OR (generation_fingerprint_version IN ('v3', 'v4', 'v5', 'v6')) IS TRUE
     )
 );
 

@@ -43,7 +43,9 @@ alembic current
 uvicorn app.main:app --reload
 ```
 
-数据库正式结构以 Alembic 为准。新建空数据库执行 `alembic upgrade head`；`database/schema.sql` 只作参考。
+数据库正式结构以 Alembic 为准。新建空数据库执行 `alembic upgrade head`；`database/schema.sql` 只作参考。二者的逐表等价性由 `tests/integration/test_report_archive_migrations.py` 守护（隔离集成用例，需要 `TEST_DATABASE_URL`，不在下面的日常基线内，改动 schema.sql 或迁移后须单独运行）。
+
+上面的 `pytest` 命令是**阶段出口门槛**：任何阶段在记为完成前必须整仓运行且全绿，出现任意新增失败即阻断结项；只跑本阶段的定向回归不足以结项（见总领文档 §7.2）。
 
 ## 原始病例 DOCX 验收
 

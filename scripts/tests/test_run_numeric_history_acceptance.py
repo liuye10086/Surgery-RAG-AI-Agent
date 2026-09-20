@@ -42,8 +42,8 @@ def argv(tmp_path, *extra):
         '--source-dir', str(ROOT / 'outputs/synthetic-prediction-cases/2026-09-15-switch-v2'),
         '--legacy-bundle', str(ROOT / 'outputs/numeric-acceptance/2026-09-15/model-v2/bundle.json'),
         '--history-bundle', str(ROOT / 'outputs/numeric-history-integration/2026-09-16-v1/bundle.json'),
-        '--renderer', str(ROOT / 'outputs/numeric-history-renderers/2026-09-16-v1'
-            '/328b86684e9c123ee776934b93e453a20ae4c49e4dbeb9929bcb0f53406acb6e/manifest.json'),
+        '--renderer', str(ROOT / 'outputs/numeric-history-renderers/2026-09-20-v1'
+            '/38f18749e2ceed29eb12273c66f2a056e701f01db01b3ada7a5582e433357558/manifest.json'),
         '--output', str(tmp_path / 'output'), *extra]
 
 

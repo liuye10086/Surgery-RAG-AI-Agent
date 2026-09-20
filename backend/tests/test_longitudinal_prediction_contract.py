@@ -488,6 +488,60 @@ def test_v3_stage_projection_never_regresses_before_current_stage():
     }.isdisjoint({"stay_normal", "normal"})
 
 
+def test_v3_stage_projection_records_the_model_output_the_rule_overrode():
+    """规则覆盖时须留存模型原始结论，使规则信号与模型贡献可分别核对。"""
+    from app.services.disease_progression import AD_ADAPTER
+
+    suite = _complete_ad_suite()
+    suite = suite.__class__(
+        **{
+            **suite.__dict__,
+            "stage": _suite_entry(
+                suite.stage.metadata,
+                _MulticlassModel("stay_normal"),
+                "stage",
+            ),
+        }
+    )
+    result = run_longitudinal_prediction(
+        {"baseline_stage": "mci", "sex": "female"},
+        _ad_visits(),
+        AD_ADAPTER,
+        suite,
+    )
+
+    projection = result.outcome_prediction.stage_projection
+    assert projection.likely_next_stage == "stay_mci"
+    assert projection.raw_likely_next_stage == "stay_normal"
+
+
+def test_v3_stage_projection_omits_raw_for_pure_stay_normalization():
+    """`mci` → `stay_mci` 只是写法归一，不算规则覆盖，不留原始值。"""
+    from app.services.disease_progression import AD_ADAPTER
+
+    suite = _complete_ad_suite()
+    suite = suite.__class__(
+        **{
+            **suite.__dict__,
+            "stage": _suite_entry(
+                suite.stage.metadata,
+                _MulticlassModel("mci"),
+                "stage",
+            ),
+        }
+    )
+    result = run_longitudinal_prediction(
+        {"baseline_stage": "mci", "sex": "female"},
+        _ad_visits(),
+        AD_ADAPTER,
+        suite,
+    )
+
+    projection = result.outcome_prediction.stage_projection
+    assert projection.likely_next_stage == "stay_mci"
+    assert projection.raw_likely_next_stage is None
+
+
 def test_v3_stage_projection_normalizes_current_stage_transition_to_stay():
     from app.services.disease_progression import AD_ADAPTER
 

@@ -12,11 +12,17 @@ from app.schemas.longitudinal_model_registry import ModelRuntimeStatus
 class StageProjection(BaseModel):
     status: Literal["available", "not_estimated"]
     likely_next_stage: str | None = None
+    # 仅当「阶段不得回退」规则把模型结论改到**不同阶段**时才有值，因此**非空即表示发生过规则覆盖**。
+    # 纯 `stay_X` 与 `X` 的写法归一不算覆盖，不写此字段。
+    # 用于把规则信号与模型贡献分开（总领第 6 节第 5 项）；旧保存文档无此字段仍可读取。
+    raw_likely_next_stage: str | None = None
     stage_candidates: list[dict[str, Any]] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def no_guess_when_unavailable(self):
-        if self.status == "not_estimated" and (self.likely_next_stage or self.stage_candidates):
+        if self.status == "not_estimated" and (
+            self.likely_next_stage or self.stage_candidates or self.raw_likely_next_stage
+        ):
             raise ValueError("不可用阶段模型不能输出阶段猜测")
         return self
 

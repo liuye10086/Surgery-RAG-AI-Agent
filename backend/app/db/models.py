@@ -51,7 +51,8 @@ class Department(Base):
     name = Column(String(100), unique=True, nullable=False)
     description = Column(Text)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # Migration 0003 creates this column NOT NULL; keep the ORM in step with it.
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     documents = relationship("Document", back_populates="department")
 

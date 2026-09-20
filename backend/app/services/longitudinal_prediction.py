@@ -362,16 +362,21 @@ def _run_suite_stage(
                         reverse=True,
                     )
                 ]
+        # 规则会改写模型结论，因此先留存模型原始输出，供报告侧区分规则与模型贡献。
+        model_likely = likely
         likely, candidates = _monotonic_stage_projection(
             adapter,
             case.get("baseline_stage"),
             likely,
             candidates,
         )
+        # 按语义阶段比较：`stay_X` 与 `X` 只是写法归一，不算规则覆盖。
+        rule_overrode = _stage_value(model_likely) != _stage_value(str(likely))
         return (
             StageProjection(
                 status="available",
                 likely_next_stage=likely,
+                raw_likely_next_stage=model_likely if rule_overrode else None,
                 stage_candidates=candidates,
             ),
             entry.status,

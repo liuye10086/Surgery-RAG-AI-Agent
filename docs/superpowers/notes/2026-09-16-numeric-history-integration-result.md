@@ -58,7 +58,9 @@ dry-run 退出 0，报告 `database_connected=false`、`services_started=false`�
 - 旧历史保全：恢复 B 与选择不存在的当前包两阶段，保存事实（含 `sources`、`retrieval_meta`、`evidence_snapshot_sha256`、`report_document_sha256`、`generation_context`、`generation_audit`）与 PDF 原字节均不变。
 - `checks.page_errors=[]`。
 
-上一轮 `2026-09-18-v3` 在同一链路上先行通过（退出 0、357.44 秒）。`v4` 是独立复审三项加固之后的复跑，两者结论一致；记录以 `v4` 为准。
+上一轮 `2026-09-18-v3` 在同一链路上先行通过（退出 0、357.44 秒）。`v4` 是独立复审三项加固之后的复跑，两者结论一致。
+
+**2026-09-20 复跑（渲染制品更替后）：** 再跑一轮 `2026-09-20-v2`：渲染制品更替后按同一命令复跑，退出码 0（525.30 秒），renderer 身份为 `38f18749e2ceed29eb12273c66f2a056e701f01db01b3ada7a5582e433357558`；5 份报告、5 次说明生成、5 份归档原件与下载字节一致，版本切换、取消、非所有者 404／doctor 403、幂等重放与 `page_errors=[]` 全部与 `v4` 一致。因此**当前工作区代码与当前验收记录一致**。同日在 `2026-09-20-v1` 曾出现一次 `phase_timeout`（检索阶段触及 30 秒上限，未产生 LLM 调用），复跑未再现，按偶发时序记录保留。
 
 ### 失败与修复过程（如实保留）
 
@@ -104,7 +106,7 @@ v1/v2 的失败产物、`api.log`、`frontend.log` 与 v2 的 `browser_failure` 
 | 幂等／取消／超时／租约 | runner v4 真实 HTTP 幂等重放 ×5 与真实排队取消；v6 cancel／lease／deadline 发布围栏为 PG 事务 | 通过（真实链路 + PG 事务） |
 | 所有者／角色／病种 | runner v4 每份报告 404／403；病种权限由 PG admission 三类拒绝覆盖 | 通过（真实链路 + PG 事务） |
 | 新旧历史／PDF | runner v4 恢复 B 与不存在当前包两阶段比较保存事实与 PDF 原字节；v3 另证当前包失效仍可下载原件 | 通过（真实链路） |
-| 迁移及降级 | 专用库 fresh 升级至 0031、真实 v6 约束与 downgrade guard 通过；**既有 v5 行跨 upgrade 的保全未单独演练** | 部分：fresh upgrade + upgrade 后 v5 兼容 |
+| 迁移及降级 | 专用库 fresh 升级至 0031、真实 v6 约束与 downgrade guard 通过；**既有 v5 行跨 upgrade 的保全已于 2026-09-20 补做并逐字段比对通过**（真实 v5 行导入停在 0030 的库 → 升到 head → 5 张表完全一致） | 通过（fresh upgrade + upgrade 后 v5 兼容 + 既有 v5 行保全） |
 
 ## 制品与记录
 

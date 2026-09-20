@@ -81,6 +81,21 @@ backend/.venv/Scripts/python.exe scripts/run_numeric_report_acceptance.py --sour
 
 2026-09-18 实际验收：5 份报告（含 B 排队后切 C 完成 v5、C 两病种、C AD 部分结果、真实排队取消）退出 0，5 次真实说明生成，5 份归档原件与下载字节一致，非所有者 404／doctor 403／幂等重放均通过。详见[阶段四实施与总验收记录](superpowers/notes/2026-09-16-numeric-history-integration-result.md)。该结果只证明合成工程链路，不构成临床有效性。
 
+### 合成路线产物与验收入口对照（2026-09-20）
+
+本项目曾并行推进三条合成路线，产物目录**共用 `2026-09-15` 日期前缀**且各有独立验收入口。**当前活动配置不指向其中任何一个**（`NUMERIC_MODEL_BUNDLE` 为空、各报告开关默认关闭）。下表用于区分用途与权威性，避免按日期误判新旧或误用不可加载的制品：
+
+| 路线 | 产物 | 协议 / 版本 | 验收入口 | 可加载制品 | 权威性 |
+| --- | --- | --- | --- | --- | --- |
+| 统合路线（阶段二合成工程） | 来源 `outputs/synthetic-prediction-cases/2026-09-15-switch-v2`；模型 A `outputs/numeric-fullflow/2026-09-14/model-v1`、B `outputs/numeric-acceptance/2026-09-15/model-v2` | `synthetic_prediction_candidates.v1`；报告 v1–v5 | `scripts/run_numeric_report_acceptance.py`（+ `numeric_report_acceptance_browser.py`） | **有**（A、B 两个 `bundle.json`） | B 为**旧包基线**，被阶段四冻结并引用 |
+| 阶段三合成离线比较 | `outputs/synthetic-prediction-history/2026-09-15-v1` | `synthetic_prediction_history.v1` | `scripts/run_synthetic_prediction_history.py` | **无**——内存拟合，**禁止**当作可加载制品 | 仅离线比较证据，**不得用于接入** |
+| 阶段四合成候选接入 | `outputs/numeric-history-integration/2026-09-16-v1` | `numeric_model_bundle.v2`；上下文 v3／预测 v3／文档 v3／指纹 v6 | `scripts/run_numeric_history_acceptance.py`（+ `numeric_history_acceptance_browser.py`） | **有**（混合包 C，内嵌 B） | **阶段四权威验收输入**；未启用 |
+
+**两点易错处：**
+
+- 阶段三包与阶段四包**不是同一制品**。阶段四的混合包 C 按 S2 的固定选择规则**重新拟合**产出，与阶段三的内存模型**无继承关系**；阶段三明确禁止把其 RF 结果包当作可加载制品。
+- `2026-09-15` 同时出现在三条路线的目录名中（其中阶段三实际执行于 2026-09-16），**一律按目录全路径区分，不要按日期判断新旧**。
+
 ### 合成数值报告B包（2026-09-14）
 
 迁移0027新增`OperatorCase.engineering_source`，保留旧病例为空；已有来源数据时downgrade拒绝删除该列。B包完成隔离来源导入与接单，`SYNTHETIC_REPORTS_ENABLED=False`为默认值。B包时的worker排除限制已由下述C包解除；来源导入及客户端只读边界不变。
@@ -179,6 +194,17 @@ python scripts/build_report_pdf_renderer_manifest.py --font-dir /opt/surgery-rag
 ```
 
 font-dir 内必须有 `NotoSansCJKsc-Regular.otf`、`LICENSE`，以及官方 [Noto Sans Regular](https://github.com/notofonts/noto-fonts/blob/main/hinted/ttf/NotoSans/NotoSans-Regular.ttf) 的 `NotoSans-Regular.ttf` 和另存为 `LICENSE-latin` 的 [OFL 许可](https://github.com/notofonts/noto-fonts/blob/main/LICENSE)。补充字体覆盖 `10⁹/L` 等单位的上标字符，不改写报告原文。脚本验证字体族、许可、实际源码、FontTools、Chromium executable 及版本；输出以 manifest SHA 命名的目录。将其中 manifest.json 绝对路径配置为 `REPORT_PDF_RENDERER_MANIFEST`。发布源码、Playwright、Chromium、FontTools、模板或字体变化必须重建 manifest；运行时不自动认可漂移。旧 ready 原件持续读取原字节。资源包不可由 Web 用户写入，保留每个已发布版本与许可。
+
+**改动源码会作废已有 renderer 制品（2026-09-20 补充）：** manifest 覆盖 `report_pdf_renderer_manifest.py` 中 `RENDERER_FILES` 列出的源码、字体与许可字节、Chromium 可执行文件哈希、平台及打印选项。该清单**包含 `services/report_document_builder.py`**——它负责生成报告正文，因此**哪怕只改一句报告文字也会令现有 manifest 失效**，预检／加载时报 `frozen_renderer_mismatch`。这不是故障，是设计如此；但维护者容易只改文字而不知道要连带处理。
+
+改动的完整同步步骤（缺一不可）：
+
+1. **重建 manifest**：`python scripts/build_report_pdf_renderer_manifest.py --font-dir <已核实字体目录> --output-dir <新版本根目录>`。输出根按日期分目录，脚本再按 manifest 原字节 SHA 建子目录；同 digest 已存在时只校验不覆盖。
+2. **更新硬编码身份**：如 `scripts/run_numeric_history_acceptance.py` 的 `RENDERER_SHA` 及其测试中的 manifest 路径。
+3. **更新文档引用**：已有的历史记录**保留原路径与 SHA 并加作废说明，不改写历史**；交接性质的块（如计划中的 `REPORT_TEST_RENDERER_MANIFEST`）则替换为新值。
+4. **重跑整仓非集成回归**（见[开发指南](DEVELOPMENT.md)的阶段出口门槛）。
+
+已发布的归档 PDF 仍是原件，**不因新 renderer 重新渲染或替换**；旧 manifest 目录保留原字节。
 
 渲染时从已验证字体按文档实际字符生成内嵌子集，使用互不重叠的 unicode-range，避免多页页眉/页脚重复载入完整 CJK 字体导致内存放大。缺字返回安全错误，不使用系统字体静默替代。字体版本和子集实现均纳入 renderer 身份。
 

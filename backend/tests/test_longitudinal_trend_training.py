@@ -78,6 +78,24 @@ def test_direction_boundaries_are_versioned(current, following, tolerance, expec
     assert direction_label(current, following, tolerance) == expected
 
 
+@pytest.mark.parametrize(
+    ("current", "following", "tolerance", "expected"),
+    [
+        (0.0, 0.0, 0.05, "stable"),
+        (0.0, 0.04, 0.05, "stable"),
+        (0.0, 0.06, 0.05, "rising"),
+        (0.0, -0.06, 0.05, "falling"),
+        # CDR 的正常值就是 0：0 → 0.5 在该分支下判为上升。
+        (0.0, 0.5, 0.05, "rising"),
+    ],
+)
+def test_direction_at_zero_uses_absolute_tolerance(current, following, tolerance, expected):
+    """固定 current == 0 的退化分支：tolerance 在此作绝对阈值（见 direction_label 注释）。"""
+    from app.services.longitudinal_trend_training import direction_label
+
+    assert direction_label(current, following, tolerance) == expected
+
+
 def test_next_visit_value_is_label_only_and_never_a_feature():
     from app.services.longitudinal_trend_training import (
         TREND_CONTRACTS,

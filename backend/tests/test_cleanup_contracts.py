@@ -152,6 +152,13 @@ class CleanupContractTests(unittest.TestCase):
                 "2026-09-04-operator-standard-reference-evidence-design.md",
                 "2026-09-07-operator-complete-report-audit-design.md",
                 "2026-09-07-operator-report-history-pdf-archive-design.md",
+                "2026-09-09-prediction-model-refactor-master-design.md",
+                "2026-09-14-synthetic-prediction-application-design.md",
+                "2026-09-14-synthetic-prediction-candidates-design.md",
+                "2026-09-14-synthetic-prediction-cases-design.md",
+                "2026-09-14-synthetic-prediction-stability-design.md",
+                "2026-09-14-unified-prediction-report-direction.md",
+                "2026-09-16-prediction-model-refactor-phase-4-history-integration-design.md",
             },
         )
 

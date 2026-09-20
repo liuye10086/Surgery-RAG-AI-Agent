@@ -420,7 +420,8 @@ def build_report_document(
     ]
     stage = outcome["stage_projection"]
     sections[5].paragraphs = [
-        "阶段模型与各指标趋势模型分别判定可用性；不输出未来具体数值或预测区间。"
+        "阶段模型与各指标趋势模型分别判定可用性；不输出未来具体数值或预测区间。",
+        "阶段结果应用「疾病阶段不得回退」规则：模型给出早于当前阶段的结论时，以当前阶段为准；被该规则取代的模型原始结论保留在保存文档中可核对，页面不另行并列展示。",
     ]
     sections[5].tables = [
         _table(

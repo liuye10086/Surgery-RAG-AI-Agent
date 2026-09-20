@@ -466,6 +466,15 @@ REPORT_TEST_RENDERER_MANIFEST=C:/Users/86182/Desktop/Surgery RAG-Agent/outputs/n
 manifest SHA-256=328b86684e9c123ee776934b93e453a20ae4c49e4dbeb9929bcb0f53406acb6e
 ```
 
+**⚠ 2026-09-20 更新：上面这一版已失效，改用下框。** 原因：当天为满足总领第 6 节第 5 项「规则信号与模型贡献分开」，在 `services/report_document_builder.py` 补入一句阶段投影规则披露；该文件是 renderer 的 **28 项源码依赖之一**，改动即令 09-16 的 manifest 不再匹配工作区（预检报 `frozen_renderer_mismatch`）。已按既有规则重建：
+
+```text
+REPORT_TEST_RENDERER_MANIFEST=C:/Users/86182/Desktop/Surgery RAG-Agent/outputs/numeric-history-renderers/2026-09-20-v1/38f18749e2ceed29eb12273c66f2a056e701f01db01b3ada7a5582e433357558/manifest.json
+manifest SHA-256=38f18749e2ceed29eb12273c66f2a056e701f01db01b3ada7a5582e433357558
+```
+
+**2026-09-20 已按新渲染制品完成复跑**：`outputs/numeric-history-acceptance/2026-09-20-v2` 退出码 0（525.30 秒），renderer 身份 `38f18749…`，5 份报告与全部权限／幂等／版本切换断言一致——当前代码与当前验收记录已一致。`scripts/run_numeric_history_acceptance.py` 的 `RENDERER_SHA` 与 `scripts/tests/test_run_numeric_history_acceptance.py` 中的路径已同步为新的。09-16 的 manifest **原字节保留**——S6 验收（`outputs/numeric-history-acceptance/2026-09-18-v1`–`v4`）记录的是它，属历史事实，未改写。
+
 构建使用本机既有、许可证与字节已核验的Noto CJK／Latin字体，运行时为Windows、项目Python 3.11.4、Playwright 1.62.0、FontTools 4.64.0、Chromium 151.0.7922.34；Node 22.15.0／npm 10.9.2。新目录`outputs/numeric-history-renderers/2026-09-16-v1`按manifest SHA分目录生成；未写入活动配置。该manifest供本机S6使用，不能作为其他操作系统环境的renderer。
 
 **未执行与下一步：** `TEST_DATABASE_URL`仍未配置；没有连接或迁移数据库、运行归档worker、调用外部LLM、启用新模型、提交或推送。新增集成测试的受控说明不等于完整外部链路通过。阶段四实施**5／6，剩1步S6隔离端到端验收与阶段五交接**；继续使用合成数据，真实临床有效性仍未验证。
@@ -493,7 +502,7 @@ manifest SHA-256=328b86684e9c123ee776934b93e453a20ae4c49e4dbeb9929bcb0f53406acb6
 - 后端非 integration／e2e 回归：首次整仓运行 5 failed／2278 passed／59 skipped。其中 3 项为本文件测试依赖 Playwright 时受 `backend/tests/test_pdf_generation.py` 向 `sys.modules` 安装 mock 后再 `pop`、令 `playwright` 包半导入影响（`module 'playwright' has no attribute '_impl'`，单文件运行不复现），已改为测试内先丢弃整个 `playwright.*` 层级再重新导入，并在模拟污染下验证（52 项通过）；修复后整仓复跑为 **2 failed／2290 passed／59 skipped／24 subtests passed（1137.68 秒）**。剩余 2 项为可追溯到阶段二／三提交的既有失败（`tests/test_schema_contracts.py` 的 `operator_cases.engineering_source` 未同步进 `database/schema.sql`；`tests/test_cleanup_contracts.py` 的 specs 允许清单未登记阶段一至四设计文档），工作区未修改这两个失败涉及的 SQL／清单文件，非 S6 引入。
 - 冻结输入来源 `3b333b09…`、B `32b8069f…`、C `a6816ed1…`、renderer `328b8668…` 在实施前后一致；活动配置未改变，C 包只在验收进程内临时选择。
 
-**边界：** 仍未演练“0030 中已有 v5 行、再 upgrade 到 0031 后原行不变”（现有证据是 fresh 专用库升级到 0031、升级后 v5 兼容、真实 downgrade 拒绝）。计算 error／有限越界、损坏／缺 task／未知算法、检索双失败／LLM 失败等场景按其真实层级记录为纯函数／stub worker／PG 事务，未在真实外部链路注入。全部结论限于合成数据，`clinical_validity_claim=false`；真实资料仍须独立审核、适配、重新训练评价与版本绑定。
+**边界：** ~~仍未演练“0030 中已有 v5 行、再 upgrade 到 0031 后原行不变”~~ **2026-09-20 已补做该演练并通过**：从验收库取出真实 v5 发布行（2 份报告 + 其 v2 上下文任务 + 关联用户／疾病／病例，共 5 张表 9 行）导入停在 0030 的一次性库，升到 head 后**逐字段比对，5 张表完全一致**；v5 版本值保留、`ck_ai_reports_numeric_history_publication` 如期出现、`ck_ai_reports_fingerprint_version` 现允许 v1–v6。脚本 `.tmp/run-e5-migration-drill.py`。原较弱表述（fresh 升级 + 升级后 v5 兼容 + 真实 downgrade 拒绝）仍然成立且已一并保留。计算 error／有限越界、损坏／缺 task／未知算法、检索双失败／LLM 失败等场景按其真实层级记录为纯函数／stub worker／PG 事务，未在真实外部链路注入。全部结论限于合成数据，`clinical_validity_claim=false`；真实资料仍须独立审核、适配、重新训练评价与版本绑定。
 
 本机记录：`.tmp/phase4-s6-*`、`.tmp/diagnose-phase4-s6-*.py`；结果汇总见[阶段四实施与总验收记录](../notes/2026-09-16-numeric-history-integration-result.md)。
 
@@ -506,6 +515,6 @@ manifest SHA-256=328b86684e9c123ee776934b93e453a20ae4c49e4dbeb9929bcb0f53406acb6
 **交接两项保留（不阻塞合成工程）：**
 
 1. **后端 2 项既有失败**：`database/schema.sql` 未同步 ORM 的 `operator_cases.engineering_source`（提交 `2650d27` 引入），以及 `tests/test_cleanup_contracts.py` 的 specs 允许清单未登记阶段一至四设计文档。二者属阶段二／三范围，需单独决定是否补齐后重跑后端回归。
-2. **迁移保全未单独演练**：如需声称“既有 v5 行跨 0031 upgrade 原样保留”，须在专用库上做一次 0030→0031 往返用例。
+2. ~~**迁移保全未单独演练**：如需声称“既有 v5 行跨 0031 upgrade 原样保留”，须在专用库上做一次 0030→0031 往返用例。~~ **已关闭（2026-09-20）**：往返用例已完成且通过，现可作「既有 v5 行跨 0031 upgrade 原样保留」的声明，详见上文 §3.7 边界段。
 
 **真实资料开放项：** 仍无真实数据。真实资料到位后须独立审核、同契约映射、重新训练与评价、版本绑定并重新验收，不因本轮合成总验收通过而改勾。真实资料冻结与临床评价的开放条目仍按总领文档原口径保留。

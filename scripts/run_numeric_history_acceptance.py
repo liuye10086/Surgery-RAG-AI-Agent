@@ -23,7 +23,7 @@ from scripts.run_numeric_report_acceptance import OwnedProcesses, SafeParser, re
 LEGACY_SHA = '32b8069f92dab3e104f3668c3639cdc6e5461f5bedf61a4f7590ce2cef478215'
 HISTORY_SHA = 'a6816ed1a30d9a65ae089f67746e98473f0514732883d98a2843d3bc90db2464'
 SOURCE_SHA = '3b333b090186e6c09fe938106bf2a176328e1d591b1bf6d56cf5ecbd7cd38296'
-RENDERER_SHA = '328b86684e9c123ee776934b93e453a20ae4c49e4dbeb9929bcb0f53406acb6e'
+RENDERER_SHA = '38f18749e2ceed29eb12273c66f2a056e701f01db01b3ada7a5582e433357558'
 SEED_EMAILS = ('history-a@example.com', 'history-b@example.com', 'history-doctor@example.com')
 
 

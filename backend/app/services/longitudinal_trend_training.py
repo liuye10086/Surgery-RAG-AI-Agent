@@ -102,6 +102,11 @@ def direction_label(current: float, following: float, tolerance: float) -> str:
     if tolerance < 0:
         raise TrendTrainingError("invalid_tolerance")
     if current == 0:
+        # 退化处理：current 为 0 时无法计算相对变化，于是把同一个 tolerance 当作
+        # **绝对**阈值使用。语义与下面的相对分支不同——tolerance=0.05 在此表示
+        # “绝对变化不超过 0.05 个单位”，而不是 5%。
+        # 对有序量表（CDR 的正常值就是 0）该带宽是否合适属临床问题，尚未经专业确认；
+        # 行为由 test_direction_at_zero_uses_absolute_tolerance 固定，改动须同步该测试。
         delta = following - current
         if abs(delta) <= tolerance:
             return "stable"
