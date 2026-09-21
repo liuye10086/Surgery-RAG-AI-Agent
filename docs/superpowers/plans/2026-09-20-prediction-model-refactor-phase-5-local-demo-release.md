@@ -485,9 +485,9 @@ npm run build
 ### S5 实施结果（2026-09-21）
 
 - 隔离库准备：`surgery_rag_phase4_test` 先 `pg_dump` 备份，再重建为空库、装齐 `vector`／`uuid-ossp`／`pg_trgm`、迁移至 **0031**；阶段五集成模块 **8 passed**。
-- 整仓非 integration／e2e 回归见验收记录；`git diff --check` 通过。
+- 整仓非 integration／e2e 回归 **0 failed / 2517 passed / 59 skipped（982 秒）**；`git diff --check` 通过。
 - 实际演示 `outputs/numeric-history-demo-release/2026-09-21-v5`：`status=stopped`、无诊断、无清理错误；3 份 v6 报告完成、1 份真实排队取消、LLM 审计 3 started／9 finished／3 闭合、历史核验 3/0、PDF ready 1 且下载字节与归档原件一致、六类身份全部匹配。
-- **实际运行暴露并修复四个缺陷**：前端工作目录、种子邮箱被响应模型拒绝、等待循环不派发浏览器事件、浏览器测试导入污染。前两项属 S2，第三项属 S3，第四项属本轮测试；四次失败／未确认停止的产物全部原样保留。
+- **实际运行暴露并修复四个缺陷**：前端工作目录、种子邮箱被响应模型拒绝、等待循环不派发浏览器事件、浏览器测试导入污染；另修复两处本阶段新增测试对运行环境与仓库提交状态的隐含依赖。前两项属 S2，第三项属 S3，其余属本轮；四次失败／未确认停止的产物全部原样保留。演示提交与当前 HEAD 的差异已在验收记录中说明。
 - 文档：`docs/OPERATOR_REPORT_OPERATIONS.md` 增补本机演示的 dry-run／启动／停止／失败读取与禁止事项；新建阶段五验收记录；阶段五设计、本计划与总领文档状态回填。
 - 未改动前端组件、API 契约、Alembic 或 schema.sql；未创建、删除或迁移任何非本阶段授权的数据库。
 

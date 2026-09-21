@@ -58,7 +58,16 @@
 
 - 阶段五定向：schema、发布模块、CLI、浏览器与阶段四 runner 联合 **264 passed／0 failed**。
 - 默认 dry-run：退出 0、`status=dry_run`、`database_connected=false`、`services_started=false`、未创建输出目录。
-- 整仓非 integration／e2e 回归见下节；`git diff --check` 通过（仅既有 LF/CRLF 提示）。
+- 整仓非 integration／e2e 回归：**0 failed / 2517 passed / 59 skipped / 24 subtests passed（982.20 秒）**；跳过项为需显式提供原始 DOCX 资料的用例与一项符号链接用例，与原口径一致。
+- `git diff --check` 通过（仅既有 LF/CRLF 提示）。
+
+### 演示提交与当前 HEAD 的差异（如实说明）
+
+实际演示运行于提交 `2959723bb33eee615bf6dd8eec336062a6803032`，`release.json.identities.git_commit` 即此值，`identity.git_commit_matches` 为真。此后另有两次提交，其中**只有一处改动生产代码**：`scripts/numeric_history_demo_browser.py` 的 `session_ended_errors()` 增加「首次导入失败后丢弃半导入的 `playwright` 层级并重试一次」的兜底（整仓回归中另一测试模块向 `sys.modules` 安装 mock 后移除，会使该函数静默返回空元组、把安全防护解除）。
+
+该改动对本次运行**不可能产生影响**，两个分支均可排除：若本次停止由 `page.on("close")` 处理器触发，则循环在 `stop_event.is_set()` 处退出，`close_errors` 自始至终未被使用；若由异常触发，则说明异常确实被捕获，亦即当时防护已装上，与改动后的行为一致。演示子进程是全新进程，`playwright` 首次导入即成功，重试分支不可达。
+
+其余两次提交只改测试；当前 HEAD 见提交历史。
 
 ## 已知失败与限制（如实保留）
 
