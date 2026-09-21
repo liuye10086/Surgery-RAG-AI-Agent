@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11.4、Pydantic、SQLAlchemy、FastAPI、Playwright、现有 Vue 3／Vite、PostgreSQL 隔离测试库、pytest；Node.js 22.15.0、npm 10.9.2。无新增依赖。
 
-日期：2026-09-20；执行更新：2026-09-21。版本：0.5。状态：**S1–S4 已完成，实施4／5；当前下一步 S5（需用户单独授权隔离库与外部 LLM）。** 依据：[阶段五设计](../specs/2026-09-20-prediction-model-refactor-phase-5-local-demo-release-design.md)、[阶段四实施计划](2026-09-16-prediction-model-refactor-phase-4-history-integration.md)、[总领文档](../specs/2026-09-09-prediction-model-refactor-master-design.md)。
+日期：2026-09-20；执行更新：2026-09-21。版本：0.6。状态：**S1–S5 全部完成，实施5／5。**实际演示记录见[阶段五验收记录](../notes/2026-09-20-prediction-model-refactor-phase-5-local-demo-release-result.md)。 依据：[阶段五设计](../specs/2026-09-20-prediction-model-refactor-phase-5-local-demo-release-design.md)、[阶段四实施计划](2026-09-16-prediction-model-refactor-phase-4-history-integration.md)、[总领文档](../specs/2026-09-09-prediction-model-refactor-master-design.md)。
 
 ## Global Constraints
 
@@ -481,6 +481,15 @@ npm run build
 - [x] 更新阶段五设计、当前计划和总领文档状态；真实资料路线继续开放，列出真实数据到位后的重新训练／评价／接入／发布步骤。
 - [x] 完成最终自审：无未决标记，无未说明失败，无把 skipped 写成 passed，无把合成工程指标写成临床结论。
 - [x] 停止并向用户报告阶段五是否满足出口。仍不自动提交或推送；等待用户单独指令。
+
+### S5 实施结果（2026-09-21）
+
+- 隔离库准备：`surgery_rag_phase4_test` 先 `pg_dump` 备份，再重建为空库、装齐 `vector`／`uuid-ossp`／`pg_trgm`、迁移至 **0031**；阶段五集成模块 **8 passed**。
+- 整仓非 integration／e2e 回归见验收记录；`git diff --check` 通过。
+- 实际演示 `outputs/numeric-history-demo-release/2026-09-21-v5`：`status=stopped`、无诊断、无清理错误；3 份 v6 报告完成、1 份真实排队取消、LLM 审计 3 started／9 finished／3 闭合、历史核验 3/0、PDF ready 1 且下载字节与归档原件一致、六类身份全部匹配。
+- **实际运行暴露并修复四个缺陷**：前端工作目录、种子邮箱被响应模型拒绝、等待循环不派发浏览器事件、浏览器测试导入污染。前两项属 S2，第三项属 S3，第四项属本轮测试；四次失败／未确认停止的产物全部原样保留。
+- 文档：`docs/OPERATOR_REPORT_OPERATIONS.md` 增补本机演示的 dry-run／启动／停止／失败读取与禁止事项；新建阶段五验收记录；阶段五设计、本计划与总领文档状态回填。
+- 未改动前端组件、API 契约、Alembic 或 schema.sql；未创建、删除或迁移任何非本阶段授权的数据库。
 
 ## 3. 计划覆盖矩阵
 

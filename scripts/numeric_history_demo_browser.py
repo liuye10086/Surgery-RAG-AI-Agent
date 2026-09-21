@@ -91,11 +91,29 @@ def session_ended_errors() -> tuple:
     the session waits, the only call in the loop is a bounded wait, so the only
     realistic failure is that the operator's window is no longer there.
     """
+    import sys
+
     try:
         from playwright.sync_api import Error
+
+        return (Error,)
+    except Exception:
+        pass
+    # A half-imported playwright (a test module installing mocks into sys.modules
+    # and removing them again) leaves the package importable but broken. Discard
+    # the hierarchy and retry once, so the guard is never silently left unarmed.
+    for name in [
+        key
+        for key in list(sys.modules)
+        if key == "playwright" or key.startswith("playwright.")
+    ]:
+        del sys.modules[name]
+    try:
+        from playwright.sync_api import Error
+
+        return (Error,)
     except Exception:
         return ()
-    return (Error,)
 
 
 def run_session_checks(page, tokens: dict, subjects: list[dict]) -> dict:

@@ -236,8 +236,22 @@ def test_apply_invokes_execute_only_with_both_flags(
     assert seen == [identities]
 
 
-def test_dry_run_rejects_actual_uncommitted_release_code(tmp_path, capsys, isolated):
+def test_dry_run_surfaces_uncommitted_release_code_as_a_closed_error(
+    tmp_path, monkeypatch, capsys, isolated
+):
+    """The gate itself is covered by the pure-module tests; this is the projection.
+
+    It must not depend on the repository actually being dirty, or the case would
+    silently stop testing anything once the phase-five code is committed.
+    """
     module = runner()
+    monkeypatch.setattr(
+        module,
+        "validate_git_release_state",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            ValueError("uncommitted_release_code")
+        ),
+    )
     assert module.main(argv(tmp_path)) == 2
     assert json.loads(capsys.readouterr().out) == {
         "status": "error",

@@ -1,6 +1,6 @@
 # 预测模型重构阶段五：本机隔离工程演示发布与持续评价设计
 
-日期：2026-09-20；执行更新：2026-09-21。版本：0.5。状态：**书面规格已获用户批准；[实施计划](../plans/2026-09-20-prediction-model-refactor-phase-5-local-demo-release.md)的 S1–S4 已完成，实施4／5，当前下一步 S5（需用户单独授权隔离库与外部 LLM）；真实隔离数据库用例因未配置精确 `TEST_DATABASE_URL` 而跳过，尚未实际连接数据库、启动演示、发布或切换活动配置。**
+日期：2026-09-20；执行更新：2026-09-21。版本：0.6。状态：**书面规格已获用户批准；[实施计划](../plans/2026-09-20-prediction-model-refactor-phase-5-local-demo-release.md)的 S1–S5 已全部完成，实施5／5。**隔离数据库集成在本机准备的空库上实跑通过，实际演示会话已验证 `running → stopped` 与完整回退；事实与限制见[阶段五验收记录](../notes/2026-09-20-prediction-model-refactor-phase-5-local-demo-release-result.md)。本阶段仍只发布本机合成工程演示，未授权生产或临床使用。
 
 S4 落地时对第 9 节「持续评价范围」的三点说明：
 
