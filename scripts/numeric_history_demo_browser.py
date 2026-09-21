@@ -83,6 +83,21 @@ def _blank_admission() -> dict:
     }
 
 
+def session_ended_errors() -> tuple:
+    """Playwright's public error base: what a gone window surfaces as.
+
+    ``TargetClosedError`` is the concrete class but it lives in the private
+    ``playwright._impl`` package, so the supported base is caught instead. While
+    the session waits, the only call in the loop is a bounded wait, so the only
+    realistic failure is that the operator's window is no longer there.
+    """
+    try:
+        from playwright.sync_api import Error
+    except Exception:
+        return ()
+    return (Error,)
+
+
 def run_session_checks(page, tokens: dict, subjects: list[dict]) -> dict:
     """Perform the fixed closed checks and keep only the outcomes actually seen.
 
@@ -247,6 +262,7 @@ def run_authenticated_demo(
 
         playwright_factory = sync_playwright
 
+    close_errors = session_ended_errors()
     browser = None
     context = None
     page = None
@@ -281,9 +297,17 @@ def run_authenticated_demo(
             result["admission"] = run_session_checks(page, tokens, subjects)
             write_session_checks(Path(output), result["admission"])
             session_ready.set()
-            while not stop_event.wait(poll_seconds):
-                if not browser.is_connected():
+            while not stop_event.is_set():
+                # This call is also what dispatches the close events above: the
+                # sync API only runs its event loop inside a Playwright call, and
+                # is_connected() is a cached flag that never reflects a closed
+                # window. When the operator's window goes away, this raises.
+                try:
+                    page.wait_for_timeout(max(1, int(poll_seconds * 1000)))
+                except close_errors:
                     stop_event.set()
+                    break
+                if stop_event.is_set() or not browser.is_connected():
                     break
                 owned.assert_alive(*PROCESS_NAMES)
             if page_errors:

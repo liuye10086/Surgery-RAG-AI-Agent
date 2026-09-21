@@ -95,13 +95,24 @@ class Page:
         fail_goto=False,
         body="body",
         plan=None,
+        vanish_after=None,
     ):
         self.events = events
         self.url = url
         self.fail_goto = fail_goto
         self.body = body
         self.handlers = {}
+        self.vanish_after = vanish_after
+        self.waits = 0
         self.request = Request(events, default_plan() if plan is None else list(plan))
+
+    def wait_for_timeout(self, timeout):
+        self.waits += 1
+        self.events.append(("wait_for_timeout", timeout))
+        if self.vanish_after is not None and self.waits > self.vanish_after:
+            from playwright.sync_api import Error
+
+            raise Error("Target page, context or browser has been closed")
 
     def on(self, name, callback):
         self.events.append(("on", name))
@@ -692,3 +703,64 @@ def test_closing_the_page_context_also_ends_the_session(tmp_path):
     worker.join(5)
     assert not worker.is_alive()
     assert stop.is_set()
+
+
+def test_a_vanishing_window_ends_the_session_without_hanging(tmp_path):
+    """The window going away surfaces as a Playwright error, never as a hang."""
+    from scripts.numeric_history_demo_browser import run_authenticated_demo
+
+    events = []
+    ready = threading.Event()
+    stop = threading.Event()
+    page = Page(events, vanish_after=2)
+    captured = {}
+
+    def run():
+        captured.update(
+            run_authenticated_demo(
+                output=tmp_path,
+                tokens=_tokens(),
+                subjects=_subjects(),
+                owned=Owned(),
+                stop_event=stop,
+                session_ready=ready,
+                playwright_factory=_factory(events, page=page),
+                poll_seconds=0.01,
+            )
+        )
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(10)
+    assert not worker.is_alive(), "a closed window must end the session, not hang it"
+    assert stop.is_set()
+    assert captured["cleanup_error_types"] == []
+    assert page.waits == 3
+
+
+def test_the_wait_loop_pumps_the_page_so_close_events_can_arrive(tmp_path):
+    from scripts.numeric_history_demo_browser import run_authenticated_demo
+
+    events = []
+    ready = threading.Event()
+    stop = threading.Event()
+    page = Page(events)
+    worker = threading.Thread(
+        target=lambda: run_authenticated_demo(
+            output=tmp_path,
+            tokens=_tokens(),
+            subjects=_subjects(),
+            owned=Owned(),
+            stop_event=stop,
+            session_ready=ready,
+            playwright_factory=_factory(events, page=page),
+            poll_seconds=0.01,
+        ),
+        daemon=True,
+    )
+    worker.start()
+    assert ready.wait(5)
+    page.close()
+    worker.join(5)
+    assert not worker.is_alive()
+    assert page.waits >= 1
