@@ -512,9 +512,9 @@ manifest SHA-256=38f18749e2ceed29eb12273c66f2a056e701f01db01b3ada7a5582e43335755
 
 **阶段四已交付：** 严格混合包与纯推理、固定RF制品与逐值回放、v3受理与0031迁移、v3执行／说明／v6发布与历史核验、页面／类型／打印与新renderer，以及真实 API／worker／RAG／LLM／归档的隔离总验收。
 
-**交接两项保留（不阻塞合成工程）：**
+**原交接两项现均已关闭，不再作为阶段五待办：**
 
-1. **后端 2 项既有失败**：`database/schema.sql` 未同步 ORM 的 `operator_cases.engineering_source`（提交 `2650d27` 引入），以及 `tests/test_cleanup_contracts.py` 的 specs 允许清单未登记阶段一至四设计文档。二者属阶段二／三范围，需单独决定是否补齐后重跑后端回归。
+1. ~~**后端 2 项既有失败**：`database/schema.sql` 未同步 ORM 的 `operator_cases.engineering_source`，以及 `tests/test_cleanup_contracts.py` 的 specs 允许清单未登记阶段一至四设计文档。~~ **已关闭（2026-09-20）**：参考 schema 与清理白名单已同步，新增全表等价性守护；整仓非 integration／e2e 回归为 **2299 passed／59 skipped／0 failed**。
 2. ~~**迁移保全未单独演练**：如需声称“既有 v5 行跨 0031 upgrade 原样保留”，须在专用库上做一次 0030→0031 往返用例。~~ **已关闭（2026-09-20）**：往返用例已完成且通过，现可作「既有 v5 行跨 0031 upgrade 原样保留」的声明，详见上文 §3.7 边界段。
 
 **真实资料开放项：** 仍无真实数据。真实资料到位后须独立审核、同契约映射、重新训练与评价、版本绑定并重新验收，不因本轮合成总验收通过而改勾。真实资料冻结与临床评价的开放条目仍按总领文档原口径保留。

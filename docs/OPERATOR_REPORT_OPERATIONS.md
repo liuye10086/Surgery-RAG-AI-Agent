@@ -170,6 +170,41 @@ Nginx 为 `/api/v1/operator/reports/<id>/events` 单独关闭代理 buffering，
 测试种子只使用已批准的两份标准 fixture 与 manifest，全部病例为软件验收虚构数据。不得指向生产数据库。
 
 
+### 本机隔离工程演示发布（阶段五）
+
+`scripts/run_numeric_history_demo_release.py` 是把阶段四已验收的 C 包放进一次**本机、合成、可停止**演示会话的入口。它不是部署入口，也不授权临床或生产使用。
+
+**前置条件。** 需要一个本机可丢弃且为空的 `surgery_rag_phase4_test`，Alembic 必须为 `0031`，且 `users`／`operator_cases`／`ai_reports` 三张业务表为空；全新空库需先由管理员安装 `vector`／`uuid-ossp`／`pg_trgm` 扩展，再执行 `alembic upgrade head`。本脚本**不创建、不迁移、不清空**数据库，非空或版本不符时直接失败关闭。`TEST_DATABASE_URL` 必须显式给出，只接受 loopback 与该库名，拒绝 URL 查询参数／fragment 与非空的 `PGHOSTADDR`／`PGSERVICE`／`PGSERVICEFILE`／`PGOPTIONS`，不回退 `DATABASE_URL`。
+
+**默认只读预检（dry-run）。** 不连库、不建目录、不启动进程／浏览器、不调用外部 LLM：
+
+```powershell
+.\backend\.venv\Scripts\python.exe scripts/run_numeric_history_demo_release.py `
+  --source-dir outputs/synthetic-prediction-cases/2026-09-15-switch-v2 `
+  --legacy-bundle outputs/numeric-acceptance/2026-09-15/model-v2/bundle.json `
+  --history-bundle outputs/numeric-history-integration/2026-09-16-v1/bundle.json `
+  --renderer outputs/numeric-history-renderers/2026-09-20-v1/38f18749e2ceed29eb12273c66f2a056e701f01db01b3ada7a5582e433357558/manifest.json `
+  --acceptance-result outputs/numeric-history-acceptance/2026-09-20-v2/result.json `
+  --output outputs/numeric-history-demo-release/2026-09-20-v1
+```
+
+dry-run 退出 0 时打印 `status=dry_run`、`database_connected=false`、`services_started=false`。工作区存在未提交的应用／脚本／测试改动时返回 `uncommitted_release_code` —— 这是设计行为：**发布必须能追溯到一个明确的代码提交**，只有本设计、阶段五计划与本文件等已登记文档允许处于未提交状态。
+
+**实际启动。** 需同时追加 `--apply --allow-external-llm`；只给 `--allow-external-llm` 不会产生任何副作用。启动前会重新执行静态预检并核对身份未变，随后连接隔离库、原子写 `starting`、事务内种子、按 API → 前端 → report worker → PDF worker 顺序启动，全部就绪后才转为 `running` 并打开已认证浏览器。C 包是唯一活动包，不会在失败时静默切回 B 包。
+
+**停止与回退。** 正常停止为 `Ctrl+C` 或关闭浏览器。顺序固定为：停止 API（立即关闭新受理）→ 关闭浏览器 → 停止前端 → 只读等待在途任务收敛 → 停止 report worker → 停止 PDF worker → 重试清理 → 汇总评价 → dispose engine → 恢复父环境 → 核验端口释放。**停止监督进程即完成活动配置回退**；不删除演示病例、报告、审计、PDF 或失败诊断。再次运行必须使用新的空库状态与新的输出目录。
+
+**读取结果。** 输出目录只包含 `release.json`、`archive/`、`process-events.jsonl`、`session-checks.json` 与浏览器安全诊断／截图。`release.json` 的 `status` 为 `stopped` 仅当本次清理、评价与端口核验都无错误，且评价未发现完整性矛盾；归档原件与记录摘要不符、已保存摘要无法复算、在途任务未收敛或身份漂移时一律为 `failed`，并给出对应闭合错误码。遗留的 `starting`／`running` 记录（监督进程被强杀）**不得当作成功**，只读检查如下，它不连库、不写文件：
+
+```powershell
+.\backend\.venv\Scripts\python.exe scripts/run_numeric_history_demo_release.py `
+  --inspect-release outputs/numeric-history-demo-release/2026-09-20-v1/release.json
+```
+
+输出 `unconfirmed_stop=true` 表示本次运行未确认停止；首版不实现自动接管或后台恢复。
+
+**禁止事项。** 不得用于生产或临床；不修改 `.env`、系统服务或持久活动指针；不把 B 包设为自动备用；不重训、调参、重新索引或替换冻结制品；不为让演示通过而放宽数据库、身份、权限、任务时限、报告完整性或 PDF 校验；不在 C 包失败后清理失败输出或数据库事实。
+
 ### 本次参考窗口修正
 
 真实数据库验收发现旧窗口缺少单位，无法通过逐指标可比性检查。参考比较专用投影已保留 unit / unit_state，模型输入特征计算保持原契约。配置身份新增 reference_history.units.v1，因此发布时必须用既有 `build_reference_case_windows.py --dataset ... --apply` 重建两病种参考窗口；保留旧窗口和旧报告，不覆写旧配置身份。测试种子的参考病例模拟登记来源契约，is_synthetic=False 只用于测试分支覆盖；所有内容仍是虚构的软件验收数据，不能导入业务库。
