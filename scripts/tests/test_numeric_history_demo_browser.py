@@ -76,6 +76,28 @@ class Request:
         )
 
 
+def playwright_error():
+    """Playwright's error base, tolerating a half-imported package.
+
+    Another test module installs mocks into ``sys.modules`` and pops them,
+    leaving ``playwright`` importable but broken. Discard the whole hierarchy
+    and import again, the same way the phase-four browser tests do.
+    """
+    import importlib
+    import sys
+
+    try:
+        return importlib.import_module("playwright.sync_api").Error
+    except (ImportError, AttributeError):
+        for name in [
+            key
+            for key in list(sys.modules)
+            if key == "playwright" or key.startswith("playwright.")
+        ]:
+            del sys.modules[name]
+        return importlib.import_module("playwright.sync_api").Error
+
+
 def default_plan(report_id=41):
     return [
         (202, {"report_id": report_id}),
@@ -110,9 +132,7 @@ class Page:
         self.waits += 1
         self.events.append(("wait_for_timeout", timeout))
         if self.vanish_after is not None and self.waits > self.vanish_after:
-            from playwright.sync_api import Error
-
-            raise Error("Target page, context or browser has been closed")
+            raise playwright_error()("Target page, context or browser has been closed")
 
     def on(self, name, callback):
         self.events.append(("on", name))

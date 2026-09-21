@@ -407,9 +407,9 @@ cd backend
 
 ### S5.1 静态与单元总回归
 
-- [ ] 核对 `git status --short`，确认只有阶段五实现、测试和已知文档；任何无关代码改动先报告，不混入。
-- [ ] 实际 `--apply` 的 Git 门禁要求阶段五应用／脚本／测试代码已进入当前 HEAD。若 S1–S4 仍未提交，先停止并等待用户单独授权本地提交；不因执行 S5 自动提交，也不要求推送。
-- [ ] 运行阶段五所有单元／CLI 测试：
+- [x] 核对 `git status --short`，确认只有阶段五实现、测试和已知文档；任何无关代码改动先报告，不混入。
+- [x] 实际 `--apply` 的 Git 门禁要求阶段五应用／脚本／测试代码已进入当前 HEAD。若 S1–S4 仍未提交，先停止并等待用户单独授权本地提交；不因执行 S5 自动提交，也不要求推送。
+- [x] 运行阶段五所有单元／CLI 测试：
 
 ```powershell
 cd backend
@@ -420,24 +420,24 @@ cd backend
   ..\scripts\tests\test_numeric_history_demo_browser.py -q
 ```
 
-- [ ] 运行默认 dry-run，确认 0 退出、无输出目录、无数据库连接／进程／外部调用；保存命令和身份摘要，不保存连接信息。
+- [x] 运行默认 dry-run，确认 0 退出、无输出目录、无数据库连接／进程／外部调用；保存命令和身份摘要，不保存连接信息。
 
 ### S5.2 隔离数据库与生命周期集成
 
-- [ ] 操作者按既有开发流程准备一个可丢弃且为空的 `surgery_rag_phase4_test`，迁移到 0031；本脚本本身不创建、迁移或清空。
-- [ ] 设置当前 PowerShell 会话的 `TEST_DATABASE_URL`，确认无四个 libpq 重定向变量；不输出变量值。
-- [ ] 运行：
+- [x] 操作者按既有开发流程准备一个可丢弃且为空的 `surgery_rag_phase4_test`，迁移到 0031；本脚本本身不创建、迁移或清空。
+- [x] 设置当前 PowerShell 会话的 `TEST_DATABASE_URL`，确认无四个 libpq 重定向变量；不输出变量值。
+- [x] 运行：
 
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe -m pytest tests/integration/test_numeric_history_demo_release.py -q
 ```
 
-- [ ] 验证空库／错误版本／非空库、种子回滚、C 包上下文固定、停止后任务收敛、权限、幂等、取消、历史和 PDF 字节；确认退出后端口释放和父环境不变。
+- [x] 验证空库／错误版本／非空库、种子回滚、C 包上下文固定、停止后任务收敛、权限、幂等、取消、历史和 PDF 字节；确认退出后端口释放和父环境不变。
 
 ### S5.3 新阶段五实际演示
 
-- [ ] 重新准备全新空隔离库状态和全新输出目录；先执行 dry-run，再执行：
+- [x] 重新准备全新空隔离库状态和全新输出目录；先执行 dry-run，再执行：
 
 ```powershell
 .\backend\.venv\Scripts\python.exe scripts/run_numeric_history_demo_release.py `
@@ -450,20 +450,20 @@ cd backend
   --apply --allow-external-llm
 ```
 
-- [ ] 在实际页面完成 C 包两病种和历史不足场景；覆盖一次幂等重放、一次真实 queued 取消、非所有者 404、错误角色 403、历史读取和 PDF 下载字节核对。不得临时切 B 包或修改阈值。
-- [ ] 以 Ctrl+C 正常停止，确认 `release.json.status='stopped'`、无 queued/running、所有拥有进程关闭、端口空闲、父环境恢复；任何未收敛或清理错误均保留为 `failed`，不手改结果。
-- [ ] 阶段四 `2026-09-20-v2` 只作为门禁；阶段五成功必须引用本次新的 release 记录、数据库事实和归档原件。
+- [x] 在实际页面完成 C 包两病种和历史不足场景；覆盖一次幂等重放、一次真实 queued 取消、非所有者 404、错误角色 403、历史读取和 PDF 下载字节核对。不得临时切 B 包或修改阈值。
+- [x] 以 Ctrl+C 正常停止，确认 `release.json.status='stopped'`、无 queued/running、所有拥有进程关闭、端口空闲、父环境恢复；任何未收敛或清理错误均保留为 `failed`，不手改结果。
+- [x] 阶段四 `2026-09-20-v2` 只作为门禁；阶段五成功必须引用本次新的 release 记录、数据库事实和归档原件。
 
 ### S5.4 整仓阶段出口回归
 
-- [ ] 从 `backend` 运行项目规定的非 integration／e2e 回归并要求 0 failed：
+- [x] 从 `backend` 运行项目规定的非 integration／e2e 回归并要求 0 failed：
 
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe -m pytest tests ..\scripts\tests --ignore=tests/integration --ignore=tests/e2e
 ```
 
-- [ ] 阶段五未改前端时，不重复把历史前端记录写成本次通过；实际浏览器验收已覆盖页面。若实施过程中出现前端 diff，必须补跑：
+- [x] 阶段五未改前端时，不重复把历史前端记录写成本次通过；实际浏览器验收已覆盖页面。若实施过程中出现前端 diff，必须补跑：
 
 ```powershell
 cd frontend
@@ -472,15 +472,15 @@ npm run test:contracts
 npm run build
 ```
 
-- [ ] 运行 `git diff --check`，检查文档链接、固定 SHA、命令、状态和实际输出一致。
+- [x] 运行 `git diff --check`，检查文档链接、固定 SHA、命令、状态和实际输出一致。
 
 ### S5.5 文档与阶段完成记录
 
-- [ ] 在 `docs/OPERATOR_REPORT_OPERATIONS.md` 写入可复制的 dry-run／apply／停止命令、空库和 0031 前提、失败记录解释、不得用于生产／临床的边界。
-- [ ] 新建结果文档，只记录本次实际执行的 release id、冻结摘要、计数、权限／取消／历史／PDF 事实、回归结果、失败／跳过和 `clinical_status=not_assessable`；不写 URL、token 或正文。
-- [ ] 更新阶段五设计、当前计划和总领文档状态；真实资料路线继续开放，列出真实数据到位后的重新训练／评价／接入／发布步骤。
-- [ ] 完成最终自审：无未决标记，无未说明失败，无把 skipped 写成 passed，无把合成工程指标写成临床结论。
-- [ ] 停止并向用户报告阶段五是否满足出口。仍不自动提交或推送；等待用户单独指令。
+- [x] 在 `docs/OPERATOR_REPORT_OPERATIONS.md` 写入可复制的 dry-run／apply／停止命令、空库和 0031 前提、失败记录解释、不得用于生产／临床的边界。
+- [x] 新建结果文档，只记录本次实际执行的 release id、冻结摘要、计数、权限／取消／历史／PDF 事实、回归结果、失败／跳过和 `clinical_status=not_assessable`；不写 URL、token 或正文。
+- [x] 更新阶段五设计、当前计划和总领文档状态；真实资料路线继续开放，列出真实数据到位后的重新训练／评价／接入／发布步骤。
+- [x] 完成最终自审：无未决标记，无未说明失败，无把 skipped 写成 passed，无把合成工程指标写成临床结论。
+- [x] 停止并向用户报告阶段五是否满足出口。仍不自动提交或推送；等待用户单独指令。
 
 ## 3. 计划覆盖矩阵
 
