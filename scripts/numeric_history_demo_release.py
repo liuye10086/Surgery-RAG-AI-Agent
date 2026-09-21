@@ -49,6 +49,16 @@ SAFE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*$")
 MAX_DIAGNOSTIC_FRAMES = 8
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+# The demo operator identities. The email domain must be one the API's response
+# schema accepts: ``EmailStr`` rejects reserved domains such as ``.invalid``, and
+# a rejected address makes ``/auth/me`` answer 500, which drops the browser back
+# to the login page and never shows the operator workspace.
+DEMO_IDENTITIES = (
+    ("numeric-history-demo-primary", "numeric-history-demo-primary@example.com", "ai_operator"),
+    ("numeric-history-demo-secondary", "numeric-history-demo-secondary@example.com", "ai_operator"),
+    ("numeric-history-demo-doctor", "numeric-history-demo-doctor@example.com", "doctor"),
+)
+
 ALLOWED_DIRTY_DOCUMENTS = frozenset(
     {
         "docs/superpowers/plans/2026-09-16-prediction-model-refactor-phase-4-history-integration.md",
@@ -188,15 +198,26 @@ def seed_demo_database(connection, source_dir: Path, identities: dict) -> dict:
     """Seed all demo identities and frozen cases inside the caller's transaction."""
     if not connection.in_transaction():
         raise ValueError("demo_seed_transaction_required")
-    users = connection.execute(
-        text(
-            "INSERT INTO users (username,email,hashed_password,role) VALUES "
-            "('numeric-history-demo-primary','numeric-history-demo-primary@test.invalid','x','ai_operator'),"
-            "('numeric-history-demo-secondary','numeric-history-demo-secondary@test.invalid','x','ai_operator'),"
-            "('numeric-history-demo-doctor','numeric-history-demo-doctor@test.invalid','x','doctor') "
-            "RETURNING id"
+    users = (
+        connection.execute(
+            text(
+                "INSERT INTO users (username,email,hashed_password,role) VALUES "
+                "(:primary_name,:primary_email,'x','ai_operator'),"
+                "(:secondary_name,:secondary_email,'x','ai_operator'),"
+                "(:doctor_name,:doctor_email,'x','doctor') RETURNING id"
+            ),
+            {
+                "primary_name": DEMO_IDENTITIES[0][0],
+                "primary_email": DEMO_IDENTITIES[0][1],
+                "secondary_name": DEMO_IDENTITIES[1][0],
+                "secondary_email": DEMO_IDENTITIES[1][1],
+                "doctor_name": DEMO_IDENTITIES[2][0],
+                "doctor_email": DEMO_IDENTITIES[2][1],
+            },
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     if len(users) != 3 or any(type(user_id) is not int for user_id in users):
         raise ValueError("demo_seed_users_failed")
     for code, name in (("ad", "阿尔茨海默病"), ("fatty_liver", "脂肪肝")):

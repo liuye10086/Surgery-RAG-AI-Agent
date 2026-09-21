@@ -1106,3 +1106,20 @@ def test_release_metrics_do_not_span_a_requeued_attempt_as_one_phase():
     assert timings.model_loading.model_dump() == {
         "samples": 2, "total_ms": 10000, "max_ms": 5000}
     assert timings.prediction.samples == 0
+
+
+def test_demo_operator_identities_are_accepted_by_the_api_user_schema():
+    """A rejected address makes /auth/me answer 500 and the browser drops to /login."""
+    from app.schemas.user import UserOut
+
+    from scripts.numeric_history_demo_release import DEMO_IDENTITIES
+
+    assert len(DEMO_IDENTITIES) == 3
+    roles = set()
+    for index, (username, email, role) in enumerate(DEMO_IDENTITIES, start=1):
+        roles.add(role)
+        parsed = UserOut(
+            id=index, username=username, email=email, real_name=None, role=role
+        )
+        assert parsed.email == email
+    assert roles == {"ai_operator", "doctor"}
