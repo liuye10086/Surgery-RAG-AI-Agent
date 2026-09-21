@@ -5,8 +5,26 @@ import json
 import sys
 from pathlib import Path
 
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
+
+BACKEND_ROOT = ROOT / "backend"
+
+
+def code_heads() -> set[str]:
+    """The revisions the checked-out code considers current.
+
+    The gate used to pin the literal 0026, which went stale the moment
+    0027..0031 were added and left the archive schema permanently "not ready".
+    Resolve the head from the migrations instead, like the other read-only
+    migration gates in this repository.
+    """
+    config = Config(str(BACKEND_ROOT / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
+    return set(ScriptDirectory.from_config(config).get_heads())
 
 
 def evaluate_gate(checks, phase):
@@ -86,7 +104,7 @@ def collect_checks(
         return checks
     checks["schema_ready"] = (
         connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        == "0026"
+        in code_heads()
     )
     protected={'report_audit_immutable','pdf_original_immutable','pdf_delivery_immutable',
                'pdf_attempt_identity_immutable','report_pdf_attempt_cleanup','remember_report_deletion'}

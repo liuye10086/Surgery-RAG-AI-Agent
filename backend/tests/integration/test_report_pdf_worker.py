@@ -1,5 +1,7 @@
 import os
 from uuid import uuid4
+
+import pytest
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
 from app.core.config import settings
@@ -20,7 +22,9 @@ from backend.tests.integration.test_report_pdf_admission import completed_report
 def test_real_chromium_worker_publishes_original_without_report_mutation(
     db, integration_engine, completed_report, monkeypatch, tmp_path
 ):
-    manifest = os.environ["REPORT_TEST_RENDERER_MANIFEST"]
+    manifest = os.environ.get("REPORT_TEST_RENDERER_MANIFEST")
+    if not manifest:
+        pytest.skip("REPORT_TEST_RENDERER_MANIFEST is required for real Chromium acceptance")
     monkeypatch.setattr(
         "app.services.report_pdf_archive_service.load_renderer_manifest",
         load_renderer_manifest,
