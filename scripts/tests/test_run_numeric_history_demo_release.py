@@ -334,6 +334,13 @@ def test_start_services_uses_fixed_commands_and_readiness_order(tmp_path):
         ("start", "report_worker"),
         ("start", "pdf_worker"),
     ]
+    # Vite serves its working directory, so it must not be started at the root.
+    assert {event[1]: event[3] for event in events if event[0] == "start"} == {
+        "api": ROOT,
+        "frontend": ROOT / "frontend",
+        "report_worker": ROOT / "backend",
+        "pdf_worker": ROOT / "backend",
+    }
     starts = {event[1]: event[2] for event in events if event[0] == "start"}
     assert starts == {
         "api": [

@@ -467,7 +467,9 @@ def start_services(args, owned: SafeOwnedProcesses, env: dict) -> None:
             "15173",
             "--strictPort",
         ],
-        ROOT,
+        # Vite serves its working directory; from the repository root there is
+        # no index.html and every request answers 404, so readiness never fires.
+        ROOT / "frontend",
     )
     owned.ready("frontend", "http://127.0.0.1:15173")
     owned.start(
