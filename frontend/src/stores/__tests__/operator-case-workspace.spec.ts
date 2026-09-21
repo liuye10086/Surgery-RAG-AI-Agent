@@ -32,12 +32,25 @@ describe('operator case workspace store', () => {
     expect(api.getLongitudinalCaseReportReadiness).not.toHaveBeenCalled()
     expect(store.readiness?.ready).not.toBe(true)
   })
-  it('requests numeric readiness for an ordinary saved case', async () => {
+  it('keeps an ordinary saved case on the original report route', async () => {
+    // Asking the numeric route here reported that route's own "not accepting"
+    // blocker, so an ordinary case could never enable 生成报告.
     const { useOperatorStore } = await import('../operator')
     const store = useOperatorStore()
     store.selectLongitudinalCase({ id: 3 } as any)
     await store.refreshLongitudinalCaseReadiness(3)
-    expect(api.getLongitudinalCaseReportReadiness).toHaveBeenCalledWith(3, 'numeric_prediction')
+    expect(api.getLongitudinalCaseReportReadiness).toHaveBeenCalledWith(3, 'longitudinal_predictive')
+  })
+  it('reports an ordinary saved case ready without depending on the numeric switch', async () => {
+    const { useOperatorStore } = await import('../operator')
+    const store = useOperatorStore()
+    api.getLongitudinalCaseReportReadiness.mockResolvedValueOnce({
+      ready: true, case_ready: true, timeline_ready: true, model_ready: true,
+      visit_count: 3, minimum_visits: 3, blockers: [],
+    })
+    store.selectLongitudinalCase({ id: 3 } as any)
+    await store.refreshLongitudinalCaseReadiness(3)
+    expect(store.readiness?.ready).toBe(true)
   })
   it('commits list and paging together, ignores stale pages and preserves both on failure', async () => {
     const { useOperatorStore } = await import('../operator')
@@ -145,7 +158,7 @@ describe('operator case workspace store', () => {
     resolveSave({ id: 3 })
     await promise
     expect(store.saving).toBe(false)
-    expect(api.getLongitudinalCaseReportReadiness).toHaveBeenCalledWith(3, 'numeric_prediction')
+    expect(api.getLongitudinalCaseReportReadiness).toHaveBeenCalledWith(3, 'longitudinal_predictive')
   })
 
   it('preserves draft when the aggregate save rejects', async () => {

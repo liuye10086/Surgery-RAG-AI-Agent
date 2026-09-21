@@ -139,7 +139,12 @@ export const useOperatorStore = defineStore('operator', () => {
     }
     readinessLoading.value = true
     try {
-      const nextReadiness = await getLongitudinalCaseReportReadiness(caseId, 'numeric_prediction')
+      // Only a case carrying a verified numeric binding is asked about the numeric
+      // route. An ordinary case keeps the original clinical report route: asking
+      // the numeric route instead reports its own "not accepting" blocker, which
+      // left every ordinary case permanently unable to generate a report.
+      const kind = prediction ? 'numeric_prediction' : 'longitudinal_predictive'
+      const nextReadiness = await getLongitudinalCaseReportReadiness(caseId, kind)
       if (isCurrentCaseSession(revision, caseId)) readiness.value = nextReadiness
       return nextReadiness
     } finally {

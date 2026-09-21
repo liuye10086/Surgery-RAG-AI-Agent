@@ -292,7 +292,9 @@ function generateCurrentReport() {
   if (current.engineering && !prediction) return
   if (prediction && (!prediction.verified || !prediction.enabled || prediction.report_kind !== 'numeric_prediction')) return
   reportReturnView.value='cases'; activeView.value = 'report'
-  void generation.submit(current.id, 'numeric_prediction')
+  // An ordinary case submits on the original clinical report route; sending the
+  // numeric kind made the backend refuse it with numeric_reports_unavailable.
+  void generation.submit(current.id, prediction ? 'numeric_prediction' : 'longitudinal_predictive')
 }
 
 async function handleDownload() {
