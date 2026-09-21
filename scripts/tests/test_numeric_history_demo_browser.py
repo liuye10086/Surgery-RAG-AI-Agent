@@ -100,10 +100,17 @@ class Page:
         self.url = url
         self.fail_goto = fail_goto
         self.body = body
+        self.handlers = {}
         self.request = Request(events, default_plan() if plan is None else list(plan))
 
     def on(self, name, callback):
         self.events.append(("on", name))
+        self.handlers.setdefault(name, []).append(callback)
+
+    def close(self):
+        self.events.append(("page_close",))
+        for handler in self.handlers.get("close", []):
+            handler()
 
     def goto(self, url):
         self.events.append(("goto", url))
@@ -131,6 +138,11 @@ class Context:
     def __init__(self, events, page):
         self.events = events
         self.page = page
+        self.handlers = {}
+
+    def on(self, name, callback):
+        self.events.append(("context_on", name))
+        self.handlers.setdefault(name, []).append(callback)
 
     def new_page(self):
         self.events.append(("new_page",))
@@ -138,6 +150,8 @@ class Context:
 
     def close(self):
         self.events.append(("context_close",))
+        for handler in self.handlers.get("close", []):
+            handler()
 
 
 class Browser:
@@ -145,6 +159,11 @@ class Browser:
         self.events = events
         self.context = context
         self.connected = connected
+        self.handlers = {}
+
+    def on(self, name, callback):
+        self.events.append(("browser_on", name))
+        self.handlers.setdefault(name, []).append(callback)
 
     def new_context(self, **kwargs):
         self.events.append(("context", kwargs))
@@ -155,6 +174,8 @@ class Browser:
 
     def close(self):
         self.events.append(("browser_close",))
+        for handler in self.handlers.get("close", []):
+            handler()
 
 
 class Playwright:
@@ -602,3 +623,72 @@ def test_session_checks_failure_diagnostic_never_keeps_a_token(tmp_path):
     for token in _tokens().values():
         assert token not in raw
     assert "leaked" not in raw
+
+
+def test_closing_the_browser_window_ends_the_session_without_restarting_it(tmp_path):
+    """Playwright's is_connected() tracks the driver link, not the open window."""
+    from scripts.numeric_history_demo_browser import run_authenticated_demo
+
+    events = []
+    ready = threading.Event()
+    stop = threading.Event()
+    page = Page(events)
+    captured = {}
+
+    def run():
+        captured.update(
+            run_authenticated_demo(
+                output=tmp_path,
+                tokens=_tokens(),
+                subjects=_subjects(),
+                owned=Owned(),
+                stop_event=stop,
+                session_ready=ready,
+                playwright_factory=_factory(events, page=page),
+                poll_seconds=0.01,
+            )
+        )
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    assert ready.wait(5), "session never became ready"
+    assert not stop.is_set()
+    page.close()
+    worker.join(5)
+    assert not worker.is_alive(), "closing the window must end the session"
+    assert stop.is_set()
+    assert captured["cleanup_error_types"] == []
+    assert len([event for event in events if event[0] == "launch"]) == 1
+
+
+def test_closing_the_page_context_also_ends_the_session(tmp_path):
+    from scripts.numeric_history_demo_browser import run_authenticated_demo
+
+    events = []
+    ready = threading.Event()
+    stop = threading.Event()
+    page = Page(events)
+    context = Context(events, page)
+
+    def factory():
+        return Playwright(events, Browser(events, context))
+
+    def run():
+        run_authenticated_demo(
+            output=tmp_path,
+            tokens=_tokens(),
+            subjects=_subjects(),
+            owned=Owned(),
+            stop_event=stop,
+            session_ready=ready,
+            playwright_factory=factory,
+            poll_seconds=0.01,
+        )
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    assert ready.wait(5)
+    context.close()
+    worker.join(5)
+    assert not worker.is_alive()
+    assert stop.is_set()

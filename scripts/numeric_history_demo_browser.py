@@ -259,6 +259,12 @@ def run_authenticated_demo(
             context = browser.new_context(base_url=ORIGIN)
             page = context.new_page()
             page.on("pageerror", lambda error: page_errors.append(type(error).__name__))
+            # Playwright's is_connected() only tracks the driver link, which stays
+            # up when the operator closes the window, so the session would never
+            # end. These close events are the signal that the operator is finished.
+            page.on("close", lambda *_: stop_event.set())
+            context.on("close", lambda *_: stop_event.set())
+            browser.on("disconnected", lambda *_: stop_event.set())
             page.goto(ORIGIN)
             if not is_demo_origin(page.url):
                 raise RuntimeError("demo_browser_origin_changed")
