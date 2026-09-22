@@ -6,6 +6,22 @@ import {getReport} from '@/api/operator'
 vi.mock('@/api/report-generation',()=>({getGenerationStatus:vi.fn(),cancelReportJob:vi.fn(),submitReportJob:vi.fn(),subscribeReportJob:vi.fn(()=>vi.fn())}))
 vi.mock('@/api/operator',()=>({getReport:vi.fn()}))
 describe('report generation state',()=>{
+  it('retries an ordinary case with its original longitudinal report kind after a confirmed rejection',async()=>{
+    vi.mocked(submitReportJob).mockRejectedValue({status:409,code:'case_changed',message:'病例已变化'})
+    const store=useReportGenerationStore()
+    await store.submit(8,'longitudinal_predictive')
+    await store.submit(8)
+    expect(submitReportJob).toHaveBeenNthCalledWith(1,8,expect.any(String),'longitudinal_predictive')
+    expect(submitReportJob).toHaveBeenNthCalledWith(2,8,expect.any(String),'longitudinal_predictive')
+  })
+  it('retries a numeric case with its original report kind after a confirmed rejection',async()=>{
+    vi.mocked(submitReportJob).mockRejectedValue({status:409,code:'case_changed',message:'病例已变化'})
+    const store=useReportGenerationStore()
+    await store.submit(8,'numeric_prediction')
+    await store.submit(8)
+    expect(submitReportJob).toHaveBeenNthCalledWith(1,8,expect.any(String),'numeric_prediction')
+    expect(submitReportJob).toHaveBeenNthCalledWith(2,8,expect.any(String),'numeric_prediction')
+  })
   it('persists synthetic request kind across reload and retry without silently changing it',async()=>{
     vi.mocked(submitReportJob).mockRejectedValue(new Error('response lost'))
     const store=useReportGenerationStore()

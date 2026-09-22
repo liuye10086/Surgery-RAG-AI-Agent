@@ -1,6 +1,6 @@
 """Frozen phase-four acceptance; default preflight never connects or spawns.
 
-The caller prepares surgery_rag_phase4_test, migration 0031 and real reference
+The caller prepares surgery_rag_test, migration 0031 and real reference
 indexes. --apply --allow-external-llm runs five real report/LLM/PDF jobs.
 Existing output and application data are never erased or reused.
 """
@@ -39,7 +39,7 @@ def validate_database_url():
             raise ValueError()
         url = make_url(configured)
         require_isolated_test_database(url)
-        if url.database != 'surgery_rag_phase4_test':
+        if url.database != 'surgery_rag_test':
             raise ValueError()
         # The reused test-only HTTP host supports IPv4/localhost only.
         if url.host not in {'127.0.0.1', 'localhost'}:
@@ -205,7 +205,7 @@ def execute(args, identities):
                     for table in ('users', 'operator_cases', 'ai_reports')):
                 raise ValueError('clean_test_database_required')
             if db.execute(text('SELECT version_num FROM alembic_version')).scalar_one() != '0031':
-                raise ValueError('phase4_migration_required')
+                raise ValueError('test_database_migration_required')
         with engine.begin() as db:
             users = []
             for index, email in enumerate(SEED_EMAILS):

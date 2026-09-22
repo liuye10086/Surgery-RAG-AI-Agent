@@ -71,7 +71,7 @@ RELEASE_ERROR_CODES = frozenset(
         "git_identity_required",
         "uncommitted_release_code",
         "preflight_identity_changed",
-        "phase4_migration_required",
+        "test_database_migration_required",
         "clean_test_database_required",
         "demo_seed_transaction_required",
         "demo_seed_users_failed",

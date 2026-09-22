@@ -53,7 +53,7 @@ def argv(tmp_path, *extra):
 def isolated(monkeypatch):
     monkeypatch.setenv(
         "TEST_DATABASE_URL",
-        "postgresql://test:secret@127.0.0.1/surgery_rag_phase4_test",
+        "postgresql://test:secret@127.0.0.1/surgery_rag_test",
     )
     for key in ("PGHOSTADDR", "PGSERVICE", "PGSERVICEFILE", "PGOPTIONS"):
         monkeypatch.delenv(key, raising=False)
@@ -137,11 +137,11 @@ def test_argument_errors_are_closed_and_redacted(tmp_path, capsys, isolated, ext
     "url",
     [
         "",
-        "postgresql://localhost/surgery_rag_test",
+        "postgresql://localhost/legacy_test_database",
         "postgresql://localhost/business",
-        "postgresql://remote/surgery_rag_phase4_test",
-        "postgresql://localhost/surgery_rag_phase4_test?host=remote",
-        "postgresql://localhost/surgery_rag_phase4_test#secret",
+        "postgresql://remote/surgery_rag_test",
+        "postgresql://localhost/surgery_rag_test?host=remote",
+        "postgresql://localhost/surgery_rag_test#secret",
     ],
 )
 def test_rejects_unsafe_database_without_writing(
@@ -1504,7 +1504,7 @@ def test_execute_never_serializes_injected_secrets_anywhere_in_the_record(
     )
     identities = _release_identities(module)
     secrets = [
-        "postgresql://demo:pa55word@127.0.0.1/surgery_rag_phase4_test",
+        "postgresql://demo:pa55word@127.0.0.1/surgery_rag_test",
         "temporary-bearer-token",
         "SELECT * FROM users",
         "Authorization: Bearer temporary-bearer-token",

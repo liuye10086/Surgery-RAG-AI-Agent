@@ -447,7 +447,7 @@ export function deleteLongitudinalCase(id: number): Promise<void> {
   return request.delete(`/v1/operator/longitudinal-cases/${id}`)
 }
 
-export function getLongitudinalCaseReportReadiness(caseId: number, kind: import('./report-generation').ReportKind = 'numeric_prediction'): Promise<OperatorCaseReportReadiness> {
+export function getLongitudinalCaseReportReadiness(caseId: number, kind: import('./report-generation').ReportKind = 'longitudinal_predictive'): Promise<OperatorCaseReportReadiness> {
   return kind !== 'longitudinal_predictive'
     ? request.get(`/v1/operator/longitudinal-cases/${caseId}/report-readiness`, {params: {report_kind: kind}})
     : request.get(`/v1/operator/longitudinal-cases/${caseId}/report-readiness`)

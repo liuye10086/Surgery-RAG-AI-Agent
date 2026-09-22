@@ -17,7 +17,7 @@ export function acceptsRevision(current:GenerationStatus|null,next:GenerationSta
 export const useReportGenerationStore=defineStore('report-generation',()=>{
   const auth=useAuthStore()
   const reportId=ref<number|null>(null),state=ref<GenerationStatus|null>(null),report=ref<ReportDetail|null>(null)
-  const viewState=ref<GenerationViewState>('idle'),message=ref(''),pendingCaseId=ref<number|null>(null)
+  const viewState=ref<GenerationViewState>('idle'),message=ref(''),pendingCaseId=ref<number|null>(null),pendingReportKind=ref<ReportKind|null>(null)
   const active=computed(()=>['submitting','queued','running','reconnecting','loading_completed'].includes(viewState.value))
   const canCancel=computed(()=>state.value?.status==='queued' || state.value?.status==='running')
   let retryNotBefore=0
@@ -103,12 +103,14 @@ export const useReportGenerationStore=defineStore('report-generation',()=>{
     detach();reportId.value=id;viewState.value='reconnecting';attempt=0
     await poll(epoch)
   }
-  async function submit(caseId:number,kind:ReportKind='numeric_prediction') {
+  async function submit(caseId:number,kind?:ReportKind) {
     if (active.value) return
     const userId=auth.user?.id
     const prior=saved()
-    const pending=prior?.case_id===caseId && !prior.report_id?prior:{case_id:caseId,key:crypto.randomUUID(),report_kind:kind}
-    persist(pending);pendingCaseId.value=caseId
+    const rememberedKind=pendingCaseId.value===caseId?pendingReportKind.value:null
+    const requestKind=kind??rememberedKind??'longitudinal_predictive'
+    const pending=prior?.case_id===caseId && !prior.report_id?{...prior,report_kind:prior.report_kind??requestKind}:{case_id:caseId,key:crypto.randomUUID(),report_kind:requestKind}
+    persist(pending);pendingCaseId.value=caseId;pendingReportKind.value=pending.report_kind??requestKind
     detach();const currentEpoch=epoch;viewState.value='submitting';message.value='正在受理报告'
     try {
       const accepted=await submitReportJob(caseId,pending.key,pending.report_kind)
@@ -144,8 +146,9 @@ export const useReportGenerationStore=defineStore('report-generation',()=>{
     const pending=saved()
     if (!pending) return
     pendingCaseId.value=pending.case_id
+    pendingReportKind.value=pending.report_kind??'longitudinal_predictive'
     if (pending.report_id) void observe(pending.report_id)
     else {viewState.value='load_failed';message.value='上次受理结果未确认，请重试查询受理结果'}
   }
-  return {reportId,state,report,viewState,message,active,canCancel,pendingCaseId,submit,observe,detach,cancel,retryDetail,recoverPending,restorePending,refreshConnection}
+  return {reportId,state,report,viewState,message,active,canCancel,pendingCaseId,pendingReportKind,submit,observe,detach,cancel,retryDetail,recoverPending,restorePending,refreshConnection}
 })

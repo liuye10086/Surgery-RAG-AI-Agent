@@ -98,26 +98,26 @@ class TestHistoryNumericPdf:
     """S6-only real archive acceptance; guard precedes shared database fixtures.
 
     The original module's tests retain their own database scope. New tests request
-    environment/client dynamically only after the dedicated phase4 guard passes.
+    environment/client dynamically only after the dedicated test database guard passes.
     """
 
     @pytest.fixture(autouse=True)
-    def phase4_guard(self):
+    def isolated_test_database_guard(self):
         from urllib.parse import urlparse
         from backend.tests.integration.conftest import TEST_DATABASE_URL
         if not TEST_DATABASE_URL:
-            pytest.skip('phase4 dedicated test database is not configured')
+            pytest.skip('dedicated test database is not configured')
         try:
             target = urlparse(TEST_DATABASE_URL)
             safe = (target.scheme in ('postgresql', 'postgresql+psycopg', 'postgresql+psycopg2')
                 and target.hostname in ('localhost', '127.0.0.1', '::1')
-                and target.path == '/surgery_rag_phase4_test'
+                and target.path == '/surgery_rag_test'
                 and not target.query and not target.fragment
                 and not any(os.environ.get(key) for key in ('PGHOSTADDR', 'PGSERVICE', 'PGSERVICEFILE', 'PGOPTIONS')))
         except ValueError:
             safe = False
         if not safe:
-            raise RuntimeError('phase4_test_database_target_rejected')
+            raise RuntimeError('test_database_target_rejected')
 
     @pytest.mark.parametrize('case_index,disease', [(0, 'ad'), (1, 'fatty_liver')])
     def test_v3_archive_original_and_owned_delivery(self, request, monkeypatch, tmp_path, case_index, disease):

@@ -7,6 +7,7 @@
         · 结束前阶段：{{ auditPhaseLabel(audit.failure_phase) }}</span
       >
     </p>
+    <p v-if="audit?.error_code">错误代码：<code>{{ audit.error_code }}</code></p>
     <p>{{ audit?.note || '此报告未保存生成审计记录。' }}</p>
     <details v-for="(event, index) in audit?.events || []" :key="index">
       <summary>

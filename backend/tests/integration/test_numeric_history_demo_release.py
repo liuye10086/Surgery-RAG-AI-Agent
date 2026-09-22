@@ -54,7 +54,7 @@ def test_actual_database_identity_migration_and_empty_business_tables():
         with engine.connect() as connection:
             result = inspect_demo_database(connection)
         assert result == {
-            "database": "surgery_rag_phase4_test",
+            "database": "surgery_rag_test",
             "alembic_version": "0031",
             "counts": {"users": 0, "operator_cases": 0, "ai_reports": 0},
         }
@@ -88,7 +88,7 @@ def test_seed_is_visible_together_then_fully_rolled_back():
             assert _business_counts(connection) == before
             assert connection.execute(
                 text("SELECT current_database()")
-            ).scalar_one() == "surgery_rag_phase4_test"
+            ).scalar_one() == "surgery_rag_test"
     finally:
         engine.dispose()
 

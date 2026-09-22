@@ -345,7 +345,12 @@ async function handleDelete(id: number) {
 
 function retryReport() {
   if (generation.reportId) void generation.retryDetail()
-  else if (generation.pendingCaseId) void generation.submit(generation.pendingCaseId)
+  else if (generation.pendingCaseId) {
+    void generation.submit(
+      generation.pendingCaseId,
+      generation.pendingReportKind || 'longitudinal_predictive',
+    )
+  }
 }
 watch(()=>generation.reportId,id=>{
   if (id) {activeView.value='report';history.updatesAvailable=true}

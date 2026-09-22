@@ -77,7 +77,7 @@ backend/.venv/Scripts/python.exe scripts/run_numeric_report_acceptance.py --sour
 .\backend\.venv\Scripts\python.exe scripts/run_numeric_history_acceptance.py --source-dir <source-dir> --legacy-bundle <v1-bundle.json> --history-bundle <v2-bundle.json> --renderer $env:REPORT_TEST_RENDERER_MANIFEST --output <fresh-output-dir> --apply --allow-external-llm
 ```
 
-专用库必须精确为 `surgery_rag_phase4_test`，拒绝 URL 查询参数／fragment 与 `PGHOSTADDR`／`PGSERVICE`／`PGSERVICEFILE`／`PGOPTIONS` 重定向；`users`／`operator_cases`／`ai_reports` 必须为空，允许已有受控参考索引。失败时结果目录写入截图、页面 body、page error 类型与**已脱敏 URL**（不含连接串与密钥），并保留 `browser-failure.json`；新失败一律使用新输出目录，不覆盖、不原地修复既有报告。更新 `pdf_generator.py` 或 `report_pdf.html` 后必须重建 renderer manifest；既有归档继续交付原字节。
+专用库必须精确为 `surgery_rag_test`，拒绝 URL 查询参数／fragment 与 `PGHOSTADDR`／`PGSERVICE`／`PGSERVICEFILE`／`PGOPTIONS` 重定向；`users`／`operator_cases`／`ai_reports` 必须为空，允许已有受控参考索引。失败时结果目录写入截图、页面 body、page error 类型与**已脱敏 URL**（不含连接串与密钥），并保留 `browser-failure.json`；新失败一律使用新输出目录，不覆盖、不原地修复既有报告。更新 `pdf_generator.py` 或 `report_pdf.html` 后必须重建 renderer manifest；既有归档继续交付原字节。
 
 2026-09-18 实际验收：5 份报告（含 B 排队后切 C 完成 v5、C 两病种、C AD 部分结果、真实排队取消）退出 0，5 次真实说明生成，5 份归档原件与下载字节一致，非所有者 404／doctor 403／幂等重放均通过。详见[阶段四实施与总验收记录](superpowers/notes/2026-09-16-numeric-history-integration-result.md)。该结果只证明合成工程链路，不构成临床有效性。
 
@@ -174,7 +174,7 @@ Nginx 为 `/api/v1/operator/reports/<id>/events` 单独关闭代理 buffering，
 
 `scripts/run_numeric_history_demo_release.py` 是把阶段四已验收的 C 包放进一次**本机、合成、可停止**演示会话的入口。它不是部署入口，也不授权临床或生产使用。
 
-**前置条件。** 需要一个本机可丢弃且为空的 `surgery_rag_phase4_test`，Alembic 必须为 `0031`，且 `users`／`operator_cases`／`ai_reports` 三张业务表为空；全新空库需先由管理员安装 `vector`／`uuid-ossp`／`pg_trgm` 扩展，再执行 `alembic upgrade head`。本脚本**不创建、不迁移、不清空**数据库，非空或版本不符时直接失败关闭。`TEST_DATABASE_URL` 必须显式给出，只接受 loopback 与该库名，拒绝 URL 查询参数／fragment 与非空的 `PGHOSTADDR`／`PGSERVICE`／`PGSERVICEFILE`／`PGOPTIONS`，不回退 `DATABASE_URL`。
+**前置条件。** 需要一个本机可丢弃且为空的 `surgery_rag_test`，Alembic 必须为 `0031`，且 `users`／`operator_cases`／`ai_reports` 三张业务表为空；全新空库需先由管理员安装 `vector`／`uuid-ossp`／`pg_trgm` 扩展，再执行 `alembic upgrade head`。本脚本**不创建、不迁移、不清空**数据库，非空或版本不符时直接失败关闭。`TEST_DATABASE_URL` 必须显式给出，只接受 loopback 与该库名，拒绝 URL 查询参数／fragment 与非空的 `PGHOSTADDR`／`PGSERVICE`／`PGSERVICEFILE`／`PGOPTIONS`，不回退 `DATABASE_URL`。
 
 **默认只读预检（dry-run）。** 不连库、不建目录、不启动进程／浏览器、不调用外部 LLM：
 

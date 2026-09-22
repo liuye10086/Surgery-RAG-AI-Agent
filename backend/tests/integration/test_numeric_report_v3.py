@@ -11,18 +11,18 @@ import pytest
 
 _url = os.environ.get('TEST_DATABASE_URL')
 if not _url:
-    pytest.skip('phase4 dedicated test database is not configured', allow_module_level=True)
+    pytest.skip('dedicated test database is not configured', allow_module_level=True)
 try:
     _target = urlparse(_url)
     _safe = (_target.scheme in ('postgresql', 'postgresql+psycopg', 'postgresql+psycopg2')
              and _target.hostname in ('localhost', '127.0.0.1', '::1')
-             and _target.path == '/surgery_rag_phase4_test'
+             and _target.path == '/surgery_rag_test'
              and not _target.query and not _target.fragment
              and not any(os.environ.get(key) for key in ('PGHOSTADDR', 'PGSERVICE', 'PGSERVICEFILE', 'PGOPTIONS')))
 except ValueError:
     _safe = False
 if not _safe:
-    raise RuntimeError('phase4_test_database_target_rejected')
+    raise RuntimeError('test_database_target_rejected')
 
 from sqlalchemy import text
 from app.db.models import AIReport, ReportGenerationJob

@@ -14,7 +14,11 @@
 
       <p v-if="invalid" role="alert">报告完整性校验失败，已停止展示内容与导出。</p>
       <template v-else-if="report && report.status !== 'completed'">
-        <p role="status">{{ report.status === 'generating' ? '报告正在生成' : report.status === 'cancelled' ? '报告生成已取消' : '报告生成失败' }}；以下为已保存的资料和已确认审计记录。</p>
+        <p role="status">
+          {{ report.status === 'generating' ? '报告正在生成' : report.status === 'cancelled' ? '报告生成已取消' : '报告生成失败' }}。
+          <span v-if="report.error_message">原因：{{ report.error_message }}。</span>
+          以下为已保存的资料和已确认审计记录。
+        </p>
         <NumericReportView v-if="numericReport" :input="numericInput" :context="numericContext" :anonymous-case-code="report.anonymous_case_code" />
         <LegacyReportSnapshot v-else :snapshot="report.input_snapshot" />
         <ReportGenerationAudit :audit="report.generation_audit" :numeric="numericReport" />

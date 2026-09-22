@@ -49,17 +49,17 @@ def argv(tmp_path, *extra):
 
 @pytest.fixture
 def isolated(monkeypatch):
-    monkeypatch.setenv('TEST_DATABASE_URL', 'postgresql://test:secret@127.0.0.1/surgery_rag_phase4_test')
+    monkeypatch.setenv('TEST_DATABASE_URL', 'postgresql://test:secret@127.0.0.1/surgery_rag_test')
     for key in ('PGHOSTADDR', 'PGSERVICE', 'PGSERVICEFILE', 'PGOPTIONS'):
         monkeypatch.delenv(key, raising=False)
 
 
-@pytest.mark.parametrize('url', ['', 'postgresql://localhost/surgery_rag_test',
-    'postgresql://localhost/business', 'postgresql://remote/surgery_rag_phase4_test',
-    'postgresql://localhost/surgery_rag_phase4_test?host=remote',
-    'postgresql://localhost/surgery_rag_phase4_test#secret',
-    'postgresql://localhost/surgery_rag_phase4_test?',
-    'postgresql://localhost/surgery_rag_phase4_test#'])
+@pytest.mark.parametrize('url', ['', 'postgresql://localhost/legacy_test_database',
+    'postgresql://localhost/business', 'postgresql://remote/surgery_rag_test',
+    'postgresql://localhost/surgery_rag_test?host=remote',
+    'postgresql://localhost/surgery_rag_test#secret',
+    'postgresql://localhost/surgery_rag_test?',
+    'postgresql://localhost/surgery_rag_test#'])
 def test_rejects_unsafe_database_without_writing(tmp_path, monkeypatch, capsys, isolated, url):
     module = runner()
     monkeypatch.setenv('TEST_DATABASE_URL', url)

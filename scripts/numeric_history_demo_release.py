@@ -34,7 +34,7 @@ HISTORY_SHA = "a6816ed1a30d9a65ae089f67746e98473f0514732883d98a2843d3bc90db2464"
 RENDERER_SHA = "38f18749e2ceed29eb12273c66f2a056e701f01db01b3ada7a5582e433357558"
 ACCEPTANCE_SHA = "3dd8473c6df25aeb84c7e5c2782caef6e420e60227578062108a9edf30332c37"
 MAX_ACCEPTANCE_BYTES = 1024 * 1024
-DEMO_DATABASE = "surgery_rag_phase4_test"
+DEMO_DATABASE = "surgery_rag_test"
 DEMO_ALEMBIC_VERSION = "0031"
 EXECUTION_PHASES = (
     "model_loading",
@@ -184,7 +184,7 @@ def inspect_demo_database(connection) -> dict:
         text("SELECT version_num FROM alembic_version")
     ).scalar_one()
     if version != DEMO_ALEMBIC_VERSION:
-        raise ValueError("phase4_migration_required")
+        raise ValueError("test_database_migration_required")
     counts = {
         table: connection.execute(text(f"SELECT count(*) FROM {table}")).scalar_one()
         for table in ("users", "operator_cases", "ai_reports")

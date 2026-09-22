@@ -305,7 +305,7 @@ def test_database_inspection_is_read_only_and_uses_database_facts():
     replies = iter(
         [
             _ScalarResult(None),
-            _ScalarResult("surgery_rag_phase4_test"),
+            _ScalarResult("surgery_rag_test"),
             _ScalarResult("0031"),
             _ScalarResult(0),
             _ScalarResult(0),
@@ -321,7 +321,7 @@ def test_database_inspection_is_read_only_and_uses_database_facts():
 
     result = inspect_demo_database(Connection())
     assert result == {
-        "database": "surgery_rag_phase4_test",
+        "database": "surgery_rag_test",
         "alembic_version": "0031",
         "counts": {"users": 0, "operator_cases": 0, "ai_reports": 0},
     }
@@ -344,11 +344,11 @@ def test_database_inspection_is_read_only_and_uses_database_facts():
             "isolated_test_database_required",
         ),
         (
-            [None, "surgery_rag_phase4_test", "0030", 0, 0, 0],
-            "phase4_migration_required",
+            [None, "surgery_rag_test", "0030", 0, 0, 0],
+            "test_database_migration_required",
         ),
         (
-            [None, "surgery_rag_phase4_test", "0031", 0, 1, 0],
+            [None, "surgery_rag_test", "0031", 0, 1, 0],
             "clean_test_database_required",
         ),
     ],

@@ -79,6 +79,28 @@ describe('OperatorView', () => {
     expect(submit).toHaveBeenCalledWith(3, 'longitudinal_predictive')
     wrapper.unmount()
   })
+  it.each([
+    ['ordinary', undefined, 'longitudinal_predictive'],
+    ['numeric', { verified: true, enabled: true, input_readonly: true, report_kind: 'numeric_prediction' }, 'numeric_prediction'],
+  ] as const)('retries a %s case with its original report kind', async (_label, prediction, kind) => {
+    const wrapper = await mountCases()
+    const { useOperatorStore } = await import('@/stores/operator')
+    const { useReportGenerationStore } = await import('@/stores/report-generation')
+    const store = useOperatorStore()
+    const generation = useReportGenerationStore()
+    const submit = vi.spyOn(generation, 'submit').mockResolvedValue(undefined)
+    store.selectLongitudinalCase({ ...existingCase(), prediction })
+    store.readiness = { ready: true, blockers: [] } as any
+    await nextTick()
+    await wrapper.get('.action-bar__report').trigger('click')
+    generation.pendingCaseId = 3
+    generation.pendingReportKind = kind
+    generation.viewState = 'load_failed'
+    await nextTick()
+    await wrapper.findAll('button').find(button => button.text() === '重试读取或受理')!.trigger('click')
+    expect(submit).toHaveBeenNthCalledWith(2, 3, kind)
+    wrapper.unmount()
+  })
   async function mountCases() {
     api.listLongitudinalCases.mockResolvedValue({ cases: [existingCase()] })
     const OperatorView = (await import('../OperatorView.vue')).default

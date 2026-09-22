@@ -3,6 +3,33 @@ import { describe, expect, it } from 'vitest'
 import LongitudinalReportView from '@/components/LongitudinalReportView.vue'
 
 describe('LongitudinalReportView evidence placement', () => {
+  it('shows the saved safe failure reason and audit code for a failed report', () => {
+    const wrapper = mount(LongitudinalReportView, {
+      props: {
+        renderedContent: '',
+        report: {
+          id: 7,
+          status: 'failed',
+          analysis_type: 'longitudinal_predictive',
+          error_message: '报告执行超时，请重新生成',
+          input_snapshot: null,
+          generation_audit: {
+            schema_version: 'generation_audit.v1',
+            last_execution_phase: 'prediction',
+            failure_phase: 'prediction',
+            error_code: 'run_timeout',
+            event_count: 0,
+            events: [],
+            note: '仅展示已确认记录。',
+          },
+        } as any,
+      },
+      global: { stubs: { ElButton: true } },
+    })
+
+    expect(wrapper.text()).toContain('报告执行超时，请重新生成')
+    expect(wrapper.text()).toContain('run_timeout')
+  })
   it('shows live structured evidence once and removes the markdown evidence section', () => {
     const evidence = {
       schema_version: 'longitudinal_evidence_bundle.v1',
