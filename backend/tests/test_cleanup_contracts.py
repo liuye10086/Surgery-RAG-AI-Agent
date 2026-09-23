@@ -160,6 +160,7 @@ class CleanupContractTests(unittest.TestCase):
                 "2026-09-14-unified-prediction-report-direction.md",
                 "2026-09-16-prediction-model-refactor-phase-4-history-integration-design.md",
                 "2026-09-20-prediction-model-refactor-phase-5-local-demo-release-design.md",
+                "2026-09-22-dual-report-route-merge-evaluation.md",
             },
         )
 
