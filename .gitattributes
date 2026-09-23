@@ -2,3 +2,41 @@
 backend/app/ml_models/** -text whitespace=cr-at-eol
 standard_manifests/** -text whitespace=cr-at-eol
 deploy/systemd/* text eol=lf
+
+# Frozen model/renderer source identities include original line endings.
+# Mixed-ending files must retain exact bytes; do not normalize them.
+backend/app/schemas/longitudinal_evidence.py text eol=lf
+backend/app/schemas/numeric_history_bundle.py text eol=lf
+backend/app/schemas/numeric_history_prediction.py text eol=lf
+backend/app/schemas/numeric_model_bundle.py text eol=lf
+backend/app/schemas/numeric_prediction.py text eol=lf
+backend/app/schemas/numeric_report.py -text whitespace=cr-at-eol
+backend/app/schemas/numeric_report_evidence.py text eol=lf
+backend/app/schemas/numeric_report_v2.py text eol=lf
+backend/app/schemas/numeric_report_v3.py text eol=crlf
+backend/app/schemas/report_document.py text eol=crlf
+backend/app/schemas/synthetic_numeric_prediction.py text eol=lf
+backend/app/schemas/synthetic_prediction_cases.py text eol=lf
+backend/app/schemas/synthetic_report_context.py text eol=lf
+backend/app/services/numeric_history_bundle.py text eol=lf
+backend/app/services/numeric_history_features.py text eol=lf
+backend/app/services/numeric_model_bundle.py text eol=lf
+backend/app/services/numeric_prediction.py text eol=crlf
+backend/app/services/numeric_report_publication.py text eol=crlf
+backend/app/services/numeric_report_v2.py text eol=lf
+backend/app/services/numeric_report_v3.py text eol=crlf
+backend/app/services/pdf_generator.py -text whitespace=cr-at-eol
+backend/app/services/prediction_calculation.py text eol=lf
+backend/app/services/prediction_calculation_metrics.py text eol=lf
+backend/app/services/prediction_candidate_evaluation.py text eol=lf
+backend/app/services/prediction_candidate_training.py text eol=lf
+backend/app/services/prediction_history_features.py text eol=lf
+backend/app/services/report_document_builder.py text eol=crlf
+backend/app/services/report_document_renderer.py text eol=crlf
+backend/app/services/report_evidence_presentation.py text eol=crlf
+backend/app/services/report_pdf_fonts.py text eol=lf
+backend/app/services/synthetic_prediction_cases.py text eol=lf
+backend/app/services/synthetic_report_publication.py text eol=lf
+backend/app/templates/report_pdf.html -text whitespace=cr-at-eol
+backend/app/templates/synthetic_numeric_report_pdf.html text eol=lf
+scripts/build_numeric_model_bundle.py text eol=lf

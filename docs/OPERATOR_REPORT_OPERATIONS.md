@@ -232,11 +232,15 @@ font-dir 内必须有 `NotoSansCJKsc-Regular.otf`、`LICENSE`，以及官方 [No
 
 **改动源码会作废已有 renderer 制品（2026-09-20 补充）：** manifest 覆盖 `report_pdf_renderer_manifest.py` 中 `RENDERER_FILES` 列出的源码、字体与许可字节、Chromium 可执行文件哈希、平台及打印选项。该清单**包含 `services/report_document_builder.py`**——它负责生成报告正文，因此**哪怕只改一句报告文字也会令现有 manifest 失效**，预检／加载时报 `frozen_renderer_mismatch`。这不是故障，是设计如此；但维护者容易只改文字而不知道要连带处理。
 
-改动的完整同步步骤（缺一不可）：
+**仅换行漂移时先恢复原字节（2026-09-23 补充）：** Git 的 `core.autocrlf` 转换也会改变上述原字节哈希，即使代码文字完全相同，也可能触发 `numeric_model_implementation_changed` 或 renderer 校验失败。`.gitattributes` 已逐文件固定两份冻结模型与 renderer 涉及的 35 个源码文件：24 个 LF、8 个 CRLF、3 个保留原始混合换行。不要对这些文件一律转为 LF／CRLF；混合换行文件由 `-text` 保留原字节。恢复必须与原模型实现哈希和原 manifest 的源码哈希一致，不能修改旧哈希来放行。`backend/tests/test_frozen_source_checkout.py` 在临时 Git 仓库分别启用／禁用 `core.autocrlf`，实际检出并验证三组冻结源码身份，不依赖本地 `outputs/` 测试制品。后续有意修改受保护源码时，须按版本流程更新对应制品及回归基准，不能仅更新测试期望值。
+
+恢复原字节后，本地若曾针对漂移字节另建 renderer，需重新构建匹配当前源码的制品，更新 `backend/.env` 的 `REPORT_PDF_RENDERER_MANIFEST`，并重启 API 和 PDF worker。若恢复后的制品身份与旧版本相同，保留原验收常量和历史结果。已删除的测试制品属于资源缺失，不能靠换行恢复或更改哈希补齐；仅凭源码回归通过也不能宣称其真实链路验收通过。
+
+真正改动渲染源码、需要启用新版本时：
 
 1. **重建 manifest**：`python scripts/build_report_pdf_renderer_manifest.py --font-dir <已核实字体目录> --output-dir <新版本根目录>`。输出根按日期分目录，脚本再按 manifest 原字节 SHA 建子目录；同 digest 已存在时只校验不覆盖。
-2. **更新硬编码身份**：如 `scripts/run_numeric_history_acceptance.py` 的 `RENDERER_SHA` 及其测试中的 manifest 路径。
-3. **更新文档引用**：已有的历史记录**保留原路径与 SHA 并加作废说明，不改写历史**；交接性质的块（如计划中的 `REPORT_TEST_RENDERER_MANIFEST`）则替换为新值。
+2. **同步新版本验收依赖**：若验收入口转向新 renderer，同步其 `RENDERER_SHA`、测试路径及依赖该身份的演示预检；通过新一轮验收生成新结果后，才可更新引用的验收结果身份。仅更换日常运行的 renderer 配置，不代表已有冻结验收入口必须迁移。不得替换旧结果里的哈希来冒充新版本验收。
+3. **更新文档引用**：已有历史记录保留原路径与 SHA，注明适用版本；不因新版本发布而改写旧验收事实。当前部署／交接配置替换为新值，并确保 API 与 PDF worker 加载相同的 manifest。
 4. **重跑整仓非集成回归**（见[开发指南](DEVELOPMENT.md)的阶段出口门槛）。
 
 已发布的归档 PDF 仍是原件，**不因新 renderer 重新渲染或替换**；旧 manifest 目录保留原字节。
