@@ -24,7 +24,7 @@
 
 保留待真实资料阶段核验的开放条目为：任务二观测/时序与支持量3项，任务三任务卡/标签落实4项，任务四字典/样本/泄漏5项，任务五评估契约/门槛7项，任务六全量核验/版本冻结4项。工程完成不会自动确认真实临床定义、真实样本支持或模型有效性。
 
-阶段二工程验收见[统一总验收计划](../plans/2026-09-15-numeric-unified-acceptance.md)；当前阶段三见[合成离线比较计划](../plans/2026-09-15-prediction-model-refactor-phase-3-offline-comparison.md)。下文有日期的历史记录保留当时状态；当前下一步以本节及最新执行记录为准。
+阶段二工程验收见[统一总验收记录](../notes/2026-09-15-numeric-unified-acceptance-result.md)；当前阶段三见[合成离线比较计划](../plans/2026-09-15-prediction-model-refactor-phase-3-offline-comparison.md)。下文有日期的历史记录保留当时状态；当前下一步以本节及最新执行记录为准。
 
 ## 1. 范围与基本决策
 

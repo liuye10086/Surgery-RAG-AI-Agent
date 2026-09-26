@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { isReactive, watch } from 'vue'
 import { askStream, createSession, getSession, type AskCallbacks, type SessionDetail } from '@/api/chat'
 import { useChatStore } from '../chat'
 
@@ -26,6 +27,141 @@ beforeEach(() => {
 })
 
 describe('chat stream ownership and retries', () => {
+  it('creates independent reactive messages in user then assistant order', async () => {
+    const store = useChatStore()
+    store.currentSession = session(1)
+    const timestamp = vi.spyOn(Date.prototype, 'toISOString')
+      .mockImplementationOnce(() => {
+        expect(store.currentSession!.messages).toHaveLength(0)
+        return '2026-09-26T00:00:00.001Z'
+      })
+      .mockImplementationOnce(() => {
+        expect(store.currentSession!.messages.map((message) => message.role)).toEqual(['user'])
+        return '2026-09-26T00:00:00.002Z'
+      })
+    try {
+      await store.sendMessage('question')
+      const [user, assistant] = store.currentSession.messages
+      expect(user).toMatchObject({ session_id: 1, role: 'user', content: 'question', created_at: '2026-09-26T00:00:00.001Z', is_no_knowledge: false, is_error: false })
+      expect(assistant).toMatchObject({ session_id: 1, role: 'assistant', content: '', created_at: '2026-09-26T00:00:00.002Z', is_no_knowledge: false, is_error: false })
+      expect(user!.id).toBeLessThan(0)
+      expect(assistant!.id).toBe(user!.id - 1)
+      expect(user!.sources).toEqual([])
+      expect(assistant!.sources).toEqual([])
+      expect(assistant!.sources).not.toBe(user!.sources)
+      expect(isReactive(user)).toBe(true)
+      expect(isReactive(assistant)).toBe(true)
+      const renderedContent = vi.fn()
+      const stop = watch(() => assistant!.content, renderedContent, { flush: 'sync' })
+      streams[0]!.callbacks.onDelta('answer')
+      stop()
+      expect(renderedContent.mock.calls[0]?.slice(0, 2)).toEqual(['answer', ''])
+      expect(store.currentSession.messages[1]).toBe(assistant)
+    } finally {
+      timestamp.mockRestore()
+    }
+  })
+
+  it.each(['done', 'error'] as const)('settles %s IDs, persisted danger and titles before ignoring late callbacks', async (terminal) => {
+    const store = useChatStore()
+    store.currentSession = session(1)
+    store.sessions = [session(1), session(2)]
+    await store.sendMessage('question')
+    const [user, assistant] = store.currentSession.messages
+    const temporaryUserId = user!.id
+    const stream = streams[0]!
+    stream.callbacks.onStage?.('generating')
+    stream.callbacks.onDanger?.('high', 'seek help')
+    stream.callbacks.onDelta('answer')
+    const sources = [{ text: 'source' }]
+    stream.callbacks.onSources(sources)
+    if (terminal === 'done') stream.callbacks.onDone('ok', undefined, 12, 11, 'generated title')
+    else stream.callbacks.onError('model failed', 12, 'generated title', 11)
+
+    expect(user!.id).toBe(11)
+    expect(assistant!.id).toBe(12)
+    expect(assistant!.content).toBe(terminal === 'done' ? 'answer' : '出错了：model failed')
+    expect(assistant!.is_error).toBe(terminal === 'error')
+    expect(assistant!.is_no_knowledge).toBe(false)
+    expect(store.dangerState).toEqual({ level: 'high', advice: 'seek help' })
+    expect(store.dangerByMessageId[temporaryUserId]).toBeUndefined()
+    expect(store.dangerByMessageId[11]).toEqual({ level: 'high', advice: 'seek help' })
+    expect(JSON.parse(localStorage.getItem('surgery_rag_danger_state')!)).toEqual({ 11: { level: 'high', advice: 'seek help' } })
+    expect(store.currentSession.title).toBe('generated title')
+    expect(store.sessions.map((item) => item.title)).toEqual(['generated title', 'session 2'])
+    expect(store.loading).toBe(false)
+
+    stream.callbacks.onDelta('late')
+    stream.callbacks.onSources([{ text: 'late' }])
+    stream.callbacks.onStage?.('generating')
+    stream.callbacks.onDanger?.('low', 'late')
+    stream.callbacks.onDone('no_knowledge', 'late', 22, 21, 'late title')
+    stream.callbacks.onError('late', 22, 'late title', 21)
+    store.abort()
+    expect(stream.abort).not.toHaveBeenCalled()
+    expect(store.currentSession.messages).toEqual([user, assistant])
+    expect(user!.id).toBe(11)
+    expect(assistant).toMatchObject({ id: 12, content: terminal === 'done' ? 'answer' : '出错了：model failed', sources, is_error: terminal === 'error', is_no_knowledge: false })
+    expect(store.currentSession.title).toBe('generated title')
+    expect(store.sessions[0]!.title).toBe('generated title')
+    expect(store.dangerByMessageId).toEqual({ 11: { level: 'high', advice: 'seek help' } })
+    expect(store.loading).toBe(false)
+  })
+
+  it.each([
+    ['no_knowledge', 'insufficient evidence', undefined, 'insufficient evidence'],
+    ['no_knowledge', undefined, undefined, '当前知识库中未找到足够依据，无法回答该问题。'],
+    ['ok', 'explicit warning', true, 'explicit warning'],
+  ] as const)('preserves no-knowledge content for status %s and warning %s', async (status, warning, isNoKnowledge, content) => {
+    const store = useChatStore()
+    store.currentSession = session(1)
+    await store.sendMessage('question')
+    streams[0]!.callbacks.onDelta('partial answer')
+    streams[0]!.callbacks.onDone(status, warning, 12, 11, undefined, isNoKnowledge)
+    expect(store.currentSession.messages[1]).toMatchObject({ id: 12, content, is_no_knowledge: true, is_error: false })
+    expect(store.loading).toBe(false)
+  })
+
+  it.each(['done', 'error'] as const)('retains IDs, danger association and title when %s has zero IDs and an empty title', async (terminal) => {
+    const store = useChatStore()
+    store.currentSession = session(1)
+    store.sessions = [session(1)]
+    await store.sendMessage('question')
+    const ids = store.currentSession.messages.map((message) => message.id)
+    streams[0]!.callbacks.onDanger?.('high', 'advice')
+    if (terminal === 'done') streams[0]!.callbacks.onDone('ok', undefined, 0, 0, '')
+    else streams[0]!.callbacks.onError('failed', 0, '', 0)
+    expect(store.currentSession.messages.map((message) => message.id)).toEqual(ids)
+    expect(store.dangerByMessageId[ids[0]!]).toEqual({ level: 'high', advice: 'advice' })
+    expect(store.currentSession.title).toBe('session 1')
+    expect(store.sessions[0]!.title).toBe('session 1')
+    expect(store.loading).toBe(false)
+  })
+
+  it.each(['done', 'error'] as const)('does not retain a cancellation handle after a synchronous %s callback', async (terminal) => {
+    const store = useChatStore()
+    store.currentSession = session(1)
+    const cancel = vi.fn()
+    vi.mocked(askStream).mockImplementationOnce((_id, _content, callbacks) => {
+      callbacks.onDelta('answer')
+      if (terminal === 'done') callbacks.onDone('ok', undefined, 12, 11, 'sync title')
+      else callbacks.onError('failed', 12, 'sync title', 11)
+      return cancel
+    })
+    await store.sendMessage('question')
+    const completed = store.currentSession.messages[1]!
+    expect(store.loading).toBe(false)
+    expect(store.currentSession.title).toBe('sync title')
+    expect(store.currentSession.messages.map((message) => message.id)).toEqual([11, 12])
+    store.abort()
+    await store.sendMessage('next question')
+    expect(cancel).not.toHaveBeenCalled()
+    expect(completed).toMatchObject({ content: terminal === 'done' ? 'answer' : '出错了：failed', is_error: terminal === 'error' })
+    expect(store.loading).toBe('retrieving')
+    store.abort()
+    expect(streams[0]!.abort).toHaveBeenCalledOnce()
+  })
+
   it('cancels active generation on newSession and reuses a cancelled placeholder when retried', async () => {
     const store = useChatStore()
     store.currentSession = session(1)

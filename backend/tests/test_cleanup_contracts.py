@@ -111,7 +111,6 @@ class CleanupContractTests(unittest.TestCase):
             "backend/app/ml_models/activation_log",
             "docs/superpowers/plans",
             "docs/superpowers/specs/2026-08-18-real-longitudinal-data-collection-spec.md",
-            "docs/superpowers/specs/2026-08-27-project-structure-cleanup-design.md",
             "docs/superpowers/notes/2026-08-25-longitudinal-report-improvement-roadmap.md",
             "docs/superpowers/notes/2026-08-26-ad-stage-transition-future-design-note.md",
         ]
@@ -138,7 +137,6 @@ class CleanupContractTests(unittest.TestCase):
             remaining,
             {
                 "2026-08-18-real-longitudinal-data-collection-spec.md",
-                "2026-08-27-project-structure-cleanup-design.md",
                 "2026-09-01-operator-case-age-design.md",
                 "2026-09-01-operator-disease-permission-design.md",
                 "2026-09-01-operator-case-status-design.md",

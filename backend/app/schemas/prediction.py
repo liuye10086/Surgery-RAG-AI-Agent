@@ -92,20 +92,6 @@ class CaseRecordIn(BaseModel):
     metadata: dict = Field(default_factory=dict)
 
 
-class CaseRecordOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    disease_id: int
-    patient_label: Optional[str]
-    anonymous_case_code: Optional[str] = None
-    indicators: list[dict]
-    confirmed: bool
-    # ORM 属性是 case_metadata（DB 列 metadata），用 validation_alias 桥接，
-    # 响应 JSON 键名仍为 metadata，前端无需感知。
-    metadata: dict = Field(default_factory=dict, validation_alias="case_metadata")
-    created_at: datetime
-
-
 class ReferenceRangeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -120,7 +106,3 @@ class ReferenceRangeOut(BaseModel):
     sex: Optional[str] = None
     category: Optional[str]
     document_id: Optional[int]
-
-
-class ReferenceRangeSyncIn(BaseModel):
-    document_id: int

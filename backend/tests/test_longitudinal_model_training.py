@@ -11,7 +11,6 @@ from app.schemas.longitudinal_model_training import (
     FoldMetrics,
     ModelMetadata,
 )
-from app.schemas.longitudinal_model_registry import ArtifactMetadata
 
 
 def _sample(*, disease="fatty_liver", current_state="pre_cirrhosis", target_event="cirrhosis_or_hcc", label=1, group="a"):
@@ -288,15 +287,6 @@ def test_task_filter_and_feature_catalog_exclude_identity_fields():
     assert "patient_label" not in catalog.feature_names
 
 
-def test_locked_group_split_is_disjoint_and_reproducible():
-    from app.services.longitudinal_model_training import make_locked_group_split, select_task_samples
-    rows = select_task_samples([_sample(label=i % 2, group=format(i, "x")) for i in range(10)], "fatty_liver.pre_cirrhosis_to_progression")
-    first = make_locked_group_split(rows, seed=42, test_fraction=0.2)
-    second = make_locked_group_split(rows, seed=42, test_fraction=0.2)
-    assert set(first.development_groups).isdisjoint(first.locked_test_groups)
-    assert first.model_dump() == second.model_dump()
-
-
 def test_preprocessor_has_training_fitted_imputer_and_sex_encoder():
     from app.services.longitudinal_model_training import build_feature_catalog, make_preprocessor, select_task_samples
     rows = select_task_samples([_sample(label=0, group="a"), _sample(label=1, group="b")], "fatty_liver.pre_cirrhosis_to_progression")
@@ -308,98 +298,9 @@ def test_preprocessor_has_training_fitted_imputer_and_sex_encoder():
 
 
 def test_model_candidates_are_limited_to_logistic_and_random_forest():
-    from app.services.longitudinal_model_training import make_model_candidates
-    candidates = make_model_candidates(seed=42)
+    from app.services.longitudinal_model_training import FeatureCatalog, _make_fitted_candidates
+    candidates = _make_fitted_candidates(FeatureCatalog(tuple(), tuple(), tuple()), seed=42)
     assert set(candidates) == {"logistic_regression", "random_forest"}
-
-
-def test_development_cv_uses_grouped_stratified_folds():
-    from app.services.longitudinal_model_training import run_development_cv, select_task_samples
-    rows = select_task_samples([_sample(label=i % 2, group=format(i, "x")) for i in range(12)], "fatty_liver.pre_cirrhosis_to_progression")
-    result = run_development_cv(rows, TASK_SPECS["fatty_liver.pre_cirrhosis_to_progression"], seed=42)
-    assert result.split_method == "StratifiedGroupKFold"
-    for fold in result.folds:
-        assert set(fold.train_groups).isdisjoint(fold.validation_groups)
-
-
-def test_candidate_bundle_contains_complete_p005_metadata(tmp_path):
-    from app.schemas.longitudinal_model_training import DatasetInput
-    from app.services.longitudinal_model_training import (
-        select_task_samples,
-        train_task_to_candidate,
-        write_candidate_bundle,
-    )
-    from scripts.check_model_artifacts import sha256_file
-
-    task = TASK_SPECS["fatty_liver.pre_cirrhosis_to_progression"]
-    rows = select_task_samples(
-        [_sample(label=i % 2, group=format(i, "x")) for i in range(12)],
-        task.task,
-    )
-    dataset = DatasetInput(
-        dataset_dir=str(tmp_path / "dataset"),
-        schema_version="longitudinal_fixed_window_dataset.v1",
-        manifest_sha256="a" * 64,
-        data_content_sha256="b" * 64,
-        file_sha256_by_path={
-            task.dataset_file: "c" * 64,
-            "group_splits.json": "d" * 64,
-        },
-    )
-    result = train_task_to_candidate(rows, task, dataset, tmp_path / "fit", seed=42)
-    bundle = write_candidate_bundle(result, tmp_path / "bundles")
-    metadata = ArtifactMetadata.model_validate_json(
-        bundle.metadata_path.read_text(encoding="utf-8")
-    )
-
-    assert metadata.status == "candidate"
-    assert metadata.production_enabled is False
-    assert metadata.artifact_type == "outcome"
-    assert metadata.horizon_days == 365
-    assert metadata.model_contract.artifact_sha256 == sha256_file(bundle.model_path)
-    assert bundle.model_path.name == "fatty_liver_pre_cirrhosis_to_progression_365d.joblib"
-    assert bundle.metadata_path.name == "fatty_liver_pre_cirrhosis_to_progression_365d.meta.json"
-    assert metadata.feature_contract.feature_names[-1] == "sex"
-    assert "age" in metadata.feature_contract.allowed_missing_features
-    assert metadata.feature_contract.input_container == "pandas_dataframe"
-    assert metadata.score_contract.semantics == "model_score"
-    assert metadata.calibration.status == "not_calibrated"
-
-
-def test_candidate_bundle_is_task_scoped_and_never_overwrites(tmp_path):
-    from app.schemas.longitudinal_model_training import DatasetInput
-    from app.services.longitudinal_model_training import (
-        select_task_samples,
-        train_task_to_candidate,
-        write_candidate_bundle,
-    )
-
-    task = TASK_SPECS["ad.pre_dementia_to_dementia"]
-    rows = select_task_samples(
-        [
-            _sample(
-                disease="ad",
-                current_state="pre_dementia",
-                target_event="dementia",
-                label=i % 2,
-                group=format(i, "x"),
-            )
-            for i in range(12)
-        ],
-        task.task,
-    )
-    dataset = DatasetInput(
-        dataset_dir=str(tmp_path / "dataset"),
-        schema_version="longitudinal_fixed_window_dataset.v1",
-        manifest_sha256="a" * 64,
-        data_content_sha256="b" * 64,
-        file_sha256_by_path={task.dataset_file: "c" * 64},
-    )
-    result = train_task_to_candidate(rows, task, dataset, tmp_path / "fit", seed=42)
-    first = write_candidate_bundle(result, tmp_path / "bundles")
-    assert first.bundle_dir.name == "ad_pre_dementia_to_dementia_365d"
-    with pytest.raises(FileExistsError):
-        write_candidate_bundle(result, tmp_path / "bundles")
 
 
 def _outcome_rows(task_name: str, count: int = 30):
@@ -553,3 +454,6 @@ def test_outcome_v2_bundle_binds_training_split_and_evaluation_hashes(tmp_path):
         ".json",
     }
     assert len(list(bundle.bundle_dir.iterdir())) == 3
+    assert bundle.bundle_dir.name == "ad_pre_dementia_to_dementia_365d"
+    with pytest.raises(FileExistsError):
+        write_outcome_candidate_bundle(candidate, tmp_path / "bundles")

@@ -806,13 +806,6 @@ onMounted(() => {
   word-break: break-word;
 }
 
-.doc-filename {
-  font-size: var(--text-xs);
-  color: var(--text-disabled);
-  margin-top: var(--space-1);
-  text-align: center;
-}
-
 /* 操作列按钮更紧凑，留出 loading 动画的扩展空间 */
 .table-card :deep(.el-button--small) {
   padding: 5px 10px;

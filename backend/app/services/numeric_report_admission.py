@@ -3,7 +3,6 @@
 from app.core.config import settings
 from app.db.models import User
 from app.schemas.numeric_report import NumericGenerationContext
-from app.schemas.operator_case_workspace import OperatorCaseReportReadiness, OperatorCaseReadinessBlocker
 from app.services.prediction_case_source import validate_prediction_case
 from app.services.numeric_prediction import numeric_algorithm_identity, numeric_input_sha256
 from app.services.longitudinal_case_service import build_input_snapshot
@@ -47,16 +46,3 @@ def capture_numeric_context(snapshot):
         disease_code=snapshot["disease_code"], numeric_input_sha256=numeric_input_sha256(snapshot["numeric_input"]),
         source_binding_sha256=snapshot["source_binding_sha256"], algorithm=numeric_algorithm_identity(),
     )
-
-
-def evaluate_numeric_case_readiness(case):
-    blockers = []
-    try:
-        capture_numeric_context(build_numeric_snapshot(case))
-    except ReportJobError as error:
-        blockers.append(OperatorCaseReadinessBlocker(code=error.code, message=error.message))
-    except ValueError:
-        blockers.append(OperatorCaseReadinessBlocker(code="model_unavailable", message="数值预测实现身份不可用"))
-    ready = not blockers
-    return OperatorCaseReportReadiness(ready=ready, case_ready=ready, timeline_ready=ready,
-        model_ready=ready, visit_count=len(case.visits), minimum_visits=1, blockers=blockers)

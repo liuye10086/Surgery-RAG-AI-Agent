@@ -89,42 +89,6 @@ def update_draft_rule(db, admin_id: int, rule_id: int, patch: RulePatch, reason:
     return rule
 
 
-def transition_version(db, admin_id: int, version_id: int, target_status: str):
-    version = (
-        db.query(ReferenceStandardVersion)
-        .filter(ReferenceStandardVersion.id == version_id)
-        .with_for_update()
-        .first()
-    )
-    if version is None:
-        raise ValueError("标准版本不存在")
-    allowed = {"draft": {"review"}, "review": {"approved"}, "approved": {"retired"}, "retired": set()}
-    if target_status not in allowed.get(version.status, set()):
-        raise ValueError(f"不允许从 {version.status} 转换到 {target_status}")
-    if target_status == "approved":
-        disease_key = getattr(
-            getattr(getattr(version, "standard", None), "disease", None),
-            "code",
-            None,
-        )
-        report = _validation_for_publish(
-            list(version.rules or []),
-            disease_key=disease_key,
-        )
-        if not report.can_publish:
-            raise ValueError("标准版本存在阻止发布的校验错误")
-    version.status = target_status
-    if target_status == "approved":
-        version.approved_by = admin_id
-        version.approved_at = datetime.now(timezone.utc)
-        version.effective_from = version.approved_at
-    if target_status == "retired":
-        version.retired_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(version)
-    return version
-
-
 def _projection_hash(rule: Any) -> str:
     payload = json.dumps(getattr(rule, "applicability", {}) or {}, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()

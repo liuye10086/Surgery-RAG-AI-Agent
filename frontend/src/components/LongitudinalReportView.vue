@@ -99,9 +99,8 @@ const props = defineProps<{
   predictionResult?: LongitudinalPrediction | null
   evidenceSnapshot?: EvidenceBundleV1 | null
   renderedContent: string
-  generating?: boolean
 }>()
-defineEmits<{ back: []; download: [] }>()
+defineEmits<{ back: [] }>()
 
 const invalid = computed(()=>props.report?.integrity_status === 'invalid')
 const document = computed(()=>props.report?.report_document?.schema_version === 'report_document.v1' ? props.report.report_document : null)
@@ -182,10 +181,6 @@ function formatTime(value?: string) { return value ? new Date(value).toLocaleStr
 .summary-grid span { color:var(--text-secondary); font-size:var(--text-xs); }
 .summary-grid strong { color:var(--text-primary); font-size:var(--text-md); }
 .summary-grid small { color:var(--text-secondary); font-size:var(--text-xs); }
-.snapshot-block { margin:var(--space-4) 0; padding:var(--space-4); border:1px solid var(--border-light); border-radius:var(--radius-item); background:var(--bg-surface); }
-.snapshot-block h4 { margin:0 0 var(--space-2); color:var(--text-primary); font-size:var(--text-md); }
-.snapshot-note, .snapshot-missing { margin:0 0 var(--space-3); color:var(--text-secondary); font-size:var(--text-xs); }
-.snapshot-missing { color:var(--color-warning); }
 .technical-release { margin:var(--space-3) 0 0; color:var(--text-secondary); font-family:var(--font-mono); font-size:var(--text-xs); }
 .ok { color:var(--color-success) !important; } .warn { color:var(--color-warning) !important; }
 .report-toc { display:flex; flex-wrap:wrap; gap:var(--space-2) var(--space-4); margin:var(--space-4) 0; padding-bottom:var(--space-3); border-bottom:1px solid var(--border-light); }

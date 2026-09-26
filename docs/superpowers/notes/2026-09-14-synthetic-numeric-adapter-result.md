@@ -2,7 +2,7 @@
 
 日期：2026-09-14。状态：**A包实施与纯计算验收完成，尚未接入应用API／数据库／worker／界面／PDF。**
 
-依据：[应用设计](../specs/2026-09-14-synthetic-prediction-application-design.md)、[A包实施计划](../plans/2026-09-14-synthetic-numeric-adapter.md)。用户审阅上一轮设计后要求“ok，开始下一步”，本次落实A包。
+依据：[应用设计](../specs/2026-09-14-synthetic-prediction-application-design.md)。用户审阅上一轮设计后要求“ok，开始下一步”，本次落实A包；原实施计划由 Git 历史保留。
 
 ## 交付
 

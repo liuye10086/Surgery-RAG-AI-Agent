@@ -475,8 +475,3 @@ export interface DeleteReportResult {deleted:true;cleanup_state:'complete'|'pend
 export function deleteReport(reportId: number): Promise<void | DeleteReportResult> {
   return request.delete(`/v1/operator/reports/${reportId}`)
 }
-
-export async function downloadReport(reportId: number, _filename?: string): Promise<void> {
-  const {downloadOriginal}=await import('./report-archive')
-  await downloadOriginal(reportId)
-}

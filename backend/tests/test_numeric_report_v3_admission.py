@@ -226,7 +226,6 @@ def test_idempotent_hit_returns_saved_report_without_reading_current_bundle(monk
 @pytest.mark.parametrize('failure', ['missing_key', 'bad_bundle', 'runtime', 'none'])
 def test_readiness_uses_same_strict_route(monkeypatch, tmp_path, failure):
     from app.services.numeric_model_dispatch import evaluate_configured_numeric_readiness
-    from app.services.numeric_report_v3_admission import evaluate_numeric_v3_readiness
     from app.services import numeric_history_bundle
     from app.core.config import settings
     from test_synthetic_case_capability import case
@@ -237,10 +236,9 @@ def test_readiness_uses_same_strict_route(monkeypatch, tmp_path, failure):
     if failure == 'runtime':
         def fail(bundle): raise ValueError('numeric_history_implementation_changed')
         monkeypatch.setattr(numeric_history_bundle, 'verify_numeric_history_runtime', fail)
-    for evaluate in (evaluate_configured_numeric_readiness, evaluate_numeric_v3_readiness):
-        result = evaluate(case(), DB([]))
-        assert result.ready is (failure == 'none')
-        assert [b.code for b in result.blockers] == ([] if failure == 'none' else ['model_unavailable'])
+    result = evaluate_configured_numeric_readiness(case(), DB([]))
+    assert result.ready is (failure == 'none')
+    assert [b.code for b in result.blockers] == ([] if failure == 'none' else ['model_unavailable'])
 
 
 def test_actual_readiness_caller_selects_v3(monkeypatch, tmp_path):

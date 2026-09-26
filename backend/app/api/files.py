@@ -10,14 +10,9 @@ from app.api.deps import get_current_user
 from app.core.config import settings
 from app.db.models import User
 from app.db.session import get_db
-from app.services.source_access import source_grants_image, user_can_access_image
+from app.services.source_access import user_can_access_image
 
 router = APIRouter(prefix="/files", tags=["files"])
-
-
-def _source_grants_image(source: dict, document_id: int, filename: str) -> bool:
-    """兼容旧测试和内部调用的第一代图片授权包装。"""
-    return source_grants_image(source, document_id, None, filename)
 
 
 def _image_response(

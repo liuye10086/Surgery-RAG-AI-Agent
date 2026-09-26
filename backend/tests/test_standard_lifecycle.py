@@ -8,7 +8,7 @@ from app.services.standard_lifecycle import (
     materialize_candidate_rule,
     publish_approved_version,
     seed_standard_draft,
-    transition_version,
+    submit_review_version,
 )
 
 
@@ -545,55 +545,6 @@ def test_legacy_publish_entry_uses_ad_evidence_only_exception():
     assert result.projections == []
 
 
-def test_transition_to_approved_uses_ad_evidence_only_exception():
-    evidence = SimpleNamespace(
-        machine_actionability="evidence-only",
-        rule_type="qualitative_direction",
-        lower=None,
-        upper=None,
-        unit=None,
-        applicability={},
-        conditions={},
-        target_state_type="evidence",
-        clinical_dimension="cognition",
-        framework=None,
-        biomarker_axis=None,
-        stage=None,
-        indicator=SimpleNamespace(
-            canonical_key="mmse",
-            abnormal_direction="ordinal_low",
-            allows_numeric_comparison=False,
-        ),
-        source_segment=None,
-    )
-    version = SimpleNamespace(
-        id=2,
-        status="review",
-        rules=[evidence],
-        standard=SimpleNamespace(
-            disease=SimpleNamespace(code="ad", name="AD（展示名已修改）")
-        ),
-        approved_by=None,
-        approved_at=None,
-        effective_from=None,
-        retired_at=None,
-    )
-
-    class Query:
-        def filter(self, *args, **kwargs): return self
-        def with_for_update(self): return self
-        def first(self): return version
-
-    class Session:
-        def query(self, model): return Query()
-        def commit(self): return None
-        def refresh(self, value): return None
-
-    result = transition_version(Session(), 10, 2, "approved")
-
-    assert result.status == "approved"
-
-
 def test_submit_review_version_is_transaction_neutral_when_commit_is_false():
     from app.services import standard_lifecycle
 
@@ -622,7 +573,7 @@ def test_submit_review_version_is_transaction_neutral_when_commit_is_false():
     assert db.commits == 0
 
 
-def test_transition_version_locks_row_before_status_transition():
+def test_submit_review_version_locks_row_before_status_transition():
     version = SimpleNamespace(
         id=2,
         status="draft",
@@ -667,9 +618,11 @@ def test_transition_version_locks_row_before_status_transition():
 
     session = Session()
 
-    transition_version(session, 10, 2, "review")
+    result = submit_review_version(session, version_id=2)
 
     assert session.query_result.events[:3] == ["filter", "with_for_update", "first"]
+    assert result is version
+    assert result.status == "review"
 
 
 def test_materialize_candidate_creates_rule_from_reviewed_candidate():
@@ -901,6 +854,7 @@ def test_publish_allows_ad_evidence_only_version_and_creates_no_projection(monke
             name_en="MMSE",
             name_cn="简易精神状态检查",
             abnormal_direction="ordinal_low",
+            allows_numeric_comparison=False,
         ),
         source_segment=None,
     )
@@ -943,6 +897,9 @@ def test_publish_allows_ad_evidence_only_version_and_creates_no_projection(monke
     result = publish_review_version(Session(), version_id=2, admin_id=10)
 
     assert result.version.status == "approved"
+    assert result.version.approved_by == 10
+    assert result.version.approved_at is not None
+    assert result.version.effective_from == result.version.approved_at
     assert result.projections == []
     assert standard.current_version_id == 2
 

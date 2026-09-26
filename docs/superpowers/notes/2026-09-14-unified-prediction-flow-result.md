@@ -1,6 +1,6 @@
 # 统一预测主流程：第1步验收记录
 
-日期：2026-09-14。范围：[统一方向](../specs/2026-09-14-unified-prediction-report-direction.md)的第1步；对应[实施计划](../plans/2026-09-14-unified-prediction-flow.md)。本记录不代表第2步的训练模型、RAG或LLM已接通。
+日期：2026-09-14。范围：[统一方向](../specs/2026-09-14-unified-prediction-report-direction.md)的第1步，原实施计划由 Git 历史保留。本记录不代表第2步的训练模型、RAG或LLM已接通。
 
 ## 本轮实现
 

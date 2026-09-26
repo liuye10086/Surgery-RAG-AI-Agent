@@ -147,21 +147,26 @@ def list_sessions(
     return sessions
 
 
-@router.get("/sessions/{session_id}", response_model=SessionDetail)
-def get_session(
-    session_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
+def _session_or_404(db: Session, session_id: int, user_id: int) -> ChatSession:
     session = (
         db.query(ChatSession)
-        .filter(ChatSession.id == session_id, ChatSession.user_id == current_user.id)
+        .filter(ChatSession.id == session_id, ChatSession.user_id == user_id)
         .first()
     )
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
         )
+    return session
+
+
+@router.get("/sessions/{session_id}", response_model=SessionDetail)
+def get_session(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    session = _session_or_404(db, session_id, current_user.id)
     return session
 
 
@@ -172,15 +177,7 @@ def delete_session(
     current_user: User = Depends(get_current_user),
 ):
     """删除会话及其所有消息（数据库级联）。"""
-    session = (
-        db.query(ChatSession)
-        .filter(ChatSession.id == session_id, ChatSession.user_id == current_user.id)
-        .first()
-    )
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
-        )
+    session = _session_or_404(db, session_id, current_user.id)
     db.delete(session)
     db.commit()
     return None
@@ -203,15 +200,7 @@ async def ask(
     使用 RunnableWithMessageHistory 自动管理消息历史，
     链内部完成查询改写、检索、知识充分性判断和回答生成。
     """
-    session = (
-        db.query(ChatSession)
-        .filter(ChatSession.id == session_id, ChatSession.user_id == current_user.id)
-        .first()
-    )
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
-        )
+    session = _session_or_404(db, session_id, current_user.id)
 
     user_id = current_user.id
     is_first_message = session.title == "新会话" or not session.title
@@ -390,6 +379,7 @@ async def ask(
             error_message_id: Optional[int] = None
             try:
                 error_detail = f"生成失败：{str(e)}"
+                existing = None
                 if history is not None and req.retry_message_id:
                     # 重试场景：更新已有错误消息
                     existing = (
@@ -400,24 +390,12 @@ async def ask(
                         )
                         .first()
                     )
-                    if existing:
-                        existing.content = error_detail
-                        existing.sources = []
-                        existing.is_error = True
-                        db.commit()
-                        error_message_id = existing.id
-                    else:
-                        msg = Message(
-                            session_id=session_id,
-                            role="assistant",
-                            content=error_detail,
-                            sources=[],
-                            is_error=True,
-                        )
-                        db.add(msg)
-                        db.commit()
-                        db.refresh(msg)
-                        error_message_id = msg.id
+                if existing:
+                    existing.content = error_detail
+                    existing.sources = []
+                    existing.is_error = True
+                    db.commit()
+                    error_message_id = existing.id
                 else:
                     msg = Message(
                         session_id=session_id,

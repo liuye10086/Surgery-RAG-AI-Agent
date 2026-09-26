@@ -87,6 +87,19 @@ export const useChatStore = defineStore('chat', () => {
     return session
   }
 
+  function createMessage(sessionId: number, role: Message['role'], content: string) {
+    return reactive<Message>({
+      id: temporaryId--,
+      session_id: sessionId,
+      role,
+      content,
+      sources: [],
+      is_no_knowledge: false,
+      is_error: false,
+      created_at: new Date().toISOString(),
+    })
+  }
+
   async function sendMessage(content: string) {
     if (!currentSession.value) return
     ++navigationGeneration
@@ -95,29 +108,11 @@ export const useChatStore = defineStore('chat', () => {
     const sessionId = currentSession.value.id
 
     const clientRequestId = crypto.randomUUID()
-    const userMessage = reactive<Message>({
-      id: temporaryId--,
-      session_id: sessionId,
-      role: 'user',
-      content,
-      sources: [],
-      is_no_knowledge: false,
-      is_error: false,
-      created_at: new Date().toISOString(),
-    })
+    const userMessage = createMessage(sessionId, 'user', content)
     currentSession.value.messages.push(userMessage)
 
     // 预占一条 assistant 消息用于流式渲染，必须使用 reactive 对象才能让后续 onDelta 更新触发 UI
-    const assistantMessage = reactive<Message>({
-      id: temporaryId--,
-      session_id: sessionId,
-      role: 'assistant',
-      content: '',
-      sources: [],
-      is_no_knowledge: false,
-      is_error: false,
-      created_at: new Date().toISOString(),
-    })
+    const assistantMessage = createMessage(sessionId, 'assistant', '')
     currentSession.value.messages.push(assistantMessage)
 
     requestContexts.set(assistantMessage, { clientRequestId, userMessage, departmentId: selectedDepartmentId.value })
@@ -213,6 +208,18 @@ export const useChatStore = defineStore('chat', () => {
         if (idx >= 0) sessions.value[idx].title = title
       }
     }
+    function finishRequest(messageId?: number, userMessageId?: number, title?: string) {
+      if (messageId) {
+        assistantMessage.id = messageId
+      }
+      applyUserMessageId(userMessageId)
+      if (title) {
+        applyTitle(title)
+      }
+      loading.value = false
+      currentAbort.value = null
+      activeRequest = null
+    }
 
     return {
       onDelta: (text: string) => {
@@ -245,31 +252,13 @@ export const useChatStore = defineStore('chat', () => {
           assistantMessage.is_no_knowledge = true
           assistantMessage.content = warning || '当前知识库中未找到足够依据，无法回答该问题。'
         }
-        if (messageId) {
-          assistantMessage.id = messageId
-        }
-        applyUserMessageId(userMessageId)
-        if (title) {
-          applyTitle(title)
-        }
-        loading.value = false
-        currentAbort.value = null
-        activeRequest = null
+        finishRequest(messageId, userMessageId, title)
       },
       onError: (msg: string, messageId?: number, title?: string, userMessageId?: number) => {
         if (!isCurrent()) return
         assistantMessage.content = `出错了：${msg}`
         assistantMessage.is_error = true
-        if (messageId) {
-          assistantMessage.id = messageId
-        }
-        applyUserMessageId(userMessageId)
-        if (title) {
-          applyTitle(title)
-        }
-        loading.value = false
-        currentAbort.value = null
-        activeRequest = null
+        finishRequest(messageId, userMessageId, title)
       },
     }
   }

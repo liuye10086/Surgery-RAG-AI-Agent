@@ -1,6 +1,6 @@
 # 统一数值报告第2步：完整能力验收记录
 
-日期：2026-09-14。对应[实施计划](../plans/2026-09-14-numeric-full-capability.md)与[统一方向](../specs/2026-09-14-unified-prediction-report-direction.md)。
+日期：2026-09-14。对应[统一方向](../specs/2026-09-14-unified-prediction-report-direction.md)的第2步，原实施计划由 Git 历史保留。
 
 ## 结论与范围
 

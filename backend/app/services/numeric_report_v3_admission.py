@@ -29,8 +29,3 @@ def capture_numeric_v3_context(snapshot, db):
         references=capture_numeric_references(db, numeric), llm_model=settings.DEEPSEEK_MODEL,
         prompt_text=PROMPT, prompt_sha256=hashlib.sha256(PROMPT.encode('utf-8')).hexdigest(),
         prompt_version=PROMPT_VERSION, retrieval_settings=current_numeric_retrieval_settings())
-
-
-def evaluate_numeric_v3_readiness(case, db):
-    from app.services.numeric_model_dispatch import evaluate_configured_numeric_readiness
-    return evaluate_configured_numeric_readiness(case, db)

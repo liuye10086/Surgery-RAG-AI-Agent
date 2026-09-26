@@ -7,6 +7,7 @@ import pytest
 from app.services.standard_evidence import (
     StandardEvidenceError,
     build_standard_evidence,
+    build_standard_evidence_pinned,
     preflight_standard,
 )
 
@@ -115,6 +116,25 @@ def test_preflight_rejects_missing_or_unapproved_standard(tmp_path):
     with pytest.raises(StandardEvidenceError) as error:
         preflight_standard(_db(standard), 1, "fatty_liver")
     assert error.value.code == "standard_not_approved"
+
+
+@pytest.mark.parametrize("entrypoint", ["preflight", "pinned"])
+def test_selected_version_from_another_standard_is_rejected(approved_standard, entrypoint):
+    standard = approved_standard
+    version = standard.current_version
+    version.standard = standard
+    token = preflight_standard(_db(standard), 1, "fatty_liver")
+    version.standard_id = standard.id + 1
+
+    with pytest.raises(StandardEvidenceError) as caught:
+        if entrypoint == "preflight":
+            preflight_standard(_db(standard), 1, "fatty_liver")
+        else:
+            build_standard_evidence_pinned(
+                _db(version), token, {"disease_id": 1, "disease_code": "fatty_liver"}
+            )
+
+    assert caught.value.code == "standard_integrity_failed"
 
 
 def test_preflight_rejects_rule_manifest_not_bound_to_document(tmp_path):
@@ -276,6 +296,57 @@ def test_build_standard_evidence_applies_rule_sex_before_calculating_alt(tmp_pat
     assert rules_by_id[8].status == "not_applicable"
     assert rules_by_id[7].numeric_interpretation == "above_range"
     assert rules_by_id[8].numeric_interpretation is None
+
+
+@pytest.mark.parametrize("same_conflict_group", [False, True])
+def test_pinned_evidence_never_selects_between_conflicting_rules(
+    approved_standard, monkeypatch, same_conflict_group
+):
+    standard = approved_standard
+    version = standard.current_version
+    version.standard = standard
+    first = version.rules[0]
+    first.conflict_group = "alt-reference"
+    second = SimpleNamespace(**{
+        **first.__dict__,
+        "id": 8,
+        "conflict_group": "alt-reference" if same_conflict_group else "alt-other",
+        "applicability": {**first.applicability, "_manifest_entry_id": "test-alt-other"},
+    })
+    version.rules = [first, second]
+    monkeypatch.setattr(
+        "app.services.standard_evidence.load_standard_manifest",
+        lambda _path: SimpleNamespace(
+            dataset="fatty_liver",
+            review_state="approved",
+            target_version_label="2026.1",
+            source_document_sha256=version.content_hash,
+            entries=[
+                SimpleNamespace(
+                    entry_id=rule.applicability["_manifest_entry_id"],
+                    entry_kind="rule", review_status="approved", source=rule.source_segment,
+                )
+                for rule in version.rules
+            ],
+        ),
+    )
+    token = preflight_standard(_db(standard), 1, "fatty_liver")
+
+    evidence = build_standard_evidence_pinned(
+        _db(version), token,
+        {
+            "disease_id": 1,
+            "disease_code": "fatty_liver",
+            "case": {"disease_code": "fatty_liver"},
+            "visits": [{"visit_date": "2026-01-01", "indicators": [{"name": "ALT", "value": 42, "unit": "U/L"}]}],
+        },
+    )
+
+    assert {rule.rule_id for rule in evidence.rules} == {7, 8}
+    assert evidence.version.version_id == version.id
+    assert evidence.status == ("conflict" if same_conflict_group else "available")
+    assert {rule.status for rule in evidence.rules} == ({"conflict"} if same_conflict_group else {"calculable"})
+    assert {rule.numeric_interpretation for rule in evidence.rules} == ({None} if same_conflict_group else {"above_range"})
 
 
 def test_ad_rules_remain_evidence_only(tmp_path):

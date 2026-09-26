@@ -17,12 +17,10 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from app.schemas.longitudinal_dataset import FixedWindowSample
 from app.schemas.longitudinal_model_registry import (
-    ARTIFACT_METADATA_SCHEMA_VERSION,
     TASK_CONTRACTS,
-    ArtifactMetadata,
     feature_order_sha256,
 )
-from app.schemas.longitudinal_model_training import DatasetInput, GroupSplit, InputAudit, TASK_SPECS, TaskSpec, FoldMetrics, EvaluationSummary
+from app.schemas.longitudinal_model_training import DatasetInput, TASK_SPECS, TaskSpec
 from app.schemas.longitudinal_model_suite import ArtifactMetadataV2, EvaluationArtifact
 from app.services.longitudinal_group_split import DiseaseGroupSplit
 from app.services.longitudinal_model_evaluation import compute_binary_metrics, select_oof_f1_threshold
@@ -43,14 +41,6 @@ class FeatureCatalog:
     feature_names: tuple[str, ...]
     numeric_features: tuple[str, ...]
     categorical_features: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class CandidateBundleResult:
-    bundle_dir: Path
-    model_path: Path
-    metadata_path: Path
-    metadata: ArtifactMetadata
 
 
 @dataclass(frozen=True)
@@ -239,28 +229,9 @@ def select_task_samples(samples: Sequence[FixedWindowSample], task_name: str) ->
     return rows
 
 
-def audit_input_samples(samples: Sequence[FixedWindowSample], task: TaskSpec) -> InputAudit:
-    selected = select_task_samples(samples, task.task)
-    return InputAudit(sample_count=len(selected), patient_count=len({row.sample.identity.group_id for row in selected}), positive_count=sum(row.sample.label.training_label == 1 for row in selected), negative_count=sum(row.sample.label.training_label == 0 for row in selected), synthetic_count=sum(row.sample.identity.is_synthetic for row in selected), duplicate_count=len(selected) - len({(row.sample.identity.group_id, row.sample.identity.as_of) for row in selected}), forbidden_feature_hits=[])
-
-
 def build_feature_catalog(rows: Sequence[TrainingRow], task: TaskSpec) -> FeatureCatalog:
     names = sorted({key for row in rows for key in row.values if key != "sex" and key not in _FORBIDDEN})
     return FeatureCatalog(tuple(names + ["sex"]), tuple(names), ("sex",))
-
-
-def make_locked_group_split(rows: Sequence[TrainingRow], *, seed: int, test_fraction: float) -> GroupSplit:
-    import numpy as np
-    groups = sorted({row.sample.identity.group_id for row in rows})
-    rng = np.random.default_rng(seed)
-    shuffled = list(groups)
-    rng.shuffle(shuffled)
-    test_count = max(1, int(round(len(groups) * test_fraction)))
-    test_groups = sorted(shuffled[:test_count])
-    development_groups = sorted(shuffled[test_count:])
-    development_indices = [i for i, row in enumerate(rows) if row.sample.identity.group_id in development_groups]
-    test_indices = [i for i, row in enumerate(rows) if row.sample.identity.group_id in test_groups]
-    return GroupSplit(development_groups=development_groups, locked_test_groups=test_groups, development_indices=development_indices, locked_test_indices=test_indices, seed=seed, test_fraction=test_fraction, group_overlap_check="passed" if set(development_groups).isdisjoint(test_groups) else "failed")
 
 
 def make_preprocessor(feature_catalog: FeatureCatalog, *, scale_numeric: bool) -> ColumnTransformer:
@@ -268,17 +239,6 @@ def make_preprocessor(feature_catalog: FeatureCatalog, *, scale_numeric: bool) -
     if scale_numeric:
         numeric_steps.append(("scaler", StandardScaler()))
     return ColumnTransformer([("numeric", Pipeline(numeric_steps), list(feature_catalog.numeric_features)), ("sex", Pipeline([("imputer", SimpleImputer(strategy="most_frequent")), ("onehot", OneHotEncoder(handle_unknown="ignore"))]), list(feature_catalog.categorical_features))], remainder="drop")
-
-
-def make_model_candidates(seed: int = 42) -> dict[str, Pipeline]:
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.pipeline import Pipeline
-    catalog = FeatureCatalog(tuple(), tuple(), tuple())
-    return {
-        "logistic_regression": Pipeline([("classifier", LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced", random_state=seed))]),
-        "random_forest": Pipeline([("classifier", RandomForestClassifier(n_estimators=200, max_depth=4, min_samples_leaf=3, class_weight="balanced", random_state=seed, n_jobs=1))]),
-    }
 
 
 def _make_fitted_candidates(catalog: FeatureCatalog, seed: int = 42) -> dict[str, Pipeline]:
@@ -295,44 +255,6 @@ def _frame(rows: Sequence[TrainingRow], catalog: FeatureCatalog):
     return pd.DataFrame([{name: row.values.get(name) for name in catalog.feature_names} for row in rows])
 
 
-def train_task_to_candidate(rows: Sequence[TrainingRow], task: TaskSpec, dataset_input: DatasetInput, output_dir: Path, *, seed: int = 42):
-    import joblib
-    output = Path(output_dir)
-    output.mkdir(parents=True, exist_ok=True)
-    catalog = build_feature_catalog(rows, task)
-    candidates = _make_fitted_candidates(catalog, seed)
-    X = _frame(rows, catalog)
-    y = [row.sample.label.training_label for row in rows]
-    model = candidates["logistic_regression"]
-    model.fit(X, y)
-    development = run_development_cv(rows, task, seed=seed)
-    stem = task.task.replace(".", "_") + "_365d"
-    model_path = output / f"{stem}.joblib"
-    joblib.dump(model, model_path)
-    return {"task": task.task, "model": model, "model_path": model_path, "dataset_input": dataset_input, "catalog": catalog, "row_count": len(rows), "patient_count": len({row.sample.identity.group_id for row in rows}), "status": "candidate", "evaluation": development.model_dump(mode="json"), "seed": seed}
-
-
-def write_candidate_artifact(result, output_dir: Path):
-    """Legacy P0-04 compatibility writer.
-
-    P0-05 callers must use :func:`write_candidate_bundle` so each task owns
-    an immutable directory and complete metadata contract.
-    """
-    import joblib
-    output = Path(output_dir)
-    output.mkdir(parents=True, exist_ok=True)
-    model_path = Path(result["model_path"])
-    if model_path.parent != output:
-        model_path = output / model_path.name
-        joblib.dump(result["model"], model_path)
-    meta_path = output / (model_path.stem + ".meta.json")
-    catalog = result["catalog"]
-    task = TASK_SPECS[result["task"]]
-    metadata = {"schema_version": "longitudinal_outcome_model_training.v1", "task": result["task"], "dataset_manifest_sha256": result["dataset_input"].manifest_sha256, "data_content_sha256": result["dataset_input"].data_content_sha256, "dataset_file_sha256": result["dataset_input"].file_sha256(task.dataset_file), "feature_order_sha256": hashlib.sha256(json.dumps(catalog.feature_names, separators=(",", ":")).encode()).hexdigest(), "feature_names": list(catalog.feature_names), "row_count": result["row_count"], "patient_count": result["patient_count"], "status": "candidate", "production_enabled": False, "clinical_validity_claim": False, "leakage_audit": {"synthetic_in_formal_metrics": False, "status": "passed"}, "model": {"algorithm": "logistic_regression", "random_seed": result.get("seed", 42)}, "evaluation": result.get("evaluation", {}), "threshold": {"baseline": 0.5, "development_selected": (result.get("evaluation", {}).get("aggregate") or {}).get("oof_threshold"), "selection_method": "oof_f1"}, "calibration": {"status": "not_calibrated"}}
-    meta_path.write_text(json.dumps(metadata, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
-    return model_path, meta_path
-
-
 def _code_version() -> str:
     try:
         completed = subprocess.run(
@@ -345,167 +267,6 @@ def _code_version() -> str:
     except (OSError, subprocess.SubprocessError):
         return "unknown"
     return completed.stdout.strip() or "unknown"
-
-
-def _artifact_metadata(result: dict[str, Any], model_path: Path) -> ArtifactMetadata:
-    import joblib
-    import numpy
-    import pandas
-    import sklearn
-
-    task_name = result["task"]
-    contract = TASK_CONTRACTS[task_name]
-    catalog: FeatureCatalog = result["catalog"]
-    names = list(catalog.feature_names)
-    required = [
-        name
-        for name in ("visit_count", "observation_span_days", "days_since_previous_visit")
-        if name in names
-    ]
-    allowed_missing = [name for name in names if name not in required]
-    artifact_hash = _sha256(model_path)
-    evaluation = result.get("evaluation") or {}
-    aggregate = evaluation.get("aggregate") or {}
-    threshold = aggregate.get("oof_threshold")
-    if threshold is None:
-        threshold = 0.5
-    model_name = result.get("model_name", "logistic_regression")
-    created_at = result.get("created_at") or datetime.now(timezone.utc)
-    version = created_at.astimezone(timezone.utc).strftime("%Y.%m.%d.%H%M%S")
-    return ArtifactMetadata.model_validate(
-        {
-            "schema_version": ARTIFACT_METADATA_SCHEMA_VERSION,
-            "artifact_type": "outcome",
-            "task": task_name,
-            "dataset": contract.dataset,
-            "disease": contract.disease,
-            "current_state": contract.current_state,
-            "target": contract.target,
-            "horizon_days": contract.horizon_days,
-            "feature_contract": {
-                "schema_version": "longitudinal_fixed_window_features.v1",
-                "feature_version": "longitudinal_fixed_window_features.v1",
-                "feature_names": names,
-                "feature_order_sha256": feature_order_sha256(names),
-                "numeric_features": list(catalog.numeric_features),
-                "categorical_features": list(catalog.categorical_features),
-                "required_features": required,
-                "allowed_missing_features": allowed_missing,
-                "input_container": "pandas_dataframe",
-                "numeric_imputation": "median_add_indicator",
-                "categorical_imputation": "most_frequent",
-            },
-            "dataset_contract": {
-                "schema_version": result["dataset_input"].schema_version,
-                "manifest_sha256": result["dataset_input"].manifest_sha256,
-                "data_content_sha256": result["dataset_input"].data_content_sha256,
-                "training_file_sha256": result["dataset_input"].file_sha256(contract.dataset_file),
-            },
-            "model_contract": {
-                "model_id": f"{contract.artifact_stem}-{artifact_hash[:12]}",
-                "model_name": model_name,
-                "model_version": version,
-                "algorithm": model_name,
-                "artifact_sha256": artifact_hash,
-                "packages": {
-                    "python": f"{sys.version_info.major}.{sys.version_info.minor}",
-                    "scikit_learn": sklearn.__version__,
-                    "joblib": joblib.__version__,
-                    "numpy": numpy.__version__,
-                    "pandas": pandas.__version__,
-                },
-            },
-            "score_contract": {
-                "semantics": "model_score",
-                "positive_class": 1,
-                "threshold": float(threshold),
-                "minimum": 0.0,
-                "maximum": 1.0,
-            },
-            "calibration": {"status": "not_calibrated", "method": None},
-            "audit": {
-                "leakage_status": (
-                    result.get("leakage_status")
-                    or result.get("leakage_audit", {}).get("status")
-                    or "passed"
-                ),
-                "clinical_validity_claim": False,
-                "code_version": _code_version(),
-            },
-            "status": "candidate",
-            "production_enabled": False,
-            "created_at": created_at,
-        }
-    )
-
-
-def write_candidate_bundle(
-    result: dict[str, Any], bundle_root: Path
-) -> CandidateBundleResult:
-    import joblib
-
-    root = Path(bundle_root)
-    contract = TASK_CONTRACTS[result["task"]]
-    bundle_dir = root / contract.artifact_stem
-    if bundle_dir.exists():
-        raise FileExistsError(bundle_dir)
-    bundle_dir.mkdir(parents=True, exist_ok=False)
-    model_path = bundle_dir / f"{contract.artifact_stem}.joblib"
-    metadata_path = bundle_dir / f"{contract.artifact_stem}.meta.json"
-    try:
-        joblib.dump(result["model"], model_path)
-        metadata = _artifact_metadata(result, model_path)
-        metadata_path.write_text(
-            metadata.model_dump_json(indent=2), encoding="utf-8"
-        )
-    except Exception:
-        if metadata_path.exists():
-            metadata_path.unlink()
-        if model_path.exists():
-            model_path.unlink()
-        try:
-            bundle_dir.rmdir()
-        except OSError:
-            pass
-        raise
-    return CandidateBundleResult(
-        bundle_dir=bundle_dir,
-        model_path=model_path,
-        metadata_path=metadata_path,
-        metadata=metadata,
-    )
-
-
-def run_development_cv(rows: Sequence[TrainingRow], task: TaskSpec, *, seed: int = 42) -> EvaluationSummary:
-    from sklearn.metrics import average_precision_score, roc_auc_score
-    from sklearn.model_selection import StratifiedGroupKFold
-    import numpy as np
-    labels = np.asarray([row.sample.label.training_label for row in rows], dtype=int)
-    groups = np.asarray([row.sample.identity.group_id for row in rows])
-    fold_count = 3 if task.task == "fatty_liver.cirrhosis_to_hcc" else 5
-    splitter = StratifiedGroupKFold(n_splits=fold_count, shuffle=True, random_state=seed)
-    fold_results = []
-    oof_labels: list[int] = []
-    oof_probabilities: list[float] = []
-    for fold_number, (train_idx, validation_idx) in enumerate(splitter.split(np.zeros(len(rows)), labels, groups), start=1):
-        train_groups = sorted(set(groups[train_idx]))
-        validation_groups = sorted(set(groups[validation_idx]))
-        fold_labels = labels[validation_idx]
-        catalog = build_feature_catalog(rows, task)
-        model = _make_fitted_candidates(catalog, seed)["logistic_regression"]
-        model.fit(_frame([rows[i] for i in train_idx], catalog), labels[train_idx])
-        probabilities = model.predict_proba(_frame([rows[i] for i in validation_idx], catalog))[:, 1]
-        oof_labels.extend(fold_labels.tolist())
-        oof_probabilities.extend(probabilities.tolist())
-        pr_auc = float(average_precision_score(fold_labels, probabilities)) if len(set(fold_labels)) == 2 else None
-        roc_auc = float(roc_auc_score(fold_labels, probabilities)) if len(set(fold_labels)) == 2 else None
-        fold_results.append(FoldMetrics(fold=fold_number, train_patient_count=len(train_groups), validation_patient_count=len(validation_groups), positive_patient_count=int(fold_labels.sum()), negative_patient_count=int(len(fold_labels) - fold_labels.sum()), train_groups=train_groups, validation_groups=validation_groups, pr_auc=pr_auc, roc_auc=roc_auc, unavailable_metrics=[] if pr_auc is not None else ["pr_auc", "roc_auc"]))
-    aggregate = {}
-    if len(set(oof_labels)) == 2:
-        aggregate = compute_binary_metrics(oof_labels, oof_probabilities, 0.5).model_dump(mode="json")
-        aggregate["positive_rate_baseline"] = sum(oof_labels) / len(oof_labels)
-        aggregate["oof_threshold"] = select_oof_f1_threshold(oof_labels, oof_probabilities).threshold
-    return EvaluationSummary(split_method="StratifiedGroupKFold", requested_fold_count=fold_count, folds=fold_results, aggregate=aggregate)
 
 
 def _rows_for_groups(

@@ -279,7 +279,3 @@ def parse_standard_docx(path: str | Path, *, parser_version: str) -> ParsedStand
         segments=segments,
         rule_candidates=candidates,
     )
-
-
-def build_rule_candidates(parsed: ParsedStandardDocument) -> list[RuleCandidate]:
-    return list(parsed.rule_candidates)

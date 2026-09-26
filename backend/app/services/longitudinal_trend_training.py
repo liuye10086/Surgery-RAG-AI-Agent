@@ -9,12 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any, Literal, Sequence
 
-from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from app.schemas.longitudinal_model_registry import feature_order_sha256
 from app.schemas.longitudinal_model_suite import (
@@ -24,6 +19,7 @@ from app.schemas.longitudinal_model_suite import (
 )
 from app.services.longitudinal_dataset import PatientTimeline
 from app.services.longitudinal_features import summarize_fixed_window_history
+from app.services.longitudinal_training_pipeline import build_training_candidates
 from app.services.longitudinal_group_split import DiseaseGroupSplit, PartitionName
 from app.services.longitudinal_model_evaluation import compute_multiclass_metrics
 
@@ -213,79 +209,6 @@ def _frame(rows: Sequence[TrendTrainingRow], catalog: TrendFeatureCatalog):
     )
 
 
-def _preprocessor(catalog: TrendFeatureCatalog, *, scale_numeric: bool):
-    numeric_steps = [
-        (
-            "imputer",
-            SimpleImputer(
-                strategy="median", add_indicator=True, keep_empty_features=True
-            ),
-        )
-    ]
-    if scale_numeric:
-        numeric_steps.append(("scaler", StandardScaler()))
-    transformers = []
-    if catalog.numeric_features:
-        transformers.append(
-            (
-                "numeric",
-                Pipeline(numeric_steps),
-                list(catalog.numeric_features),
-            )
-        )
-    if catalog.categorical_features:
-        transformers.append(
-            (
-                "categorical",
-                Pipeline(
-                    [
-                        (
-                            "imputer",
-                            SimpleImputer(strategy="most_frequent"),
-                        ),
-                        ("onehot", OneHotEncoder(handle_unknown="ignore")),
-                    ]
-                ),
-                list(catalog.categorical_features),
-            )
-        )
-    return ColumnTransformer(transformers, remainder="drop")
-
-
-def _candidates(catalog: TrendFeatureCatalog, seed: int):
-    return {
-        "multinomial_logistic_regression": Pipeline(
-            [
-                ("preprocess", _preprocessor(catalog, scale_numeric=True)),
-                (
-                    "classifier",
-                    LogisticRegression(
-                        max_iter=3000,
-                        class_weight="balanced",
-                        random_state=seed,
-                    ),
-                ),
-            ]
-        ),
-        "random_forest": Pipeline(
-            [
-                ("preprocess", _preprocessor(catalog, scale_numeric=False)),
-                (
-                    "classifier",
-                    RandomForestClassifier(
-                        n_estimators=200,
-                        max_depth=6,
-                        min_samples_leaf=2,
-                        class_weight="balanced",
-                        random_state=seed,
-                        n_jobs=1,
-                    ),
-                ),
-            ]
-        ),
-    }
-
-
 def evaluate_trend_locked_test(
     model: Pipeline,
     rows: Sequence[TrendTrainingRow],
@@ -328,7 +251,11 @@ def train_trend_candidate(
     locked = [row for row in rows if row.partition == "locked_test"]
     catalog = build_trend_feature_catalog(training)
     candidate_results = []
-    for model_name, model in sorted(_candidates(catalog, seed).items()):
+    for model_name, model in sorted(
+        build_training_candidates(
+            catalog.numeric_features, catalog.categorical_features, seed
+        ).items()
+    ):
         model.fit(_frame(training, catalog), [row.label for row in training])
         metrics = compute_multiclass_metrics(
             [row.label for row in validation],
@@ -347,7 +274,9 @@ def train_trend_candidate(
         ),
     )
     development = training + validation
-    frozen = _candidates(catalog, seed)[selected_name]
+    frozen = build_training_candidates(
+        catalog.numeric_features, catalog.categorical_features, seed
+    )[selected_name]
     frozen.fit(
         _frame(development, catalog), [row.label for row in development]
     )

@@ -45,9 +45,7 @@
           v-else-if="reportReadingMode"
           :report="generation.report"
           :rendered-content="renderMarkdown(generation.report?.content || '')"
-          :generating="generation.active"
           @back="closeReport"
-          @download="handleDownload"
         />
 
         <ReportHistoryWorkspace v-else-if="activeView === 'history'" @select="handleSelect" @delete="handleDelete" />
@@ -99,7 +97,7 @@ import OperatorCaseWorkspace from '@/components/operator-case/OperatorCaseWorksp
 import LongitudinalReportView from '@/components/LongitudinalReportView.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useOperatorStore } from '@/stores/operator'
-import { downloadReport, type LongitudinalCaseCreatePayload, type LongitudinalCaseSavePayload } from '@/api/operator'
+import { type LongitudinalCaseCreatePayload, type LongitudinalCaseSavePayload } from '@/api/operator'
 import { validationIssueMap } from '@/api/request'
 
 const authStore = useAuthStore()
@@ -295,17 +293,6 @@ function generateCurrentReport() {
   // An ordinary case submits on the original clinical report route; sending the
   // numeric kind made the backend refuse it with numeric_reports_unavailable.
   void generation.submit(current.id, prediction ? 'numeric_prediction' : 'longitudinal_predictive')
-}
-
-async function handleDownload() {
-  const report = generation.report
-  if (!report) return
-  try {
-    const filename = `${report.anonymous_case_code || `report-${report.id}`}.pdf`
-    await downloadReport(report.id, filename)
-  } catch (e: any) {
-    ElMessage.error(e.message || '下载失败')
-  }
 }
 
 async function handleSelect(id: number) {

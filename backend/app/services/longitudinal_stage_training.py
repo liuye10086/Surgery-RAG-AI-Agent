@@ -9,12 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any, Literal, Sequence
 
-from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from app.schemas.longitudinal_model_registry import feature_order_sha256
 from app.schemas.longitudinal_model_suite import (
@@ -29,6 +24,7 @@ from app.services.longitudinal_features import (
     build_prefixes,
     summarize_fixed_window_history,
 )
+from app.services.longitudinal_training_pipeline import build_training_candidates
 from app.services.longitudinal_group_split import DiseaseGroupSplit
 
 
@@ -338,81 +334,6 @@ def _frame(rows: Sequence[StageTrainingRow], catalog: StageFeatureCatalog):
     )
 
 
-def _preprocessor(catalog: StageFeatureCatalog, *, scale_numeric: bool):
-    numeric_steps = [
-        (
-            "imputer",
-            SimpleImputer(
-                strategy="median",
-                add_indicator=True,
-                keep_empty_features=True,
-            ),
-        )
-    ]
-    if scale_numeric:
-        numeric_steps.append(("scaler", StandardScaler()))
-    transformers = []
-    if catalog.numeric_features:
-        transformers.append(
-            (
-                "numeric",
-                Pipeline(numeric_steps),
-                list(catalog.numeric_features),
-            )
-        )
-    if catalog.categorical_features:
-        transformers.append(
-            (
-                "categorical",
-                Pipeline(
-                    [
-                        (
-                            "imputer",
-                            SimpleImputer(strategy="most_frequent"),
-                        ),
-                        ("onehot", OneHotEncoder(handle_unknown="ignore")),
-                    ]
-                ),
-                list(catalog.categorical_features),
-            )
-        )
-    return ColumnTransformer(transformers, remainder="drop")
-
-
-def _candidate_models(catalog: StageFeatureCatalog, seed: int):
-    return {
-        "multinomial_logistic_regression": Pipeline(
-            [
-                ("preprocess", _preprocessor(catalog, scale_numeric=True)),
-                (
-                    "classifier",
-                    LogisticRegression(
-                        max_iter=3000,
-                        class_weight="balanced",
-                        random_state=seed,
-                    ),
-                ),
-            ]
-        ),
-        "random_forest": Pipeline(
-            [
-                ("preprocess", _preprocessor(catalog, scale_numeric=False)),
-                (
-                    "classifier",
-                    RandomForestClassifier(
-                        n_estimators=200,
-                        max_depth=6,
-                        min_samples_leaf=2,
-                        class_weight="balanced",
-                        random_state=seed,
-                        n_jobs=1,
-                    ),
-                ),
-            ]
-        ),
-    }
-
-
 def _ordered_metrics(
     labels: Sequence[str],
     predictions: Sequence[str],
@@ -481,7 +402,11 @@ def train_stage_candidate(
     catalog = build_stage_feature_catalog(training)
     class_order = _output_classes(split.disease)
     candidates = []
-    for model_name, model in sorted(_candidate_models(catalog, seed).items()):
+    for model_name, model in sorted(
+        build_training_candidates(
+            catalog.numeric_features, catalog.categorical_features, seed
+        ).items()
+    ):
         model.fit(_frame(training, catalog), [row.label for row in training])
         metrics = _ordered_metrics(
             [row.label for row in validation],
@@ -500,7 +425,9 @@ def train_stage_candidate(
         ),
     )
     development = training + validation
-    frozen = _candidate_models(catalog, seed)[selected_name]
+    frozen = build_training_candidates(
+        catalog.numeric_features, catalog.categorical_features, seed
+    )[selected_name]
     frozen.fit(
         _frame(development, catalog), [row.label for row in development]
     )
